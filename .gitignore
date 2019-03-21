@@ -39,3 +39,6 @@ xcuserdata/**
 *.iml
 local.properties
 gradleBuild
+
+# log file
+*.log
