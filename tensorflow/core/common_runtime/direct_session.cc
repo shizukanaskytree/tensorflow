@@ -70,6 +70,9 @@ limitations under the License.
 #include "tensorflow/core/platform/types.h"
 #include "tensorflow/core/util/device_name_utils.h"
 #include "tensorflow/core/util/env_var.h"
+// wxf
+#include "tensorflow/core/util/dump_graph.h"
+//~wxf
 
 namespace tensorflow {
 
@@ -784,6 +787,17 @@ Status DirectSession::Run(const RunOptions& run_options,
   if (LogMemory::IsEnabled()) {
     LogMemory::RecordStep(step_id, run_state_args.handle);
   }
+
+  // wxf: dump graphs from each executor
+  if (VLOG_IS_ON(1)) {
+	for (const auto& item : executors_and_keys->items) {
+	  DumpGraphDefToFile(
+	    "DumpGraphBeforeRunInternal",
+		item.graph->ToGraphDefDebug());
+	}
+
+  }
+  //~wxf
 
   TF_RETURN_IF_ERROR(RunInternal(step_id, run_options, &call_frame,
                                  executors_and_keys, run_metadata));
