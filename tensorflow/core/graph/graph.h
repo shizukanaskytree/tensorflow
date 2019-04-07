@@ -566,6 +566,11 @@ class Graph {
   // not defined in some TensorFlow builds.
   GraphDef ToGraphDefDebug() const;
 
+  // wxf 
+  // To dump all nodes inside a Graph data structure
+  GraphDef ToAllGraphDefDebug() const;
+  // ~wxf
+
   // Generate new node name with the specified prefix that is unique
   // across this graph.
   string NewName(StringPiece prefix);

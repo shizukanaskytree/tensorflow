@@ -631,6 +631,95 @@ GraphDef Graph::ToGraphDefDebug() const {
   return ret;
 }
 
+// wxf 
+GraphDef Graph::ToAllGraphDefDebug() const {
+  GraphDef ret;
+  GraphDef* graph_def = &ret;
+  graph_def->Clear();
+  *graph_def->mutable_versions() = versions();
+  // ops_ is FunctionLibraryDefinition, registry of all known ops
+  *graph_def->mutable_library() = ops_.ToProto();
+
+  // start from _SOURCE node
+  int from_node_id = 0;
+  graph_def->mutable_node()->Reserve(std::max(1, num_nodes() - from_node_id));
+
+  std::vector<const Edge*> inputs;
+
+  for (int id = from_node_id; id < num_node_ids(); ++id){
+    const Node* node = FindNodeId(id);
+    // Skip nullptr nodes but preserve two special nodes: Souce and Sink
+    if (node == nullptr ) { 
+      if (VLOG_IS_ON(1)){
+        VLOG(1) << "node* is nullptr."; 
+      }
+      continue; 
+    }
+
+    // Construct an empty NodeDef node_def inside the output graph_def
+    NodeDef* node_def = graph_def->add_node();
+    // Assign NodeDef attrs to node_def object
+    // Write the content to the output NodeDef
+    *node_def = node->def();
+
+    // Use the node's assigned device, if any, instead of the device requested
+    // in the NodeDef
+    if (!node->assigned_device_name().empty()){
+      node_def->set_device(node->assigned_device_name());
+    }
+
+    // Assign input edge for this node.
+    // We make sure control inputs are after data inputs, as required by 
+    // GraphDef, NodeDef: tensorflow/core/framework/node_def.proto
+    inputs.clear();
+    inputs.resize(node->num_inputs(), nullptr);
+    // Write to the output
+    for (const Edge* edge : node->in_edges()) {
+      if (edge->IsControlEdge()) {
+        inputs.push_back(edge);
+      } else {
+        // Check each input of this node was initially nullptr
+        // Otherwise, report that it already has pre-existing input edge
+        CHECK(inputs[edge->dst_input()] == nullptr)
+            << "Edge " << edge->src()->DebugString() << ":"
+            << edge->dst()->DebugString() << " with dst_input "
+            << edge->dst_input() << " and had pre-existing input edge "
+            << inputs[edge->dst_input()]->src()->DebugString() << ":"
+            << inputs[edge->dst_input()]->dst()->DebugString();
+
+        inputs[edge->dst_input()] = edge;
+      }
+    }
+
+    // Sort the control inputs for more predicatable serialization.
+    // control inputs are starting from the last input edge + 1, which is the offset.
+    std::sort(inputs.begin() + node->num_inputs(), inputs.end(),
+              // ascending order by alphabet
+              [](const Edge* a, const Edge* b) -> bool {
+                return a->src()->name() < b->src()->name();
+              });
+
+    node_def->clear_input();
+    node_def->mutable_input()->Reserve(inputs.size());
+
+    // Assign the sorted edge names to the output node_def of output graph_def
+    for (size_t i = 0; i < inputs.size(); ++i) {
+      const Edge* edge = inputs[i];
+      if (edge == nullptr) {
+        if (i < node->requested_inputs().size()) {
+          node_def->add_input(node->requested_inputs()[i]);
+        } else {
+          node_def->add_input("");
+        }
+      } else {
+        const Node* src = edge->src();
+        AddInput(node_def, src->name(), edge->src_output());
+      }
+    }
+  } // end for of each node 
+}
+//~wxf
+
 void Graph::ToGraphDefSubRange(GraphDef* graph_def, int from_node_id) const {
   graph_def->Clear();
   *graph_def->mutable_versions() = versions();

@@ -28,7 +28,7 @@ import argparse
 import os
 import sys
 
-os.environ['TF_CPP_MIN_VLOG_LEVEL'] = '3'
+os.environ['TF_CPP_MIN_VLOG_LEVEL'] = '0'
 
 import tensorflow as tf
 
