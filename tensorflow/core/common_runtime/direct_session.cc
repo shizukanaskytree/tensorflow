@@ -793,7 +793,8 @@ Status DirectSession::Run(const RunOptions& run_options,
 	for (const auto& item : executors_and_keys->items) {
 	  DumpGraphDefToFile(
 	    "DumpGraphBeforeRunInternal",
-		item.graph->ToAllGraphDefDebug());
+		item.graph->ToGraphDefDebug());
+		//item.graph->ToAllGraphDefDebug());
 	}
 
   }
