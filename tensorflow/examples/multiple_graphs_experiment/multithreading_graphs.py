@@ -63,10 +63,10 @@ def graph2_inference():
 
 
 g1_worker = threading.Thread(name='g1', target=graph1_inference)
-#g2_worker = threading.Thread(name='g2', target=graph2_inference)
+g2_worker = threading.Thread(name='g2', target=graph2_inference)
 
 g1_worker.start()
-#g2_worker.start()
+g2_worker.start()
 
 logging.debug('Waiting for worker threads')
 
