@@ -323,8 +323,6 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
           }
         }
         if (t.f) {
-          // wxf: test
-          int wxf = 0;
           env_.ExecuteTask(t);
         }
       }
