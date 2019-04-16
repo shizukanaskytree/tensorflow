@@ -77,7 +77,7 @@ class RunHandlerPool {
 // This class is thread safe.
 class RunHandler {
  public:
-  void ScheduleInterOpClosure(std::function<void()> fn);
+  void ScheduleInterOpClosure(std::function<void()> fn, int gpriority=0);
 
   ~RunHandler();
 

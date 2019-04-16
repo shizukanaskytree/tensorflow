@@ -48,7 +48,7 @@ class RunHandler::Impl {
   // requested via RunHandlerPool::Get().
   uint64 start_time_us() const { return start_time_us_; }
 
-  void ScheduleInterOpClosure(std::function<void()> fn);
+  void ScheduleInterOpClosure(std::function<void()> fn, int gpriority=0);
 
   void Reset();
 
@@ -241,12 +241,12 @@ void RunHandlerPool::Impl::RecomputePoolStatsLocked() {
   }
 }
 
-void RunHandler::Impl::ScheduleInterOpClosure(std::function<void()> fn) {
+void RunHandler::Impl::ScheduleInterOpClosure(std::function<void()> fn, int gpriority) {
   std::uint_fast32_t start = 0, limit = 0;
   DecodePartition(inter_op_scheduling_range(), &start, &limit);
   DCHECK_LT(start, limit);
   pool_impl_->inter_op_thread_pool()->ScheduleWithHint(std::move(fn), start,
-                                                       limit);
+                                                       limit, gpriority);
 }
 
 void RunHandler::Impl::Reset() {
@@ -264,8 +264,8 @@ std::unique_ptr<RunHandler> RunHandlerPool::Get() { return impl_->Get(); }
 
 RunHandler::RunHandler(Impl* impl) : impl_(impl) {}
 
-void RunHandler::ScheduleInterOpClosure(std::function<void()> fn) {
-  impl_->ScheduleInterOpClosure(std::move(fn));
+void RunHandler::ScheduleInterOpClosure(std::function<void()> fn, int gpriority) {
+  impl_->ScheduleInterOpClosure(std::move(fn), gpriority);
 }
 
 RunHandler::~RunHandler() { impl_->pool_impl()->ReleaseHandler(impl_); }

@@ -99,12 +99,12 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   }
 
   void Schedule(std::function<void()> fn, int gpriority=0) EIGEN_OVERRIDE {
-    ScheduleWithHint(std::move(fn), 0, num_threads_);
+    ScheduleWithHint(std::move(fn), 0, num_threads_, gpriority);
   }
 
   void ScheduleWithHint(std::function<void()> fn, int start,
-                        int limit) override {
-    Task t = env_.CreateTask(std::move(fn));
+                        int limit, int gpriority=0) override {
+    Task t = env_.CreateTask(std::move(fn), gpriority);
     PerThread* pt = GetPerThread();
     if (pt->pool == this) {
       // Worker thread of this pool, push onto the thread's queue.

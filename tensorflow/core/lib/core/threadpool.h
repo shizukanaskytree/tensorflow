@@ -66,7 +66,7 @@ class ThreadPool {
   void SetStealPartitions(
       const std::vector<std::pair<unsigned, unsigned>>& partitions);
 
-  void ScheduleWithHint(std::function<void()> fn, int start, int limit);
+  void ScheduleWithHint(std::function<void()> fn, int start, int limit, int gpriority=0);
   // Requires 0 < block_size <= total.
   // Spawns k threads and calls fn(i*block_size, (i+1)*block_size) from the
   // ith thread (i>=0). When (i+1)*block_size > total, fn(i*block_size, total)

@@ -634,7 +634,7 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
     default_runner = [](Executor::Args::Closure c, int32 gpriority) { c(); };
   } else if (handler_ptr != nullptr) {
     default_runner = [handler_ptr](Executor::Args::Closure c, int32 gpriority) {
-      handler_ptr->ScheduleInterOpClosure(std::move(c));
+      handler_ptr->ScheduleInterOpClosure(std::move(c), gpriority);
     };
   } else {
     default_runner = [this, pool](Executor::Args::Closure c, int32 gpriority) {

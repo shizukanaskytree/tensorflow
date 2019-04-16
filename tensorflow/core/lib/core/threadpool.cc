@@ -62,7 +62,7 @@ struct EigenEnvironment {
     });
   }
 
-  Task CreateTask(std::function<void()> f) {
+  Task CreateTask(std::function<void()> f, int gpriority=0) {
     uint64 id = 0;
     if (tracing::EventCollector::IsEnabled()) {
       id = tracing::GetUniqueArg();
@@ -200,8 +200,8 @@ int ThreadPool::NumThreads() const { return impl_->NumThreads(); }
 int ThreadPool::CurrentThreadId() const { return impl_->CurrentThreadId(); }
 
 void ThreadPool::ScheduleWithHint(std::function<void()> fn, int start,
-                                  int limit) {
-  impl_->ScheduleWithHint(std::move(fn), start, limit);
+                                  int limit, int gpriority) {
+  impl_->ScheduleWithHint(std::move(fn), start, limit, gpriority);
 }
 
 void ThreadPool::SetStealPartitions(

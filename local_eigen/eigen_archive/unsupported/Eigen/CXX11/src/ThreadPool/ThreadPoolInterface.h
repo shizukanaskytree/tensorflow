@@ -22,10 +22,10 @@ class ThreadPoolInterface {
   // Submits a closure to be run by threads in the range [start, end) in the
   // pool.
   virtual void ScheduleWithHint(std::function<void()> fn, int /*start*/,
-                                int /*end*/) {
+                                int /*end*/, int gpriority=0) {
     // Just defer to Schedule in case sub-classes aren't interested in
     // overriding this functionality.
-    Schedule(fn);
+    Schedule(fn, gpriority);
   }
 
   // If implemented, stop processing the closures that have been enqueued.
