@@ -506,6 +506,9 @@ message RunOptions {
   Experimental experimental = 8;
 
   reserved 4;
+  
+  // graph priority, added by wxf
+  int32 gpriority = 9;
 }
 
 // Metadata output (i.e., non-Tensor) for a single Run() call.

@@ -98,8 +98,11 @@ class Executor {
     bool sync_on_finish = false;
 
     typedef std::function<void()> Closure;
-    typedef std::function<void(Closure)> Runner;
+    typedef std::function<void(Closure, int32 gpriority)> Runner;
     Runner runner = nullptr;
+    // graph priority added by wx
+    // The higer, the more urgent
+    int32 gpriority = 0;
   };
   typedef std::function<void(const Status&)> DoneCallback;
   virtual void RunAsync(const Args& args, DoneCallback done) = 0;

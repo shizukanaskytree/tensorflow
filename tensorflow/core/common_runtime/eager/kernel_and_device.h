@@ -64,14 +64,14 @@ class KernelAndDevice {
   // (currently can happen only for multi-device functions).
   KernelAndDevice(
       FunctionLibraryRuntime* flr,
-      std::function<void(std::function<void()>)>* runner,
+      std::function<void(std::function<void()>, int32 gpriority)>* runner,
       std::unique_ptr<CollectiveExecutor::Handle> collective_executor,
       Device* host_cpu_device)
       : device_(flr == nullptr ? nullptr : flr->device()),
         host_cpu_device_(host_cpu_device),
         flr_(flr),
         runner_(runner),
-        default_runner_([](std::function<void()> f) { f(); }),
+        default_runner_([](std::function<void()> f, int32 gpriority/*TODO wxf gpriority hardcoded*/) { f(); }), 
         collective_executor_(std::move(collective_executor)) {}
 
   // Not thread safe.
@@ -121,8 +121,8 @@ class KernelAndDevice {
   Device* const device_;               // can be null
   Device* const host_cpu_device_;      // non-null
   FunctionLibraryRuntime* const flr_;  // can be null
-  std::function<void(std::function<void()>)>* const runner_;
-  std::function<void(std::function<void()>)> default_runner_;
+  std::function<void(std::function<void()>, int32 gpriority)>* const runner_;
+  std::function<void(std::function<void()>, int32 gpriority)> default_runner_;
   const std::unique_ptr<CollectiveExecutor::Handle> collective_executor_;
 };
 
@@ -132,7 +132,7 @@ class KernelAndDeviceOp final : public KernelAndDevice {
   KernelAndDeviceOp(
       tensorflow::Rendezvous* rendez, bool log_memory,
       FunctionLibraryRuntime* flr,
-      std::function<void(std::function<void()>)>* runner,
+      std::function<void(std::function<void()>, int32 gpriority)>* runner,
       std::unique_ptr<CollectiveExecutor::Handle> collective_executor,
       Device* host_cpu_device)
       : KernelAndDevice(flr, runner, std::move(collective_executor),
@@ -193,7 +193,7 @@ class KernelAndDeviceFunc final : public KernelAndDevice {
   KernelAndDeviceFunc(
       FunctionLibraryRuntime* flr, ProcessFunctionLibraryRuntime* pflr,
       std::vector<Device*> input_devices,
-      std::function<void(std::function<void()>)>* runner,
+      std::function<void(std::function<void()>, int32 gpriority)>* runner,
       std::unique_ptr<CollectiveExecutor::Handle> collective_executor,
       Device* host_cpu_device)
       : KernelAndDevice(flr, runner, std::move(collective_executor),

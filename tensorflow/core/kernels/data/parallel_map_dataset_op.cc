@@ -258,7 +258,7 @@ class ParallelMapDatasetOp : public UnaryDatasetOpKernel {
         if (!dataset_->use_inter_op_parallelism_) {
           (*ctx->runner())(std::bind(map_func, ctx, prefix,
                                      std::move(input_element), result,
-                                     std::move(done)));
+                                     std::move(done)), 0 /*hardcode, wxf, gpriority*/);
         } else {
           map_func(ctx, prefix, std::move(input_element), result,
                    std::move(done));

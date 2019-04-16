@@ -620,7 +620,7 @@ class FunctionLibraryRuntime {
     ScopedStepContainer* step_container = nullptr;
     StepStatsCollectorInterface* stats_collector = nullptr;
 
-    std::function<void(std::function<void()>)>* runner = nullptr;
+    std::function<void(std::function<void()>, int32 gpriority)>* runner = nullptr;
 
     // Parameters for remote function execution.
     bool remote_execution = false;
@@ -664,7 +664,7 @@ class FunctionLibraryRuntime {
   // Returns the default runner in which the ops should be launched. If the
   // device on which the function executes has a private thread pool, return
   // runner on the device local thread pool.
-  virtual std::function<void(std::function<void()>)>* runner() = 0;
+  virtual std::function<void(std::function<void()>, int32 gpriority)>* runner() = 0;
 
   // Get the DeviceMgr from which the device was obtained.
   virtual const DeviceMgr* device_mgr() const = 0;

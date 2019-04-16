@@ -138,7 +138,7 @@ class MapDefunOp : public AsyncOpKernel {
     const std::vector<TensorShape> arg_shapes;
     OpInputList captured_inputs;
     const int64 batch_size;
-    std::function<void(std::function<void()>)> runner;
+    std::function<void(std::function<void()>, int32 gpriority)> runner;
 
     // Output of a compute call
     std::vector<PartialTensorShape> output_shapes GUARDED_BY(mu);

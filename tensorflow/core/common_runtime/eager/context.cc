@@ -77,7 +77,7 @@ EagerContext::EagerContext(const SessionOptions& opts,
     local_unowned_device_manager_ = device_mgr;
   }
   InitDeviceMapAndAsync();
-  runner_ = [this](std::function<void()> closure) {
+  runner_ = [this](std::function<void()> closure, int32 gpriority) {
     this->thread_pool_->Schedule(std::move(closure));
   };
 

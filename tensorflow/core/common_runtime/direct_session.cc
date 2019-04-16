@@ -540,6 +540,8 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
   args.tensor_store = &run_state.tensor_store;
   args.step_container = &run_state.step_container;
   args.sync_on_finish = sync_on_finish_;
+  // add graph priority by wxf
+  args.gpriority = run_options.gpriority(); 
 
   const bool do_trace = (run_options.trace_level() > RunOptions::NO_TRACE);
 
@@ -628,13 +630,13 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
   Executor::Args::Runner default_runner = nullptr;
 
   if (pool == nullptr) {
-    default_runner = [](Executor::Args::Closure c) { c(); };
+    default_runner = [](Executor::Args::Closure c, int32 gpriority) { c(); };
   } else if (handler_ptr != nullptr) {
-    default_runner = [handler_ptr](Executor::Args::Closure c) {
+    default_runner = [handler_ptr](Executor::Args::Closure c, int32 gpriority) {
       handler_ptr->ScheduleInterOpClosure(std::move(c));
     };
   } else {
-    default_runner = [this, pool](Executor::Args::Closure c) {
+    default_runner = [this, pool](Executor::Args::Closure c, int32 gpriority) {
       SchedClosure(pool, std::move(c));
     };
   }
@@ -650,7 +652,7 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
     if (!device_thread_pool) {
       args.runner = default_runner;
     } else {
-      args.runner = [this, device_thread_pool](Executor::Args::Closure c) {
+      args.runner = [this, device_thread_pool](Executor::Args::Closure c, int32 gpriority) {
         SchedClosure(device_thread_pool, std::move(c));
       };
     }
@@ -900,7 +902,7 @@ Status DirectSession::PRunSetup(const std::vector<string>& input_names,
   // because RunOptions is not passed in so we can't know whether
   // their use is intended.
   args.collective_executor = nullptr;
-  args.runner = [this, pool](Executor::Args::Closure c) {
+  args.runner = [this, pool](Executor::Args::Closure c, int32 gpriority) {
     SchedClosure(pool, std::move(c));
   };
   args.session_state = &session_state_;

@@ -107,8 +107,8 @@ Status AddToFunctionLibrary(FunctionLibraryDefinition* base,
                             const FunctionDefLibrary& to_add);
 
 // Creates a runner that runs functions with limited parallelism.
-std::function<void(std::function<void()>)> RunnerWithMaxParallelism(
-    std::function<void(std::function<void()>)> runner, int max_parallelism);
+std::function<void(std::function<void()>, int32 gpriority)> RunnerWithMaxParallelism(
+    std::function<void(std::function<void()>, int32 gpriority)> runner, int max_parallelism);
 
 }  // namespace data
 }  // namespace tensorflow

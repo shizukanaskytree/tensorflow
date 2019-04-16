@@ -126,7 +126,7 @@ class MapAndBatchDatasetOp : public UnaryDatasetOpKernel {
         // Run the `done` callback on a threadpool thread, because it will
         // potentially do a lot of copying work, and we want to run that
         // concurrently with the next invocation.
-        (*ctx->runner())(std::bind(std::move(done), Status::OK()));
+        (*ctx->runner())(std::bind(std::move(done), Status::OK()), 0 /*wxf, hardcode, gpriority*/);
       };
     }
 

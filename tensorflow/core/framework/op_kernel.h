@@ -665,7 +665,7 @@ class OpKernelContext {
     // Function call supports.
     CallFrameInterface* call_frame = nullptr;
     FunctionLibraryRuntime* function_library = nullptr;
-    std::function<void(std::function<void()>)>* runner = nullptr;
+    std::function<void(std::function<void()>, int32 gpriority)>* runner = nullptr;
     StepStatsCollectorInterface* stats_collector = nullptr;
     GraphCollector* graph_collector = nullptr;
 
@@ -1090,7 +1090,7 @@ class OpKernelContext {
     return params_->function_library;
   }
 
-  std::function<void(std::function<void()>)>* runner() const {
+  std::function<void(std::function<void()>, int32 gpriority)>* runner() const {
     return params_->runner;
   }
   StepStatsCollectorInterface* stats_collector() const {

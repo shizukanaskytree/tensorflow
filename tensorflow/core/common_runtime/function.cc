@@ -194,7 +194,7 @@ class FunctionLibraryRuntimeOverlay : public FunctionLibraryRuntime {
 
   Env* env() override;
   Device* device() override;
-  std::function<void(std::function<void()>)>* runner() override;
+  std::function<void(std::function<void()>, int32 gpriority)>* runner() override;
   const DeviceMgr* device_mgr() const override;
 
   string DebugString(Handle handle) override;
@@ -269,7 +269,7 @@ Env* FunctionLibraryRuntimeOverlay::env() { return base_flr_->env(); }
 
 Device* FunctionLibraryRuntimeOverlay::device() { return base_flr_->device(); }
 
-std::function<void(std::function<void()>)>*
+std::function<void(std::function<void()>, int32 gpriority)>*
 FunctionLibraryRuntimeOverlay::runner() {
   return base_flr_->runner();
 }
@@ -342,7 +342,7 @@ class FunctionLibraryRuntimeImpl : public FunctionLibraryRuntime {
 
   Device* device() override { return device_; }
 
-  std::function<void(std::function<void()>)>* runner() override {
+  std::function<void(std::function<void()>, int32 gpriority)>* runner() override {
     return &default_runner_;
   }
 
@@ -455,7 +455,7 @@ FunctionLibraryRuntimeImpl::FunctionLibraryRuntimeImpl(
     pool = default_thread_pool;
   }
   if (pool != nullptr) {
-    default_runner_ = [pool](Executor::Args::Closure c) {
+    default_runner_ = [pool](Executor::Args::Closure c, int32 gpriority) {
       pool->Schedule(std::move(c));
     };
   }

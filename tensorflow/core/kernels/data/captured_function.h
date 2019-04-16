@@ -95,7 +95,7 @@ class InstantiatedCapturedFunction {
   InstantiatedCapturedFunction(
       FunctionLibraryRuntime* lib, FunctionLibraryRuntime::Handle f_handle,
       DataTypeVector ret_types,
-      std::function<void(std::function<void()>)> runner,
+      std::function<void(std::function<void()>, int32 gpriority)> runner,
       CapturedFunction* captured_func);
 
   friend class CapturedFunction;
@@ -103,7 +103,7 @@ class InstantiatedCapturedFunction {
   FunctionLibraryRuntime* const lib_;
   const FunctionLibraryRuntime::Handle f_handle_;
   const DataTypeVector ret_types_;
-  std::function<void(std::function<void()>)> captured_runner_;
+  std::function<void(std::function<void()>, int32 gpriority)> captured_runner_;
   CapturedFunction* const captured_func_;
 
   TF_DISALLOW_COPY_AND_ASSIGN(InstantiatedCapturedFunction);

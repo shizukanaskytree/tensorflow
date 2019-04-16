@@ -307,7 +307,7 @@ class MultiDeviceIterator : public ResourceBase {
         }
 
         if (callback) {
-          (*ctx->runner())(std::bind(std::move(callback), std::move(elem)));
+          (*ctx->runner())(std::bind(std::move(callback), std::move(elem)), 0 /*hardcode, wxf, gpriority*/);
         }
 
         // Finish off the thread if we reach the end of the iterator. Runs

@@ -214,7 +214,7 @@ class ThreadPoolDatasetOp : public UnaryDatasetOpKernel {
       IteratorContext::Params CreateParams(IteratorContext* ctx) {
         ThreadPoolResource* pool = dataset()->threadpool_;
         IteratorContext::Params params(ctx);
-        params.runner = [pool](std::function<void()> c) {
+        params.runner = [pool](std::function<void()> c, int32 gpriority) {
           pool->Schedule(std::move(c));
         };
         params.runner_threadpool_size = pool->NumThreads();
@@ -407,7 +407,7 @@ class PrivateThreadPoolDatasetOp : public UnaryDatasetOpKernel {
                              bool* end_of_sequence) override {
         thread::ThreadPool* pool = dataset()->thread_pool_.get();
         IteratorContext::Params params(ctx);
-        params.runner = [pool](std::function<void()> c) {
+        params.runner = [pool](std::function<void()> c, int32 gpriority) {
           pool->Schedule(std::move(c));
         };
         params.runner_threadpool_size = dataset()->num_threads_;

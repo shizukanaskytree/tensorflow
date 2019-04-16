@@ -151,7 +151,7 @@ Status GraphRunner::Run(Graph* graph, FunctionLibraryRuntime* function_library,
 
   // Run operators on the local thread. We should not need concurrency here; we
   // should not be running expensive operators.
-  auto runner = [](Executor::Args::Closure c) { c(); };
+  auto runner = [](Executor::Args::Closure c, int32 gpriority) { c(); };
 
   LocalExecutorParams params;
   // The ownership of the output tensors are bound to this device's lifetime.

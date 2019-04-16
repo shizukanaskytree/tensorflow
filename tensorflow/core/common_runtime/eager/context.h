@@ -100,7 +100,7 @@ class EagerContext {
 
   EagerExecutor* Executor() { return &executor_; }
 
-  std::function<void(std::function<void()>)>* runner() { return &runner_; }
+  std::function<void(std::function<void()>, int32 gpriority)>* runner() { return &runner_; }
 
   // Sets whether this thread should run in synchronous or asynchronous mode.
   Status SetAsyncForThread(bool async);
@@ -278,7 +278,7 @@ class EagerContext {
   // session->devices[i].
   std::unique_ptr<ProcessFunctionLibraryRuntime> pflr_;
 
-  std::function<void(std::function<void()>)> runner_;
+  std::function<void(std::function<void()>, int32 gpriority)> runner_;
 
   mutex cache_mu_;
   std::unordered_map<Fprint128, KernelAndDevice*, Fprint128Hasher> kernel_cache_

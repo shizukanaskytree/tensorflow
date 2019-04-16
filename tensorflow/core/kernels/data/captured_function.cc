@@ -282,7 +282,7 @@ class BorrowedArgsCallFrame : public CallFrameBase {
 
 InstantiatedCapturedFunction::InstantiatedCapturedFunction(
     FunctionLibraryRuntime* lib, FunctionLibraryRuntime::Handle f_handle,
-    DataTypeVector ret_types, std::function<void(std::function<void()>)> runner,
+    DataTypeVector ret_types, std::function<void(std::function<void()>, int32 gpriority)> runner,
     CapturedFunction* captured_func)
     : lib_(lib),
       f_handle_(f_handle),

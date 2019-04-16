@@ -14,6 +14,9 @@ logging.basicConfig(level=logging.DEBUG,
 
 from tensorflow.examples.tutorials.mnist import input_data
 
+# Import MNIST data
+mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
+
 def graph1_training():
     """ Neural Network.
     A 2-Hidden Layers Fully Connected Neural Network (a.k.a Multilayer Perceptron)
@@ -24,11 +27,6 @@ def graph1_training():
     Author: Aymeric Damien
     Project: https://github.com/aymericdamien/TensorFlow-Examples/
     """
-
-    # Import MNIST data
-    mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
-
-    import tensorflow as tf
 
     # Parameters
     learning_rate = 0.1
@@ -121,12 +119,6 @@ def graph2_training():
     Author: Aymeric Damien
     Project: https://github.com/aymericdamien/TensorFlow-Examples/
     """
-
-
-    # Import MNIST data
-    mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
-
-    import tensorflow as tf
 
     # Parameters
     learning_rate = 0.1

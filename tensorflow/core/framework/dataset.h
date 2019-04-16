@@ -334,7 +334,7 @@ class IteratorContext {
     std::shared_ptr<model::Model> model = nullptr;
 
     // Function call support.
-    std::function<void(std::function<void()>)> runner = nullptr;
+    std::function<void(std::function<void()>, int32 gpriority)> runner = nullptr;
 
     // Number of threads used for executing user-defined functions.
     int32 runner_threadpool_size = 0;
@@ -377,7 +377,7 @@ class IteratorContext {
 
   const std::shared_ptr<model::Model>& model() { return params_.model; }
 
-  std::function<void(std::function<void()>)>* runner() {
+  std::function<void(std::function<void()>, int32 gpriority)>* runner() {
     return &params_.runner;
   }
 

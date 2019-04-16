@@ -358,7 +358,7 @@ class ParseExampleDatasetOp : public UnaryDatasetOpKernel {
             }
           }
           callback(s);
-        });
+        }, 0 /*hardcoded, gpriority, wxf*/);
       }
 
      private:

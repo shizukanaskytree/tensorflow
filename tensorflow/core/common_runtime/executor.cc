@@ -1242,6 +1242,9 @@ class ExecutorState {
   const bool log_memory_;
 
   int64 step_id_;
+  // graph priority added by wxf
+  int32 gpriority;
+
   // Not owned.
   Rendezvous* rendezvous_;
   CollectiveExecutor* collective_executor_ = nullptr;
@@ -1379,6 +1382,7 @@ ExecutorState::ExecutorState(const Executor::Args& args, ExecutorImpl* impl)
     : vlog_(VLOG_IS_ON(1)),
       log_memory_(LogMemory::IsEnabled()),
       step_id_(args.step_id),
+      gpriority(args.gpriority), // graph priority added by wxf
       rendezvous_(args.rendezvous),
       collective_executor_(args.collective_executor),
       session_state_(args.session_state),
@@ -2262,7 +2266,7 @@ void ExecutorState::ScheduleReady(const TaggedNodeSeq& ready,
   if (inline_ready == nullptr) {
     // Schedule to run all the ready ops in thread pool.
     for (auto& tagged_node : ready) {
-      runner_([=]() { Process(tagged_node, scheduled_nsec); });
+      runner_([=]() { Process(tagged_node, scheduled_nsec); }, gpriority);
     }
     return;
   }
@@ -2279,7 +2283,7 @@ void ExecutorState::ScheduleReady(const TaggedNodeSeq& ready,
         // Dispatch to another thread since there is plenty of work to
         // do for this thread.
         runner_(std::bind(&ExecutorState::Process, this, *curr_expensive_node,
-                          scheduled_nsec));
+                          scheduled_nsec), gpriority);
       }
       curr_expensive_node = &tagged_node;
     }
@@ -2292,7 +2296,7 @@ void ExecutorState::ScheduleReady(const TaggedNodeSeq& ready,
       // There are inline nodes to run already. We dispatch this expensive
       // node to other thread.
       runner_(std::bind(&ExecutorState::Process, this, *curr_expensive_node,
-                        scheduled_nsec));
+                        scheduled_nsec), gpriority);
     }
   }
 }
@@ -2504,7 +2508,7 @@ void ExecutorState::Finish() {
       }
     }
     delete this;
-    runner([=]() { done_cb(status); });
+    runner([=]() { done_cb(status); }, gpriority);
     return;
   }
 
@@ -2516,11 +2520,11 @@ void ExecutorState::Finish() {
     device->Sync([=](Status new_status) mutable {
       status.Update(new_status);
       delete this;
-      runner([=]() { done_cb(status); });
+      runner([=]() { done_cb(status); }, gpriority);
     });
   } else {
     delete this;
-    runner([=]() { done_cb(status); });
+    runner([=]() { done_cb(status); }, gpriority);
   }
 }
 

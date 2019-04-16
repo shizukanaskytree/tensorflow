@@ -321,7 +321,7 @@ class MatchingFilesDatasetOp : public DatasetOpKernel {
             (*ctx->runner())([&is_directory_fn, &counter, i] {
               is_directory_fn(i);
               counter.DecrementCount();
-            });
+            }, 0 /*gpriority, wxf hardcoded TODO*/);
           }
           counter.Wait();
 
