@@ -123,7 +123,7 @@ ThreadPool::ThreadPool(Env* env, const ThreadOptions& thread_options,
 
 ThreadPool::~ThreadPool() {}
 
-void ThreadPool::Schedule(std::function<void()> fn) {
+void ThreadPool::Schedule(std::function<void()> fn, int32 gpriority) {
   CHECK(fn != nullptr);
   impl_->Schedule(std::move(fn));
 }

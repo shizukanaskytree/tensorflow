@@ -331,7 +331,7 @@ class DirectSession : public Session {
   // If true, blocks until device has finished all queued operations in a step.
   bool sync_on_finish_ = true;
   // Schedules 'c' for execution on pool.
-  void SchedClosure(thread::ThreadPool* pool, std::function<void()> c);
+  void SchedClosure(thread::ThreadPool* pool, std::function<void()> c, int32 gpriority=0);
 
   std::vector<std::unique_ptr<FunctionInfo>> functions_
       GUARDED_BY(executor_lock_);

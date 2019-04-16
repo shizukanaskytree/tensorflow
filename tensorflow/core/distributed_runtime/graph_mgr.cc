@@ -499,9 +499,10 @@ void GraphMgr::StartParallelExecutors(const string& handle, int64 step_id,
   }
   thread::ThreadPool* pool = worker_env_->compute_pool;
   using std::placeholders::_1;
+  using std::placeholders::_2;
   // Line below is equivalent to this code, but does one less indirect call:
   //  args.runner = [pool](std::function<void()> fn) { pool->Schedule(fn); };
-  auto default_runner = std::bind(&thread::ThreadPool::Schedule, pool, _1);
+  auto default_runner = std::bind(&thread::ThreadPool::Schedule, pool, _1, _2);
   for (const auto& unit : item->units) {
     // TODO(zhengxq): if the device picks its own threadpool, we need to assign
     //     less threads to the main compute pool by default.
@@ -511,7 +512,7 @@ void GraphMgr::StartParallelExecutors(const string& handle, int64 step_id,
       args.runner = default_runner;
     } else {
       args.runner =
-          std::bind(&thread::ThreadPool::Schedule, device_thread_pool, _1);
+          std::bind(&thread::ThreadPool::Schedule, device_thread_pool, _1, _2);
     }
     unit.root->RunAsync(args, barrier->Get());
   }

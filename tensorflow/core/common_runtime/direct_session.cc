@@ -233,7 +233,8 @@ std::atomic_int_fast64_t DirectSession::step_id_counter_(1);
 // devices that run concurrently, in which case we will need to
 // revisit this decision.
 void DirectSession::SchedClosure(thread::ThreadPool* pool,
-                                 std::function<void()> c) {
+                                 std::function<void()> c,
+                                 int32 gpriority) {
 // TODO(sanjay): Get rid of __ANDROID__ path
 #ifdef __ANDROID__
   // On Android, there is no implementation of ThreadPool that takes
@@ -244,7 +245,7 @@ void DirectSession::SchedClosure(thread::ThreadPool* pool,
   c();
 #else
   if (pool != nullptr) {
-    pool->Schedule(std::move(c));
+    pool->Schedule(std::move(c), gpriority);
   } else {
     c();
   }
@@ -637,7 +638,7 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
     };
   } else {
     default_runner = [this, pool](Executor::Args::Closure c, int32 gpriority) {
-      SchedClosure(pool, std::move(c));
+      SchedClosure(pool, std::move(c), gpriority);
     };
   }
 
@@ -653,7 +654,7 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
       args.runner = default_runner;
     } else {
       args.runner = [this, device_thread_pool](Executor::Args::Closure c, int32 gpriority) {
-        SchedClosure(device_thread_pool, std::move(c));
+        SchedClosure(device_thread_pool, std::move(c), gpriority);
       };
     }
     item.executor->RunAsync(args, barrier->Get());
@@ -903,7 +904,7 @@ Status DirectSession::PRunSetup(const std::vector<string>& input_names,
   // their use is intended.
   args.collective_executor = nullptr;
   args.runner = [this, pool](Executor::Args::Closure c, int32 gpriority) {
-    SchedClosure(pool, std::move(c));
+    SchedClosure(pool, std::move(c), gpriority);
   };
   args.session_state = &session_state_;
   args.session_handle = session_handle_;
