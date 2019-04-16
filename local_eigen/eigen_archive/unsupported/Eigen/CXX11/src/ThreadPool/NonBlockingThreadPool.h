@@ -98,7 +98,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     }
   }
 
-  void Schedule(std::function<void()> fn) EIGEN_OVERRIDE {
+  void Schedule(std::function<void()> fn, int gpriority=0) EIGEN_OVERRIDE {
     ScheduleWithHint(std::move(fn), 0, num_threads_);
   }
 

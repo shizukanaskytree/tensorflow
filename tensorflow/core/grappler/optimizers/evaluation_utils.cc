@@ -31,7 +31,7 @@ class EigenThreadPoolWrapper : public Eigen::ThreadPoolInterface {
  public:
   explicit EigenThreadPoolWrapper(thread::ThreadPool* pool) : pool_(pool) {}
   ~EigenThreadPoolWrapper() override {}
-  void Schedule(std::function<void()> fn) override {
+  void Schedule(std::function<void()> fn, int gpriority=0) override {
     auto wrapped = [=]() {
       // TensorFlow flushes denormals to zero and rounds to nearest, so we do
       // the same here.
@@ -39,7 +39,7 @@ class EigenThreadPoolWrapper : public Eigen::ThreadPoolInterface {
       port::ScopedSetRound round(FE_TONEAREST);
       fn();
     };
-    pool_->Schedule(std::move(wrapped));
+    pool_->Schedule(std::move(wrapped), gpriority);
   }
   int NumThreads() const override { return pool_->NumThreads(); }
   int CurrentThreadId() const override { return pool_->CurrentThreadId(); }

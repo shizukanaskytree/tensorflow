@@ -74,8 +74,8 @@ class EigenThreadPoolWrapper : public Eigen::ThreadPoolInterface {
       : pool_(pool) {}
   ~EigenThreadPoolWrapper() override {}
 
-  void Schedule(std::function<void()> fn) override {
-    pool_->Schedule(std::move(fn));
+  void Schedule(std::function<void()> fn, int gpriority=0) override {
+    pool_->Schedule(std::move(fn), gpriority);
   }
   int NumThreads() const override { return pool_->NumThreads(); }
   int CurrentThreadId() const override { return pool_->CurrentThreadId(); }

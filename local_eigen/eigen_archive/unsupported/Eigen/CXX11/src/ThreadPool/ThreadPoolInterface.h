@@ -17,7 +17,7 @@ namespace Eigen {
 class ThreadPoolInterface {
  public:
   // Submits a closure to be run by a thread in the pool.
-  virtual void Schedule(std::function<void()> fn) = 0;
+  virtual void Schedule(std::function<void()> fn, int gpriority=0) = 0;
 
   // Submits a closure to be run by threads in the range [start, end) in the
   // pool.
