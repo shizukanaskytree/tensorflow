@@ -62,7 +62,7 @@ struct EigenEnvironment {
     });
   }
 
-  Task CreateTask(std::function<void()> f, int gpriority=0) {
+  Task CreateTask(std::function<void()> f) {
     uint64 id = 0;
     if (tracing::EventCollector::IsEnabled()) {
       id = tracing::GetUniqueArg();

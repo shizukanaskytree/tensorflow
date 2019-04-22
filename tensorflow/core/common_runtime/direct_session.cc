@@ -791,17 +791,17 @@ Status DirectSession::Run(const RunOptions& run_options,
     LogMemory::RecordStep(step_id, run_state_args.handle);
   }
 
-  // wxf: dump graphs from each executor
-  if (VLOG_IS_ON(1)) {
-	for (const auto& item : executors_and_keys->items) {
-	  DumpGraphDefToFile(
-	    "DumpGraphBeforeRunInternal",
-		item.graph->ToGraphDefDebug());
-		//item.graph->ToAllGraphDefDebug());
-	}
-
-  }
-  //~wxf
+//  // wxf: dump graphs from each executor
+//  if (VLOG_IS_ON(1)) {
+//	for (const auto& item : executors_and_keys->items) {
+//	  DumpGraphDefToFile(
+//	    "DumpGraphBeforeRunInternal",
+//		item.graph->ToGraphDefDebug());
+//		//item.graph->ToAllGraphDefDebug());
+//	}
+//
+//  }
+//  //~wxf
 
   TF_RETURN_IF_ERROR(RunInternal(step_id, run_options, &call_frame,
                                  executors_and_keys, run_metadata));

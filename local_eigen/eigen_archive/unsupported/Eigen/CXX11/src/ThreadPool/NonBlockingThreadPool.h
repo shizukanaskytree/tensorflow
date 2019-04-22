@@ -10,6 +10,10 @@
 #ifndef EIGEN_CXX11_THREADPOOL_NONBLOCKING_THREAD_POOL_H
 #define EIGEN_CXX11_THREADPOOL_NONBLOCKING_THREAD_POOL_H
 
+// wxf
+//#include <iostream>
+// ~wxf
+
 namespace Eigen {
 
 template <typename Environment>
@@ -76,7 +80,11 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       // Since we were cancelled, there might be entries in the queues.
       // Empty them to prevent their destructor from asserting.
       for (size_t i = 0; i < thread_data_.size(); i++) {
-        thread_data_[i].queue.Flush();
+        //thread_data_[i].queue.Flush();
+        // wxf
+        thread_data_[i].hpq.Flush();
+        thread_data_[i].lpq.Flush();
+        //~wxf
       }
     }
     // Join threads explicitly (by destroying) to avoid destruction order within
@@ -104,12 +112,22 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
 
   void ScheduleWithHint(std::function<void()> fn, int start,
                         int limit, int gpriority=0) override {
-    Task t = env_.CreateTask(std::move(fn), gpriority);
+    Task t = env_.CreateTask(std::move(fn));
     PerThread* pt = GetPerThread();
     if (pt->pool == this) {
       // Worker thread of this pool, push onto the thread's queue.
-      Queue& q = thread_data_[pt->thread_id].queue;
-      t = q.PushFront(std::move(t));
+      //Queue& q = thread_data_[pt->thread_id].queue;
+      //t = q.PushFront(std::move(t));
+
+      // wxf
+      if (gpriority == 1) {
+        Queue& hpq = thread_data_[pt->thread_id].hpq;
+        t = hpq.PushFront(std::move(t));
+      }else{
+        Queue& lpq = thread_data_[pt->thread_id].lpq;
+        t = lpq.PushFront(std::move(t));
+      }
+      // ~wxf
     } else {
       // A free-standing thread (or worker of another pool), push onto a random
       // queue.
@@ -118,8 +136,18 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       int num_queues = limit - start;
       int rnd = Rand(&pt->rand) % num_queues;
       eigen_plain_assert(start + rnd < limit);
-      Queue& q = thread_data_[start + rnd].queue;
-      t = q.PushBack(std::move(t));
+      //Queue& q = thread_data_[start + rnd].queue;
+      //t = q.PushBack(std::move(t));
+
+      // wxf
+      if (gpriority == 1) {
+        Queue& hpq = thread_data_[start + rnd].hpq;
+        t = hpq.PushBack(std::move(t));
+      }else{
+        Queue& lpq = thread_data_[start + rnd].lpq;
+        t = lpq.PushBack(std::move(t));
+      }
+      // ~wxf
     }
     // Note: below we touch this after making w available to worker threads.
     // Strictly speaking, this can lead to a racy-use-after-free. Consider that
@@ -129,8 +157,14 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     // this. We expect that such scenario is prevented by program, that is,
     // this is kept alive while any threads can potentially be in Schedule.
     if (!t.f) {
+      // wxf
+      //std::cout << "!t.f : Notify(false)" << std::endl; 
+      // ~wxf
       ec_.Notify(false);
     } else {
+      // wxf
+      //std::cout << "t.f : ExecuteTask(t)" << std::endl; 
+      // ~wxf
       env_.ExecuteTask(t);  // Push failed, execute directly.
     }
   }
@@ -226,10 +260,15 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   };
 
   struct ThreadData {
-    constexpr ThreadData() : thread(), steal_partition(0), queue() {}
+    // comment by wxf
+    //constexpr ThreadData() : thread(), steal_partition(0), queue() {}
+    constexpr ThreadData() : thread(), steal_partition(0), 
+                             hpq(), lpq() {}
     std::unique_ptr<Thread> thread;
     std::atomic<unsigned> steal_partition;
-    Queue queue;
+    // Queue queue;// comment by wxf
+    Queue hpq; // thread task queue for inference tasks
+    Queue lpq; // thread task queue for training tasks
   };
 
   Environment env_;
@@ -264,7 +303,13 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     pt->pool = this;
     pt->rand = GlobalThreadIdHash();
     pt->thread_id = thread_id;
-    Queue& q = thread_data_[thread_id].queue;
+    //Queue& q = thread_data_[thread_id].queue;
+    
+    // wxf 
+    Queue& lpq = thread_data_[thread_id].lpq;
+    Queue& hpq = thread_data_[thread_id].hpq;
+    // ~wxf
+
     EventCount::Waiter* waiter = &waiters_[thread_id];
     // TODO(dvyukov,rmlarsen): The time spent in NonEmptyQueueIndex() is
     // proportional to num_threads_ and we assume that new work is scheduled at
@@ -280,10 +325,25 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       // counter-productive for the types of I/O workloads the single thread
       // pools tend to be used for.
       while (!cancelled_) {
-        Task t = q.PopFront();
+        //Task t = q.PopFront();
+        // wxf
+        Task t;
+        if(!hpq.Empty()){
+          t = hpq.PopFront();
+        }else{
+          t = lpq.PopFront();
+        }
+        //~wxf
         for (int i = 0; i < spin_count && !t.f; i++) {
           if (!cancelled_.load(std::memory_order_relaxed)) {
-            t = q.PopFront();
+            //t = q.PopFront();
+            // wxf
+            if (!hpq.Empty()){
+              t = hpq.PopFront();
+            }else{
+              t = lpq.PopFront();
+            }
+            //~wxf
           }
         }
         if (!t.f) {
@@ -297,7 +357,15 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       }
     } else {
       while (!cancelled_) {
-        Task t = q.PopFront();
+        //Task t = q.PopFront();
+        // wxf
+        Task t;
+        if(!hpq.Empty()){
+          t = hpq.PopFront();
+        }else{
+          t = lpq.PopFront();
+        }
+        //~wxf
         if (!t.f) {
           t = LocalSteal();
           if (!t.f) {
@@ -340,10 +408,24 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
 
     for (unsigned i = 0; i < size; i++) {
       eigen_plain_assert(start + victim < limit);
-      Task t = thread_data_[start + victim].queue.PopBack();
-      if (t.f) {
-        return t;
+      //Task t = thread_data_[start + victim].queue.PopBack();
+      // wxf
+      if (!thread_data_[start + victim].hpq.Empty()){
+        Task t = thread_data_[start + victim].hpq.PopBack();
+        if (t.f) {
+          return t;
+        }
+      }else{
+        // The PopBack() will return a default Task() if it is empty
+        Task t = thread_data_[start + victim].lpq.PopBack();
+        if (t.f) {
+          return t;
+        }
       }
+      //~wxf
+      //if (t.f) {
+      //  return t;
+      //}
       victim += inc;
       if (victim >= size) {
         victim -= size;
@@ -382,12 +464,32 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     if (!ec_.Prewait()) return true;
     // Now do a reliable emptiness check.
     int victim = NonEmptyQueueIndex();
+    // wxf
+    // Mask Rule of victim returned from NonEmptyQueueIndex(); 
+    //  15 14 ... 7 6 5 4 3 2 1 0
+    //   1  0     0 1 0 0 1 0 0 0
+    //   0  0     0 1 0 0 1 0 0 0
+    // Bit NO.16 represents high or low priority queue; 1 : high; 0 : low. 
+    //~wxf
     if (victim != -1) {
       ec_.CancelWait();
       if (cancelled_) {
         return false;
       } else {
-        *t = thread_data_[victim].queue.PopBack();
+        //*t = thread_data_[victim].queue.PopBack();
+        // wxf
+        // Extract victim thread id num, and hpq/lpq indicator
+        const uint64_t hl_shift = 15;
+        const uint64_t h_or_l_mask = (1ull<<hl_shift);
+        int h_or_l = victim & h_or_l_mask;
+        int victim_t_id = victim & ((1ull<<hl_shift)-1);
+        if (h_or_l){
+          // hpq 
+          *t = thread_data_[victim_t_id].hpq.PopBack();
+        }else{
+            *t = thread_data_[victim_t_id].lpq.PopBack();
+        }
+        // ~wxf
         return true;
       }
     }
@@ -432,9 +534,25 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     unsigned inc = all_coprimes_[size - 1][r % all_coprimes_[size - 1].size()];
     unsigned victim = r % size;
     for (unsigned i = 0; i < size; i++) {
-      if (!thread_data_[victim].queue.Empty()) {
+      //if (!thread_data_[victim].queue.Empty()) {
+      //  return victim;
+      //}
+      // wxf
+      Queue& lpq = thread_data_[victim].lpq;
+      Queue& hpq = thread_data_[victim].hpq;
+
+      // Mask Rule of victim returned from NonEmptyQueueIndex(); 
+      //  15 14 ... 7 6 5 4 3 2 1 0
+      //   1  0     0 1 0 0 1 0 0 0
+      //   0  0     0 1 0 0 1 0 0 0
+      // Bit NO.16 represents high or low priority queue; 1 : high; 0 : low. 
+      const uint64_t hl_shift = 15;
+      if(!hpq.Empty()){
+        return (victim | (1ull<<hl_shift));
+      }else{
         return victim;
       }
+      //~wxf
       victim += inc;
       if (victim >= size) {
         victim -= size;

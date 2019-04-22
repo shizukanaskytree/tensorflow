@@ -1,6 +1,6 @@
 from __future__ import print_function
 import os
-os.environ['TF_CPP_MIN_VLOG_LEVEL'] = '0'
+os.environ['TF_CPP_MIN_VLOG_LEVEL'] = '1'
 
 import tensorflow as tf
 import numpy as np
@@ -27,6 +27,9 @@ def graph1_training():
     Author: Aymeric Damien
     Project: https://github.com/aymericdamien/TensorFlow-Examples/
     """
+    config = tf.ConfigProto(intra_op_parallelism_threads=2,
+                            inter_op_parallelism_threads=2
+                            )
 
     # Parameters
     learning_rate = 0.1
@@ -84,7 +87,7 @@ def graph1_training():
     init = tf.global_variables_initializer()
 
     # Start training
-    with tf.Session() as sess:
+    with tf.Session(config=config) as sess:
 
         # Run the initializer
         sess.run(init)
