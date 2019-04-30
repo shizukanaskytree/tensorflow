@@ -68,18 +68,18 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     done_ = true;
 
     // wxf
-    std::clog << "\n";
-    std::clog << env_.name_ << "\n";
-    for (size_t i = 0; i < thread_data_.size(); i++) {
-      for(auto& q_op: thread_data_[i].queue_ops){
-        std::clog << q_op << ",";
-      }
-      std::clog << "\n";
-      for(int q_len: thread_data_[i].queue_len){
-        std::clog << q_len << ",";
-      }
-      std::clog << "\n\n\n";
-    }
+    //std::clog << "\n";
+    //std::clog << env_.name_ << "\n";
+    //for (size_t i = 0; i < thread_data_.size(); i++) {
+    //  for(auto& q_op: thread_data_[i].queue_ops){
+    //    std::clog << q_op << ",";
+    //  }
+    //  std::clog << "\n";
+    //  for(int q_len: thread_data_[i].queue_len){
+    //    std::clog << q_len << ",";
+    //  }
+    //  std::clog << "\n\n\n";
+    //}
     //~wxf
     
     // Now if all threads block without work, they will start exiting.
@@ -91,7 +91,9 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       // Since we were cancelled, there might be entries in the queues.
       // Empty them to prevent their destructor from asserting.
       for (size_t i = 0; i < thread_data_.size(); i++) {
-        thread_data_[i].queue.Flush();
+        //thread_data_[i].queue.Flush();
+        thread_data_[i].hpq.Flush();
+        thread_data_[i].lpq.Flush();
       }
     }
     // Join threads explicitly (by destroying) to avoid destruction order within
@@ -123,14 +125,22 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     PerThread* pt = GetPerThread();
     if (pt->pool == this) {
       // Worker thread of this pool, push onto the thread's queue.
-      Queue& q = thread_data_[pt->thread_id].queue;
-      t = q.PushFront(std::move(t));
+      //Queue& q = thread_data_[pt->thread_id].queue;
+      //t = q.PushFront(std::move(t));
+      if (gpriority == 1){
+        Queue& hpq = thread_data_[pt->thread_id].hpq;
+        t = hpq.PushFront(std::move(t));
+      }else {
+        Queue& lpq = thread_data_[pt->thread_id].lpq;
+        t = lpq.PushFront(std::move(t));
+      }
+
       // wxf
       //std::clog << t.name_eigen_threads << "; ScheduleWithHint; " <<"Eigen Thread ID: " << pt->thread_id << "; PushFront; " << "TaskQueueID: " << pt->thread_id << "; gpriority: " << gpriority << "\n";
-      std::vector<int>& q_ops = thread_data_[pt->thread_id].queue_ops;
-      q_ops.push_back(1);
-      std::vector<int>& q_len = thread_data_[pt->thread_id].queue_len;
-      q_len.push_back(q.Size());
+      //std::vector<int>& q_ops = thread_data_[pt->thread_id].queue_ops;
+      //q_ops.push_back(1);
+      //std::vector<int>& q_len = thread_data_[pt->thread_id].queue_len;
+      //q_len.push_back(q.Size());
       //~wxf
     } else {
       // A free-standing thread (or worker of another pool), push onto a random
@@ -140,14 +150,23 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       int num_queues = limit - start;
       int rnd = Rand(&pt->rand) % num_queues;
       eigen_plain_assert(start + rnd < limit);
-      Queue& q = thread_data_[start + rnd].queue;
-      t = q.PushBack(std::move(t));
+      //Queue& q = thread_data_[start + rnd].queue;
+      //t = q.PushBack(std::move(t));
+
+      if (gpriority == 1) {
+        Queue& hpq = thread_data_[start + rnd].hpq;
+        t = hpq.PushBack(std::move(t));
+      }else {
+        Queue& lpq = thread_data_[start + rnd].lpq;
+        t = lpq.PushBack(std::move(t));
+      }
+
       // wxf
       //std::clog<< t.name_eigen_threads << "; ScheduleWithHint; " << "Eigen Thread ID: " << pt->thread_id << "; PushBack; " << "TaskQueueID: " << start + rnd << "; gpriority: " << gpriority << "\n";
-      std::vector<int>& q_ops = thread_data_[start + rnd].queue_ops;
-      q_ops.push_back(2);
-      std::vector<int>& q_len = thread_data_[start + rnd].queue_len;
-      q_len.push_back(q.Size());
+      //std::vector<int>& q_ops = thread_data_[start + rnd].queue_ops;
+      //q_ops.push_back(2);
+      //std::vector<int>& q_len = thread_data_[start + rnd].queue_len;
+      //q_len.push_back(q.Size());
       //~wxf
     }
     // Note: below we touch this after making w available to worker threads.
@@ -257,21 +276,27 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   };
 
   struct ThreadData {
-    //constexpr ThreadData() : thread(), steal_partition(0), queue() {} 
-    ThreadData() : thread(), steal_partition(0), queue(), 
-                             queue_ops(), queue_len(), queue_time() {}
+    constexpr ThreadData() : thread(), steal_partition(0), hpq(), lpq() {} 
+    //ThreadData() : thread(), steal_partition(0), queue(), 
+    //                         queue_ops(), queue_len(), queue_time() {}
     std::unique_ptr<Thread> thread;
     std::atomic<unsigned> steal_partition;
-    Queue queue;
+    //Queue queue;
+    
+    // wxf
+    Queue hpq;
+    Queue lpq;
+    //~wxf
+
     // wxf
     // Tracing log usage 
     // 1. PushFront
     // 2. PushBack
     // 3. PopFront
     // 4. PopBack
-    std::vector<int> queue_ops;
-    std::vector<int> queue_len;
-    std::vector<uint64_t> queue_time;
+    //std::vector<int> queue_ops;
+    //std::vector<int> queue_len;
+    //std::vector<uint64_t> queue_time;
     // maybe time
     //~wxf
   };
@@ -295,16 +320,16 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
 #endif
   // wxf
   // Tracing usage
-  static constexpr uint64_t kSecondsToNanos = 1000ULL * 1000ULL * 1000ULL;
-  //~wxf
+  //static constexpr uint64_t kSecondsToNanos = 1000ULL * 1000ULL * 1000ULL;
 
   // Return time 
-  uint64_t NowNanos() {
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    return (static_cast<uint64_t>(ts.tv_sec) * kSecondsToNanos + 
-            static_cast<uint64_t>(ts.tv_nsec));
-  }
+  //uint64_t NowNanos() {
+  //  struct timespec ts;
+  //  clock_gettime(CLOCK_REALTIME, &ts);
+  //  return (static_cast<uint64_t>(ts.tv_sec) * kSecondsToNanos + 
+  //          static_cast<uint64_t>(ts.tv_nsec));
+  //}
+  //~wxf
 
   // Main worker thread loop.
   void WorkerLoop(int thread_id) {
@@ -320,11 +345,16 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     pt->pool = this;
     pt->rand = GlobalThreadIdHash();
     pt->thread_id = thread_id;
-    Queue& q = thread_data_[thread_id].queue;
+    //Queue& q = thread_data_[thread_id].queue;
 
     // wxf
-    std::vector<int>& q_ops = thread_data_[thread_id].queue_ops;
-    std::vector<int>& q_len = thread_data_[thread_id].queue_len;
+    Queue& hpq = thread_data_[thread_id].hpq;
+    Queue& lpq = thread_data_[thread_id].lpq;
+    //~wxf
+
+    // wxf
+    //std::vector<int>& q_ops = thread_data_[thread_id].queue_ops;
+    //std::vector<int>& q_len = thread_data_[thread_id].queue_len;
     //~wxf
     
     EventCount::Waiter* waiter = &waiters_[thread_id];
@@ -342,14 +372,24 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       // counter-productive for the types of I/O workloads the single thread
       // pools tend to be used for.
       while (!cancelled_) {
-        Task t = q.PopFront();
+        //Task t = q.PopFront();
+        
+        // wxf
+        Task t = hpq.PopFront();
+        //~wxf
+        
         // wxf
         //q_ops.push_back(3);
         //q_len.push_back(q.Size());
         //~wxf
         for (int i = 0; i < spin_count && !t.f; i++) {
           if (!cancelled_.load(std::memory_order_relaxed)) {
-            t = q.PopFront();
+            //t = q.PopFront();
+
+            // wxf
+            t = hpq.PopFront();
+            //~wxf
+
             // wxf
             //q_ops.push_back(3);
             //q_len.push_back(q.Size());
@@ -357,8 +397,13 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
           }
         }
         if (!t.f) {
-          if (!WaitForWork(waiter, &t)) {
-            return;
+          // wxf
+          t = lpq.PopFront();
+          //~wxf
+          if (!t.f) {
+            if (!WaitForWork(waiter, &t)) {
+              return;
+            }
           }
         }
         if (t.f) {
@@ -371,21 +416,23 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       }
     } else {
       while (!cancelled_) {
-        Task t = q.PopFront();
+        //Task t = q.PopFront();
+        Task t = hpq.PopFront();
+
         // wxf
         //q_ops.push_back(3);
         //q_len.push_back(q.Size());
         //~wxf
         if (!t.f) {
-          t = LocalSteal();
+          t = hpqLocalSteal();
           if (!t.f) {
-            t = GlobalSteal();
+            t = hpqGlobalSteal();
             if (!t.f) {
               // Leave one thread spinning. This reduces latency.
               if (allow_spinning_ && !spinning_ && !spinning_.exchange(true)) {
                 for (int i = 0; i < spin_count && !t.f; i++) {
                   if (!cancelled_.load(std::memory_order_relaxed)) {
-                    t = GlobalSteal();
+                    t = hpqGlobalSteal();
                   } else {
                     return;
                   }
@@ -393,8 +440,17 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
                 spinning_ = false;
               }
               if (!t.f) {
-                if (!WaitForWork(waiter, &t)) {
-                  return;
+                t = lpq.PopFront();
+                if (!t.f) {
+                  t = lpqLocalSteal();
+                  if (!t.f) {
+                    t = lpqGlobalSteal();
+                    if (!t.f) {
+                      if (!WaitForWork(waiter, &t)) {
+                        return;
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -415,7 +471,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
 
   // Steal tries to steal work from other worker threads in the range [start,
   // limit) in best-effort manner.
-  Task Steal(unsigned start, unsigned limit) {
+  Task Steal(unsigned start, unsigned limit, bool h_l) {
     PerThread* pt = GetPerThread();
     const size_t size = limit - start;
     unsigned r = Rand(&pt->rand);
@@ -424,16 +480,29 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
 
     for (unsigned i = 0; i < size; i++) {
       eigen_plain_assert(start + victim < limit);
-      Task t = thread_data_[start + victim].queue.PopBack();
+      //Task t = thread_data_[start + victim].queue.PopBack();
+
+      if (h_l){
+        Task t = thread_data_[start + victim].hpq.PopBack();
+        if (t.f) {
+          return t;
+        }
+      }else{
+        Task t = thread_data_[start + victim].lpq.PopBack();
+        if (t.f) {
+          return t;
+        }
+      }
       // wxf
       //std::vector<int>& q_ops = thread_data_[start + victim].queue_ops;
       //q_ops.push_back(4);
       //std::vector<int>& q_len = thread_data_[start + victim].queue_len;
       //q_len.push_back(thread_data_[start + victim].queue.Size());
       //~wxf
-      if (t.f) {
-        return t;
-      }
+
+      //if (t.f) {
+      //  return t;
+      //}
       victim += inc;
       if (victim >= size) {
         victim -= size;
@@ -442,8 +511,38 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     return Task();
   }
 
+
+//  // Steal tries to steal work from other worker threads in the range [start,
+//  // limit) in best-effort manner.
+//  Task Steal(unsigned start, unsigned limit) {
+//    PerThread* pt = GetPerThread();
+//    const size_t size = limit - start;
+//    unsigned r = Rand(&pt->rand);
+//    unsigned victim = r % size;
+//    unsigned inc = all_coprimes_[size - 1][r % all_coprimes_[size - 1].size()];
+//
+//    for (unsigned i = 0; i < size; i++) {
+//      eigen_plain_assert(start + victim < limit);
+//      Task t = thread_data_[start + victim].queue.PopBack();
+//      // wxf
+//      //std::vector<int>& q_ops = thread_data_[start + victim].queue_ops;
+//      //q_ops.push_back(4);
+//      //std::vector<int>& q_len = thread_data_[start + victim].queue_len;
+//      //q_len.push_back(thread_data_[start + victim].queue.Size());
+//      //~wxf
+//      if (t.f) {
+//        return t;
+//      }
+//      victim += inc;
+//      if (victim >= size) {
+//        victim -= size;
+//      }
+//    }
+//    return Task();
+//  }
+
   // Steals work within threads belonging to the partition.
-  Task LocalSteal() {
+  Task hpqLocalSteal() {
     PerThread* pt = GetPerThread();
     unsigned partition = GetStealPartition(pt->thread_id);
     // If thread steal partition is the same as global partition, there is no
@@ -453,13 +552,54 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     DecodePartition(partition, &start, &limit);
     AssertBounds(start, limit);
 
-    return Steal(start, limit);
+    return Steal(start, limit, true);
+  }
+
+
+  // Steals work within threads belonging to the partition.
+  Task lpqLocalSteal() {
+    PerThread* pt = GetPerThread();
+    unsigned partition = GetStealPartition(pt->thread_id);
+    // If thread steal partition is the same as global partition, there is no
+    // need to go through the steal loop twice.
+    if (global_steal_partition_ == partition) return Task();
+    unsigned start, limit;
+    DecodePartition(partition, &start, &limit);
+    AssertBounds(start, limit);
+
+    return Steal(start, limit, false);
   }
 
   // Steals work from any other thread in the pool.
-  Task GlobalSteal() {
-    return Steal(0, num_threads_);
+  Task hpqGlobalSteal() {
+    return Steal(0, num_threads_, true);
   }
+
+
+  // Steals work from any other thread in the pool.
+  Task lpqGlobalSteal() {
+    return Steal(0, num_threads_, false);
+  }
+
+
+//  // Steals work within threads belonging to the partition.
+//  Task LocalSteal() {
+//    PerThread* pt = GetPerThread();
+//    unsigned partition = GetStealPartition(pt->thread_id);
+//    // If thread steal partition is the same as global partition, there is no
+//    // need to go through the steal loop twice.
+//    if (global_steal_partition_ == partition) return Task();
+//    unsigned start, limit;
+//    DecodePartition(partition, &start, &limit);
+//    AssertBounds(start, limit);
+//
+//    return Steal(start, limit);
+//  }
+
+//  // Steals work from any other thread in the pool.
+//  Task GlobalSteal() {
+//    return Steal(0, num_threads_);
+//  }
 
 
   // WaitForWork blocks until new work is available (returns true), or if it is
@@ -471,13 +611,20 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     // blocking.
     if (!ec_.Prewait()) return true;
     // Now do a reliable emptiness check.
-    int victim = NonEmptyQueueIndex();
-    if (victim != -1) {
+    //int victim = NonEmptyQueueIndex();
+    int hpq_victim = NonEmptyHpqIndex();
+    int lpq_victim = NonEmptyLpqIndex();
+
+    if ( hpq_victim != -1 || lpq_victim != -1) {
       ec_.CancelWait();
       if (cancelled_) {
         return false;
       } else {
-        *t = thread_data_[victim].queue.PopBack();
+        if (hpq_victim != -1) { 
+          *t = thread_data_[hpq_victim].hpq.PopBack();
+        }else {
+          *t = thread_data_[lpq_victim].lpq.PopBack();
+        }
         // wxf
         //std::vector<int>& q_ops = thread_data_[victim].queue_ops;
         //q_ops.push_back(4);
@@ -499,7 +646,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       // right after incrementing blocked_ above. Now a free-standing thread
       // submits work and calls destructor (which sets done_). If we don't
       // re-check queues, we will exit leaving the work unexecuted.
-      if (NonEmptyQueueIndex() != -1) {
+      if (NonEmptyHpqIndex() != -1 || NonEmptyLpqIndex() != -1) {
         // Note: we must not pop from queues before we decrement blocked_,
         // otherwise the following scenario is possible. Consider that instead
         // of checking for emptiness we popped the only element from queues.
@@ -518,7 +665,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     return true;
   }
 
-  int NonEmptyQueueIndex() {
+  int NonEmptyHpqIndex() {
     PerThread* pt = GetPerThread();
     // We intentionally design NonEmptyQueueIndex to steal work from
     // anywhere in the queue so threads don't block in WaitForWork() forever
@@ -528,7 +675,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     unsigned inc = all_coprimes_[size - 1][r % all_coprimes_[size - 1].size()];
     unsigned victim = r % size;
     for (unsigned i = 0; i < size; i++) {
-      if (!thread_data_[victim].queue.Empty()) {
+      if (!thread_data_[victim].hpq.Empty()) {
         return victim;
       }
       victim += inc;
@@ -538,6 +685,48 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     }
     return -1;
   }
+
+  int NonEmptyLpqIndex() {
+    PerThread* pt = GetPerThread();
+    // We intentionally design NonEmptyQueueIndex to steal work from
+    // anywhere in the queue so threads don't block in WaitForWork() forever
+    // when all threads in their partition go to sleep. Steal is still local.
+    const size_t size = thread_data_.size();
+    unsigned r = Rand(&pt->rand);
+    unsigned inc = all_coprimes_[size - 1][r % all_coprimes_[size - 1].size()];
+    unsigned victim = r % size;
+    for (unsigned i = 0; i < size; i++) {
+      if (!thread_data_[victim].lpq.Empty()) {
+        return victim;
+      }
+      victim += inc;
+      if (victim >= size) {
+        victim -= size;
+      }
+    }
+    return -1;
+  }
+
+//  int NonEmptyQueueIndex() {
+//    PerThread* pt = GetPerThread();
+//    // We intentionally design NonEmptyQueueIndex to steal work from
+//    // anywhere in the queue so threads don't block in WaitForWork() forever
+//    // when all threads in their partition go to sleep. Steal is still local.
+//    const size_t size = thread_data_.size();
+//    unsigned r = Rand(&pt->rand);
+//    unsigned inc = all_coprimes_[size - 1][r % all_coprimes_[size - 1].size()];
+//    unsigned victim = r % size;
+//    for (unsigned i = 0; i < size; i++) {
+//      if (!thread_data_[victim].queue.Empty()) {
+//        return victim;
+//      }
+//      victim += inc;
+//      if (victim >= size) {
+//        victim -= size;
+//      }
+//    }
+//    return -1;
+//  }
 
   static EIGEN_STRONG_INLINE uint64_t GlobalThreadIdHash() {
     return std::hash<std::thread::id>()(std::this_thread::get_id());
