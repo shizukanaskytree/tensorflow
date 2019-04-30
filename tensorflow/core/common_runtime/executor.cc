@@ -21,6 +21,7 @@ limitations under the License.
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <thread>
 
 #include "tensorflow/core/common_runtime/costmodel_manager.h"
 #include "tensorflow/core/common_runtime/executor_factory.h"
@@ -1700,6 +1701,13 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
               << SummarizeNode(*node) << (tagged_node.is_dead ? " is dead" : "")
               << " device: " << device->name();
     }
+
+    // wxf
+    std::thread::id this_id = std::this_thread::get_id();
+    std::clog << this_id << ": Process node: " << id << " step " << params.step_id << " "
+            << SummarizeNode(*node) << (tagged_node.is_dead ? " is dead" : "")
+            << " device: " << device->name() << "\n";
+    //~wxf
 
     Entry* input_tensors = GetInputTensors(input_frame, input_iter);
     Entry* first_input = input_tensors + item.input_start;

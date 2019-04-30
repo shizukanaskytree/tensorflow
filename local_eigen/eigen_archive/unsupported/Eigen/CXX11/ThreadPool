@@ -36,6 +36,7 @@
 #include <stdint.h>
 #include <time.h>
 
+#include <iostream>
 #include <vector>
 #include <atomic>
 #include <condition_variable>

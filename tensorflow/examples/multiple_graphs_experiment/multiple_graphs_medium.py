@@ -30,9 +30,9 @@ def graph1_training():
 
     # Parameters
     learning_rate = 0.1
-    num_steps = 500
+    num_steps = 1
     batch_size = 128
-    display_step = 100
+    display_step = 1
 
     # Network Parameters
     n_hidden_1 = 256  # 1st layer number of neurons
@@ -202,10 +202,10 @@ def graph2_training():
 
 
 g1_worker = threading.Thread(name='g1', target=graph1_training)
-g2_worker = threading.Thread(name='g2', target=graph2_training)
+#g2_worker = threading.Thread(name='g2', target=graph2_training)
 
 g1_worker.start()
-g2_worker.start()
+#g2_worker.start()
 
 logging.debug('Waiting for worker threads')
 

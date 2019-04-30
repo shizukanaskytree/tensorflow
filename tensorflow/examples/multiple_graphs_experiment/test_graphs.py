@@ -1,5 +1,5 @@
 import os
-os.environ['TF_CPP_MIN_VLOG_LEVEL'] = '1'
+os.environ['TF_CPP_MIN_VLOG_LEVEL'] = '0'
 import tensorflow as tf
 
 #default_graph = tf.get_default_graph()

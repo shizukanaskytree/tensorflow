@@ -14,6 +14,7 @@ limitations under the License.
 ==============================================================================*/
 
 #include "tensorflow/core/lib/core/threadpool.h"
+#include <thread>
 
 #define EIGEN_USE_THREADS
 #include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
@@ -39,6 +40,8 @@ struct EigenEnvironment {
   };
   struct Task {
     std::unique_ptr<TaskImpl> f;
+    std::string name_eigen_threads;
+    int gpriority;
   };
 
   Env* const env_;
@@ -68,12 +71,19 @@ struct EigenEnvironment {
       id = tracing::GetUniqueArg();
       tracing::RecordEvent(tracing::EventCategory::kScheduleClosure, id);
     }
+
+    // wxf
+    std::clog << std::this_thread::get_id() << ": " << name_ << ": CreateTask" << "\n";
+    //~wxf
+
     return Task{
         std::unique_ptr<TaskImpl>(new TaskImpl{
             std::move(f),
             Context(ContextKind::kThread),
             id,
         }),
+        this->name_,
+        gpriority,
     };
   }
 
@@ -81,6 +91,10 @@ struct EigenEnvironment {
     WithContext wc(t.f->context);
     tracing::ScopedRegion region(tracing::EventCategory::kRunClosure,
                                  t.f->trace_id);
+    // wxf
+    std::thread::id this_id = std::this_thread::get_id();
+    std::clog << this_id << ": " << name_ << "ExecuteTask" << "\n";
+    //~wxf
     t.f->f();
   }
 };
