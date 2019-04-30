@@ -15,7 +15,13 @@ namespace Eigen {
 struct StlThreadEnvironment {
   struct Task {
     std::function<void()> f;
+    std::string name_eigen_threads;
+    int gpriority;
   };
+
+  // wxf
+  std::string name_ = "StlThreadEnvironment";
+  //~wxf
 
   // EnvThread constructor must start the thread,
   // destructor must join the thread.
@@ -31,7 +37,13 @@ struct StlThreadEnvironment {
   };
 
   EnvThread* CreateThread(std::function<void()> f) { return new EnvThread(std::move(f)); }
-  Task CreateTask(std::function<void()> f, int gpriority=0) { return Task{std::move(f)}; }
+  Task CreateTask(std::function<void()> f, int gpriority=0) { 
+      return Task{
+          std::move(f),
+          "StlThreadEnvironment",
+          gpriority,
+      }; 
+  }
   void ExecuteTask(const Task& t) { t.f(); }
 };
 

@@ -67,6 +67,21 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   ~ThreadPoolTempl() {
     done_ = true;
 
+    // wxf
+    std::clog << "\n";
+    std::clog << env_.name_ << "\n";
+    for (size_t i = 0; i < thread_data_.size(); i++) {
+      for(auto& q_op: thread_data_[i].queue_ops){
+        std::clog << q_op << ",";
+      }
+      std::clog << "\n";
+      for(int q_len: thread_data_[i].queue_len){
+        std::clog << q_len << ",";
+      }
+      std::clog << "\n\n\n";
+    }
+    //~wxf
+    
     // Now if all threads block without work, they will start exiting.
     // But note that threads can continue to work arbitrary long,
     // block, submit new work, unblock and otherwise live full life.
@@ -110,6 +125,13 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       // Worker thread of this pool, push onto the thread's queue.
       Queue& q = thread_data_[pt->thread_id].queue;
       t = q.PushFront(std::move(t));
+      // wxf
+      //std::clog << t.name_eigen_threads << "; ScheduleWithHint; " <<"Eigen Thread ID: " << pt->thread_id << "; PushFront; " << "TaskQueueID: " << pt->thread_id << "; gpriority: " << gpriority << "\n";
+      std::vector<int>& q_ops = thread_data_[pt->thread_id].queue_ops;
+      q_ops.push_back(1);
+      std::vector<int>& q_len = thread_data_[pt->thread_id].queue_len;
+      q_len.push_back(q.Size());
+      //~wxf
     } else {
       // A free-standing thread (or worker of another pool), push onto a random
       // queue.
@@ -120,6 +142,13 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       eigen_plain_assert(start + rnd < limit);
       Queue& q = thread_data_[start + rnd].queue;
       t = q.PushBack(std::move(t));
+      // wxf
+      //std::clog<< t.name_eigen_threads << "; ScheduleWithHint; " << "Eigen Thread ID: " << pt->thread_id << "; PushBack; " << "TaskQueueID: " << start + rnd << "; gpriority: " << gpriority << "\n";
+      std::vector<int>& q_ops = thread_data_[start + rnd].queue_ops;
+      q_ops.push_back(2);
+      std::vector<int>& q_len = thread_data_[start + rnd].queue_len;
+      q_len.push_back(q.Size());
+      //~wxf
     }
     // Note: below we touch this after making w available to worker threads.
     // Strictly speaking, this can lead to a racy-use-after-free. Consider that
@@ -129,8 +158,10 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     // this. We expect that such scenario is prevented by program, that is,
     // this is kept alive while any threads can potentially be in Schedule.
     if (!t.f) {
+      //std::clog<< t.name_eigen_threads << "; ScheduleWithHint; " << "Eigen Thread ID: " << pt->thread_id << "; Notify; " << "; gpriority: " << gpriority << "\n";
       ec_.Notify(false);
     } else {
+      //std::clog<< t.name_eigen_threads << "; ScheduleWithHint; " << "Eigen Thread ID: " << pt->thread_id << "; ExecuteTask; " << "; gpriority: " << gpriority << "\n";
       env_.ExecuteTask(t);  // Push failed, execute directly.
     }
   }
@@ -226,10 +257,23 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   };
 
   struct ThreadData {
-    constexpr ThreadData() : thread(), steal_partition(0), queue() {}
+    //constexpr ThreadData() : thread(), steal_partition(0), queue() {} 
+    ThreadData() : thread(), steal_partition(0), queue(), 
+                             queue_ops(), queue_len(), queue_time() {}
     std::unique_ptr<Thread> thread;
     std::atomic<unsigned> steal_partition;
     Queue queue;
+    // wxf
+    // Tracing log usage 
+    // 1. PushFront
+    // 2. PushBack
+    // 3. PopFront
+    // 4. PopBack
+    std::vector<int> queue_ops;
+    std::vector<int> queue_len;
+    std::vector<uint64_t> queue_time;
+    // maybe time
+    //~wxf
   };
 
   Environment env_;
@@ -249,6 +293,18 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   std::mutex per_thread_map_mutex_;  // Protects per_thread_map_.
   std::unordered_map<uint64_t, std::unique_ptr<PerThread>> per_thread_map_;
 #endif
+  // wxf
+  // Tracing usage
+  static constexpr uint64_t kSecondsToNanos = 1000ULL * 1000ULL * 1000ULL;
+  //~wxf
+
+  // Return time 
+  uint64_t NowNanos() {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return (static_cast<uint64_t>(ts.tv_sec) * kSecondsToNanos + 
+            static_cast<uint64_t>(ts.tv_nsec));
+  }
 
   // Main worker thread loop.
   void WorkerLoop(int thread_id) {
@@ -265,6 +321,12 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     pt->rand = GlobalThreadIdHash();
     pt->thread_id = thread_id;
     Queue& q = thread_data_[thread_id].queue;
+
+    // wxf
+    std::vector<int>& q_ops = thread_data_[thread_id].queue_ops;
+    std::vector<int>& q_len = thread_data_[thread_id].queue_len;
+    //~wxf
+    
     EventCount::Waiter* waiter = &waiters_[thread_id];
     // TODO(dvyukov,rmlarsen): The time spent in NonEmptyQueueIndex() is
     // proportional to num_threads_ and we assume that new work is scheduled at
@@ -281,9 +343,17 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       // pools tend to be used for.
       while (!cancelled_) {
         Task t = q.PopFront();
+        // wxf
+        //q_ops.push_back(3);
+        //q_len.push_back(q.Size());
+        //~wxf
         for (int i = 0; i < spin_count && !t.f; i++) {
           if (!cancelled_.load(std::memory_order_relaxed)) {
             t = q.PopFront();
+            // wxf
+            //q_ops.push_back(3);
+            //q_len.push_back(q.Size());
+            //~wxf
           }
         }
         if (!t.f) {
@@ -292,12 +362,20 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
           }
         }
         if (t.f) {
+          // wxf
+          //q_ops.push_back(5);
+          //q_len.push_back(q.Size());
+          //~wxf
           env_.ExecuteTask(t);
         }
       }
     } else {
       while (!cancelled_) {
         Task t = q.PopFront();
+        // wxf
+        //q_ops.push_back(3);
+        //q_len.push_back(q.Size());
+        //~wxf
         if (!t.f) {
           t = LocalSteal();
           if (!t.f) {
@@ -323,7 +401,13 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
           }
         }
         if (t.f) {
+          // wxf
+          //std::clog << t.name_eigen_threads << "; ExecuteTask Starts; " <<"Eigen Thread ID: " << pt->thread_id << "; " << "TaskQueueID: " << pt->thread_id << "; gpriority: " << t.gpriority << "\n";
+          //q_ops.push_back(5);
+          //q_len.push_back(q.Size());
+          //~wxf
           env_.ExecuteTask(t);
+          //std::clog << t.name_eigen_threads << "; ExecuteTask Ends; " <<"Eigen Thread ID: " << pt->thread_id << "; " << "TaskQueueID: " << pt->thread_id << "; gpriority: " << t.gpriority << "\n";
         }
       }
     }
@@ -341,6 +425,12 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     for (unsigned i = 0; i < size; i++) {
       eigen_plain_assert(start + victim < limit);
       Task t = thread_data_[start + victim].queue.PopBack();
+      // wxf
+      //std::vector<int>& q_ops = thread_data_[start + victim].queue_ops;
+      //q_ops.push_back(4);
+      //std::vector<int>& q_len = thread_data_[start + victim].queue_len;
+      //q_len.push_back(thread_data_[start + victim].queue.Size());
+      //~wxf
       if (t.f) {
         return t;
       }
@@ -388,6 +478,12 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
         return false;
       } else {
         *t = thread_data_[victim].queue.PopBack();
+        // wxf
+        //std::vector<int>& q_ops = thread_data_[victim].queue_ops;
+        //q_ops.push_back(4);
+        //std::vector<int>& q_len = thread_data_[victim].queue_len;
+        //q_len.push_back(thread_data_[victim].queue.Size());
+        //~wxf
         return true;
       }
     }
