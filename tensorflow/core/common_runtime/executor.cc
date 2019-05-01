@@ -1703,10 +1703,10 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
     }
 
     // wxf
-    std::thread::id this_id = std::this_thread::get_id();
-    std::clog << this_id << ": Process node: " << id << " step " << params.step_id << " "
-            << SummarizeNode(*node) << (tagged_node.is_dead ? " is dead" : "")
-            << " device: " << device->name() << "\n";
+    //std::thread::id this_id = std::this_thread::get_id();
+    //std::clog << this_id << ": Process node: " << id << " step " << params.step_id << " "
+    //        << SummarizeNode(*node) << (tagged_node.is_dead ? " is dead" : "")
+    //        << " device: " << device->name() << "\n";
     //~wxf
 
     Entry* input_tensors = GetInputTensors(input_frame, input_iter);

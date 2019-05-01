@@ -73,7 +73,7 @@ struct EigenEnvironment {
     }
 
     // wxf
-    std::clog << std::this_thread::get_id() << ": " << name_ << ": CreateTask" << "\n";
+    //std::clog << std::this_thread::get_id() << ": " << name_ << ": CreateTask" << "\n";
     //~wxf
 
     return Task{
@@ -92,8 +92,8 @@ struct EigenEnvironment {
     tracing::ScopedRegion region(tracing::EventCategory::kRunClosure,
                                  t.f->trace_id);
     // wxf
-    std::thread::id this_id = std::this_thread::get_id();
-    std::clog << this_id << ": " << name_ << "ExecuteTask" << "\n";
+    //std::thread::id this_id = std::this_thread::get_id();
+    //std::clog << this_id << ": " << name_ << "ExecuteTask" << "\n";
     //~wxf
     t.f->f();
   }
