@@ -154,7 +154,7 @@ def tf_workspace(path_prefix = "", tf_repo_name = ""):
 #    )
     native.new_local_repository(
         name = "eigen_archive",
-        path = "/home/wxf/tf2/baseline_tf/tensorflow/local_eigen/eigen_archive",
+        path = "/home/wxf/tf2/tensorflow/local_eigen/eigen_archive",
         build_file = clean_dep("//third_party:eigen.BUILD"),
     )
 
