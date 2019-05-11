@@ -67,21 +67,6 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   ~ThreadPoolTempl() {
     done_ = true;
 
-    // wxf
-    //std::clog << "\n";
-    //std::clog << env_.name_ << "\n";
-    //for (size_t i = 0; i < thread_data_.size(); i++) {
-    //  for(auto& q_op: thread_data_[i].queue_ops){
-    //    std::clog << q_op << ",";
-    //  }
-    //  std::clog << "\n";
-    //  for(int q_len: thread_data_[i].queue_len){
-    //    std::clog << q_len << ",";
-    //  }
-    //  std::clog << "\n\n\n";
-    //}
-    //~wxf
-    
     // Now if all threads block without work, they will start exiting.
     // But note that threads can continue to work arbitrary long,
     // block, submit new work, unblock and otherwise live full life.
@@ -91,7 +76,8 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       // Since we were cancelled, there might be entries in the queues.
       // Empty them to prevent their destructor from asserting.
       for (size_t i = 0; i < thread_data_.size(); i++) {
-        thread_data_[i].queue.Flush();
+        thread_data_[i].hpq.Flush();
+        thread_data_[i].lpq.Flush();
       }
     }
     // Join threads explicitly (by destroying) to avoid destruction order within
@@ -123,15 +109,14 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     PerThread* pt = GetPerThread();
     if (pt->pool == this) {
       // Worker thread of this pool, push onto the thread's queue.
-      Queue& q = thread_data_[pt->thread_id].queue;
-      t = q.PushFront(std::move(t));
-      // wxf
-      //std::clog << t.name_eigen_threads << "; ScheduleWithHint; " <<"Eigen Thread ID: " << pt->thread_id << "; PushFront; " << "TaskQueueID: " << pt->thread_id << "; gpriority: " << gpriority << "\n";
-      //std::vector<int>& q_ops = thread_data_[pt->thread_id].queue_ops;
-      //q_ops.push_back(1);
-      //std::vector<int>& q_len = thread_data_[pt->thread_id].queue_len;
-      //q_len.push_back(q.Size());
-      //~wxf
+      if (gpriority == 1) {
+        //std::clog<<"1\n";
+        Queue& hpq = thread_data_[pt->thread_id].hpq;
+        t = hpq.PushFront(std::move(t));
+      } else {
+        Queue& lpq = thread_data_[pt->thread_id].lpq;
+        t = lpq.PushFront(std::move(t));
+      }
     } else {
       // A free-standing thread (or worker of another pool), push onto a random
       // queue.
@@ -140,15 +125,14 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       int num_queues = limit - start;
       int rnd = Rand(&pt->rand) % num_queues;
       eigen_plain_assert(start + rnd < limit);
-      Queue& q = thread_data_[start + rnd].queue;
-      t = q.PushBack(std::move(t));
-      // wxf
-      //std::clog<< t.name_eigen_threads << "; ScheduleWithHint; " << "Eigen Thread ID: " << pt->thread_id << "; PushBack; " << "TaskQueueID: " << start + rnd << "; gpriority: " << gpriority << "\n";
-      //std::vector<int>& q_ops = thread_data_[start + rnd].queue_ops;
-      //q_ops.push_back(2);
-      //std::vector<int>& q_len = thread_data_[start + rnd].queue_len;
-      //q_len.push_back(q.Size());
-      //~wxf
+      if (gpriority == 1) {
+        //std::clog<<"1\n";
+        Queue& hpq = thread_data_[start + rnd].hpq;
+        t = hpq.PushBack(std::move(t));
+      } else {
+        Queue& lpq = thread_data_[start + rnd].lpq;
+        t = lpq.PushBack(std::move(t));
+      }
     }
     // Note: below we touch this after making w available to worker threads.
     // Strictly speaking, this can lead to a racy-use-after-free. Consider that
@@ -158,10 +142,8 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     // this. We expect that such scenario is prevented by program, that is,
     // this is kept alive while any threads can potentially be in Schedule.
     if (!t.f) {
-      //std::clog<< t.name_eigen_threads << "; ScheduleWithHint; " << "Eigen Thread ID: " << pt->thread_id << "; Notify; " << "; gpriority: " << gpriority << "\n";
       ec_.Notify(false);
     } else {
-      //std::clog<< t.name_eigen_threads << "; ScheduleWithHint; " << "Eigen Thread ID: " << pt->thread_id << "; ExecuteTask; " << "; gpriority: " << gpriority << "\n";
       env_.ExecuteTask(t);  // Push failed, execute directly.
     }
   }
@@ -257,23 +239,13 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   };
 
   struct ThreadData {
-    constexpr ThreadData() : thread(), steal_partition(0), queue() {} 
+    constexpr ThreadData() : thread(), steal_partition(0), hpq(), lpq() {} 
     //ThreadData() : thread(), steal_partition(0), queue(), 
     //                         queue_ops(), queue_len(), queue_time() {}
     std::unique_ptr<Thread> thread;
     std::atomic<unsigned> steal_partition;
-    Queue queue;
-    // wxf
-    // Tracing log usage 
-    // 1. PushFront
-    // 2. PushBack
-    // 3. PopFront
-    // 4. PopBack
-    //std::vector<int> queue_ops;
-    //std::vector<int> queue_len;
-    //std::vector<uint64_t> queue_time;
-    // maybe time
-    //~wxf
+    Queue hpq;
+    Queue lpq;
   };
 
   Environment env_;
@@ -320,20 +292,16 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     pt->pool = this;
     pt->rand = GlobalThreadIdHash();
     pt->thread_id = thread_id;
-    Queue& q = thread_data_[thread_id].queue;
+    Queue& hpq = thread_data_[thread_id].hpq;
+    Queue& lpq = thread_data_[thread_id].lpq;
 
-    // wxf
-    //std::vector<int>& q_ops = thread_data_[thread_id].queue_ops;
-    //std::vector<int>& q_len = thread_data_[thread_id].queue_len;
-    //~wxf
-    
     EventCount::Waiter* waiter = &waiters_[thread_id];
     // TODO(dvyukov,rmlarsen): The time spent in NonEmptyQueueIndex() is
     // proportional to num_threads_ and we assume that new work is scheduled at
     // a constant rate, so we set spin_count to 5000 / num_threads_. The
     // constant was picked based on a fair dice roll, tune it.
-    const int spin_count =
-        allow_spinning_ && num_threads_ > 0 ? 5000 / num_threads_ : 0;
+    //const int spin_count =
+    //    allow_spinning_ && num_threads_ > 0 ? 5000 / num_threads_ : 0;
     if (num_threads_ == 1) {
       // For num_threads_ == 1 there is no point in going through the expensive
       // steal loop. Moreover, since NonEmptyQueueIndex() calls PopBack() on the
@@ -342,72 +310,62 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       // counter-productive for the types of I/O workloads the single thread
       // pools tend to be used for.
       while (!cancelled_) {
-        Task t = q.PopFront();
-        // wxf
-        //q_ops.push_back(3);
-        //q_len.push_back(q.Size());
-        //~wxf
-        for (int i = 0; i < spin_count && !t.f; i++) {
-          if (!cancelled_.load(std::memory_order_relaxed)) {
-            t = q.PopFront();
-            // wxf
-            //q_ops.push_back(3);
-            //q_len.push_back(q.Size());
-            //~wxf
-          }
-        }
+        Task t = hpq.PopFront();
+        //for (int i = 0; i < spin_count/2 && !t.f; i++) {
+        //  if (!cancelled_.load(std::memory_order_relaxed)) {
+        //    t = hpq.PopFront();
+        //  }
+        //}
         if (!t.f) {
-          if (!WaitForWork(waiter, &t)) {
-            return;
+          t = lpq.PopFront();
+          if (!t.f) {
+            if (!WaitForWork(waiter, &t)) {
+              return;
+            }
           }
         }
         if (t.f) {
-          // wxf
-          //q_ops.push_back(5);
-          //q_len.push_back(q.Size());
-          //~wxf
           env_.ExecuteTask(t);
         }
       }
     } else {
       while (!cancelled_) {
-        Task t = q.PopFront();
-        // wxf
-        //q_ops.push_back(3);
-        //q_len.push_back(q.Size());
-        //~wxf
+        Task t = hpq.PopFront();
         if (!t.f) {
           t = LocalSteal();
           if (!t.f) {
             t = GlobalSteal();
             if (!t.f) {
-              // Leave one thread spinning. This reduces latency.
-              if (allow_spinning_ && !spinning_ && !spinning_.exchange(true)) {
-                for (int i = 0; i < spin_count && !t.f; i++) {
-                  if (!cancelled_.load(std::memory_order_relaxed)) {
-                    t = GlobalSteal();
-                  } else {
-                    return;
-                  }
-                }
-                spinning_ = false;
+              for (int i = 0; i < 2 && !t.f ; i++){
+                t = GlobalSteal();
               }
+              // Leave one thread spinning. This reduces latency.
+              //if (allow_spinning_ && !spinning_ && !spinning_.exchange(true)) {
+              //  for (int i = 0; i < spin_count/2 && !t.f; i++) {
+              //    if (!cancelled_.load(std::memory_order_relaxed)) {
+              //      t = GlobalSteal();
+              //    } else {
+              //      return;
+              //    }
+              //  }
+              //  spinning_ = false;
+              //}
               if (!t.f) {
-                if (!WaitForWork(waiter, &t)) {
-                  return;
+                t = lpq.PopFront();
+                if (!t.f) {
+                  t = mixedGlobalSteal();
+                  if (!t.f) {
+                    if (!WaitForWork(waiter, &t)) {
+                      return;
+                    }
+                  }
                 }
               }
             }
           }
         }
         if (t.f) {
-          // wxf
-          //std::clog << t.name_eigen_threads << "; ExecuteTask Starts; " <<"Eigen Thread ID: " << pt->thread_id << "; " << "TaskQueueID: " << pt->thread_id << "; gpriority: " << t.gpriority << "\n";
-          //q_ops.push_back(5);
-          //q_len.push_back(q.Size());
-          //~wxf
           env_.ExecuteTask(t);
-          //std::clog << t.name_eigen_threads << "; ExecuteTask Ends; " <<"Eigen Thread ID: " << pt->thread_id << "; " << "TaskQueueID: " << pt->thread_id << "; gpriority: " << t.gpriority << "\n";
         }
       }
     }
@@ -424,13 +382,34 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
 
     for (unsigned i = 0; i < size; i++) {
       eigen_plain_assert(start + victim < limit);
-      Task t = thread_data_[start + victim].queue.PopBack();
-      // wxf
-      //std::vector<int>& q_ops = thread_data_[start + victim].queue_ops;
-      //q_ops.push_back(4);
-      //std::vector<int>& q_len = thread_data_[start + victim].queue_len;
-      //q_len.push_back(thread_data_[start + victim].queue.Size());
-      //~wxf
+      Task t = thread_data_[start + victim].hpq.PopBack();
+      if (t.f) {
+        return t;
+      }
+      victim += inc;
+      if (victim >= size) {
+        victim -= size;
+      }
+    }
+    return Task();
+  }
+
+  // Steal tries to steal work from other worker threads in the range [start,
+  // limit) in best-effort manner.
+  Task mixedSteal(unsigned start, unsigned limit) {
+    PerThread* pt = GetPerThread();
+    const size_t size = limit - start;
+    unsigned r = Rand(&pt->rand);
+    unsigned victim = r % size;
+    unsigned inc = all_coprimes_[size - 1][r % all_coprimes_[size - 1].size()];
+
+    for (unsigned i = 0; i < size; i++) {
+      eigen_plain_assert(start + victim < limit);
+      Task t = thread_data_[start + victim].hpq.PopBack();
+      if (t.f) {
+        return t;
+      }
+      t = thread_data_[start + victim].lpq.PopBack();
       if (t.f) {
         return t;
       }
@@ -461,6 +440,9 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     return Steal(0, num_threads_);
   }
 
+  Task mixedGlobalSteal() {
+    return mixedSteal(0, num_threads_);
+  }
 
   // WaitForWork blocks until new work is available (returns true), or if it is
   // time to exit (returns false). Can optionally return a task to execute in t
@@ -477,13 +459,11 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       if (cancelled_) {
         return false;
       } else {
-        *t = thread_data_[victim].queue.PopBack();
-        // wxf
-        //std::vector<int>& q_ops = thread_data_[victim].queue_ops;
-        //q_ops.push_back(4);
-        //std::vector<int>& q_len = thread_data_[victim].queue_len;
-        //q_len.push_back(thread_data_[victim].queue.Size());
-        //~wxf
+        if (victim & (1<<14)) {
+          *t = thread_data_[victim & ((1<<14)-1)].hpq.PopBack();
+        } else {
+          *t = thread_data_[victim].lpq.PopBack();
+        }
         return true;
       }
     }
@@ -528,7 +508,16 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     unsigned inc = all_coprimes_[size - 1][r % all_coprimes_[size - 1].size()];
     unsigned victim = r % size;
     for (unsigned i = 0; i < size; i++) {
-      if (!thread_data_[victim].queue.Empty()) {
+      if (!thread_data_[victim].hpq.Empty()) {
+        return victim | (1<<14);
+      }
+      victim += inc;
+      if (victim >= size) {
+        victim -= size;
+      }
+    }
+    for (unsigned i = 0; i < size; i++) {
+      if (!thread_data_[victim].lpq.Empty()) {
         return victim;
       }
       victim += inc;

@@ -45,3 +45,5 @@ gradleBuild
 # mnist example log output
 tensorflow/examples/tutorials/layers/MNIST-data/*
 *.json
+.cproject
+.settings/
