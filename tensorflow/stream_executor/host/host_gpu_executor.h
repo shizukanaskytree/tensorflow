@@ -127,6 +127,9 @@ class HostExecutor : public internal::StreamExecutorInterface {
   }
 
   bool AllocateStream(Stream *stream) override;
+  // wxf
+  bool AllocateStream(Stream *stream, unsigned int flags, int priority) override;
+  //~wxf
   void DeallocateStream(Stream *stream) override;
   bool CreateStreamDependency(Stream *dependent, Stream *other) override;
 

@@ -786,6 +786,26 @@ GpuDriver::ContextGetSharedMemConfig(GpuContext* context) {
       absl::StrCat("failed to get device for context: ", ToString(result)));
 }
 
+// wxf
+/* static */ bool GpuDriver::CreateStreamWithPriority(GpuContext* context,
+                                          CUstream* stream,
+                                          unsigned int flags,
+                                          int priority) {
+  ScopedActivateContext activated{context};
+  CUresult res = cuStreamCreateWithPriority(stream, flags, priority);
+  if (res != CUDA_SUCCESS) {
+    LOG(ERROR) << "could not allocate CUDA stream with prority for context "
+               << context->context() << ": " << ToString(res);
+    return false;
+  }
+
+  VLOG(2) << "successfully created stream " << *stream << "with priority " 
+          << priority << "of flag " << flags <<" for context "
+          << context->context() << " on thread";
+  return true;
+}
+// ~wxf
+
 /* static */ bool GpuDriver::CreateStream(GpuContext* context,
                                           CUstream* stream) {
   // TODO(leary) can we switch this to CU_STREAM_NON_BLOCKING or will that mess
@@ -793,6 +813,7 @@ GpuDriver::ContextGetSharedMemConfig(GpuContext* context) {
   // to occur on the default stream?
   ScopedActivateContext activated{context};
   CUresult res = cuStreamCreate(stream, 0);
+  //CUresult res = cuStreamCreate(stream, 1); //wxf test
   if (res != CUDA_SUCCESS) {
     LOG(ERROR) << "could not allocate CUDA stream for context "
                << context->context() << ": " << ToString(res);

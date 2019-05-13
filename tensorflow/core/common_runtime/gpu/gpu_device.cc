@@ -242,36 +242,77 @@ class BaseGPUDevice::StreamGroupFactory {
     StreamGroup* group =
         &streams_[key_type(tf_gpu_id.value(), stream_group_within_gpu)];
     if (!group->compute) {
-      group->compute = new se::Stream(executor);
-      group->compute->Init();
-      VLOG(2) << "Created stream[" << stream_group_within_gpu
-              << "] = " << group->compute;
-
-      group->host_to_device = new se::Stream(executor);
-      group->host_to_device->Init();
-      VLOG(2) << "Created host_to_device_stream[" << stream_group_within_gpu
-              << "] = " << group->host_to_device;
-
-      group->device_to_host = new se::Stream(executor);
-      group->device_to_host->Init();
-      VLOG(2) << "Created device_to_host_stream[" << stream_group_within_gpu
-              << "] = " << group->device_to_host;
-
-      int num_d2d_streams =
-          options.experimental().num_dev_to_dev_copy_streams();
-      if (num_d2d_streams == 0) num_d2d_streams = 1;
-      if (num_d2d_streams < 1 || num_d2d_streams > 4) {
-        LOG(ERROR)
-            << "Illegal GPUOptions.experimental.num_dev_to_dev_copy_streams="
-            << num_d2d_streams << " set to 1 instead.";
-        num_d2d_streams = 1;
-      }
-      for (int i = 0; i < num_d2d_streams; ++i) {
-        se::Stream* stream = new se::Stream(executor);
-        stream->Init();
-        group->device_to_device.push_back(stream);
-        VLOG(2) << "Created device_to_device_stream[" << stream_group_within_gpu
-                << "] = " << group->device_to_device.back();
+      // wxf: the first is high priority (stream_group_within_gpu == 0)
+      //   the second is low priority
+      if (stream_group_within_gpu == 0) {
+        group->compute = new se::Stream(executor);
+        // flags = 1, non-blocking stream; priority = -1, high priority
+        group->compute->Init(1,-1);
+        //group->compute->Init();
+        VLOG(2) << "Created stream[" << stream_group_within_gpu
+                << "] = " << group->compute;
+  
+        group->host_to_device = new se::Stream(executor);
+        group->host_to_device->Init(1,-1);
+        //group->host_to_device->Init();
+        VLOG(2) << "Created host_to_device_stream[" << stream_group_within_gpu
+                << "] = " << group->host_to_device;
+  
+        group->device_to_host = new se::Stream(executor);
+        group->device_to_host->Init(1,-1);
+        //group->device_to_host->Init();
+        VLOG(2) << "Created device_to_host_stream[" << stream_group_within_gpu
+                << "] = " << group->device_to_host;
+  
+        int num_d2d_streams =
+            options.experimental().num_dev_to_dev_copy_streams();
+        if (num_d2d_streams == 0) num_d2d_streams = 1;
+        if (num_d2d_streams < 1 || num_d2d_streams > 4) {
+          LOG(ERROR)
+              << "Illegal GPUOptions.experimental.num_dev_to_dev_copy_streams="
+              << num_d2d_streams << " set to 1 instead.";
+          num_d2d_streams = 1;
+        }
+        for (int i = 0; i < num_d2d_streams; ++i) {
+          se::Stream* stream = new se::Stream(executor);
+          stream->Init(1,-1);
+          //stream->Init();
+          group->device_to_device.push_back(stream);
+          VLOG(2) << "Created device_to_device_stream[" << stream_group_within_gpu
+                  << "] = " << group->device_to_device.back();
+        }
+      } else {
+        group->compute = new se::Stream(executor);
+        group->compute->Init(1,0);
+        VLOG(2) << "Created stream[" << stream_group_within_gpu
+                << "] = " << group->compute;
+  
+        group->host_to_device = new se::Stream(executor);
+        group->host_to_device->Init(1,0);
+        VLOG(2) << "Created host_to_device_stream[" << stream_group_within_gpu
+                << "] = " << group->host_to_device;
+  
+        group->device_to_host = new se::Stream(executor);
+        group->device_to_host->Init(1,0);
+        VLOG(2) << "Created device_to_host_stream[" << stream_group_within_gpu
+                << "] = " << group->device_to_host;
+  
+        int num_d2d_streams =
+            options.experimental().num_dev_to_dev_copy_streams();
+        if (num_d2d_streams == 0) num_d2d_streams = 1;
+        if (num_d2d_streams < 1 || num_d2d_streams > 4) {
+          LOG(ERROR)
+              << "Illegal GPUOptions.experimental.num_dev_to_dev_copy_streams="
+              << num_d2d_streams << " set to 1 instead.";
+          num_d2d_streams = 1;
+        }
+        for (int i = 0; i < num_d2d_streams; ++i) {
+          se::Stream* stream = new se::Stream(executor);
+          stream->Init(1,0);
+          group->device_to_device.push_back(stream);
+          VLOG(2) << "Created device_to_device_stream[" << stream_group_within_gpu
+                  << "] = " << group->device_to_device.back();
+        }
       }
     }
     return group;
@@ -457,31 +498,52 @@ Status BaseGPUDevice::FillContextMap(const Graph* graph,
 
   const size_t num_streams = streams_.size();
   // Special case for single stream.
+  //if (num_streams == 2) { // wxf test
   if (num_streams == 1) {
     return Status::OK();
   }
-  const int64 before = Env::Default()->NowMicros();
-  gpu_stream_util::AssignStreamsOpts opts;
-  opts.max_streams = static_cast<int32>(num_streams);
-  std::unordered_map<int, int> node_to_stream_id;
-  TF_RETURN_IF_ERROR(
-      gpu_stream_util::AssignStreams(graph, opts, &node_to_stream_id));
-  int64 elapsed = Env::Default()->NowMicros() - before;
-  VLOG(3) << "AssignStreams took " << elapsed << "us";
+  
+//  const int64 before = Env::Default()->NowMicros();
+//  gpu_stream_util::AssignStreamsOpts opts;
+//  opts.max_streams = static_cast<int32>(num_streams);
+//  std::unordered_map<int, int> node_to_stream_id;
+//  TF_RETURN_IF_ERROR(
+//      gpu_stream_util::AssignStreams(graph, opts, &node_to_stream_id));
+//  int64 elapsed = Env::Default()->NowMicros() - before;
+//  VLOG(3) << "AssignStreams took " << elapsed << "us";
+//
+//  // Fill in the context map.  It is OK for this map to contain
+//  // duplicate DeviceContexts so long as we increment the refcount.
+//  device_context_map->resize(graph->num_node_ids());
+//  for (Node* n : graph->nodes()) {
+//    auto mapped_stream = node_to_stream_id[n->id()];
+//    CHECK_LE(mapped_stream, num_streams);
+//    auto ctx = device_contexts_[mapped_stream];
+//    VLOG(3) << "Assigned stream " << node_to_stream_id[n->id()]
+//            << " ==> stream[" << ctx->stream_id() << "] for node id " << n->id()
+//            << " " << n->type_string() << " " << n->name();
+//    ctx->Ref();
+//    (*device_context_map)[n->id()] = ctx;
+//  }
 
-  // Fill in the context map.  It is OK for this map to contain
-  // duplicate DeviceContexts so long as we increment the refcount.
+  // wxf
   device_context_map->resize(graph->num_node_ids());
-  for (Node* n : graph->nodes()) {
-    auto mapped_stream = node_to_stream_id[n->id()];
-    CHECK_LE(mapped_stream, num_streams);
-    auto ctx = device_contexts_[mapped_stream];
-    VLOG(3) << "Assigned stream " << node_to_stream_id[n->id()]
-            << " ==> stream[" << ctx->stream_id() << "] for node id " << n->id()
-            << " " << n->type_string() << " " << n->name();
-    ctx->Ref();
-    (*device_context_map)[n->id()] = ctx;
+  //std::clog << graph->get_gpriority() << "\n"; // for test 
+  // high priority graph
+  if (graph->get_gpriority() == 1) {
+    for (Node* n : graph->nodes()){
+      device_contexts_[0]->Ref();
+      // high priority streams group are in device_contexts_[0]
+      (*device_context_map)[n->id()] = device_contexts_[0]; 
+    }
+  } else {
+    for (Node* n : graph->nodes()){
+      device_contexts_[1]->Ref();
+      // low priority streams group are in device_contexts_[1]
+      (*device_context_map)[n->id()] = device_contexts_[1]; 
+    }
   }
+  //~wxf
 
   return Status::OK();
 }
@@ -529,38 +591,44 @@ void BaseGPUDevice::ComputeHelper(OpKernel* op_kernel,
             << ComputeOpKernelDebugString(*op_kernel, stream_id);
   }
 
-  const auto num_streams = streams_.size();
-  if (num_streams > 1) {
-    // If this op's device context is different from the other contexts,
-    // we must wait on the stream.
-    for (int i = 0; i < context->num_inputs(); ++i) {
-      const GPUDeviceContext* idc =
-          static_cast<GPUDeviceContext*>(context->input_device_context(i));
-      OP_REQUIRES(context, idc != nullptr,
-                  errors::Internal("Input device context ", i,
-                                   " was not set properly."));
-      if (vlog_2) {
-        const void* base;
-        size_t len;
-        if (context->has_input(i)) {
-          if (IsRefType(context->input_dtype(i))) {
-            Tensor tensor = context->mutable_input(i, false);
-            base = DMAHelper::base(&tensor);
-            len = tensor.TotalBytes();
-          } else {
-            const Tensor& tensor = context->input(i);
-            base = DMAHelper::base(&tensor);
-            len = tensor.TotalBytes();
-          }
-          LOG(INFO) << "Input " << i << " " << base << "  " << len;
-          LOG(INFO) << "  stream[" << stream_id << "].ThenWaitFor(stream["
-                    << idc->stream_id() << "])"
-                    << ((idc->stream() == stream) ? " not needed" : "");
-        }
-      }
-      if (idc->stream() != stream) stream->ThenWaitFor(idc->stream());
-    }
-  }
+//  const auto num_streams = streams_.size();
+//  // wxf bug test, future recovery
+//  if (num_streams > 1) {
+//    // wxf debug
+//    //if (context->op_kernel().name() == "training/Adam/gradients/batch_normalization_11/cond/FusedBatchNorm/Switch_1_grad/cond_grad"){
+//    //  std::clog << context->op_kernel().name() <<"\n";
+//    //}
+//    //~wxf
+//    // If this op's device context is different from the other contexts,
+//    // we must wait on the stream.
+//    for (int i = 0; i < context->num_inputs(); ++i) {
+//      const GPUDeviceContext* idc =
+//          static_cast<GPUDeviceContext*>(context->input_device_context(i));
+//      OP_REQUIRES(context, idc != nullptr,
+//                  errors::Internal("Input device context ", i,
+//                                   " was not set properly."));
+//      if (vlog_2) {
+//        const void* base;
+//        size_t len;
+//        if (context->has_input(i)) {
+//          if (IsRefType(context->input_dtype(i))) {
+//            Tensor tensor = context->mutable_input(i, false);
+//            base = DMAHelper::base(&tensor);
+//            len = tensor.TotalBytes();
+//          } else {
+//            const Tensor& tensor = context->input(i);
+//            base = DMAHelper::base(&tensor);
+//            len = tensor.TotalBytes();
+//          }
+//          LOG(INFO) << "Input " << i << " " << base << "  " << len;
+//          LOG(INFO) << "  stream[" << stream_id << "].ThenWaitFor(stream["
+//                    << idc->stream_id() << "])"
+//                    << ((idc->stream() == stream) ? " not needed" : "");
+//        }
+//      }
+//      if (idc->stream() != stream) stream->ThenWaitFor(idc->stream());
+//    }
+//  }
   if (pending_cap_ > 0) {
     DCHECK(kernel_tracker_);
     kernel_tracker_->PauseWhilePendingExceeds(pending_cap_);

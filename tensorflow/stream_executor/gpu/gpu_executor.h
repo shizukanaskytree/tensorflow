@@ -156,6 +156,10 @@ class GpuExecutor : public internal::StreamExecutorInterface {
                     std::function<port::Status()> callback) override;
 
   bool AllocateStream(Stream* stream) override;
+  
+  // wxf
+  bool AllocateStream(Stream* stream, unsigned int flags, int priority) override;
+  //~wxf
 
   void DeallocateStream(Stream* stream) override;
 

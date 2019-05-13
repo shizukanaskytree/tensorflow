@@ -783,6 +783,21 @@ bool StreamExecutor::AllocateStream(Stream *stream) {
   return true;
 }
 
+// wxf
+bool StreamExecutor::AllocateStream(Stream *stream, unsigned int flags, 
+                                    int priority) {
+  live_stream_count_.fetch_add(1, std::memory_order_relaxed);
+  if (!implementation_->AllocateStream(stream, flags, priority)) {
+    auto count = live_stream_count_.fetch_sub(1);
+    CHECK_GE(count, 0) << "live stream count should not dip below zero";
+    LOG(INFO) << "failed to allocate stream; live stream count: " << count;
+    return false;
+  }
+
+  return true;
+}
+//~wxf
+
 void StreamExecutor::DeallocateStream(Stream *stream) {
   implementation_->DeallocateStream(stream);
   CHECK_GE(live_stream_count_.fetch_sub(1), 0)

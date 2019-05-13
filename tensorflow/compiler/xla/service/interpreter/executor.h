@@ -149,6 +149,9 @@ class XlaInterpreterExecutor : public internal::StreamExecutorInterface {
   }
 
   bool AllocateStream(Stream *stream) override { return true; }
+  // wxf
+  bool AllocateStream(Stream *stream, unsigned int flags, int priority) override { return true; }
+  //~wxf
   void DeallocateStream(Stream *stream) override {}
   bool CreateStreamDependency(Stream *dependent, Stream *other) override;
 

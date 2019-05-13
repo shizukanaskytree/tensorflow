@@ -124,6 +124,10 @@ class Stream {
   // operations.
   Stream &Init() LOCKS_EXCLUDED(mu_);
 
+  // wxf
+  Stream &Init(unsigned int flags, int priority) LOCKS_EXCLUDED(mu_);
+  //~wxf
+
   // Initializes timer t via the StreamExecutor.
   Stream &InitTimer(Timer *t);
 

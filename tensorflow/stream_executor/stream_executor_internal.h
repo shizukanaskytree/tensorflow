@@ -248,6 +248,9 @@ class StreamExecutorInterface {
   virtual port::Status WaitForEvent(Stream *stream, Event *event) = 0;
   virtual Event::Status PollForEventStatus(Event *event) = 0;
   virtual bool AllocateStream(Stream *stream) = 0;
+  // wxf
+  virtual bool AllocateStream(Stream *stream, unsigned int flags, int priority) = 0;
+  //~wxf
   virtual void DeallocateStream(Stream *stream) = 0;
   virtual bool CreateStreamDependency(Stream *dependent, Stream *other) = 0;
   virtual bool AllocateTimer(Timer *timer) = 0;

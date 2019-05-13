@@ -728,6 +728,12 @@ bool GpuExecutor::AllocateStream(Stream* stream) {
   return AsGpuStream(stream)->Init();
 }
 
+// wxf
+bool GpuExecutor::AllocateStream(Stream* stream, unsigned int flags, int priority) {
+  return AsGpuStream(stream)->Init(flags, priority);
+}
+//~wxf
+
 void GpuExecutor::DeallocateStream(Stream* stream) {
   GpuStream* cuda_stream = AsGpuStream(stream);
   if (!cuda_stream->IsIdle()) {

@@ -306,6 +306,27 @@ Stream &Stream::Init() {
   return *this;
 }
 
+// wxf
+Stream &Stream::Init(unsigned int flags, int priority) {
+  VLOG_CALL();
+
+  mutex_lock lock(mu_);
+  CHECK_EQ(false, allocated_)
+      << "stream appears to already have been initialized";
+  CHECK(!ok_) << "stream should be in !ok() state pre-initialization";
+
+  if (parent_->AllocateStream(this, flags, priority)) {
+    // Successful initialization!
+    allocated_ = true;
+    ok_ = true;
+  } else {
+    LOG(ERROR) << "failed to allocate stream during initialization";
+  }
+
+  return *this;
+}
+//~wxf
+
 Stream &Stream::InitTimer(Timer *timer) {
   VLOG_CALL(PARAM(timer));
 

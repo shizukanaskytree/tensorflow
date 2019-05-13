@@ -31,6 +31,18 @@ bool GpuStream::Init() {
       .ok();
 }
 
+// wxf
+bool GpuStream::Init(unsigned int flags, int priority) {
+  if (!GpuDriver::CreateStreamWithPriority(parent_->gpu_context(), &gpu_stream_,
+                                           flags, priority)) {
+    return false;
+  }
+  return GpuDriver::CreateEvent(parent_->gpu_context(), &completed_event_,
+                                GpuDriver::EventFlags::kDisableTiming)
+      .ok();
+}
+//~wxf
+
 void GpuStream::Destroy() {
   if (completed_event_ != nullptr) {
     port::Status status =

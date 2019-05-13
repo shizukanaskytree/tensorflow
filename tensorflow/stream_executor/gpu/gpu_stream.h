@@ -49,6 +49,9 @@ class GpuStream : public internal::StreamInterface {
   // by StreamExecutor::AllocateStream().
   bool Init();
 
+  // wxf : with priority and flags to init a stream
+  bool Init(unsigned int flags, int priority);
+
   // Explicitly destroy the CUDA resources associated with this stream, used by
   // StreamExecutor::DeallocateStream().
   void Destroy();

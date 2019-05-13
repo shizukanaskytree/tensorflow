@@ -657,6 +657,9 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
         SchedClosure(device_thread_pool, std::move(c), gpriority);
       };
     }
+    // wxf
+    item.graph->set_gpriority(/*gpriority =*/ run_options.gpriority());
+    //~wxf
     item.executor->RunAsync(args, barrier->Get());
   }
 

@@ -400,6 +400,16 @@ Graph::~Graph() {
   // destroy them.
 }
 
+// wxf
+void Graph::set_gpriority(int gpriority) {
+  gpriority_ = gpriority;
+}
+
+int Graph::get_gpriority() const {
+  return gpriority_;
+}
+//~wxf
+
 const VersionDef& Graph::versions() const { return *versions_; }
 void Graph::set_versions(const VersionDef& versions) { *versions_ = versions; }
 

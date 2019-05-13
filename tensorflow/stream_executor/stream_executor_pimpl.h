@@ -586,6 +586,10 @@ class StreamExecutor {
   // initializes its internals.
   bool AllocateStream(Stream *subject);
 
+  // wxf
+  bool AllocateStream(Stream *subject, unsigned int flags, int priority);
+  //~wxf
+
   // Deallocates stream resources on the underlying platform.
   void DeallocateStream(Stream *subject);
 

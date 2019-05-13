@@ -160,6 +160,11 @@ bool HostExecutor::HostCallback(Stream *stream,
 
 bool HostExecutor::AllocateStream(Stream *stream) { return true; }
 
+// wxf
+bool HostExecutor::AllocateStream(Stream *stream, unsigned int flags, int priority) 
+{ return true; }
+//~wxf
+
 void HostExecutor::DeallocateStream(Stream *stream) {}
 
 bool HostExecutor::CreateStreamDependency(Stream *dependent, Stream *other) {

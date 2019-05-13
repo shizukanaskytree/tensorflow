@@ -658,6 +658,12 @@ class Graph {
 
   // TODO(josh11b): uint64 hash() const;
 
+  // wxf
+  // 1: high; 0: low
+  void set_gpriority(int gpriority);
+  int get_gpriority() const;
+  //~wxf
+
  private:
   // If cost_node is non-null, then cost accounting (in CostModel)
   // will be associated with that node rather than the new one being
@@ -727,6 +733,11 @@ class Graph {
   // nested loops). The stored contexts are usually accessed via
   // AddWhileContext() or Node::while_ctx(), but this manages the lifetime.
   std::map<string, WhileContext> while_ctxs_;
+
+  // wxf
+  // 1: high; 0: low
+  int gpriority_;
+  //~wxf
 
   TF_DISALLOW_COPY_AND_ASSIGN(Graph);
 };
