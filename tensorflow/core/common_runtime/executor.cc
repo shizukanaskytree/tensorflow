@@ -1800,6 +1800,9 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
           if (completed) ScheduleFinish();
         };
         nodestats::SetOpStart(stats);
+        // wxf test
+        //std::clog << "Async Compute:" << async->name() << "\n"; 
+        //~wxf test
         device->ComputeAsync(async, &state->ctx, done);
       } else {
         // Synchronous computes.
@@ -1832,10 +1835,16 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
         } else {
           // In the common case, avoid creating any tracing objects.
           if (op_kernel->IsExpensive()) {
+            // wxf test
+            //std::clog << "Expensive:" << op_kernel->name() << "\n"; 
+            //~wxf test
             KernelTimer timer;
             device->Compute(op_kernel, &ctx);
             op_kernel->UpdateCostEstimate(timer.ElapsedCycles());
           } else {
+            // wxf test
+            //std::clog << "Inexpensive:" << op_kernel->name() << "\n"; 
+            //~wxf test
             device->Compute(op_kernel, &ctx);
           }
         }

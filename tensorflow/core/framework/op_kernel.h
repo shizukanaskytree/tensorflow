@@ -123,14 +123,25 @@ class OpKernel {
   // start out "expensive".
   static const uint64 kInitialCostEstimateCycles = 100 * 1000 * 1000;
   static const uint64 kOpIsExpensiveThresholdCycles = 5000;
+  // wxf
+  //static const uint64 kOpIsExpensiveThresholdCycles = 10;
+  //~wxf
   static const uint64 kCostDecay = 10;
 
   // Returns true iff this op kernel is considered "expensive". The
   // runtime may use this flag to optimize graph execution for example
   // to "inline" inexpensive kernels.
   virtual bool IsExpensive() {
+    // wxf
+    //std::clog << "expensive_: " << expensive_ << "\n";
+    //std::clog << "cost_estimate_: " << cost_estimate_ << "\n";
+    //~wxf
     return expensive_ && (cost_estimate_.load(std::memory_order_relaxed) >
                           kOpIsExpensiveThresholdCycles);
+    // wxf
+    //return (cost_estimate_.load(std::memory_order_relaxed) >
+    //                      kOpIsExpensiveThresholdCycles);
+    //~wxf
   }
 
   // Updates the dynamic cost estimate, which is used to determine whether this

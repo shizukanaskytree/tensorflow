@@ -24,4 +24,11 @@
 		<nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
 		<nature>org.eclipse.cdt.managedbuilder.core.ScannerConfigNature</nature>
 	</natures>
+	<linkedResources>
+		<link>
+			<name>label_image</name>
+			<type>1</type>
+			<location>/home/wxf/.cache/bazel/_bazel_wxf/c9ec6dae5972982c94fd072689ef96e0/execroot/org_tensorflow/bazel-out/k8-opt/bin/tensorflow/examples/multi_stream_label_image/label_image</location>
+		</link>
+	</linkedResources>
 </projectDescription>
