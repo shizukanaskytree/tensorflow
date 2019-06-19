@@ -8,8 +8,14 @@ set -x
 #           --config=cuda \
 #           $TARGET
 
-TARGET="//tensorflow/core/distributed_runtime/rpc:rpc_tests"
-bazel run --config=opt \
+#TARGET="//tensorflow/core/distributed_runtime/rpc:rpc_tests"
+#bazel run --config=opt \
+#           --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" \
+#           --config=cuda \
+#           $TARGET
+
+TARGET="//tensorflow/core/distributed_runtime/rpc:grpc_testlib_server"
+bazel build --config=opt \
            --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" \
            --config=cuda \
            $TARGET
