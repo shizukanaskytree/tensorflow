@@ -18,6 +18,7 @@ limitations under the License.
 #include <atomic>
 #include <string>
 #include <vector>
+#include <iostream>
 
 #include "tensorflow/core/common_runtime/collective_executor_mgr.h"
 #include "tensorflow/core/common_runtime/collective_param_resolver_local.h"
@@ -361,11 +362,21 @@ Status DirectSession::MaybeInitializeExecutionState(
     *out_already_initialized = true;
     return Status::OK();
   }
+
+  //size_t num_f = flib_def_->num_functions();
+  //std::clog << "Before: " << std::endl;
+  //flib_def_->DebugString();
+
   // Set up the per-session execution state.
   // NOTE(mrry): The function library created here will be used for
   // all subsequent extensions of the graph.
   flib_def_.reset(
       new FunctionLibraryDefinition(OpRegistry::Global(), graph.library()));
+
+  //num_f = flib_def_->num_functions();
+  //std::clog << "After: " << std::endl;
+  //flib_def_->DebugString();
+
   GraphExecutionStateOptions options;
   options.device_set = &device_set_;
   options.session_options = &options_;

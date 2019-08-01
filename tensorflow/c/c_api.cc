@@ -1941,9 +1941,18 @@ TF_Graph::TF_Graph()
       refiner(graph.versions().producer(), graph.op_registry()),
       delete_requested(false),
       parent(nullptr),
-      parent_inputs(nullptr) {}
+      parent_inputs(nullptr){}
 
-TF_Graph* TF_NewGraph() { return new TF_Graph; }
+void TF_Graph::TF_SetGraphPriority(int graph_priority){
+	graph_priority_ = graph_priority;
+  graph.SetGraphPriority(graph_priority);
+}
+
+TF_Graph* TF_NewGraph(int graph_priority=0) {
+	 TF_Graph* tf_graph = new TF_Graph();
+	 tf_graph->TF_SetGraphPriority(graph_priority);
+	 return tf_graph;
+}
 
 void TF_DeleteGraph(TF_Graph* g) {
   if (g == nullptr) return;
@@ -2355,6 +2364,12 @@ TF_WhileParams TF_NewWhile(TF_Graph* g, TF_Output* inputs, int ninputs,
   cond_graph->parent_inputs = inputs;
   body_graph->parent = g;
   body_graph->parent_inputs = inputs;
+
+  // The priority of the parent graph should pass to its children
+  // set their priority
+  cond_graph->graph_priority_ = g->graph_priority_;
+  body_graph->graph_priority_ = g->graph_priority_;
+
 
   TF_Output* cond_inputs = new TF_Output[ninputs];
   TF_Output cond_output = {nullptr, -1};

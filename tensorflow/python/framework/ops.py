@@ -2978,7 +2978,7 @@ class Graph(object):
   may define additional collections by specifying a new name.
   """
 
-  def __init__(self):
+  def __init__(self, graph_priority=0):
     """Creates a new, empty Graph."""
     # Protects core state that can be returned via public accessors.
     # Thread-safety is provided on a best-effort basis to support buggy
@@ -3063,9 +3063,17 @@ class Graph(object):
     # AutomaticControlDependencies context.
     self._add_control_dependencies = False
 
+
+    # Priority of the graph.
+    # 0 is default, low priority; 1 is high 
+    # TODO: pass priority into C++ backend
+    # It has setter and getter function below
+    self._graph_priority = graph_priority
+    
     # TODO(skyewm): fold as much of the above as possible into the C
     # implementation
-    self._scoped_c_graph = c_api_util.ScopedTFGraph()
+    self._scoped_c_graph = c_api_util.ScopedTFGraph(self._graph_priority)
+    
     # The C API requires all ops to have shape functions. Disable this
     # requirement (many custom ops do not have shape functions, and we don't
     # want to break these existing cases).
@@ -5109,7 +5117,18 @@ class Graph(object):
     See the comment for self._group_lock for more info.
     """
     return self._group_lock.group(_SESSION_RUN_LOCK_GROUP)
-
+  
+  @property 
+  def graph_priority(self):
+      print("Getting graph priority")
+      return self._graph_priority
+  
+  @graph_priority.setter
+  def graph_priority(self, graph_priority):
+      if priority < 0:
+          raise ValueError("Graph priority should be larger than 0")
+      print("Setting graph priority")
+      self._graph_priority = graph_priority
 
 # TODO(agarwal): currently device directives in an outer eager scope will not
 # apply to inner graph mode code. Fix that.
@@ -5843,6 +5862,13 @@ def reset_default_graph():
                          "nested graphs. If you need a cleared graph, "
                          "exit the nesting and create a new graph.")
   _default_graph_stack.reset()
+
+
+@tf_export(v1=["set_default_graph"])
+def set_default_graph(graph):
+  """Set the graph as the default one in the beginning
+  """
+  _default_graph_stack._global_default_graph = graph
 
 
 @tf_export(v1=["get_default_graph"])

@@ -65,6 +65,7 @@ limitations under the License.
 #include "tensorflow/core/platform/tracing.h"
 #include "tensorflow/core/platform/types.h"
 #include "tensorflow/core/util/tensor_slice_reader_cache.h"
+#include "tensorflow/core/util/env_var.h"
 
 namespace tensorflow {
 namespace {
@@ -1338,10 +1339,15 @@ class ExecutorState {
                 NodeExecStatsInterface* stats,
                 TaggedNodeReadyQueue* inline_ready);
 
+
+  /////////////////////////////////////////////////////////////
+  // wxf: I will add some logic inside this function
   // Schedule all the expensive nodes in 'ready', and put all the inexpensive
   // nodes in 'ready' into 'inline_ready'.
   void ScheduleReady(const TaggedNodeSeq& ready,
                      TaggedNodeReadyQueue* inline_ready);
+  /////////////////////////////////////////////////////////////
+
 
   // For debugging/logging only.
   inline void MaybeMarkCompleted(FrameState* frame, int64 iter, int64 id);
@@ -2250,8 +2256,21 @@ bool ExecutorState::NodeDone(const Status& s, const Node* node,
   return completed;
 }
 
+
+// wxf: TODO
 void ExecutorState::ScheduleReady(const TaggedNodeSeq& ready,
                                   TaggedNodeReadyQueue* inline_ready) {
+
+  /////////////////////////////////////////////////////
+  // wxf
+  //bool stop = false;
+  //ReadBoolFromEnvVar("TF_TO_STOP_SCHED", false, &stop);
+  //if (stop) {
+  //	  while(1);
+  //}
+  /////////////////////////////////////////////////////
+
+
   if (ready.empty()) return;
 
   int64 scheduled_nsec = 0;
@@ -2850,14 +2869,46 @@ bool ExecutorState::FrameState::CleanupIterations(const GraphView* gview,
 }
 
 void ExecutorImpl::RunAsync(const Args& args, DoneCallback done) {
+  // wxf: TODO
+  // Refactor the following code
+  // 1. create ExecutorState instance
+  // 2. add the ExecutorState instance into the ExecutorStatesManager's pool
+  // 3. call RunAsync
   (new ExecutorState(args, this))->RunAsync(std::move(done));
+
 }
+
+
+//////////////////////////////////////////////////
+// ExecutorState Manager
+// QDD
+// 1. When do we construct ExecutorStatesManager?
+//   - Before ExecutorImpl, before ExecutorState
+// 2.
+class ExecutorsManager{
+ public:
+  ExecutorsManager();
+  ~ExecutorsManager();
+  void AddExecutor();
+
+ private:
+  // A list of ExecutorStates instances
+  int highest_priority_;
+  // A map between ExecutorState pointer to its execution priority
+  std::unordered_map<Executor*, int> executorstate_priority_map_;
+
+};
+
+
 
 }  // namespace
 
+
+// Before NewLocalExecutor, I need to create a ExecutorsManager
 Status NewLocalExecutor(const LocalExecutorParams& params,
                         std::unique_ptr<const Graph> graph,
                         Executor** executor) {
+
   ExecutorImpl* impl = new ExecutorImpl(params, std::move(graph));
   const Status s = impl->Initialize();
   if (s.ok()) {

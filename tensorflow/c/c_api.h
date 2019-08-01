@@ -371,7 +371,7 @@ TF_CAPI_EXPORT extern void TF_DeleteSessionOptions(TF_SessionOptions*);
 typedef struct TF_Graph TF_Graph;
 
 // Return a new graph object.
-TF_CAPI_EXPORT extern TF_Graph* TF_NewGraph(void);
+TF_CAPI_EXPORT extern TF_Graph* TF_NewGraph(int graph_priority);
 
 // Destroy an options object.  Graph will be deleted once no more
 // TFSession's are referencing it.

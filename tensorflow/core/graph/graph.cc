@@ -400,6 +400,15 @@ Graph::~Graph() {
   // destroy them.
 }
 
+// Set graph priority
+void Graph::SetGraphPriority(int graph_priority){
+  graph_priority_ = graph_priority;  
+}
+
+int Graph::GetGraphPriority(){
+  return graph_priority_;
+}
+
 const VersionDef& Graph::versions() const { return *versions_; }
 void Graph::set_versions(const VersionDef& versions) { *versions_ = versions; }
 
