@@ -19,6 +19,8 @@ limitations under the License.
 #include <limits>
 #include <memory>
 #include <vector>
+#include <unordered_map>
+#include <thread>
 
 // Required for IS_MOBILE_PLATFORM
 #include "tensorflow/core/platform/platform.h"  // NOLINT
@@ -36,6 +38,9 @@ limitations under the License.
 #include "tensorflow/c/c_api_internal.h"
 #include "tensorflow/core/common_runtime/device_mgr.h"
 #include "tensorflow/core/common_runtime/eval_const_tensor.h"
+
+#include "tensorflow/core/common_runtime/executor.h"
+
 #include "tensorflow/core/common_runtime/shape_refiner.h"
 #include "tensorflow/core/framework/allocation_description.pb.h"
 #include "tensorflow/core/framework/kernel_def.pb.h"
@@ -104,6 +109,14 @@ using tensorflow::gtl::ArraySlice;
 using tensorflow::strings::StrCat;
 
 extern "C" {
+
+// --------------------------------------------------------------------------
+void TF_SetExecutionPriority(int execution_priority=0){
+  //std::this_thread::get_id()
+  tensorflow::tid_execution_priority_map_.insert(
+		  {std::this_thread::get_id(), execution_priority});
+}
+
 
 // --------------------------------------------------------------------------
 const char* TF_Version() { return TF_VERSION_STRING; }
@@ -1943,6 +1956,7 @@ TF_Graph::TF_Graph()
       parent(nullptr),
       parent_inputs(nullptr){}
 
+// Set priority for the created graph.
 void TF_Graph::TF_SetGraphPriority(int graph_priority){
 	graph_priority_ = graph_priority;
   graph.SetGraphPriority(graph_priority);

@@ -21,6 +21,7 @@ limitations under the License.
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <thread>
 
 #include "tensorflow/core/common_runtime/costmodel_manager.h"
 #include "tensorflow/core/common_runtime/executor_factory.h"
@@ -66,6 +67,8 @@ limitations under the License.
 #include "tensorflow/core/platform/types.h"
 #include "tensorflow/core/util/tensor_slice_reader_cache.h"
 #include "tensorflow/core/util/env_var.h"
+
+//#include "tensorflow/c/c_api.h"
 
 namespace tensorflow {
 namespace {
@@ -125,6 +128,7 @@ void SetReferencedTensors(NodeExecStatsInterface* stats,
 }  // namespace nodestats
 
 class ExecutorImpl;
+class ExecutorsPoolManager;
 class GraphView;
 
 struct EdgeInfo {
@@ -286,6 +290,41 @@ class GraphView {
   TF_DISALLOW_COPY_AND_ASSIGN(GraphView);
 };
 
+// -----------------------------------------------------------------------------
+
+// ExecutorImpl Manager
+// QDD
+class ExecutorsPoolManager{
+ public:
+  ExecutorsPoolManager():high_priority_executors_ref_count_(0) {}
+  ~ExecutorsPoolManager();
+
+  // Do I really need to store all ExecutorImpl?
+  void AddExecutorAndPriority(ExecutorImpl** executor);
+
+  // Delete ExecutorImpl when it deconstructs.
+  void DeleteExecutor(ExecutorImpl* executor);
+
+
+ private:
+  // The count of ExecutorImpl instances
+  std::atomic<int> high_priority_executors_ref_count_;
+
+  // mutex to protect multiple threads from accessing executor_priority_map_
+  mutex add_mu_;
+  mutex delete_mu_;
+
+  // A map between ExecutorImpl pointer to its execution priority
+  std::unordered_map<ExecutorImpl*, int> executor_priority_map_;
+
+  // Define two kind of ExecutorsPool:
+  // - HighPriorityExecutorsPool
+  // - LowPriorityExecutorsPool
+  // If there are only two kinds, we only need a FIFO Queue for each of them.
+};
+
+// -----------------------------------------------------------------------------
+
 class ExecutorImpl : public Executor {
  public:
   ExecutorImpl(const LocalExecutorParams& p, std::unique_ptr<const Graph> g)
@@ -304,6 +343,9 @@ class ExecutorImpl : public Executor {
     for (auto fiter : frame_info_) {
       delete fiter.second;
     }
+
+    // update executors_pool_manager_
+    executors_pool_manager_->DeleteExecutor(this);
   }
 
   Status Initialize();
@@ -314,6 +356,9 @@ class ExecutorImpl : public Executor {
   Status SetAllocAttrs();
 
   void RunAsync(const Args& args, DoneCallback done) override;
+
+  // ExecutorsPoolManager to manager all ExecutorImpl
+  static ExecutorsPoolManager* executors_pool_manager_;
 
  private:
   friend class ExecutorState;
@@ -382,7 +427,16 @@ class ExecutorImpl : public Executor {
   gtl::FlatMap<string, FrameInfo*> frame_info_;
 
   TF_DISALLOW_COPY_AND_ASSIGN(ExecutorImpl);
-};
+}; // end of class ExecutorImpl
+
+
+// -----------------------------------------------------------------------------
+
+// Maybe we can set a global instance of ExecutorManager below and
+// add all of the Executors into it.
+ExecutorsPoolManager* ExecutorImpl::executors_pool_manager_ = new ExecutorsPoolManager();
+
+// -----------------------------------------------------------------------------
 
 // Infer memory allocation attributes of a node n's output,
 // based on its use node dst.  Note that dst might not be directly
@@ -2875,34 +2929,51 @@ void ExecutorImpl::RunAsync(const Args& args, DoneCallback done) {
   // 2. add the ExecutorState instance into the ExecutorStatesManager's pool
   // 3. call RunAsync
   (new ExecutorState(args, this))->RunAsync(std::move(done));
-
 }
-
-
-//////////////////////////////////////////////////
-// ExecutorState Manager
-// QDD
-// 1. When do we construct ExecutorStatesManager?
-//   - Before ExecutorImpl, before ExecutorState
-// 2.
-class ExecutorsManager{
- public:
-  ExecutorsManager();
-  ~ExecutorsManager();
-  void AddExecutor();
-
- private:
-  // A list of ExecutorStates instances
-  int highest_priority_;
-  // A map between ExecutorState pointer to its execution priority
-  std::unordered_map<Executor*, int> executorstate_priority_map_;
-
-};
-
 
 
 }  // namespace
 
+
+// ----------------------------------------------------------------------------
+
+// tid_execution_priority_map_ stores tid and its executors' priority
+// Note: syntax detour from c_api.cc
+std::unordered_map<std::thread::id, int> tid_execution_priority_map_;
+
+
+void ExecutorsPoolManager::AddExecutorAndPriority(ExecutorImpl** executor){
+	// lock before modifing the shared variable
+	add_mu_.lock();
+	std::thread::id tid = std::this_thread::get_id();
+	auto iter = tid_execution_priority_map_.find(tid);
+	if (iter == tid_execution_priority_map_.end()){
+	  // If we cannot find this tid, it means that the priority is not set,
+	  // i.e. 0 by default.
+	  executor_priority_map_.insert({*executor, 0});
+	}else {
+	  // add this Executor* executor with its priority from the current thread
+	  int execution_priority = iter->second;
+	  executor_priority_map_.insert({*executor, execution_priority});
+	  if (execution_priority > 0) {
+		high_priority_executors_ref_count_.fetch_add(1, std::memory_order_relaxed);
+	  }
+	}
+	add_mu_.unlock();
+}
+
+void ExecutorsPoolManager::DeleteExecutor(ExecutorImpl* executor){
+  delete_mu_.lock();
+  int execution_priority = executor_priority_map_[executor];
+  if (execution_priority > 0) {
+	  high_priority_executors_ref_count_.fetch_sub(1, std::memory_order_relaxed);
+  }
+  executor_priority_map_.erase(executor);
+  delete_mu_.unlock();
+}
+
+
+// ----------------------------------------------------------------------------
 
 // Before NewLocalExecutor, I need to create a ExecutorsManager
 Status NewLocalExecutor(const LocalExecutorParams& params,
@@ -2910,6 +2981,10 @@ Status NewLocalExecutor(const LocalExecutorParams& params,
                         Executor** executor) {
 
   ExecutorImpl* impl = new ExecutorImpl(params, std::move(graph));
+
+  // Add ExecutorImpl pointer into the executors_pool_manager_
+  ExecutorImpl::executors_pool_manager_->AddExecutorAndPriority(&impl);
+
   const Status s = impl->Initialize();
   if (s.ok()) {
     *executor = impl;

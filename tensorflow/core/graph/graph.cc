@@ -405,13 +405,15 @@ void Graph::SetGraphPriority(int graph_priority){
   graph_priority_ = graph_priority;  
 }
 
-int Graph::GetGraphPriority(){
+int Graph::GetGraphPriority() const{
   return graph_priority_;
 }
 
 const VersionDef& Graph::versions() const { return *versions_; }
 void Graph::set_versions(const VersionDef& versions) { *versions_ = versions; }
 
+/// Do we need to tell this node its parent graph? It is not set here.
+/// AllocateNode has already told this Node its parent Graph*
 Node* Graph::AddNode(const NodeDef& node_def, Status* status) {
   const OpDef* op_def;
   status->Update(ops_.LookUpOpDef(node_def.op(), &op_def));
@@ -425,6 +427,7 @@ Node* Graph::AddNode(const NodeDef& node_def, Status* status) {
     return nullptr;
   }
 
+  /// AllocateNode has already told this Node its parent Graph*
   Node* node = AllocateNode(
       std::make_shared<NodeProperties>(op_def, node_def, inputs, outputs),
       nullptr);
@@ -826,6 +829,12 @@ std::unordered_map<string, Node*> Graph::BuildNodeNameIndex() const {
   }
   return result;
 }
+
+// Getter function of the parent Graph* of this node
+Graph* Node::GetParentGraph() const{
+	return graph_;
+}
+
 
 string Edge::DebugString() const {
   return strings::Printf("[id=%d %s:%d -> %s:%d]", id_, src_->name().c_str(),

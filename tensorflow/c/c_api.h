@@ -18,6 +18,8 @@ limitations under the License.
 
 #include <stddef.h>
 #include <stdint.h>
+//#include <thread>
+//#include <unordered_map>
 
 // --------------------------------------------------------------------------
 // C API for TensorFlow.
@@ -87,6 +89,12 @@ limitations under the License.
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// --------------------------------------------------------------------------
+// TF_SetPriority to set the priority of the current thread, which constructs
+// the TF_Graph, ExecutorImpl.
+TF_CAPI_EXPORT extern void TF_SetExecutionPriority(int execution_priority);
+
 
 // --------------------------------------------------------------------------
 // TF_Version returns a string describing version information of the

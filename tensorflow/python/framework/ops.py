@@ -6586,4 +6586,14 @@ def _is_keras_symbolic_tensor(x):
   return hasattr(x, "graph") and getattr(x.graph, "name", None) == "keras_graph"
 
 
+# The lock used for multiple threads to set execution priority
+_set_execution_priority_lock =threading.Lock()
+
+# Set execution priority of the current tid
+@tf_export(v1=["set_execution_priority"])
+def set_execution_priority(execution_priority=0):
+  with _set_execution_priority_lock:
+    c_api.TF_SetExecutionPriority(execution_priority)
+  
+
 register_tensor_conversion_function(Operation, _operation_conversion_error)

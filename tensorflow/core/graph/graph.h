@@ -210,6 +210,9 @@ class Node {
     while_ctx_ = while_ctx;
   }
 
+  // Getter function of this node's parent Graph pointer
+  Graph* GetParentGraph() const;
+
  private:
   friend class Graph;
   Node();
@@ -290,6 +293,7 @@ class Node {
   // callers of Node::[set_]assigned_device_name() are modified to use the
   // equivalent methods defined directly on Graph, then we can remove this
   // field and reclaim that memory.
+  /// Need to define a getter function: Graph* GetParentGraph()
   Graph* graph_;
 
   // Set if this is an exit node of a while loop with an associated
@@ -656,7 +660,7 @@ class Graph {
   // Set graph priority
   void SetGraphPriority(int graph_priority);
   // Get graph priority
-  int GetGraphPriority();
+  int GetGraphPriority() const;
 
  private:
   // If cost_node is non-null, then cost accounting (in CostModel)

@@ -27,7 +27,17 @@ limitations under the License.
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/macros.h"
 
+#include <thread>
+#include <unordered_map>
+
+
 namespace tensorflow {
+
+// tid_execution_priority_map_ stores tid and its executors' priority
+extern std::unordered_map<std::thread::id, int> tid_execution_priority_map_;
+
+
+
 
 class StepStatsCollector;
 
