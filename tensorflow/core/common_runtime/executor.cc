@@ -305,10 +305,13 @@ class ExecutorsPoolManager{
   // Delete ExecutorImpl when it deconstructs.
   void DeleteExecutor(ExecutorImpl* executor);
 
+  // inquire priority by ExecutorImpl pointer
+  int InquirePriorityByExecutorImpl(const ExecutorImpl* executor);
 
- private:
   // The count of ExecutorImpl instances
   std::atomic<int> high_priority_executors_ref_count_;
+
+ private:
 
   // mutex to protect multiple threads from accessing executor_priority_map_
   mutex add_mu_;
@@ -2324,6 +2327,14 @@ void ExecutorState::ScheduleReady(const TaggedNodeSeq& ready,
   //}
   /////////////////////////////////////////////////////
 
+  // Inquire the current ExecutorImpl's priority, if it is low,
+  // further ask ExecutorsPoolManager and wait until there is no
+  // high priority executors.
+  if (impl_->executors_pool_manager_->InquirePriorityByExecutorImpl(impl_) == 0) {
+    while(impl_->executors_pool_manager_->high_priority_executors_ref_count_.load(
+          std::memory_order_relaxed));
+  }
+
 
   if (ready.empty()) return;
 
@@ -2970,6 +2981,18 @@ void ExecutorsPoolManager::DeleteExecutor(ExecutorImpl* executor){
   }
   executor_priority_map_.erase(executor);
   delete_mu_.unlock();
+}
+  
+int ExecutorsPoolManager::InquirePriorityByExecutorImpl(const ExecutorImpl* executor) {
+  return executor_priority_map_[const_cast<ExecutorImpl*>(executor)];
+  //ExecutorImpl* e = const_cast<ExecutorImpl*>(executor);
+  //auto search = executor_priority_map_.find(e);
+  //if (search != executor_priority_map_.end()) {
+  //  return search->second;
+  //} else {
+  //	//errors::NotFound("No ExecutorImpl* found in the ExecutorsPoolManager::executor_priority_map_ map");
+  //	return -1;
+  //}
 }
 
 
