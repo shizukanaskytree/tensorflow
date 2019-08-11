@@ -38,6 +38,8 @@ limitations under the License.
 #include "tensorflow/core/lib/strings/strcat.h"
 #include "tensorflow/core/public/session_options.h"
 
+//#include <iostream>
+
 namespace tensorflow {
 
 namespace {
@@ -105,6 +107,14 @@ Status GraphRunner::Run(Graph* graph, FunctionLibraryRuntime* function_library,
   if (device_ == nullptr) {
     return errors::NotFound("Cannot find a device for GraphRunner.");
   }
+
+  // -- debug
+  // debug: Print output_names, check whether they are unique for a graph.
+  //std::cout << "GraphRunner::Run" << std::endl;
+  //for(string output_name: output_names){
+  //  std::cout << output_name << std::endl;
+  //}
+  // ~~ debug
 
   if (function_library && function_library->device() &&
       function_library->device()->device_type() != device_->device_type()) {

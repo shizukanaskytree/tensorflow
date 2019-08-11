@@ -80,7 +80,7 @@ struct TF_Graph {
 
   // 1. set the TF_Graph::graph_priority_
   // 2. set the object TF_Graph::graph graph_priority_
-  void TF_SetGraphPriority(int graph_priority);
+//  void TF_SetGraphPriority(int graph_priority);
 
   tensorflow::mutex mu;
   tensorflow::Graph graph GUARDED_BY(mu);
@@ -115,7 +115,7 @@ struct TF_Graph {
   TF_Output* parent_inputs;
 
   // graph priority
-  int graph_priority_;
+//  int graph_priority_;
 };
 
 struct TF_OperationDescription {

@@ -1326,7 +1326,7 @@ void CopyGraph(const Graph& src, Graph* dest) {
   }
 
   // copy graph priority
-  dest->SetGraphPriority(src.GetGraphPriority());
+//  dest->SetGraphPriority(src.GetGraphPriority());
 }
 
 }  // namespace tensorflow

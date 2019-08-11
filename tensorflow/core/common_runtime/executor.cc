@@ -22,6 +22,7 @@ limitations under the License.
 #include <unordered_map>
 #include <vector>
 #include <thread>
+#include <iostream>
 
 #include "tensorflow/core/common_runtime/costmodel_manager.h"
 #include "tensorflow/core/common_runtime/executor_factory.h"
@@ -316,6 +317,7 @@ class ExecutorsPoolManager{
   // mutex to protect multiple threads from accessing executor_priority_map_
   mutex add_mu_;
   mutex delete_mu_;
+  mutex read_mu_;
 
   // A map between ExecutorImpl pointer to its execution priority
   std::unordered_map<ExecutorImpl*, int> executor_priority_map_;
@@ -2327,10 +2329,17 @@ void ExecutorState::ScheduleReady(const TaggedNodeSeq& ready,
   //}
   /////////////////////////////////////////////////////
 
-  // Inquire the current ExecutorImpl's priority, if it is low,
+  // Inquire the current ExecutorImpl's priority, if it is low(1),
   // further ask ExecutorsPoolManager and wait until there is no
-  // high priority executors.
-  if (impl_->executors_pool_manager_->InquirePriorityByExecutorImpl(impl_) == 0) {
+  // high priority executors (2).
+  // For default priority(0) generated from ThreadPool, we don't stop them.
+  // Those Op Nodes are Dataset Op, RemoteCallOp, IfOp etc.
+  if (impl_->executors_pool_manager_->InquirePriorityByExecutorImpl(impl_) == 1) {
+	// -- debug
+	//std::cout << "ScheduleReady Low Pirority" << std::endl;
+	//std::cout << impl_->executors_pool_manager_->high_priority_executors_ref_count_.load(std::memory_order_relaxed) << std::endl;
+	// ~~ debug
+
     while(impl_->executors_pool_manager_->high_priority_executors_ref_count_.load(
           std::memory_order_relaxed));
   }
@@ -2954,20 +2963,42 @@ std::unordered_map<std::thread::id, int> tid_execution_priority_map_;
 
 
 void ExecutorsPoolManager::AddExecutorAndPriority(ExecutorImpl** executor){
-	// lock before modifing the shared variable
+	// lock before modifing the shared variable.
 	add_mu_.lock();
 	std::thread::id tid = std::this_thread::get_id();
 	auto iter = tid_execution_priority_map_.find(tid);
 	if (iter == tid_execution_priority_map_.end()){
 	  // If we cannot find this tid, it means that the priority is not set,
-	  // i.e. 0 by default.
+	  // i.e. 0 by default for ThreadPool threads.
 	  executor_priority_map_.insert({*executor, 0});
+
+	  // -- debug
+	  std::cout << "Add::ThreadPool Pirority (0)" << std::endl;
+	  std::cout << high_priority_executors_ref_count_.load(std::memory_order_relaxed) << std::endl;
+	  // ~~ debug
 	}else {
-	  // add this Executor* executor with its priority from the current thread
+	  // add this Executor* executor with its priority from the current
+	  // client primary thread id.
 	  int execution_priority = iter->second;
 	  executor_priority_map_.insert({*executor, execution_priority});
-	  if (execution_priority > 0) {
+
+
+	  // -- debug
+	  if (execution_priority == 1){
+        std::cout << "Add::Low Pirority (1)" << std::endl;
+		std::cout << high_priority_executors_ref_count_.load(std::memory_order_relaxed) << std::endl;
+	  }
+	  // ~~ debug
+
+	  // Since the high priority is defined as 2 and low is 1, we counts how
+	  // many high priority ExecutorImpl instances.
+	  if (execution_priority == 2) {
 		high_priority_executors_ref_count_.fetch_add(1, std::memory_order_relaxed);
+
+		// -- debug
+		std::cout << "Add::High Pirority (2)" << std::endl;
+		std::cout << high_priority_executors_ref_count_.load(std::memory_order_relaxed) << std::endl;
+		// ~~ debug
 	  }
 	}
 	add_mu_.unlock();
@@ -2976,15 +3007,43 @@ void ExecutorsPoolManager::AddExecutorAndPriority(ExecutorImpl** executor){
 void ExecutorsPoolManager::DeleteExecutor(ExecutorImpl* executor){
   delete_mu_.lock();
   int execution_priority = executor_priority_map_[executor];
-  if (execution_priority > 0) {
+  // Since the high priority is defined as 2 and low is 1, we decrease the
+  // number of high priority ExecutorImpl instances.
+  if (execution_priority == 2) {
 	  high_priority_executors_ref_count_.fetch_sub(1, std::memory_order_relaxed);
+
+	  // -- debug
+      std::cout << "Delete::High Pirority (2)" << std::endl;
+	  std::cout << high_priority_executors_ref_count_.load(std::memory_order_relaxed) << std::endl;
+	  // ~~ debug
   }
+
+  // -- debug
+  if (execution_priority == 1) {
+	std::cout << "Delete::Low Pirority (1)" << std::endl;
+	std::cout << high_priority_executors_ref_count_.load(std::memory_order_relaxed) << std::endl;
+  }
+
+  if (execution_priority == 0){
+	std::cout << "Delete::ThreadPool Pirority (0)" << std::endl;
+	std::cout << high_priority_executors_ref_count_.load(std::memory_order_relaxed) << std::endl;
+  }
+  // ~~ debug
+
+
+  // Delete the ExecutorImpl instance pointer from the map.
   executor_priority_map_.erase(executor);
   delete_mu_.unlock();
 }
   
 int ExecutorsPoolManager::InquirePriorityByExecutorImpl(const ExecutorImpl* executor) {
+  //read_mu_.lock();
+  //int priority = executor_priority_map_[const_cast<ExecutorImpl*>(executor)];
+  //read_mu_.unlock();
+  //return priority;
+
   return executor_priority_map_[const_cast<ExecutorImpl*>(executor)];
+
   //ExecutorImpl* e = const_cast<ExecutorImpl*>(executor);
   //auto search = executor_priority_map_.find(e);
   //if (search != executor_priority_map_.end()) {

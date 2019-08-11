@@ -658,9 +658,9 @@ class Graph {
   // TODO(josh11b): uint64 hash() const;
 
   // Set graph priority
-  void SetGraphPriority(int graph_priority);
+//  void SetGraphPriority(int graph_priority);
   // Get graph priority
-  int GetGraphPriority() const;
+//  int GetGraphPriority() const;
 
  private:
   // If cost_node is non-null, then cost accounting (in CostModel)
@@ -733,7 +733,7 @@ class Graph {
   std::map<string, WhileContext> while_ctxs_;
 
   // Graph Priority
-  int graph_priority_;
+//  int graph_priority_;
 
   TF_DISALLOW_COPY_AND_ASSIGN(Graph);
 };

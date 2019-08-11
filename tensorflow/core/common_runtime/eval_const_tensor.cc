@@ -347,7 +347,7 @@ Status EvaluateConstantTensor(OutputTensor tensor, const ShapeRefiner& refiner,
 
   // Set the subgraph's graph priority to be the same as the target_node,
   // i.e. src : Node* 's parent graph_ priority.
-  subgraph.SetGraphPriority(src->GetParentGraph()->GetGraphPriority());
+//  subgraph.SetGraphPriority(src->GetParentGraph()->GetGraphPriority());
 
   const string output_tensor_name =
       strings::StrCat(src->name(), ":", tensor.index);

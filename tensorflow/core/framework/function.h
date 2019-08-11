@@ -17,7 +17,6 @@ limitations under the License.
 #define TENSORFLOW_CORE_FRAMEWORK_FUNCTION_H_
 
 #include <vector>
-#include <string>
 
 #include "tensorflow/core/framework/attr_value.pb.h"
 #include "tensorflow/core/framework/attr_value_util.h"
@@ -323,7 +322,7 @@ class FunctionLibraryDefinition : public OpRegistryInterface {
       delete;
 
   //////////////////////////////////////////////////////////////
-  void DebugString(); 
+//  void DebugString(); 
   //////////////////////////////////////////////////////////////
 
   // Returns True if the library contains `func`, False otherwise.
