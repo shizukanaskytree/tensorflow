@@ -19,6 +19,7 @@ limitations under the License.
 #include <string>
 #include <vector>
 #include <iostream>
+#include <thread>
 
 #include "tensorflow/core/common_runtime/collective_executor_mgr.h"
 #include "tensorflow/core/common_runtime/collective_param_resolver_local.h"
@@ -166,6 +167,9 @@ class DirectSessionFactory : public SessionFactory {
         new DirectSession(options, new DeviceMgr(std::move(devices)), this);
     {
       mutex_lock l(sessions_lock_);
+      /// Set the priority of this DirectSession
+      session->SetDirectSessionPriority(
+    		  tensorflow::tid_execution_priority_map_[std::this_thread::get_id()]);
       sessions_.push_back(session);
     }
     *out_session = session;
@@ -242,7 +246,36 @@ void DirectSession::SchedClosure(thread::ThreadPool* pool,
   c();
 #else
   if (pool != nullptr) {
-    pool->Schedule(std::move(c));
+    //pool->Schedule(std::move(c));
+
+  	/// Partition threads in the threadpool into two groups, high priority
+  	/// threads and low priority threads.
+  	/// Schedule low priority in the range of [0, 1], high: [2: end]
+    /// If high priority and low priority tasks both exist,
+    if (ExecutorImpl::executors_pool_manager_->
+  	      high_priority_executors_ref_count_.load(std::memory_order_relaxed)&&
+        ExecutorImpl::executors_pool_manager_->
+          low_priority_executors_ref_count_.load(std::memory_order_relaxed)){
+      /// For High Priority tasks
+      if (this->GetDirectSessionPriority() == 2){
+      	//std::cout << "High and Low Exist: Schedule High to [0," << pool->NumThreads()-2 << "] \n";
+        // Range: start to limit
+      	pool->ScheduleWithHint(std::move(c), 0, pool->NumThreads()-1);
+      }else if (this->GetDirectSessionPriority() == 1){
+      	/// For low priority tasks
+      	//std::cout << "High and Low Exist: Schedule Low to [" << pool->NumThreads()-1 << "] \n";
+      	pool->ScheduleWithHint(std::move(c), pool->NumThreads()-1, pool->NumThreads());
+      }else {
+      	/// For some special Op Nodes
+      	//std::cout << "High and Low Exist: Schedule Spcial Op Node to [0," << pool->NumThreads()-1 << "] \n";
+      	pool->Schedule(std::move(c));
+      }
+    }else{
+      /// Either only high or low, use all threads in the threadpool
+    	//std::cout << "Only High or Low: Schedule Any to [0," << pool->NumThreads()-1 << "] \n";
+    	pool->Schedule(std::move(c));
+    }
+  
   } else {
     c();
   }
@@ -354,6 +387,18 @@ DirectSession::~DirectSession() {
   execution_state_.reset(nullptr);
   flib_def_.reset(nullptr);
 }
+
+// Set and Get the priority of this DirectSession instance.
+void DirectSession::SetDirectSessionPriority(int priority){
+  // Each instance sets its own priority, no need to set a lock.
+  direct_session_priority_ = priority;
+}
+
+int DirectSession::GetDirectSessionPriority(){
+  return direct_session_priority_;
+}
+
+
 
 Status DirectSession::MaybeInitializeExecutionState(
     const GraphDef& graph, bool* out_already_initialized) {

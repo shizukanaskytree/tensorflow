@@ -116,6 +116,11 @@ class DirectSession : public Session {
                                    RunMetadata* run_metadata) override;
   ::tensorflow::Status ReleaseCallable(CallableHandle handle) override;
 
+  // Set and Get the priority of this DirectSession instance.
+  void SetDirectSessionPriority(int priority);
+  int GetDirectSessionPriority();
+
+
  private:
   // For access to collective_graph_key_.
   friend class DirectSessionCollectiveTest;
@@ -316,6 +321,10 @@ class DirectSession : public Session {
   const std::unique_ptr<const DeviceMgr> device_mgr_;
   std::vector<Device*> devices_;  // not owned
   DeviceSet device_set_;
+
+  // DirectSession Execution Priority Level
+  // Use set, get function to modify and access it.
+  int direct_session_priority_;
 
   // Unique session identifier.
   string session_handle_;
