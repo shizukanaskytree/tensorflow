@@ -141,16 +141,22 @@ def tf_workspace(path_prefix = "", tf_repo_name = ""):
         ],
     )
 
-    tf_http_archive(
+#    tf_http_archive(
+#        name = "eigen_archive",
+#        build_file = clean_dep("//third_party:eigen.BUILD"),
+#        patch_file = clean_dep("//third_party/eigen3:gpu_packet_math.patch"),
+#        sha256 = "c1c5f06805d3c7ecd74152edd535443e32dfd96ab37107e350b7d4f8399f7c71",
+#        strip_prefix = "eigen-eigen-c7118091d7e4",
+#        urls = [
+#            "https://mirror.bazel.build/bitbucket.org/eigen/eigen/get/c7118091d7e4.tar.gz",
+#            "https://bitbucket.org/eigen/eigen/get/c7118091d7e4.tar.gz",
+#        ],
+#    )
+
+    native.new_local_repository(
         name = "eigen_archive",
+        path = "/home/wxf/tf2/crash_tf/tensorflow/local_eigen/eigen_archive",
         build_file = clean_dep("//third_party:eigen.BUILD"),
-        patch_file = clean_dep("//third_party/eigen3:gpu_packet_math.patch"),
-        sha256 = "c1c5f06805d3c7ecd74152edd535443e32dfd96ab37107e350b7d4f8399f7c71",
-        strip_prefix = "eigen-eigen-c7118091d7e4",
-        urls = [
-            "https://mirror.bazel.build/bitbucket.org/eigen/eigen/get/c7118091d7e4.tar.gz",
-            "https://bitbucket.org/eigen/eigen/get/c7118091d7e4.tar.gz",
-        ],
     )
 
     tf_http_archive(
