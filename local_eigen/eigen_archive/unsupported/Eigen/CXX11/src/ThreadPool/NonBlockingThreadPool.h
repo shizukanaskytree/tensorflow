@@ -475,6 +475,324 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
 
 typedef ThreadPoolTempl<StlThreadEnvironment> ThreadPool;
 
+// ------------------------------------------------------------------------------
+// -- For low priority threadpool
+// ------------------------------------------------------------------------------
+template <typename Environment>
+class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
+ public:
+  typedef typename Environment::Task Task;
+  typedef RunQueue<Task, 1024> Queue;
+
+  ThreadPoolLowPriorityTempl(int num_threads, bool allow_spinning,
+      Environment env = Environment()):
+    env_(env),
+    num_threads_(num_threads),
+    allow_spinning_(allow_spinning),
+    thread_data_(num_threads),
+    waiters_(num_threads),
+    blocked_(0),
+    spinning_(0),
+    done_(false),
+    cancelled_(false),
+    ec_(waiters_){
+
+    eigen_plain_assert(num_threads_ < kMaxThreads);
+
+    start_ = 0;
+    limit_ = num_threads_;
+
+    waiters_.resize(num_threads_);
+    thread_data_.resize(num_threads_);
+    for (int i = 0; i < num_threads_; ++i){
+      thread_data_[i].thread.reset(
+        env_.CreateThread([this, i](){ WorkerLoop(i);})    
+      );
+    }
+
+  }
+
+
+  ~ThreadPoolLowPriorityTempl() {
+    done_ = true;
+
+    // Now if all threads block without work, they will start exiting.
+    // But note that threads can continue to work arbitrary long,
+    // block, submit new work, unblock and otherwise live full life.
+    if (!cancelled_) {
+      ec_.Notify(true);
+    } else {
+      // Since we were cancelled, there might be entries in the queues.
+      // Empty them to prevent their destructor from asserting.
+      for (size_t i = 0; i < thread_data_.size(); i++) {
+        thread_data_[i].queue.Flush();
+      }
+    }
+    // Join threads explicitly (by destroying) to avoid destruction order within
+    // this class.
+    for (size_t i = 0; i < thread_data_.size(); ++i)
+      thread_data_[i].thread.reset();
+  }
+
+  void SetActiveThreadsRange(unsigned start, unsigned limit){
+    start_ = start;
+    limit_ = limit;
+  }
+
+  void NotifyAll(){
+    ec_.Notify(true);
+  }
+
+  void Schedule(std::function<void()> fn) EIGEN_OVERRIDE {
+    ScheduleWithHint(std::move(fn), 0, num_threads_);
+  }
+
+
+  // Create a task encapsulate the fn closure.
+  // Push the task into a randomly picked queue within the range.
+  void ScheduleWithHint(std::function<void()> fn, int start, 
+                        int limit) override {
+    Task t = env_.CreateTask(std::move(fn));
+    PerThread* pt = GetPerThread();
+    eigen_plain_assert(start < limit);
+    eigen_plain_assert(limit <= num_threads_);
+    // Set active threads range for Steal and NonEmptyQueueIndex
+    SetActiveThreadsRange(start, limit);
+    int num_queues = limit - start;
+    int rnd = Rand(&pt->rand) % num_queues;
+    eigen_plain_assert(start+rnd < limit);
+    Queue& q = thread_data_[start+rnd].queue;
+    t = q.PushBack(std::move(t));
+    if (!t.f) {
+      ec_.Notify(true);
+    } else {
+      // TODO:don't execute out of the range of [start, limit)
+      env_.ExecuteTask(t);  // Push failed, execute directly.
+    }
+  }
+
+  void Cancel() EIGEN_OVERRIDE {
+    cancelled_ = true;
+    done_ = true;
+    ec_.Notify(true);
+  }
+
+  int NumThreads() const EIGEN_FINAL {return num_threads_; }
+
+  int CurrentThreadId() const EIGEN_FINAL {
+    const PerThread* pt = 
+      const_cast<ThreadPoolLowPriorityTempl*>(this)->GetPerThread();
+    if (pt->pool == this) {
+      return pt->thread_id;
+    } else {
+      return -1;
+    }
+  }
+
+ private:
+  void AssertBounds(int start, int end) {
+    eigen_plain_assert(start >= 0);
+    eigen_plain_assert(start < end);  // non-zero sized partition
+    eigen_plain_assert(end <= num_threads_);
+  }
+
+  typedef typename Environment::EnvThread Thread;
+
+  struct PerThread {
+    constexpr PerThread() : pool(NULL), rand(0), thread_id(-1) {}
+    ThreadPoolLowPriorityTempl* pool;  // Parent pool, or null for normal threads.
+    uint64_t rand;          // Random generator state.
+    int thread_id;          // Worker thread index in pool.
+#ifndef EIGEN_THREAD_LOCAL
+    // Prevent false sharing.
+    char pad_[128];
+#endif
+  };
+
+  struct ThreadData {
+    constexpr ThreadData() : thread(), queue() {}
+    std::unique_ptr<Thread> thread;
+    Queue queue;
+  };
+
+  Environment env_;
+  const int num_threads_;
+  const bool allow_spinning_;
+  MaxSizeVector<ThreadData> thread_data_;
+  MaxSizeVector<EventCount::Waiter> waiters_;
+  std::atomic<unsigned> blocked_;
+  std::atomic<bool> spinning_;
+  std::atomic<bool> done_;
+  std::atomic<bool> cancelled_;
+  EventCount ec_;
+  unsigned start_;
+  unsigned limit_;
+
+
+  void WorkerLoop(int thread_id) {
+    PerThread* pt = GetPerThread();
+    pt->pool = this;
+    pt->rand = GlobalThreadIdHash();
+    pt->thread_id = thread_id;
+    Queue& q = thread_data_[thread_id].queue;
+    EventCount::Waiter* waiter = &waiters_[thread_id];
+
+    const int spin_count = (allow_spinning_ && num_threads_ > 0) ?
+      5000 / num_threads_ : 0;
+
+    if (num_threads_ == 1) {
+      while (!cancelled_) {
+        if (CurrentThreadId() >= start_ && CurrentThreadId() < limit_){
+          // active threads
+          Task t = q.PopFront();
+          for (int i = 0; i < spin_count && !t.f; ++i){
+            if (!cancelled_.load(std::memory_order_relaxed)) {
+              t = q.PopFront();
+            }
+          }
+          if (!t.f) {
+            if (!WaitForWork(waiter, &t)) {
+              return; 
+            }
+          }
+          if (t.f) {
+            env_.ExecuteTask(t);
+          }
+        } else {
+          // inactive threads
+          ec_.Prewait();
+          ec_.CommitWait(waiter);
+        }
+      }
+    }else {
+      while(!cancelled_){
+        if (CurrentThreadId() >= start_ && CurrentThreadId() < limit_){
+          // active threads
+          Task t = q.PopFront();
+          if (!t.f) {
+            t = Steal(start_, limit_);
+            if (!t.f){
+              if (allow_spinning_ && !spinning_ && 
+                  !spinning_.exchange(true)){
+                for(int i = 0; i < spin_count && !t.f; ++i) {
+                  if (!cancelled_.load(std::memory_order_relaxed)){
+                    t = Steal(start_, limit_);
+                  }else{
+                    return;
+                  }
+                }
+                spinning_ = false;
+              }
+              if (!t.f) {
+                if (!WaitForWork(waiter, &t)){
+                  return; 
+                }
+              }
+            }
+          }
+          if (t.f) {
+            env_.ExecuteTask(t);
+          }
+        }else{
+          // inactive threads
+          ec_.Prewait();
+          ec_.CommitWait(waiter);
+        }
+      }
+    }
+  }
+
+  // Steal in a native way. Go through from the 1st to the last.
+  Task Steal(unsigned start, unsigned limit) {
+    PerThread* pt = GetPerThread();
+    const size_t size = limit - start;
+    unsigned r = Rand(&pt->rand);
+    unsigned victim = r % size;
+    for (unsigned i = 0; i < size; ++i){
+      eigen_plain_assert(start + victim < limit);
+      Task t = thread_data_[start + victim].queue.PopBack();
+      if (t.f) { return t; }
+      // Simply go through one by one
+      victim += 1;
+      if (victim >= size) {
+        victim -= size;
+      }
+    }
+    return Task();
+  }
+
+  // Think hard about inactive thread logic in the WorkerLoop.
+  // For inactive threads, commit wait directly.
+  bool WaitForWork(EventCount::Waiter* waiter, Task* t) {
+    eigen_plain_assert(!t->f);
+    if (!ec_.Prewait()) return true;
+
+    if (CurrentThreadId() >= start_ && CurrentThreadId() < limit_) {
+      int victim = NonEmptyQueueIndex();
+      // Found non-empty queue
+      if (victim != -1) {
+        // CancelWait corresponds to Prewait in terms of # of waiters.
+        ec_.CancelWait();
+        if (cancelled_) {
+          return false;
+        } else {
+          *t = thread_data_[victim].queue.PopBack();
+          return true;
+        }
+      }
+    }
+    // All active queues are empty or it is an inactive thread case 
+    blocked_++;
+    if (done_ && blocked_ == static_cast<unsigned>(num_threads_)){
+      // CancelWait corresponds to Prewait in terms of # of waiters.
+      ec_.CancelWait();
+      if (NonEmptyQueueIndex() != -1){
+        blocked_--;
+        return true;
+      }
+      ec_.Notify(true);
+      return false;
+    }
+    ec_.CommitWait(waiter);
+    blocked_--;
+    return true;
+  }
+
+  int NonEmptyQueueIndex() {
+    PerThread* pt = GetPerThread();
+    for (unsigned i = start_; i < limit_; ++i){
+      if (!thread_data_[i].queue.Empty()){
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  static EIGEN_STRONG_INLINE uint64_t GlobalThreadIdHash() {
+    return std::hash<std::thread::id>()(std::this_thread::get_id());
+  }
+
+  EIGEN_STRONG_INLINE PerThread* GetPerThread() {
+    EIGEN_THREAD_LOCAL PerThread per_thread_;
+    PerThread* pt = &per_thread_;
+    return pt;
+  }
+
+  static EIGEN_STRONG_INLINE unsigned Rand(uint64_t* state) {
+    uint64_t current = *state;
+    // Update the internal state
+    *state = current * 6364136223846793005ULL + 0xda3e39cb94b95bdbULL;
+    // Generate the random output (using the PCG-XSH-RS scheme)
+    return static_cast<unsigned>((current ^ (current >> 22)) >>
+                                 (22 + (current >> 61)));
+  }
+
+};
+
+// ------------------------------------------------------------------------------
+// ~~ For low priority threadpool
+// ------------------------------------------------------------------------------
+
 }  // namespace Eigen
 
 #endif  // EIGEN_CXX11_THREADPOOL_NONBLOCKING_THREAD_POOL_H

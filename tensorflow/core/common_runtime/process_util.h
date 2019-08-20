@@ -48,6 +48,10 @@ int32 NumInterOpThreadsFromSessionOptions(const SessionOptions& options);
 thread::ThreadPool* NewThreadPoolFromSessionOptions(
     const SessionOptions& options);
 
+// Creates a low priority thread pool with number of inter op threads.
+thread::LowPriorityThreadPool* NewLowPriorityThreadPoolFromSessionOptions(
+    const SessionOptions& options);
+
 // Schedule "closure" in the default thread queue.
 void SchedClosure(std::function<void()> closure);
 

@@ -131,6 +131,13 @@ thread::ThreadPool* GlobalThreadPool(const SessionOptions& options) {
   return thread_pool;
 }
 
+// Construct a low priority threadpool
+thread::LowPriorityThreadPool* GlobalLowPriorityThreadPool(const SessionOptions& options) {
+  static thread::LowPriorityThreadPool* const thread_pool =
+      NewLowPriorityThreadPoolFromSessionOptions(options);
+  return thread_pool;
+}
+
 // TODO(vrv): Figure out how to unify the many different functions
 // that generate RendezvousKey, since many of them have to be
 // consistent with each other.
@@ -246,36 +253,7 @@ void DirectSession::SchedClosure(thread::ThreadPool* pool,
   c();
 #else
   if (pool != nullptr) {
-    //pool->Schedule(std::move(c));
-
-  	/// Partition threads in the threadpool into two groups, high priority
-  	/// threads and low priority threads.
-  	/// Schedule low priority in the range of [0, 1], high: [2: end]
-    /// If high priority and low priority tasks both exist,
-    if (ExecutorImpl::executors_pool_manager_->
-  	      high_priority_executors_ref_count_.load(std::memory_order_relaxed)&&
-        ExecutorImpl::executors_pool_manager_->
-          low_priority_executors_ref_count_.load(std::memory_order_relaxed)){
-      /// For High Priority tasks
-      if (this->GetDirectSessionPriority() == 2){
-      	//std::cout << "High and Low Exist: Schedule High to [0," << pool->NumThreads()-2 << "] \n";
-        // Range: start to limit
-      	pool->ScheduleWithHint(std::move(c), 0, pool->NumThreads()-1);
-      }else if (this->GetDirectSessionPriority() == 1){
-      	/// For low priority tasks
-      	//std::cout << "High and Low Exist: Schedule Low to [" << pool->NumThreads()-1 << "] \n";
-      	pool->ScheduleWithHint(std::move(c), pool->NumThreads()-1, pool->NumThreads());
-      }else {
-      	/// For some special Op Nodes
-      	//std::cout << "High and Low Exist: Schedule Spcial Op Node to [0," << pool->NumThreads()-1 << "] \n";
-      	pool->Schedule(std::move(c));
-      }
-    }else{
-      /// Either only high or low, use all threads in the threadpool
-    	//std::cout << "Only High or Low: Schedule Any to [0," << pool->NumThreads()-1 << "] \n";
-    	pool->Schedule(std::move(c));
-    }
-  
+    pool->Schedule(std::move(c));  
   } else {
     c();
   }
@@ -329,6 +307,8 @@ DirectSession::DirectSession(const SessionOptions& options,
                                true /* owned */);
   } else {
     thread_pools_.emplace_back(GlobalThreadPool(options), false /* owned */);
+    // Construct a low priority threadpool
+    low_priority_thread_pool_ = GlobalLowPriorityThreadPool(options);
   }
   // The default value of sync_on_finish will be flipped soon and this
   // environment variable will be removed as well.
@@ -688,7 +668,34 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
     };
   } else {
     default_runner = [this, pool](Executor::Args::Closure c) {
-      SchedClosure(pool, std::move(c));
+  	  /// Partition threads in the threadpool into two groups, high priority
+  	  /// threads and low priority threads.
+  	  /// Schedule low priority in the range of [0, 1], high: [2: end]
+      /// If high priority and low priority tasks both exist,
+      if (ExecutorImpl::executors_pool_manager_->
+  	        high_priority_executors_ref_count_.load(std::memory_order_relaxed)&&
+          ExecutorImpl::executors_pool_manager_->
+            low_priority_executors_ref_count_.load(std::memory_order_relaxed)){
+        /// For High Priority tasks
+        if (this->GetDirectSessionPriority() == 2){
+        	//std::cout << "High and Low Exist: Schedule High to [0," << pool->NumThreads()-2 << "] \n";
+          // Range: start to limit
+        	pool->Schedule(std::move(c));
+        }else if (this->GetDirectSessionPriority() == 1){
+        	/// For low priority tasks
+        	//std::cout << "High and Low Exist: Schedule Low to [" << pool->NumThreads()-1 << "] \n";
+        	low_priority_thread_pool_->ScheduleWithHint(std::move(c), 0, 2);
+        }else {
+        	/// For some special Op Nodes
+        	//std::cout << "High and Low Exist: Schedule Spcial Op Node to [0," << pool->NumThreads()-1 << "] \n";
+        	pool->Schedule(std::move(c));
+        }
+      }else{
+        /// Either only high or low, use all threads in the threadpool
+      	//std::cout << "Only High or Low: Schedule Any to [0," << pool->NumThreads()-1 << "] \n";
+      	pool->Schedule(std::move(c));
+      }
+      ///SchedClosure(pool, std::move(c));
     };
   }
 

@@ -106,6 +106,14 @@ thread::ThreadPool* NewThreadPoolFromSessionOptions(
   return new thread::ThreadPool(options.env, "Compute", num_threads);
 }
 
+thread::LowPriorityThreadPool* NewLowPriorityThreadPoolFromSessionOptions(
+    const SessionOptions& options) {
+  const int32 num_threads = NumInterOpThreadsFromSessionOptions(options);
+  VLOG(1) << "Direct session inter op parallelism threads(low priority): " << num_threads;
+  return new thread::LowPriorityThreadPool(options.env, 
+      "Low Priority Compute", num_threads);
+}
+
 void SchedClosure(std::function<void()> closure) {
   if (!tracing::EventCollector::IsEnabled()) {
     return Env::Default()->SchedClosure(std::move(closure));

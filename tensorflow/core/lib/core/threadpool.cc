@@ -106,6 +106,80 @@ struct ThreadPool::Impl : Eigen::ThreadPoolTempl<EigenEnvironment> {
   Eigen::Allocator* allocator_;
 };
 
+// ------------------------------------------------------------------------------
+// -- For low priority threadpool
+// ------------------------------------------------------------------------------
+struct LowPriorityThreadPool::Impl : 
+  Eigen::ThreadPoolLowPriorityTempl<EigenEnvironment>{
+  // constructor
+  Impl(Env* env, const ThreadOptions& thread_options, 
+       const string& name, int num_threads, bool low_latency_hint,
+       Eigen::Allocator* allocator): 
+    Eigen::ThreadPoolLowPriorityTempl<EigenEnvironment>(
+        num_threads, low_latency_hint, 
+        EigenEnvironment(env, thread_options, name)),
+    allocator_(allocator) {}
+
+  void ParallelFor(int64 total, int64 cost_per_unit,
+                   std::function<void(int64, int64)> fn) {
+    CHECK_GE(total, 0);
+    CHECK_EQ(total, (int64)(Eigen::Index)total);
+    Eigen::ThreadPoolDevice device(this, this->NumThreads(), allocator_);
+    device.parallelFor(
+        total, Eigen::TensorOpCost(0, 0, cost_per_unit),
+        [&fn](Eigen::Index first, Eigen::Index last) { fn(first, last); });
+  }
+
+  Eigen::Allocator* allocator_;
+};
+
+LowPriorityThreadPool::LowPriorityThreadPool(Env* env, const string& name, int num_threads)
+    : LowPriorityThreadPool(env, ThreadOptions(), name, num_threads, true, nullptr) {}
+
+LowPriorityThreadPool::LowPriorityThreadPool(Env* env, const ThreadOptions& thread_options,
+                       const string& name, int num_threads)
+    : LowPriorityThreadPool(env, thread_options, name, num_threads, true, nullptr) {}
+
+LowPriorityThreadPool::LowPriorityThreadPool(Env* env, 
+    const ThreadOptions& thread_options,
+    const string& name, int num_threads, bool low_latency_hint,
+      Eigen::Allocator* allocator){
+  CHECK_GE(num_threads, 1);
+  impl_.reset(new LowPriorityThreadPool::Impl(env, thread_options,
+                                        "tf_low_"+name, num_threads,
+                                        low_latency_hint, allocator));
+}
+
+LowPriorityThreadPool::~LowPriorityThreadPool() {}
+
+void LowPriorityThreadPool::Schedule(std::function<void()> fn){
+  CHECK(fn != nullptr);
+  impl_->Schedule(std::move(fn));
+}
+
+void LowPriorityThreadPool::ScheduleWithHint(std::function<void()> fn, 
+                                             int start, int limit){
+  impl_->ScheduleWithHint(std::move(fn), start, limit);
+}
+
+void LowPriorityThreadPool::ParallelFor(int64 total, 
+    int64 cost_per_unit, std::function<void(int64, int64)> fn) {
+  impl_->ParallelFor(total, cost_per_unit, std::move(fn));
+}
+
+int LowPriorityThreadPool::NumThreads() const { 
+  return impl_->NumThreads(); 
+}
+
+int LowPriorityThreadPool::CurrentThreadId() const { 
+  return impl_->CurrentThreadId(); 
+}
+
+
+// ------------------------------------------------------------------------------
+// ~~ For low priority threadpool
+// ------------------------------------------------------------------------------
+
 ThreadPool::ThreadPool(Env* env, const string& name, int num_threads)
     : ThreadPool(env, ThreadOptions(), name, num_threads, true, nullptr) {}
 

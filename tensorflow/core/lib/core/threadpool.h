@@ -25,6 +25,7 @@ limitations under the License.
 namespace Eigen {
 class Allocator;
 }  // namespace Eigen
+
 namespace tensorflow {
 namespace thread {
 
@@ -127,6 +128,38 @@ class ThreadPool {
   TF_DISALLOW_COPY_AND_ASSIGN(ThreadPool);
 };
 
+
+// -----------------------------------------------------------------------
+// -- For low priority threadpool
+// -----------------------------------------------------------------------
+class LowPriorityThreadPool{
+ public:
+  LowPriorityThreadPool(Env* env, const string& name, int num_threads);
+  LowPriorityThreadPool(Env* env, const ThreadOptions& thread_options, 
+      const string& name, int num_threads);
+  /// The default allocator is nullptr.
+  LowPriorityThreadPool(Env* env, const ThreadOptions& thread_options,
+      const string& name, int num_threads, bool low_latency_hint,
+      Eigen::Allocator* allocator=nullptr);
+
+  ~LowPriorityThreadPool();
+
+  void Schedule(std::function<void()> fn);
+  void ScheduleWithHint(std::function<void()> fn, int start, int limit);
+  int NumThreads() const;
+  int CurrentThreadId() const;
+  // new interface
+  void SetActiveThreadsRange(unsigned start, unsigned limit);
+  void ParallelFor(int64 total, int64 cost_per_unit, 
+      std::function<void(int64, int64)> fn); 
+  struct Impl;
+ private:
+  std::unique_ptr<Impl> impl_;
+  TF_DISALLOW_COPY_AND_ASSIGN(LowPriorityThreadPool);
+};
+// -----------------------------------------------------------------------
+// ~~ For low priority threadpool
+// -----------------------------------------------------------------------
 }  // namespace thread
 }  // namespace tensorflow
 

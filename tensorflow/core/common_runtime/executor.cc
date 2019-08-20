@@ -2092,7 +2092,7 @@ void ExecutorsPoolManager::AddExecutorAndPriority(ExecutorImpl** executor){
 	  executor_priority_map_.insert({*executor, 0});
 
 	  // -- debug
-	  //std::cout << "Add::ThreadPool Pirority (0)" << std::endl;
+	  std::cout << "Add::ThreadPool Pirority (0)" << std::endl;
 	  // ~~ debug
 	}else {
 	  // add this Executor* executor with its priority from the current
@@ -2105,8 +2105,8 @@ void ExecutorsPoolManager::AddExecutorAndPriority(ExecutorImpl** executor){
 		  low_priority_executors_ref_count_.fetch_add(1, std::memory_order_relaxed);
 
 	    // -- debug
-      //std::cout << "Add::Low Pirority (1)" <<
-		  //  low_priority_executors_ref_count_.load(std::memory_order_relaxed) << std::endl;
+      std::cout << "Add::Low Pirority (1), #Low: " <<
+		    low_priority_executors_ref_count_.load(std::memory_order_relaxed) << std::endl;
 	    // ~~ debug
 	  }
 
@@ -2115,8 +2115,8 @@ void ExecutorsPoolManager::AddExecutorAndPriority(ExecutorImpl** executor){
 	  if (execution_priority == 2) {
 		  high_priority_executors_ref_count_.fetch_add(1, std::memory_order_relaxed);
       // -- debug
-      //std::cout << "Add::High Pirority (2)" << 
-      //  high_priority_executors_ref_count_.load(std::memory_order_relaxed) << std::endl;
+      std::cout << "Add::High Pirority (2), #High: " << 
+        high_priority_executors_ref_count_.load(std::memory_order_relaxed) << std::endl;
       // ~~ debug
 	  }
 	}
@@ -2130,27 +2130,25 @@ void ExecutorsPoolManager::DeleteExecutor(ExecutorImpl* executor){
   // number of high priority ExecutorImpl instances.
   if (execution_priority == 1) {
 	  low_priority_executors_ref_count_.fetch_sub(1, std::memory_order_relaxed);
+	  // -- debug
+	  std::cout << "Delete::Low Pirority (1)" << std::endl;
+	  std::cout << high_priority_executors_ref_count_.load(std::memory_order_relaxed) << std::endl;
+	  // ~~ debug
   }
   if (execution_priority == 2) {
 	  high_priority_executors_ref_count_.fetch_sub(1, std::memory_order_relaxed);
 	  // -- debug
-    //std::cout << "Delete::High Pirority (2)" << std::endl;
-	  //std::cout << high_priority_executors_ref_count_.load(std::memory_order_relaxed) << std::endl;
+    std::cout << "Delete::High Pirority (2)" << std::endl;
+	  std::cout << high_priority_executors_ref_count_.load(std::memory_order_relaxed) << std::endl;
 	  // ~~ debug
   }
 
   // -- debug
-//  if (execution_priority == 1) {
-//	  std::cout << "Delete::Low Pirority (1)" << std::endl;
-//	  std::cout << high_priority_executors_ref_count_.load(std::memory_order_relaxed) << std::endl;
-//  }
-
-//  if (execution_priority == 0){
-//  	std::cout << "Delete::ThreadPool Pirority (0)" << std::endl;
-//	  std::cout << high_priority_executors_ref_count_.load(std::memory_order_relaxed) << std::endl;
-//  }
+  if (execution_priority == 0){
+  	std::cout << "Delete::ThreadPool Pirority (0)" << std::endl;
+	  std::cout << high_priority_executors_ref_count_.load(std::memory_order_relaxed) << std::endl;
+  }
   // ~~ debug
-
 
   // Delete the ExecutorImpl instance pointer from the map.
   executor_priority_map_.erase(executor);

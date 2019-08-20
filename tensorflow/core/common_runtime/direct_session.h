@@ -335,6 +335,9 @@ class DirectSession : public Session {
   // is owned.
   std::vector<std::pair<thread::ThreadPool*, bool>> thread_pools_;
 
+  // low priority threadpool 
+  thread::LowPriorityThreadPool* low_priority_thread_pool_;
+
   Status init_error_;  // Set to an error if construction failed.
 
   // If true, blocks until device has finished all queued operations in a step.
