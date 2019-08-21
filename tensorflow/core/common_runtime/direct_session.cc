@@ -20,6 +20,7 @@ limitations under the License.
 #include <vector>
 #include <iostream>
 #include <thread>
+#include <thread>
 
 #include "tensorflow/core/common_runtime/collective_executor_mgr.h"
 #include "tensorflow/core/common_runtime/collective_param_resolver_local.h"
@@ -172,6 +173,8 @@ class DirectSessionFactory : public SessionFactory {
 
     DirectSession* session =
         new DirectSession(options, new DeviceMgr(std::move(devices)), this);
+    // Collect DirectSession instances into DirectSessionsManager
+    DirectSession::direct_sessions_manager_->AddDirectSessionAndPriority(&session);
     {
       mutex_lock l(sessions_lock_);
       /// Set the priority of this DirectSession
@@ -366,6 +369,9 @@ DirectSession::~DirectSession() {
 
   execution_state_.reset(nullptr);
   flib_def_.reset(nullptr);
+
+  // Update statistics inside the DirectSessionsManager instace
+  direct_sessions_manager_->DeleteDirectSession(this);
 }
 
 // Set and Get the priority of this DirectSession instance.
@@ -378,7 +384,8 @@ int DirectSession::GetDirectSessionPriority(){
   return direct_session_priority_;
 }
 
-
+DirectSessionsManager* DirectSession::direct_sessions_manager_ = 
+  new DirectSessionsManager();
 
 Status DirectSession::MaybeInitializeExecutionState(
     const GraphDef& graph, bool* out_already_initialized) {
@@ -672,10 +679,10 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
   	  /// threads and low priority threads.
   	  /// Schedule low priority in the range of [0, 1], high: [2: end]
       /// If high priority and low priority tasks both exist,
-      if (ExecutorImpl::executors_pool_manager_->
-  	        high_priority_executors_ref_count_.load(std::memory_order_relaxed)&&
-          ExecutorImpl::executors_pool_manager_->
-            low_priority_executors_ref_count_.load(std::memory_order_relaxed)){
+      if (direct_sessions_manager_->
+  	        high_priority_direct_session_count_.load(std::memory_order_relaxed)&&
+          direct_sessions_manager_->
+            low_priority_direct_session_count_.load(std::memory_order_relaxed)){
         /// For High Priority tasks
         if (this->GetDirectSessionPriority() == 2){
         	//std::cout << "High and Low Exist: Schedule High to [0," << pool->NumThreads()-2 << "] \n";
@@ -685,10 +692,6 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
         	/// For low priority tasks
         	//std::cout << "High and Low Exist: Schedule Low to [" << pool->NumThreads()-1 << "] \n";
         	low_priority_thread_pool_->ScheduleWithHint(std::move(c), 0, 2);
-        }else {
-        	/// For some special Op Nodes
-        	//std::cout << "High and Low Exist: Schedule Spcial Op Node to [0," << pool->NumThreads()-1 << "] \n";
-        	pool->Schedule(std::move(c));
         }
       }else{
         /// Either only high or low, use all threads in the threadpool
@@ -1923,5 +1926,95 @@ DirectSession::Callable::~Callable() {
   executors_and_keys.reset();
   function_info.reset();
 }
+
+// -----------------------------------------------------------------------
+// -- class DirectSessionsManager
+// -----------------------------------------------------------------------
+void DirectSessionsManager::AddDirectSessionAndPriority(
+    DirectSession** direct_session){
+
+  add_mu_.lock();
+  std::thread::id tid = std::this_thread::get_id();
+  auto iter = tid_execution_priority_map_.find(tid); 
+  if (iter == tid_execution_priority_map_.end()){
+    // Priority 0, client doesn't define priority
+    direct_session_priority_map_.insert({*direct_session, 0});
+	  // -- debug
+	  std::cout << "Add DirectSession::Pirority (0)" << std::endl;
+	  // ~~ debug
+  }else{
+    int direct_session_priority = iter->second;
+    direct_session_priority_map_.insert(
+        {*direct_session, direct_session_priority});
+    // 1 is defined as low priority; 2 is high.
+    if (direct_session_priority == 1) {
+      low_priority_direct_session_count_.fetch_add(1, 
+          std::memory_order_relaxed);
+
+	    // -- debug
+      std::cout << "Add DirectSession::Low Pirority (1), #Low: " <<
+		    low_priority_direct_session_count_.load(
+            std::memory_order_relaxed) << std::endl;
+	    // ~~ debug
+    }
+
+    if (direct_session_priority == 2){
+      high_priority_direct_session_count_.fetch_add(1,
+          std::memory_order_relaxed);
+
+      // -- debug
+      std::cout << "Add DirectSession::High Pirority (2), #High: " << 
+        high_priority_direct_session_count_.load(
+            std::memory_order_relaxed) << std::endl;
+      // ~~ debug
+    }
+  }
+  add_mu_.unlock();
+}
+
+void DirectSessionsManager::DeleteDirectSession(DirectSession* direct_session){
+  delete_mu_.lock();
+  // TODO: Error handling when not found, although it's not possible
+  int direct_session_priority = direct_session_priority_map_[direct_session];
+  // 1 is defined as low priority; 2 is high.
+  if(direct_session_priority == 1){
+    low_priority_direct_session_count_.fetch_sub(1,
+        std::memory_order_relaxed);
+
+	  // -- debug
+    std::cout << "Delete DirectSession::Low Pirority (1), #Low: " <<
+		  low_priority_direct_session_count_.load(
+          std::memory_order_relaxed) << std::endl;
+	  // ~~ debug
+  }
+
+  if(direct_session_priority == 2){
+    high_priority_direct_session_count_.fetch_sub(1, 
+        std::memory_order_relaxed);
+    // -- debug
+    std::cout << "Delete DirectSession::High Pirority (2), #High: " << 
+      high_priority_direct_session_count_.load(
+          std::memory_order_relaxed) << std::endl;
+    // ~~ debug
+  }
+
+  // --debug
+  if(direct_session_priority == 0){
+    std::cout << "Delete DirectSession::Default Pirority (0)" << std::endl;
+  }
+  // ~~debug
+
+  direct_session_priority_map_.erase(direct_session);
+  delete_mu_.unlock();
+}
+
+int DirectSessionsManager::InquirePriorityByDirectSession(
+    const DirectSession* direct_session){
+  return direct_session_priority_map_[const_cast<DirectSession*>(direct_session)];
+}
+
+// -----------------------------------------------------------------------
+// ~~ class DirectSessionsManager
+// -----------------------------------------------------------------------
 
 }  // namespace tensorflow

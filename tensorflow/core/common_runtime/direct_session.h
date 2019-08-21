@@ -51,6 +51,7 @@ class CostModel;
 class DebugGateway;
 class Device;
 class DirectSessionFactory;
+class DirectSessionsManager;
 
 class DirectSession : public Session {
  public:
@@ -120,6 +121,9 @@ class DirectSession : public Session {
   void SetDirectSessionPriority(int priority);
   int GetDirectSessionPriority();
 
+  // -----------------------------------------------------------------------
+  static DirectSessionsManager* direct_sessions_manager_;
+  // -----------------------------------------------------------------------
 
  private:
   // For access to collective_graph_key_.
@@ -419,6 +423,27 @@ class DirectSession : public Session {
 
   // EXPERIMENTAL: debugger (tfdbg) related
   friend class DebugGateway;
+};
+
+class DirectSessionsManager{
+ public:
+	DirectSessionsManager(): high_priority_direct_session_count_(0),
+	                         low_priority_direct_session_count_(0) {}
+
+	std::atomic<int> high_priority_direct_session_count_;
+	std::atomic<int> low_priority_direct_session_count_;
+
+  // Register all DirectSessions and its priority from its python thread
+	void AddDirectSessionAndPriority(DirectSession** direct_session);
+  // Update count when DirectSession is deleted in ~DirectSession()
+	void DeleteDirectSession(DirectSession* direct_session);
+	int InquirePriorityByDirectSession(const DirectSession* direct_session);
+ private:
+  mutex add_mu_;
+  mutex delete_mu_;
+  mutex read_mu_;
+
+	std::unordered_map<DirectSession*, int> direct_session_priority_map_;
 };
 
 }  // end namespace tensorflow
