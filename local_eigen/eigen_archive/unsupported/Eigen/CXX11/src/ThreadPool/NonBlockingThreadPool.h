@@ -501,6 +501,7 @@ class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
 
     start_ = 0;
     limit_ = num_threads_;
+    sleep_ = false;
 
     waiters_.resize(num_threads_);
     thread_data_.resize(num_threads_);
@@ -564,6 +565,8 @@ class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
     Queue& q = thread_data_[start+rnd].queue;
     t = q.PushBack(std::move(t));
     if (!t.f) {
+      // NOTE: must wake up all instead of one to avoid waking up a 
+      // thead outside the [start, limit).
       ec_.Notify(true);
     } else {
       // TODO:don't execute out of the range of [start, limit)
@@ -587,6 +590,17 @@ class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
     } else {
       return -1;
     }
+  }
+
+  // An interface for TF to call to make low priority active threads
+  // into sleep.
+  void SleepAll(){
+    sleep_ = true;
+  }
+
+  void WakeUpAll(){
+    sleep_ = false;
+    ec_.Notify(true);
   }
 
  private:
@@ -627,6 +641,8 @@ class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
   EventCount ec_;
   unsigned start_;
   unsigned limit_;
+  /// Flag used to trap all active threads into sleeping.
+  bool sleep_; 
 
 
   void WorkerLoop(int thread_id) {
@@ -637,6 +653,7 @@ class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
     Queue& q = thread_data_[thread_id].queue;
     EventCount::Waiter* waiter = &waiters_[thread_id];
 
+    // TODO: Spinning number 5000 can be tuned.
     const int spin_count = (allow_spinning_ && num_threads_ > 0) ?
       5000 / num_threads_ : 0;
 
@@ -654,6 +671,12 @@ class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
             if (!WaitForWork(waiter, &t)) {
               return; 
             }
+            //-- Trap into sleep 
+            if(sleep_) {
+              ec_.Prewait();
+              ec_.CommitWait(waiter);
+            }
+            //~~
           }
           if (t.f) {
             env_.ExecuteTask(t);
@@ -687,6 +710,12 @@ class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
                 if (!WaitForWork(waiter, &t)){
                   return; 
                 }
+                //-- Trap into sleep 
+                if(sleep_) {
+                  ec_.Prewait();
+                  ec_.CommitWait(waiter);
+                }
+                //~~
               }
             }
           }

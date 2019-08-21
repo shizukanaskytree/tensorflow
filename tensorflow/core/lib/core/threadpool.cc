@@ -175,6 +175,13 @@ int LowPriorityThreadPool::CurrentThreadId() const {
   return impl_->CurrentThreadId(); 
 }
 
+void LowPriorityThreadPool::SleepAll(){
+  impl_->SleepAll();
+}
+
+void LowPriorityThreadPool::WakeUpAll(){
+  impl_->WakeUpAll();
+}
 
 // ------------------------------------------------------------------------------
 // ~~ For low priority threadpool

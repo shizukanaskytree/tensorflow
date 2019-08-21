@@ -150,6 +150,9 @@ class LowPriorityThreadPool{
   int CurrentThreadId() const;
   // new interface
   void SetActiveThreadsRange(unsigned start, unsigned limit);
+  void SleepAll();
+  void WakeUpAll();
+
   void ParallelFor(int64 total, int64 cost_per_unit, 
       std::function<void(int64, int64)> fn); 
   struct Impl;
