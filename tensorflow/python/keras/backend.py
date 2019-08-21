@@ -207,6 +207,16 @@ def reset_uids():
   for key in keys:
     del per_graph_layer_name_uids[key]
 
+# ----------------------------------------------------------------------- 
+# Session Destruction of this thread
+@keras_export('keras.backend.clear_only_session')
+def clear_only_session():
+    """Only clear session of this thread
+    """
+    global _SESSION
+    _SESSION.session.close()
+    #_SESSION.session = None
+# ----------------------------------------------------------------------- 
 
 @keras_export('keras.backend.clear_session')
 def clear_session():
