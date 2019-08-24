@@ -215,7 +215,7 @@ def clear_only_session():
     """
     global _SESSION
     _SESSION.session.close()
-    #_SESSION.session = None
+    _SESSION.session = None
 # ----------------------------------------------------------------------- 
 
 @keras_export('keras.backend.clear_session')
