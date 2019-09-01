@@ -701,7 +701,7 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
         }else if (this->GetDirectSessionPriority() == 1){
         	/// For low priority tasks
           low_priority_thread_pool_->SleepAll();
-        	low_priority_thread_pool_->ScheduleWithHint(std::move(c), 0, 2);
+        	low_priority_thread_pool_->ScheduleWithHint(std::move(c), 0, 1);
         }
       }else{
         /// Either only high or low, use all threads in the threadpool
@@ -1949,7 +1949,7 @@ void DirectSessionsManager::AddDirectSessionAndPriority(
     // Priority 0, client doesn't define priority
     direct_session_priority_map_.insert({*direct_session, 0});
 	  // -- debug
-	  std::cout << "Add DirectSession::Pirority (0)" << std::endl;
+	  //std::cout << "Add DirectSession::Pirority (0)" << std::endl;
 	  // ~~ debug
   }else{
     int direct_session_priority = iter->second;
@@ -1961,9 +1961,9 @@ void DirectSessionsManager::AddDirectSessionAndPriority(
           std::memory_order_relaxed);
 
 	    // -- debug
-      std::cout << "Add DirectSession::Low Pirority (1), #Low: " <<
-		    low_priority_direct_session_count_.load(
-            std::memory_order_relaxed) << std::endl;
+      //std::cout << "Add DirectSession::Low Pirority (1), #Low: " <<
+		  //  low_priority_direct_session_count_.load(
+      //      std::memory_order_relaxed) << std::endl;
 	    // ~~ debug
     }
 
@@ -1972,9 +1972,9 @@ void DirectSessionsManager::AddDirectSessionAndPriority(
           std::memory_order_relaxed);
 
       // -- debug
-      std::cout << "Add DirectSession::High Pirority (2), #High: " << 
-        high_priority_direct_session_count_.load(
-            std::memory_order_relaxed) << std::endl;
+      //std::cout << "Add DirectSession::High Pirority (2), #High: " << 
+      //  high_priority_direct_session_count_.load(
+      //      std::memory_order_relaxed) << std::endl;
       // ~~ debug
     }
   }
@@ -1991,9 +1991,9 @@ void DirectSessionsManager::DeleteDirectSession(DirectSession* direct_session){
         std::memory_order_relaxed);
 
 	  // -- debug
-    std::cout << "Delete DirectSession::Low Pirority (1), #Low: " <<
-		  low_priority_direct_session_count_.load(
-          std::memory_order_relaxed) << std::endl;
+    //std::cout << "Delete DirectSession::Low Pirority (1), #Low: " <<
+		//  low_priority_direct_session_count_.load(
+    //      std::memory_order_relaxed) << std::endl;
 	  // ~~ debug
   }
 
@@ -2001,16 +2001,16 @@ void DirectSessionsManager::DeleteDirectSession(DirectSession* direct_session){
     high_priority_direct_session_count_.fetch_sub(1, 
         std::memory_order_relaxed);
     // -- debug
-    std::cout << "Delete DirectSession::High Pirority (2), #High: " << 
-      high_priority_direct_session_count_.load(
-          std::memory_order_relaxed) << std::endl;
+    //std::cout << "Delete DirectSession::High Pirority (2), #High: " << 
+    //  high_priority_direct_session_count_.load(
+    //      std::memory_order_relaxed) << std::endl;
     // ~~ debug
   }
 
   // --debug
-  if(direct_session_priority == 0){
-    std::cout << "Delete DirectSession::Default Pirority (0)" << std::endl;
-  }
+//  if(direct_session_priority == 0){
+//    std::cout << "Delete DirectSession::Default Pirority (0)" << std::endl;
+//  }
   // ~~debug
 
   direct_session_priority_map_.erase(direct_session);
