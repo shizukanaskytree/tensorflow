@@ -33,7 +33,11 @@ class GPUDevice : public BaseGPUDevice {
             Allocator* gpu_allocator, Allocator* cpu_allocator)
       : BaseGPUDevice(options, name, memory_limit, locality, tf_gpu_id,
                       physical_device_desc, gpu_allocator, cpu_allocator,
-                      false /* sync every op */, 1 /* max_streams */) {
+                      false /* sync every op */, 
+                      // we create 2 streams for high priority and low priority
+                      // streams_[1] is for high
+                      // streams_[0] is for low
+                      2 /* max_streams */) {
     if (options.config.has_gpu_options()) {
       force_gpu_compatible_ =
           options.config.gpu_options().force_gpu_compatible();

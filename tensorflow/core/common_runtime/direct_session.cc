@@ -373,16 +373,16 @@ DirectSession::~DirectSession() {
   // Update statistics inside the DirectSessionsManager instace
   direct_sessions_manager_->DeleteDirectSession(this);
 
-  // Once the last high priority DirectSession instance deconstrcut
-  // while there is still low priority DirectSession work to do,
-  // then wake up the low priority pool threads.
-  if(this->GetDirectSessionPriority() == 2 &&
-     !direct_sessions_manager_->high_priority_direct_session_count_.load(
-       std::memory_order_relaxed) && 
-     direct_sessions_manager_->low_priority_direct_session_count_.load(
-       std::memory_order_relaxed)){
-    low_priority_thread_pool_->WakeUpAll(); 
-  }
+//  // Once the last high priority DirectSession instance deconstrcut
+//  // while there is still low priority DirectSession work to do,
+//  // then wake up the low priority pool threads.
+//  if(this->GetDirectSessionPriority() == 2 &&
+//     !direct_sessions_manager_->high_priority_direct_session_count_.load(
+//       std::memory_order_relaxed) && 
+//     direct_sessions_manager_->low_priority_direct_session_count_.load(
+//       std::memory_order_relaxed)){
+//    low_priority_thread_pool_->WakeUpAll(); 
+//  }
 }
 
 // Set and Get the priority of this DirectSession instance.
@@ -700,8 +700,8 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
         	pool->Schedule(std::move(c));
         }else if (this->GetDirectSessionPriority() == 1){
         	/// For low priority tasks
-          low_priority_thread_pool_->SleepAll();
-        	low_priority_thread_pool_->ScheduleWithHint(std::move(c), 0, 1);
+          //low_priority_thread_pool_->SleepAll();
+        	low_priority_thread_pool_->ScheduleWithHint(std::move(c), 0, 72);
         }
       }else{
         /// Either only high or low, use all threads in the threadpool

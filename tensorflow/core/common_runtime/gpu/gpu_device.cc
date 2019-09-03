@@ -32,8 +32,10 @@ limitations under the License.
 #include <map>
 #include <tuple>
 #include <vector>
+#include <thread>
 
 #include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
+#include "tensorflow/core/common_runtime/executor.h"
 #include "tensorflow/core/common_runtime/device_factory.h"
 #include "tensorflow/core/common_runtime/gpu/gpu_event_mgr.h"
 #include "tensorflow/core/common_runtime/gpu/gpu_id.h"
@@ -455,33 +457,56 @@ Status BaseGPUDevice::FillContextMap(const Graph* graph,
                                      DeviceContextMap* device_context_map) {
   VLOG(2) << "FillContextMap";
 
+  //tid_execution_priority_map_;
+
   const size_t num_streams = streams_.size();
   // Special case for single stream.
   if (num_streams == 1) {
     return Status::OK();
   }
+//  const int64 before = Env::Default()->NowMicros();
+//  gpu_stream_util::AssignStreamsOpts opts;
+//  opts.max_streams = static_cast<int32>(num_streams);
+//  std::unordered_map<int, int> node_to_stream_id;
+//  TF_RETURN_IF_ERROR(
+//      gpu_stream_util::AssignStreams(graph, opts, &node_to_stream_id));
+//  int64 elapsed = Env::Default()->NowMicros() - before;
+//  VLOG(3) << "AssignStreams took " << elapsed << "us";
+//
+//  // Fill in the context map.  It is OK for this map to contain
+//  // duplicate DeviceContexts so long as we increment the refcount.
+//  device_context_map->resize(graph->num_node_ids());
+//  for (Node* n : graph->nodes()) {
+//    auto mapped_stream = node_to_stream_id[n->id()];
+//    CHECK_LE(mapped_stream, num_streams);
+//    auto ctx = device_contexts_[mapped_stream];
+//    VLOG(3) << "Assigned stream " << node_to_stream_id[n->id()]
+//            << " ==> stream[" << ctx->stream_id() << "] for node id " << n->id()
+//            << " " << n->type_string() << " " << n->name();
+//    ctx->Ref();
+//    (*device_context_map)[n->id()] = ctx;
+//  }
+
   const int64 before = Env::Default()->NowMicros();
-  gpu_stream_util::AssignStreamsOpts opts;
-  opts.max_streams = static_cast<int32>(num_streams);
-  std::unordered_map<int, int> node_to_stream_id;
-  TF_RETURN_IF_ERROR(
-      gpu_stream_util::AssignStreams(graph, opts, &node_to_stream_id));
+
+  // assignment
+  device_context_map->resize(graph->num_node_ids());
+  if (tid_execution_priority_map_[std::this_thread::get_id()] == 2) {
+    // high priority 
+    for (Node* n : graph->nodes()){
+      device_contexts_[1]->Ref();
+      (*device_context_map)[n->id()] = device_contexts_[1];
+    }
+  }else {
+    // low priority 
+    for (Node* n : graph->nodes()){
+      device_contexts_[0]->Ref();
+      (*device_context_map)[n->id()] = device_contexts_[0];
+    }
+  }
+
   int64 elapsed = Env::Default()->NowMicros() - before;
   VLOG(3) << "AssignStreams took " << elapsed << "us";
-
-  // Fill in the context map.  It is OK for this map to contain
-  // duplicate DeviceContexts so long as we increment the refcount.
-  device_context_map->resize(graph->num_node_ids());
-  for (Node* n : graph->nodes()) {
-    auto mapped_stream = node_to_stream_id[n->id()];
-    CHECK_LE(mapped_stream, num_streams);
-    auto ctx = device_contexts_[mapped_stream];
-    VLOG(3) << "Assigned stream " << node_to_stream_id[n->id()]
-            << " ==> stream[" << ctx->stream_id() << "] for node id " << n->id()
-            << " " << n->type_string() << " " << n->name();
-    ctx->Ref();
-    (*device_context_map)[n->id()] = ctx;
-  }
 
   return Status::OK();
 }
@@ -529,38 +554,38 @@ void BaseGPUDevice::ComputeHelper(OpKernel* op_kernel,
             << ComputeOpKernelDebugString(*op_kernel, stream_id);
   }
 
-  const auto num_streams = streams_.size();
-  if (num_streams > 1) {
-    // If this op's device context is different from the other contexts,
-    // we must wait on the stream.
-    for (int i = 0; i < context->num_inputs(); ++i) {
-      const GPUDeviceContext* idc =
-          static_cast<GPUDeviceContext*>(context->input_device_context(i));
-      OP_REQUIRES(context, idc != nullptr,
-                  errors::Internal("Input device context ", i,
-                                   " was not set properly."));
-      if (vlog_2) {
-        const void* base;
-        size_t len;
-        if (context->has_input(i)) {
-          if (IsRefType(context->input_dtype(i))) {
-            Tensor tensor = context->mutable_input(i, false);
-            base = DMAHelper::base(&tensor);
-            len = tensor.TotalBytes();
-          } else {
-            const Tensor& tensor = context->input(i);
-            base = DMAHelper::base(&tensor);
-            len = tensor.TotalBytes();
-          }
-          LOG(INFO) << "Input " << i << " " << base << "  " << len;
-          LOG(INFO) << "  stream[" << stream_id << "].ThenWaitFor(stream["
-                    << idc->stream_id() << "])"
-                    << ((idc->stream() == stream) ? " not needed" : "");
-        }
-      }
-      if (idc->stream() != stream) stream->ThenWaitFor(idc->stream());
-    }
-  }
+//  const auto num_streams = streams_.size();
+//  if (num_streams > 1) {
+//    // If this op's device context is different from the other contexts,
+//    // we must wait on the stream.
+//    for (int i = 0; i < context->num_inputs(); ++i) {
+//      const GPUDeviceContext* idc =
+//          static_cast<GPUDeviceContext*>(context->input_device_context(i));
+//      OP_REQUIRES(context, idc != nullptr,
+//                  errors::Internal("Input device context ", i,
+//                                   " was not set properly."));
+//      if (vlog_2) {
+//        const void* base;
+//        size_t len;
+//        if (context->has_input(i)) {
+//          if (IsRefType(context->input_dtype(i))) {
+//            Tensor tensor = context->mutable_input(i, false);
+//            base = DMAHelper::base(&tensor);
+//            len = tensor.TotalBytes();
+//          } else {
+//            const Tensor& tensor = context->input(i);
+//            base = DMAHelper::base(&tensor);
+//            len = tensor.TotalBytes();
+//          }
+//          LOG(INFO) << "Input " << i << " " << base << "  " << len;
+//          LOG(INFO) << "  stream[" << stream_id << "].ThenWaitFor(stream["
+//                    << idc->stream_id() << "])"
+//                    << ((idc->stream() == stream) ? " not needed" : "");
+//        }
+//      }
+//      if (idc->stream() != stream) stream->ThenWaitFor(idc->stream());
+//    }
+//  }
   if (pending_cap_ > 0) {
     DCHECK(kernel_tracker_);
     kernel_tracker_->PauseWhilePendingExceeds(pending_cap_);
