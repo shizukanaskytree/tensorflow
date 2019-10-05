@@ -100,6 +100,36 @@ GraphExecutionState::~GraphExecutionState() {
   return Status::OK();
 }
 
+// wxf
+/* static */ Status GraphExecutionState::MakeForLowPriorityBaseGraph(
+    GraphDef* graph_def, 
+    const GraphExecutionStateOptions& options,
+    std::unique_ptr<GraphExecutionState>* out_state) {
+#ifndef __ANDROID__
+  VLOG(4) << "Graph proto is \n" << graph_def->DebugString();
+#endif  // __ANDROID__
+
+  // wxf 
+  // modify graph_def node.device to "" so it can be assigned to CPU only.
+  for (size_t i = 0; i < graph_def->node_size(); ++i) {
+    graph_def->mutable_node(i)->set_device("");
+  }
+
+  std::unique_ptr<GraphExecutionState> ret(
+      new GraphExecutionState(graph_def, options));
+
+  TF_RETURN_IF_ERROR(
+      AddDefaultAttrsToGraphDef(&ret->original_graph_def_, *ret->flib_def_, 0));
+  // TODO(mrry): Refactor InitBaseGraph() so that we don't have to
+  // pass an empty BuildGraphOptions (that isn't going to be used when
+  // place_pruned_graph is false).
+  if (!ret->session_options_->config.graph_options().place_pruned_graph()) {
+    TF_RETURN_IF_ERROR(ret->InitBaseGraph(BuildGraphOptions()));
+  }
+  *out_state = std::move(ret);
+  return Status::OK();
+}
+
 /* static */ Status GraphExecutionState::MakeForPrunedGraph(
     const FunctionDefLibrary& func_def_lib,
     const GraphExecutionStateOptions& options, const GraphDef& graph_def,

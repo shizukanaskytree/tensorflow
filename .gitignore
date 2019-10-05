@@ -43,3 +43,4 @@ gradleBuild
 .project
 .cproject
 .pydevproject
+.settings/

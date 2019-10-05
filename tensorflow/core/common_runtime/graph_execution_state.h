@@ -107,6 +107,13 @@ class GraphExecutionState {
       GraphDef* graph_def, const GraphExecutionStateOptions& options,
       std::unique_ptr<GraphExecutionState>* out_state);
 
+  // wxf
+  // For low priority GraphExecutionState instance: low_priority_execution_state_
+  // I need to change the graph_def.node.device to "" (empty)
+  static Status MakeForLowPriorityBaseGraph(
+      GraphDef* graph_def, const GraphExecutionStateOptions& options,
+      std::unique_ptr<GraphExecutionState>* out_state);
+
   // Creates a new `GraphExecutionState` and `SimpleClientGraph`
   // for the subgraph of `original_graph_def` defined by
   // `subgraph_options`.

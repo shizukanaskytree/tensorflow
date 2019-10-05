@@ -160,6 +160,7 @@ Status EnsureMemoryTypes(const DeviceType& device_type,
         if (sm == dm) {
           return Status::OK();
         }
+        // wxf: cross device : we need to add extra Send and Recv node and edge.
         if (((sm == HOST_MEMORY) && (dm == DEVICE_MEMORY)) ||
             ((sm == DEVICE_MEMORY) && (dm == HOST_MEMORY))) {
           edges.push_back({e, sm, dm});

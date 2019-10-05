@@ -59,6 +59,9 @@ class OpSegment {
   typedef std::function<Status(OpKernel**)> CreateKernelFn;
   Status FindOrCreate(const string& session_handle, const string& node_name,
                       OpKernel** kernel, CreateKernelFn create_fn);
+  // wxf: for create op kernel for low priority
+  //Status FindOrCreateLowPriority(const string& session_handle, const string& node_name,
+  //										OpKernel** kernel, CreateKernelFn create_fn);
 
   // Returns true if OpSegment should own the kernel.
   static bool ShouldOwnKernel(FunctionLibraryRuntime* lib,
@@ -79,6 +82,8 @@ class OpSegment {
 
   mutable mutex mu_;
   SessionMap sessions_ GUARDED_BY(mu_);
+  // wxf: for low priority
+  //SessionMap low_priority_sessions_ GUARDED_BY(mu_);
 
   TF_DISALLOW_COPY_AND_ASSIGN(OpSegment);
 };

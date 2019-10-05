@@ -84,14 +84,24 @@ namespace tensorflow {
 struct LocalExecutorParams {
   Device* device;
 
+  // wxf: Low priority Device
+  //Device* low_priority_device;
+
   // The library runtime support.
   FunctionLibraryRuntime* function_library = nullptr;
+  // wxf: low priority
+  //FunctionLibraryRuntime* low_priority_function_library = nullptr;
 
   // create_kernel returns an instance of op kernel based on NodeDef.
   // delete_kernel is called for every kernel used by the executor
   // when the executor is deleted.
   std::function<Status(const NodeDef&, OpKernel**)> create_kernel;
+  // wxf: low priority
+  //std::function<Status(const NodeDef&, OpKernel**)> create_low_priority_kernel;
+
   std::function<void(OpKernel*)> delete_kernel;
+  // wxf: low priority
+  //std::function<void(OpKernel*)> delete_low_priority_kernel;
 };
 
 /// Declare class ExecutorImpl

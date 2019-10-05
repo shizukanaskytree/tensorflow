@@ -309,7 +309,9 @@ DirectSession::DirectSession(const SessionOptions& options,
     thread_pools_.emplace_back(NewThreadPoolFromSessionOptions(options_),
                                true /* owned */);
   } else {
+    // default threadpool or high priority threadpool
     thread_pools_.emplace_back(GlobalThreadPool(options), false /* owned */);
+    // wxf:
     // Construct a low priority threadpool
     low_priority_thread_pool_ = GlobalLowPriorityThreadPool(options);
   }
@@ -341,6 +343,12 @@ DirectSession::DirectSession(const SessionOptions& options,
     // CPU device) from which we feed and fetch Tensors.
     if (devices_added == 0) {
       device_set_.set_client_device(d);
+      // wxf, used for create low_priority_execution_state_
+      low_priority_device_set_.AddDevice(d);
+      // wxf, don't forget to set client device, which is used in 
+      // GraphExecutionState::PruneGraph
+      // ==> LookupDevice
+      low_priority_device_set_.set_client_device(d);
     }
     ++devices_added;
   }
@@ -376,13 +384,13 @@ DirectSession::~DirectSession() {
   // Once the last high priority DirectSession instance deconstrcut
   // while there is still low priority DirectSession work to do,
   // then wake up the low priority pool threads.
-  if(this->GetDirectSessionPriority() == 2 &&
-     !direct_sessions_manager_->high_priority_direct_session_count_.load(
-       std::memory_order_relaxed) && 
-     direct_sessions_manager_->low_priority_direct_session_count_.load(
-       std::memory_order_relaxed)){
-    low_priority_thread_pool_->WakeUpAll(); 
-  }
+ // if(this->GetDirectSessionPriority() == 2 &&
+ //    !direct_sessions_manager_->high_priority_direct_session_count_.load(
+ //      std::memory_order_relaxed) && 
+ //    direct_sessions_manager_->low_priority_direct_session_count_.load(
+ //      std::memory_order_relaxed)){
+ //   low_priority_thread_pool_->WakeUpAll(); 
+ // }
 }
 
 // Set and Get the priority of this DirectSession instance.
@@ -401,24 +409,16 @@ DirectSessionsManager* DirectSession::direct_sessions_manager_ =
 Status DirectSession::MaybeInitializeExecutionState(
     const GraphDef& graph, bool* out_already_initialized) {
   // If already initialized, do nothing.
-  if (flib_def_ && execution_state_) {
+  if (flib_def_ && execution_state_ && low_priority_execution_state_) {
     *out_already_initialized = true;
     return Status::OK();
   }
-
-  //size_t num_f = flib_def_->num_functions();
-  //std::clog << "Before: " << std::endl;
-  //flib_def_->DebugString();
 
   // Set up the per-session execution state.
   // NOTE(mrry): The function library created here will be used for
   // all subsequent extensions of the graph.
   flib_def_.reset(
       new FunctionLibraryDefinition(OpRegistry::Global(), graph.library()));
-
-  //num_f = flib_def_->num_functions();
-  //std::clog << "After: " << std::endl;
-  //flib_def_->DebugString();
 
   GraphExecutionStateOptions options;
   options.device_set = &device_set_;
@@ -435,6 +435,20 @@ Status DirectSession::MaybeInitializeExecutionState(
   GraphDef temp(graph);
   TF_RETURN_IF_ERROR(
       GraphExecutionState::MakeForBaseGraph(&temp, options, &execution_state_));
+  
+  // wxf 
+  // Create low_priority_executor_state_ graph
+  GraphExecutionStateOptions low_priority_options;
+  low_priority_options.device_set = &low_priority_device_set_;
+  low_priority_options.session_options = &options_;
+  low_priority_options.session_handle = session_handle_;
+  GraphDef temp2(graph);
+  TF_RETURN_IF_ERROR(
+      GraphExecutionState::MakeForLowPriorityBaseGraph(
+        &temp2, 
+        low_priority_options, 
+        &low_priority_execution_state_));
+
   graph_created_ = true;
   *out_already_initialized = false;
   return Status::OK();
@@ -470,6 +484,12 @@ Status DirectSession::ExtendLocked(const GraphDef& graph) {
     std::unique_ptr<GraphExecutionState> state;
     TF_RETURN_IF_ERROR(execution_state_->Extend(graph, &state));
     execution_state_.swap(state);
+    
+    // wxf
+    // Extend low_priority_execution_state_
+    std::unique_ptr<GraphExecutionState> low_priority_state;
+    TF_RETURN_IF_ERROR(low_priority_execution_state_->Extend(graph, &low_priority_state));
+    low_priority_execution_state_.swap(low_priority_state);
   }
   return Status::OK();
 }
@@ -695,12 +715,12 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
           direct_sessions_manager_->
             low_priority_direct_session_count_.load(std::memory_order_relaxed)){
         /// For High Priority tasks
-        if (this->GetDirectSessionPriority() == 2){
+        if (this->GetDirectSessionPriority() == DirectSessionPriority::DIRECTSESSION_PRIORITY_HIGH){
           // Range: start to limit
         	pool->Schedule(std::move(c));
-        }else if (this->GetDirectSessionPriority() == 1){
+        }else if (this->GetDirectSessionPriority() == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW){
         	/// For low priority tasks
-          low_priority_thread_pool_->SleepAll();
+          //low_priority_thread_pool_->SleepAll();
         	low_priority_thread_pool_->ScheduleWithHint(std::move(c), 0, 1);
         }
       }else{
@@ -823,9 +843,32 @@ Status DirectSession::Run(const RunOptions& run_options,
   run_state_args.collective_graph_key =
       run_options.experimental().collective_graph_key();
 
-  TF_RETURN_IF_ERROR(GetOrCreateExecutors(input_tensor_names, output_names,
-                                          target_nodes, &executors_and_keys,
-                                          &run_state_args));
+  // wxf: if high priority task exists, then the low priority task use the low
+  // priority executor.
+  if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW &&
+      direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)){
+    // itself is low priority and high priority exists, then get or create low priority executors
+    // Get or Create low priority CPU executors
+    TF_RETURN_IF_ERROR(GetOrCreateLowPriorityExecutors(input_tensor_names, output_names,
+                                                       target_nodes, &executors_and_keys,
+                                                       &run_state_args));
+  
+  }else {
+    TF_RETURN_IF_ERROR(GetOrCreateExecutors(input_tensor_names, output_names,
+                                            target_nodes, &executors_and_keys,
+                                            &run_state_args));
+  }
+
+//  // wxf : for testing 
+//  TF_RETURN_IF_ERROR(GetOrCreateExecutors(input_tensor_names, output_names,
+//                                          target_nodes, &executors_and_keys,
+//                                          &run_state_args));
+//
+//  // Get or Create low priority CPU executors
+//  TF_RETURN_IF_ERROR(GetOrCreateLowPriorityExecutors(input_tensor_names, output_names,
+//                                                     target_nodes, &executors_and_keys,
+//                                                     &run_state_args));
+
   {
     mutex_lock l(collective_graph_key_lock_);
     collective_graph_key_ = executors_and_keys->collective_graph_key;
@@ -1321,10 +1364,13 @@ Status DirectSession::CreateExecutors(
     std::unique_ptr<Graph>& partition_graph = iter->second;
 
     Device* device;
+
     TF_RETURN_IF_ERROR(device_mgr_->LookupDevice(partition_name, &device));
 
     ek->items.resize(ek->items.size() + 1);
+
     auto* item = &(ek->items.back());
+
     auto lib = func_info->proc_flr->GetFLR(partition_name);
     if (lib == nullptr) {
       return errors::Internal("Could not find device: ", partition_name);
@@ -1333,8 +1379,180 @@ Status DirectSession::CreateExecutors(
 
     LocalExecutorParams params;
     params.device = device;
+
     params.function_library = lib;
+
     auto opseg = device->op_segment();
+
+    params.create_kernel = [this, lib, opseg](const NodeDef& ndef,
+                                              OpKernel** kernel) {
+      // NOTE(mrry): We must not share function kernels (implemented
+      // using `CallOp`) between subgraphs, because `CallOp::handle_`
+      // is tied to a particular subgraph. Even if the function itself
+      // is stateful, the `CallOp` that invokes it is not.
+      if (!OpSegment::ShouldOwnKernel(lib, ndef.op())) {
+        return lib->CreateKernel(ndef, kernel);
+      }
+      auto create_fn = [lib, &ndef](OpKernel** kernel) {
+        return lib->CreateKernel(ndef, kernel);
+      };
+      // Kernels created for subgraph nodes need to be cached.  On
+      // cache miss, create_fn() is invoked to create a kernel based
+      // on the function library here + global op registry.
+      return opseg->FindOrCreate(session_handle_, ndef.name(), kernel,
+                                 create_fn);
+    };
+    params.delete_kernel = [lib](OpKernel* kernel) {
+      if (kernel && !OpSegment::ShouldOwnKernel(lib, kernel->type_string()))
+        delete kernel;
+    };
+
+    optimizer.Optimize(lib, options_.env, device, &partition_graph,
+                       /*shape_map=*/nullptr);
+
+    // TensorFlow Debugger (tfdbg) inserts debug nodes in the graph.
+    const DebugOptions& debug_options =
+        options.callable_options.run_options().debug_options();
+    if (!debug_options.debug_tensor_watch_opts().empty()) {
+      TF_RETURN_IF_ERROR(DecorateAndPublishGraphForDebug(
+          debug_options, partition_graph.get(), params.device));
+    }
+
+    TF_RETURN_IF_ERROR(EnsureMemoryTypes(DeviceType(device->device_type()),
+                                         device->name(),
+                                         partition_graph.get()));
+    // NewLocalExecutor takes ownership of partition_graph.
+    item->graph = partition_graph.get();
+    item->executor = nullptr;
+    item->device = device;
+    auto executor_type = options_.config.experimental().executor_type();
+    TF_RETURN_IF_ERROR(NewExecutor(
+        executor_type, params, std::move(partition_graph), &item->executor));
+  }
+
+  // Cache the mapping from input/output names to graph elements to
+  // avoid recomputing it every time.
+  if (!run_state_args->is_partial_run) {
+    // For regular `Run()`, we use the function calling convention, and so
+    // maintain a mapping from input/output names to
+    // argument/return-value ordinal index.
+    for (int i = 0; i < callable_options.feed().size(); ++i) {
+      const string& input = callable_options.feed(i);
+      ek->input_name_to_index[input] = i;
+    }
+    for (int i = 0; i < callable_options.fetch().size(); ++i) {
+      const string& output = callable_options.fetch(i);
+      ek->output_name_to_index[output] = i;
+    }
+  } else {
+    // For `PRun()`, we use the rendezvous calling convention, and so
+    // maintain a mapping from input/output names to rendezvous keys.
+    //
+    // We always use the first device as the device name portion of the
+    // key, even if we're feeding another graph.
+    for (int i = 0; i < callable_options.feed().size(); ++i) {
+      const string& input = callable_options.feed(i);
+      ek->input_name_to_rendezvous_key[input] = GetRendezvousKey(
+          input, device_set_.client_device()->attributes(), FrameAndIter(0, 0));
+    }
+    for (int i = 0; i < callable_options.fetch().size(); ++i) {
+      const string& output = callable_options.fetch(i);
+      ek->output_name_to_rendezvous_key[output] =
+          GetRendezvousKey(output, device_set_.client_device()->attributes(),
+                           FrameAndIter(0, 0));
+    }
+  }
+
+  *out_executors_and_keys = std::move(ek);
+  *out_func_info = std::move(func_info);
+  return Status::OK();
+}
+
+// wxf
+Status DirectSession::CreateLowPriorityExecutors(
+    const CallableOptions& callable_options,
+    std::unique_ptr<ExecutorsAndKeys>* out_executors_and_keys,
+    std::unique_ptr<FunctionInfo>* out_func_info,
+    RunStateArgs* run_state_args) {
+  BuildGraphOptions options;
+  options.callable_options = callable_options;
+  options.use_function_convention = !run_state_args->is_partial_run;
+  options.collective_graph_key =
+      callable_options.run_options().experimental().collective_graph_key();
+  if (options_.config.experimental()
+          .collective_deterministic_sequential_execution()) {
+    options.collective_order = GraphCollectiveOrder::kEdges;
+  } else if (options_.config.experimental().collective_nccl()) {
+    options.collective_order = GraphCollectiveOrder::kAttrs;
+  }
+
+  std::unique_ptr<FunctionInfo> func_info(new FunctionInfo);
+  std::unique_ptr<ExecutorsAndKeys> ek(new ExecutorsAndKeys);
+
+  ek->callable_options = callable_options;
+
+  std::unordered_map<string, std::unique_ptr<Graph>> graphs;
+  TF_RETURN_IF_ERROR(CreateLowPriorityGraphs(
+      options, &graphs, &func_info->flib_def, run_state_args, &ek->input_types,
+      &ek->output_types, &ek->collective_graph_key));
+
+  if (run_state_args->is_partial_run) {
+    ek->graph = std::move(run_state_args->graph);
+    std::unordered_set<StringPiece, StringPieceHasher> names;
+    for (const string& input : callable_options.feed()) {
+      TensorId id(ParseTensorName(input));
+      names.emplace(id.first);
+    }
+    for (const string& output : callable_options.fetch()) {
+      TensorId id(ParseTensorName(output));
+      names.emplace(id.first);
+    }
+    for (Node* n : ek->graph->nodes()) {
+      if (names.count(n->name()) > 0) {
+        ek->name_to_node.insert({n->name(), n});
+      }
+    }
+  }
+  ek->items.reserve(graphs.size());
+  const auto& optimizer_opts =
+      options_.config.graph_options().optimizer_options();
+
+  int graph_def_version;
+  {
+    mutex_lock l(graph_state_lock_);
+    graph_def_version =
+        execution_state_->original_graph_def().versions().producer();
+  }
+  func_info->proc_flr.reset(new ProcessFunctionLibraryRuntime(
+      device_mgr_.get(), options_.env, graph_def_version,
+      func_info->flib_def.get(), optimizer_opts, thread_pools_[0].first));
+
+  GraphOptimizer optimizer(optimizer_opts);
+  for (auto iter = graphs.begin(); iter != graphs.end(); ++iter) {
+    const string& partition_name = iter->first;
+    std::unique_ptr<Graph>& partition_graph = iter->second;
+
+    Device* device;
+
+    TF_RETURN_IF_ERROR(device_mgr_->LookupDevice(partition_name, &device));
+
+    ek->items.resize(ek->items.size() + 1);
+
+    auto* item = &(ek->items.back());
+
+    auto lib = func_info->proc_flr->GetFLR(partition_name);
+    if (lib == nullptr) {
+      return errors::Internal("Could not find device: ", partition_name);
+    }
+    item->flib = lib;
+
+    LocalExecutorParams params;
+    params.device = device;
+
+    params.function_library = lib;
+
+    auto opseg = device->op_segment();
+
     params.create_kernel = [this, lib, opseg](const NodeDef& ndef,
                                               OpKernel** kernel) {
       // NOTE(mrry): We must not share function kernels (implemented
@@ -1529,6 +1747,119 @@ Status DirectSession::GetOrCreateExecutors(
   return Status::OK();
 }
 
+// wxf
+Status DirectSession::GetOrCreateLowPriorityExecutors(
+    gtl::ArraySlice<string> inputs, gtl::ArraySlice<string> outputs,
+    gtl::ArraySlice<string> target_nodes, ExecutorsAndKeys** executors_and_keys,
+    RunStateArgs* run_state_args) {
+  int64 handle_name_counter_value = -1;
+  if (LogMemory::IsEnabled() || run_state_args->is_partial_run) {
+    handle_name_counter_value = handle_name_counter_.fetch_add(1);
+  }
+
+  string debug_tensor_watches_summary;
+  if (!run_state_args->debug_options.debug_tensor_watch_opts().empty()) {
+    debug_tensor_watches_summary = SummarizeDebugTensorWatches(
+        run_state_args->debug_options.debug_tensor_watch_opts());
+  }
+
+  // Fast lookup path, no sorting.
+  const string key = strings::StrCat(
+      "cpu/",
+      str_util::Join(inputs, ","), "->", str_util::Join(outputs, ","), "/",
+      str_util::Join(target_nodes, ","), "/", run_state_args->is_partial_run,
+      "/", debug_tensor_watches_summary);
+  // Set the handle, if it's needed to log memory or for partial run.
+  if (handle_name_counter_value >= 0) {
+    run_state_args->handle =
+        strings::StrCat(key, ";", handle_name_counter_value);
+  }
+
+  // See if we already have the executors for this run.
+  {
+    mutex_lock l(executor_lock_);  // could use reader lock
+    auto it = executors_.find(key);
+    if (it != executors_.end()) {
+      *executors_and_keys = it->second.get();
+      return Status::OK();
+    }
+  }
+
+  // Slow lookup path, the unsorted key missed the cache.
+  // Sort the inputs and outputs, and look up with the sorted key in case an
+  // earlier call used a different order of inputs and outputs.
+  //
+  // We could consider some other signature instead of sorting that
+  // preserves the same property to avoid the sort in the future.
+  std::vector<string> inputs_sorted(inputs.begin(), inputs.end());
+  std::sort(inputs_sorted.begin(), inputs_sorted.end());
+  std::vector<string> outputs_sorted(outputs.begin(), outputs.end());
+  std::sort(outputs_sorted.begin(), outputs_sorted.end());
+  std::vector<string> tn_sorted(target_nodes.begin(), target_nodes.end());
+  std::sort(tn_sorted.begin(), tn_sorted.end());
+
+  const string sorted_key = strings::StrCat(
+      "cpu->",
+      str_util::Join(inputs_sorted, ","), "->",
+      str_util::Join(outputs_sorted, ","), "/", str_util::Join(tn_sorted, ","),
+      "/", run_state_args->is_partial_run, "/", debug_tensor_watches_summary);
+  // Set the handle, if its needed to log memory or for partial run.
+  if (handle_name_counter_value >= 0) {
+    run_state_args->handle =
+        strings::StrCat(sorted_key, ";", handle_name_counter_value);
+  }
+
+  // See if we already have the executors for this run.
+  {
+    mutex_lock l(executor_lock_);
+    auto it = executors_.find(sorted_key);
+    if (it != executors_.end()) {
+      *executors_and_keys = it->second.get();
+      // Insert this under the original key.
+      executors_.emplace(key, it->second);
+      return Status::OK();
+    }
+  }
+
+  // Nothing found, so create the executors and store in the cache.
+  // The executor_lock_ is intentionally released while executors are
+  // being created.
+  CallableOptions callable_options;
+  for (const string& input : inputs_sorted) {
+    callable_options.add_feed(input);
+  }
+  for (const string& output : outputs_sorted) {
+    callable_options.add_fetch(output);
+  }
+  for (const string& target : tn_sorted) {
+    callable_options.add_target(target);
+  }
+  *callable_options.mutable_run_options()->mutable_debug_options() =
+      run_state_args->debug_options;
+  callable_options.mutable_run_options()
+      ->mutable_experimental()
+      ->set_collective_graph_key(run_state_args->collective_graph_key);
+  std::unique_ptr<ExecutorsAndKeys> ek;
+  std::unique_ptr<FunctionInfo> func_info;
+  TF_RETURN_IF_ERROR(
+      CreateLowPriorityExecutors(callable_options, &ek, &func_info, run_state_args));
+
+  // Reacquire the lock, try to insert into the map.
+  mutex_lock l(executor_lock_);
+  functions_.push_back(std::move(func_info));
+
+  // Another thread may have created the entry before us, in which case we will
+  // reuse the already created one.
+  auto insert_result = executors_.emplace(
+      sorted_key, std::shared_ptr<ExecutorsAndKeys>(std::move(ek)));
+  // Insert the value under the original key, so the fast path lookup will work
+  // if the user uses the same order of inputs, outputs, and targets again.
+  executors_.emplace(key, insert_result.first->second);
+  *executors_and_keys = insert_result.first->second.get();
+
+  return Status::OK();
+}
+
 Status DirectSession::CreateGraphs(
     const BuildGraphOptions& subgraph_options,
     std::unordered_map<string, std::unique_ptr<Graph>>* outputs,
@@ -1597,6 +1928,168 @@ Status DirectSession::CreateGraphs(
   }
 
   stateful_placements_ = execution_state->GetStatefulPlacements();
+
+  // Remember the graph in run state if this is a partial run.
+  if (run_state_args->is_partial_run) {
+    run_state_args->graph.reset(new Graph(flib_def_.get()));
+    CopyGraph(*execution_state->full_graph(), run_state_args->graph.get());
+  }
+
+  // Partition the graph across devices.
+  PartitionOptions popts;
+  popts.node_to_loc = [](const Node* node) {
+    return node->assigned_device_name();
+  };
+  popts.new_name = [this](const string& prefix) {
+    return strings::StrCat(prefix, "/_", edge_name_counter_.fetch_add(1));
+  };
+  popts.get_incarnation = [](const string& name) {
+    // The direct session does not have changing incarnation numbers.
+    // Just return '1'.
+    return 1;
+  };
+  popts.flib_def = &client_graph->graph.flib_def();
+  popts.control_flow_added = false;
+
+  std::unordered_map<string, GraphDef> partitions;
+  TF_RETURN_IF_ERROR(Partition(popts, &client_graph->graph, &partitions));
+
+  std::vector<string> device_names;
+  for (auto device : devices_) {
+    // Extract the LocalName from the device.
+    device_names.push_back(DeviceNameUtils::LocalName(device->name()));
+  }
+
+  // Check for valid partitions.
+  for (const auto& partition : partitions) {
+    const string local_partition_name =
+        DeviceNameUtils::LocalName(partition.first);
+    if (std::count(device_names.begin(), device_names.end(),
+                   local_partition_name) == 0) {
+      return errors::InvalidArgument(
+          "Creating a partition for ", local_partition_name,
+          " which doesn't exist in the list of available devices. Available "
+          "devices: ",
+          str_util::Join(device_names, ","));
+    }
+  }
+
+  for (const auto& partition : partitions) {
+    std::unique_ptr<Graph> device_graph(
+        new Graph(client_graph->flib_def.get()));
+    GraphConstructorOptions device_opts;
+    // There are internal operations (e.g., send/recv) that we now allow.
+    device_opts.allow_internal_ops = true;
+    device_opts.expect_device_spec = true;
+    TF_RETURN_IF_ERROR(ConvertGraphDefToGraph(device_opts, partition.second,
+                                              device_graph.get()));
+    outputs->emplace(partition.first, std::move(device_graph));
+  }
+
+  GraphOptimizationPassOptions optimization_options;
+  optimization_options.session_options = &options_;
+  optimization_options.flib_def = client_graph->flib_def.get();
+  optimization_options.partition_graphs = outputs;
+  TF_RETURN_IF_ERROR(OptimizationPassRegistry::Global()->RunGrouping(
+      OptimizationPassRegistry::POST_PARTITIONING, optimization_options));
+
+  Status s;
+  for (auto& partition : *outputs) {
+    const string& partition_name = partition.first;
+    std::unique_ptr<Graph>* graph = &partition.second;
+
+    VLOG(2) << "Created " << DebugString(graph->get()) << " for "
+            << partition_name;
+
+    // Give the device an opportunity to rewrite its subgraph.
+    Device* d;
+    s = device_mgr_->LookupDevice(partition_name, &d);
+    if (!s.ok()) break;
+    s = d->MaybeRewriteGraph(graph);
+    if (!s.ok()) {
+      break;
+    }
+  }
+  *flib_def = std::move(client_graph->flib_def);
+  std::swap(*input_types, client_graph->feed_types);
+  std::swap(*output_types, client_graph->fetch_types);
+  return s;
+}
+
+// wxf
+Status DirectSession::CreateLowPriorityGraphs(
+    const BuildGraphOptions& subgraph_options,
+    std::unordered_map<string, std::unique_ptr<Graph>>* outputs,
+    std::unique_ptr<FunctionLibraryDefinition>* flib_def,
+    RunStateArgs* run_state_args, DataTypeVector* input_types,
+    DataTypeVector* output_types, int64* collective_graph_key) {
+  mutex_lock l(graph_state_lock_);
+  std::unique_ptr<ClientGraph> client_graph;
+
+  std::unique_ptr<GraphExecutionState> temp_exec_state_holder;
+  GraphExecutionState* execution_state = nullptr;
+  if (options_.config.graph_options().place_pruned_graph()) {
+    // Because we are placing pruned graphs, we need to create a
+    // new GraphExecutionState for every new unseen graph,
+    // and then place it.
+    GraphExecutionStateOptions prune_options;
+    prune_options.device_set = &device_set_;
+    prune_options.session_options = &options_;
+    prune_options.stateful_placements = stateful_placements_;
+    prune_options.session_handle = session_handle_;
+    TF_RETURN_IF_ERROR(GraphExecutionState::MakeForPrunedGraph(
+        execution_state_->original_graph_def().library(), prune_options,
+        execution_state_->original_graph_def(), subgraph_options,
+        &temp_exec_state_holder, &client_graph));
+    execution_state = temp_exec_state_holder.get();
+  } else {
+    // TODO: wxf after DirectSession::MaybeInitializeExecutionState init low_priority_execution_state_
+    execution_state = low_priority_execution_state_.get();
+    TF_RETURN_IF_ERROR(
+        execution_state->BuildGraph(subgraph_options, &client_graph));
+  }
+  *collective_graph_key = client_graph->collective_graph_key;
+
+  if (subgraph_options.callable_options.feed_size() !=
+      client_graph->feed_types.size()) {
+    return errors::Internal(
+        "Graph pruning failed: requested number of feed endpoints = ",
+        subgraph_options.callable_options.feed_size(),
+        " versus number of pruned feed endpoints = ",
+        client_graph->feed_types.size());
+  }
+  if (subgraph_options.callable_options.fetch_size() !=
+      client_graph->fetch_types.size()) {
+    return errors::Internal(
+        "Graph pruning failed: requested number of fetch endpoints = ",
+        subgraph_options.callable_options.fetch_size(),
+        " versus number of pruned fetch endpoints = ",
+        client_graph->fetch_types.size());
+  }
+
+  // wxf
+  // low priority Graph stateful placement information should not update
+  // DirectSession::stateful_placements_ 
+  // So, I comment this part.
+//  auto current_stateful_placements = execution_state->GetStatefulPlacements();
+//  // Update our current state based on the execution_state's
+//  // placements.  If there are any mismatches for a node,
+//  // we should fail, as this should never happen.
+//  for (auto placement_pair : current_stateful_placements) {
+//    const string& node_name = placement_pair.first;
+//    const string& placement = placement_pair.second;
+//    auto iter = stateful_placements_.find(node_name);
+//    if (iter == stateful_placements_.end()) {
+//      stateful_placements_.insert(std::make_pair(node_name, placement));
+//    } else if (iter->second != placement) {
+//      return errors::Internal(
+//          "Stateful placement mismatch. "
+//          "Current assignment of ",
+//          node_name, " to ", iter->second, " does not match ", placement);
+//    }
+//  }
+//
+//  stateful_placements_ = execution_state->GetStatefulPlacements();
 
   // Remember the graph in run state if this is a partial run.
   if (run_state_args->is_partial_run) {
@@ -1808,6 +2301,37 @@ Status DirectSession::MakeCallable(const CallableOptions& callable_options,
     *out_handle = next_callable_handle_++;
     callables_[*out_handle] = {std::move(ek), std::move(func_info)};
   }
+
+  // -----------------------------------------------------------------------
+
+  // wxf
+  // For low priority task, we create a backup CPU-only executors;
+  // For high priority task, we don't create CPU-only executors.
+  if(direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW){
+    CallableHandle low_priority_handle = 0;
+    // 1.
+    // low_priority_handle explanation:
+    // the low_priority_handle is hid from the user.
+  
+    std::unique_ptr<ExecutorsAndKeys> low_priority_ek;
+    std::unique_ptr<FunctionInfo> low_priority_func_info;
+    RunStateArgs low_priority_run_state_args(callable_options.run_options().debug_options());
+    TF_RETURN_IF_ERROR(
+        CreateLowPriorityExecutors(
+          callable_options,
+          &low_priority_ek,
+          &low_priority_func_info,
+          &low_priority_run_state_args));
+    {
+      mutex_lock l(callables_lock_);
+      low_priority_handle = next_low_priority_callable_handle_++;
+      // take down the mapping for DirectSession::RunCallable
+      usr_handle_to_low_priority_handle_[*out_handle] = low_priority_handle;
+      low_priority_callables_[low_priority_handle] = {std::move(low_priority_ek),
+                                                      std::move(low_priority_func_info)};
+    }
+  }
+
   return Status::OK();
 }
 
@@ -1867,52 +2391,104 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
   std::shared_ptr<ExecutorsAndKeys> executors_and_keys;
   const int64 step_id = step_id_counter_.fetch_add(1);
 
-  {
-    tf_shared_lock l(callables_lock_);
-    if (handle >= next_callable_handle_) {
-      return errors::InvalidArgument("No such callable handle: ", handle);
+  // wxf: if high priority task exists, then the low priority task use the low
+  // priority executor.
+  if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW &&
+      direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)){
+    {
+      tf_shared_lock l(callables_lock_);
+      CallableHandle low_priority_handle = usr_handle_to_low_priority_handle_[handle];
+      if (low_priority_handle >= next_low_priority_callable_handle_) {
+        return errors::InvalidArgument("No such callable handle: ", low_priority_handle);
+      }
+      executors_and_keys = low_priority_callables_[low_priority_handle].executors_and_keys;
     }
-    executors_and_keys = callables_[handle].executors_and_keys;
+
+    if (!executors_and_keys) {
+      return errors::InvalidArgument(
+          "Low Priority case: Attempted to run callable after handle was released: ", handle);
+      // wxf
+      // we still use handle here since low_priority_handle var is out of scope.
+    }
+
+    DebugOptions debug_options;
+    RunStateArgs run_state_args(debug_options);
+
+    // Configure a call frame for the step, which we use to feed and
+    // fetch values to and from the executors.
+    if (feed_tensors.size() != executors_and_keys->input_types.size()) {
+      return errors::InvalidArgument(
+          "Expected ", executors_and_keys->input_types.size(),
+          " feed tensors, but got ", feed_tensors.size());
+    }
+    if (fetch_tensors != nullptr) {
+      fetch_tensors->resize(executors_and_keys->output_types.size());
+    } else if (!executors_and_keys->output_types.empty()) {
+      return errors::InvalidArgument(
+          "`fetch_tensors` must be provided when the callable has one or more "
+          "outputs.");
+    }
+
+    RunCallableCallFrame call_frame(this, executors_and_keys.get(), &feed_tensors,
+                                    fetch_tensors);
+
+    if (LogMemory::IsEnabled()) {
+      LogMemory::RecordStep(step_id, run_state_args.handle);
+    }
+
+    TF_RETURN_IF_ERROR(
+        RunInternal(step_id, executors_and_keys->callable_options.run_options(),
+                    &call_frame, executors_and_keys.get(), run_metadata));
+      
+  }else {
+    // normal case: original code logic
+    {
+      tf_shared_lock l(callables_lock_);
+      if (handle >= next_callable_handle_) {
+        return errors::InvalidArgument("No such callable handle: ", handle);
+      }
+      executors_and_keys = callables_[handle].executors_and_keys;
+    }
+  
+    if (!executors_and_keys) {
+      return errors::InvalidArgument(
+          "Attempted to run callable after handle was released: ", handle);
+    }
+  
+    // NOTE(mrry): Debug options are not currently supported in the
+    // callable interface.
+    DebugOptions debug_options;
+    RunStateArgs run_state_args(debug_options);
+  
+    // Configure a call frame for the step, which we use to feed and
+    // fetch values to and from the executors.
+    if (feed_tensors.size() != executors_and_keys->input_types.size()) {
+      return errors::InvalidArgument(
+          "Expected ", executors_and_keys->input_types.size(),
+          " feed tensors, but got ", feed_tensors.size());
+    }
+    if (fetch_tensors != nullptr) {
+      fetch_tensors->resize(executors_and_keys->output_types.size());
+    } else if (!executors_and_keys->output_types.empty()) {
+      return errors::InvalidArgument(
+          "`fetch_tensors` must be provided when the callable has one or more "
+          "outputs.");
+    }
+  
+    // A specialized CallFrame implementation that takes advantage of the
+    // optimized RunCallable interface.
+  
+    RunCallableCallFrame call_frame(this, executors_and_keys.get(), &feed_tensors,
+                                    fetch_tensors);
+  
+    if (LogMemory::IsEnabled()) {
+      LogMemory::RecordStep(step_id, run_state_args.handle);
+    }
+  
+    TF_RETURN_IF_ERROR(
+        RunInternal(step_id, executors_and_keys->callable_options.run_options(),
+                    &call_frame, executors_and_keys.get(), run_metadata));
   }
-
-  if (!executors_and_keys) {
-    return errors::InvalidArgument(
-        "Attempted to run callable after handle was released: ", handle);
-  }
-
-  // NOTE(mrry): Debug options are not currently supported in the
-  // callable interface.
-  DebugOptions debug_options;
-  RunStateArgs run_state_args(debug_options);
-
-  // Configure a call frame for the step, which we use to feed and
-  // fetch values to and from the executors.
-  if (feed_tensors.size() != executors_and_keys->input_types.size()) {
-    return errors::InvalidArgument(
-        "Expected ", executors_and_keys->input_types.size(),
-        " feed tensors, but got ", feed_tensors.size());
-  }
-  if (fetch_tensors != nullptr) {
-    fetch_tensors->resize(executors_and_keys->output_types.size());
-  } else if (!executors_and_keys->output_types.empty()) {
-    return errors::InvalidArgument(
-        "`fetch_tensors` must be provided when the callable has one or more "
-        "outputs.");
-  }
-
-  // A specialized CallFrame implementation that takes advantage of the
-  // optimized RunCallable interface.
-
-  RunCallableCallFrame call_frame(this, executors_and_keys.get(), &feed_tensors,
-                                  fetch_tensors);
-
-  if (LogMemory::IsEnabled()) {
-    LogMemory::RecordStep(step_id, run_state_args.handle);
-  }
-
-  TF_RETURN_IF_ERROR(
-      RunInternal(step_id, executors_and_keys->callable_options.run_options(),
-                  &call_frame, executors_and_keys.get(), run_metadata));
 
   return Status::OK();
 }

@@ -805,7 +805,16 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
 
   OpKernelContext::Params params;
   params.step_id = step_id_;
+
+  // wxf: dynamically change to low priority device once high priority tasks exists
+  // Pseudo Code
+  // if high_priority_tasks_exist() :
+  //   Device* device = impl_->params_.low_priority_device
+  // else:
+  //   Device* device = impl_->params_.device
   Device* device = impl_->params_.device;
+
+
   params.device = device;
   params.log_memory = log_memory_;
   params.record_tensor_accesses = impl_->device_record_tensor_accesses_;

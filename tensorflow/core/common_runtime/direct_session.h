@@ -55,6 +55,12 @@ class DirectSessionsManager;
 
 class DirectSession : public Session {
  public:
+  // wxf: define DirectSession Priority
+  enum DirectSessionPriority{
+    DIRECTSESSION_PRIORITY_LOW = 1,
+    DIRECTSESSION_PRIORITY_HIGH = 2,
+  };
+
   typedef std::function<void(Session*)> CloseCallback;
 
   // Takes ownership of 'device_mgr'.
@@ -122,6 +128,7 @@ class DirectSession : public Session {
   int GetDirectSessionPriority();
 
   // -----------------------------------------------------------------------
+  // wxf
   static DirectSessionsManager* direct_sessions_manager_;
   // -----------------------------------------------------------------------
 
@@ -233,9 +240,24 @@ class DirectSession : public Session {
       gtl::ArraySlice<string> target_nodes,
       ExecutorsAndKeys** executors_and_keys, RunStateArgs* run_state_args);
 
+  // wxf: Low Priority CPU only executors to create or get
+  ::tensorflow::Status GetOrCreateLowPriorityExecutors(
+      gtl::ArraySlice<string> inputs, gtl::ArraySlice<string> outputs,
+      gtl::ArraySlice<string> target_nodes,
+      ExecutorsAndKeys** executors_and_keys, RunStateArgs* run_state_args);
+
   // Creates a set of executors to run the subgraph defined by
   // `callable_options`.
   ::tensorflow::Status CreateExecutors(
+      const CallableOptions& callable_options,
+      std::unique_ptr<ExecutorsAndKeys>* out_executors_and_keys,
+      std::unique_ptr<FunctionInfo>* out_func_info,
+      RunStateArgs* run_state_args);
+
+  // wxf: Create Low priority Executors only on CPU device
+  // Creates a set of executors to run the subgraph defined by
+  // `callable_options` only on CPU.
+  ::tensorflow::Status CreateLowPriorityExecutors(
       const CallableOptions& callable_options,
       std::unique_ptr<ExecutorsAndKeys>* out_executors_and_keys,
       std::unique_ptr<FunctionInfo>* out_func_info,
@@ -245,6 +267,18 @@ class DirectSession : public Session {
   // input feeds and fetches, given 'devices'. The graphs share a common
   // function library 'flib_def'.
   ::tensorflow::Status CreateGraphs(
+      const BuildGraphOptions& options,
+      std::unordered_map<string, std::unique_ptr<Graph>>* outputs,
+      std::unique_ptr<FunctionLibraryDefinition>* flib_def,
+      RunStateArgs* run_state_args, DataTypeVector* input_types,
+      DataTypeVector* output_types, int64* collective_graph_key);
+
+  // wxf
+  // Create graphs on CPU only by fixing device as CPU.
+  // Creates several graphs given the existing graph_def_ and the
+  // input feeds and fetches, given 'devices'. The graphs share a common
+  // function library 'flib_def'.
+  ::tensorflow::Status CreateLowPriorityGraphs(
       const BuildGraphOptions& options,
       std::unordered_map<string, std::unique_ptr<Graph>>* outputs,
       std::unique_ptr<FunctionLibraryDefinition>* flib_def,
@@ -325,7 +359,11 @@ class DirectSession : public Session {
   const std::unique_ptr<const DeviceMgr> device_mgr_;
   std::vector<Device*> devices_;  // not owned
   DeviceSet device_set_;
+  // wxf: used in DirectSession::MaybeInitializeExecutionState to create
+  // low_priority_execution_state_
+  DeviceSet low_priority_device_set_;
 
+  // wxf
   // DirectSession Execution Priority Level
   // Use set, get function to modify and access it.
   int direct_session_priority_;
@@ -369,7 +407,20 @@ class DirectSession : public Session {
   };
   mutex callables_lock_;
   int64 next_callable_handle_ GUARDED_BY(callables_lock_) = 0;
+  // wxf
+  // to count the number of created low_priority_callables_
+  int64 next_low_priority_callable_handle_ GUARDED_BY(callables_lock_) = 0;
+
   std::unordered_map<int64, Callable> callables_ GUARDED_BY(callables_lock_);
+  // wxf
+  // add a low priority callables_ only for low priority tasks
+  std::unordered_map<int64, Callable> low_priority_callables_ 
+    GUARDED_BY(callables_lock_);
+
+  // wxf
+  // Holds a mapping from user defined callable handle to the low priority
+  // hidden callable handle. It is used in DirectSession::RunCallable
+  std::unordered_map<int64, int64> usr_handle_to_low_priority_handle_;
 
   // Holds mappings from handle to partial run state.
   std::unordered_map<string, std::unique_ptr<RunState>> partial_runs_
@@ -391,6 +442,10 @@ class DirectSession : public Session {
 
   // Execution_state; used when placing the entire graph.
   std::unique_ptr<GraphExecutionState> execution_state_
+      GUARDED_BY(graph_state_lock_);
+
+  // wxf, Execution state for CPU low priority graph
+  std::unique_ptr<GraphExecutionState> low_priority_execution_state_
       GUARDED_BY(graph_state_lock_);
 
   // The function library, before any rewrites or optimizations have been
