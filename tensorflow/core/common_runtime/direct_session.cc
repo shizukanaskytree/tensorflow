@@ -366,6 +366,9 @@ DirectSession::~DirectSession() {
     it.second.reset();
   }
   callables_.clear();
+  // wxf
+  low_priority_callables_.clear();
+
   for (auto d : device_mgr_->ListDevices()) {
     d->op_segment()->RemoveHold(session_handle_);
   }
@@ -379,8 +382,12 @@ DirectSession::~DirectSession() {
   }
 
   execution_state_.reset(nullptr);
+  // wxf
+  low_priority_execution_state_.reset(nullptr);
+
   flib_def_.reset(nullptr);
 
+  // wxf
   // Update statistics inside the DirectSessionsManager instace
   direct_sessions_manager_->DeleteDirectSession(this);
 
@@ -2398,9 +2405,9 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
   // if high priority task exists, then the low priority task use the low
   // priority executor.
   // the submit code branch condition
-//  if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW &&
-//      direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)){
-    if (step_id > 11) { // only for debugging one task for lower priority 
+  if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW &&
+      direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)){
+//    if (step_id > 11) { // wxf: only for debugging one thread task for lower priority for easy developing
     {
       tf_shared_lock l(callables_lock_);
       CallableHandle low_priority_handle = usr_handle_to_low_priority_handle_[handle];
