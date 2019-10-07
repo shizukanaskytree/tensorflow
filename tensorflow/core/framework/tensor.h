@@ -607,6 +607,7 @@ class Tensor {
   friend class DMAHelper;
   friend class TensorCApi;
   friend class TensorReference;       // For access to buf_
+  friend class DirectSession;         // For access to set_shape // wxf
   friend class VariableOp;            // For access to set_shape
   friend class AutoReloadVariableOp;  // For access to set_shape
   friend class TensorTestHelper;      // For access to set_shape

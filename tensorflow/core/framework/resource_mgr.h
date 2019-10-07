@@ -32,6 +32,7 @@ limitations under the License.
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/lib/core/refcount.h"
 #include "tensorflow/core/lib/core/status.h"
+#include "tensorflow/core/lib/gtl/map_util.h" // wxf
 #include "tensorflow/core/lib/hash/hash.h"
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/macros.h"
@@ -110,6 +111,20 @@ class ScopedStepContainer {
 };
 
 class ResourceMgr {
+ private:
+  typedef std::pair<uint64, string> Key;
+  struct KeyHash {
+    std::size_t operator()(const Key& k) const {
+      return Hash64(k.second.data(), k.second.size(), k.first);
+    }
+  };
+  struct KeyEqual {
+    bool operator()(const Key& x, const Key& y) const {
+      return (x.second == y.second) && (x.first == y.first);
+    }
+  };
+  typedef std::unordered_map<Key, ResourceBase*, KeyHash, KeyEqual> Container;
+
  public:
   ResourceMgr();
   explicit ResourceMgr(const string& default_container);
@@ -178,19 +193,26 @@ class ResourceMgr {
   // Returns a text description for all resources.
   string DebugString() const;
 
+  // wxf
+  // Expose the containers_ 
+  std::unordered_map<string, Container*> Containers(){
+    return containers_;
+  }
+
+  // wxf
+  template <typename T, bool use_dynamic_cast = false>
+  Status LookupTransferVar(const string& container,
+                           uint64 type_hash_code,
+                           const string& name,
+                           T** resource) const; 
+  // wxf
+  template <typename T, bool use_dynamic_cast = false>
+  Status LookupOrCreateCpuVar(const string& container,
+                              const string& name,
+                              T** resource,
+                              std::function<Status(T**)> creator); 
+
  private:
-  typedef std::pair<uint64, string> Key;
-  struct KeyHash {
-    std::size_t operator()(const Key& k) const {
-      return Hash64(k.second.data(), k.second.size(), k.first);
-    }
-  };
-  struct KeyEqual {
-    bool operator()(const Key& x, const Key& y) const {
-      return (x.second == y.second) && (x.first == y.first);
-    }
-  };
-  typedef std::unordered_map<Key, ResourceBase*, KeyHash, KeyEqual> Container;
 
   const string default_container_;
   mutable mutex mu_;
@@ -487,6 +509,88 @@ Status ResourceMgr::LookupInternal(const string& container, const string& name,
     *resource = TypeCastFunctor<T, use_dynamic_cast>::Cast(found);
   }
   return s;
+}
+
+// wxf
+template <typename T, bool use_dynamic_cast>
+Status ResourceMgr::LookupTransferVar(const string& container,
+                                      uint64 type_hash_code,
+                                      const string& name,
+                                      T** resource) const{
+  CheckDeriveFromResourceBase<T>();
+  tf_shared_lock l(mu_);
+
+  ResourceBase* found = nullptr;
+
+  const Container* b = gtl::FindPtrOrNull(containers_, container);
+  if (b == nullptr) {
+    return errors::NotFound("Container ", container,
+        "does not exist. (Could not find resource: ",
+        container, "/", name, ")");
+  }
+
+  auto r = gtl::FindPtrOrNull(*b, {type_hash_code, name});
+  if (r == nullptr) {
+    return errors::NotFound("Resource ", container, "/", name, "/",
+        type_hash_code, " does not exist.");
+  }
+
+  found = const_cast<ResourceBase*>(r);
+  // QQQ. no need to Ref() right?
+  *resource = TypeCastFunctor<T, use_dynamic_cast>::Cast(found);
+  return Status::OK();
+}
+
+template<typename T, bool use_dynamic_cast>
+Status ResourceMgr::LookupOrCreateCpuVar(const string& container,
+                                         const string& name,
+                                         T** resource,
+                                         std::function<Status(T**)> creator){
+  CheckDeriveFromResourceBase<T>();
+  *resource = nullptr;
+  Status s;
+  {
+    tf_shared_lock l(mu_);
+    ResourceBase* found = nullptr; 
+    const Container* b = gtl::FindPtrOrNull(containers_, container);
+    if (b == nullptr) {
+      s = errors::NotFound("Container ", container,
+          "does not exist. (Could not find resource: ",
+          container, "/", name, ")");
+    }
+    TypeIndex type =  MakeTypeIndex<T>();
+    auto r = gtl::FindPtrOrNull(*b, {type.hash_code(), name});
+    if (r == nullptr) {
+      s = errors::NotFound("Resource ", container, "/", name, "/",
+          type.hash_code(), " does not exist.");
+    }
+
+    if (s.ok()) {
+      found = const_cast<ResourceBase*>(r);
+      *resource = TypeCastFunctor<T, use_dynamic_cast>::Cast(found);
+      return s;
+    }
+  }
+
+  // not found, then create the resource by callback: done
+  mutex_lock l(mu_);
+  TF_RETURN_IF_ERROR(creator(resource));
+
+  // insert the created resource to the container.
+  Container** b = &containers_[container];
+  if (*b == nullptr) {
+    *b = new Container;
+  }
+  
+  TypeIndex type =  MakeTypeIndex<T>();
+  if ((*b)->insert({{type.hash_code(), name}, *resource}).second){
+    TF_RETURN_IF_ERROR(InsertDebugTypeName(type.hash_code(), name));
+    return Status::OK();
+  }
+
+  (*resource)->Unref();
+  return errors::AlreadyExists("Resource ", container, "/", name, "/",
+           type.name());
 }
 
 template <typename T, bool use_dynamic_cast>

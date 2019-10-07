@@ -38,12 +38,15 @@ limitations under the License.
 #include "tensorflow/core/common_runtime/process_util.h"
 #include "tensorflow/core/common_runtime/scoped_allocator_mgr.h"
 #include "tensorflow/core/common_runtime/step_stats_collector.h"
+#include "tensorflow/core/common_runtime/gpu/gpu_util.h" // wxf
 #include "tensorflow/core/framework/function.h"
 #include "tensorflow/core/framework/graph.pb_text.h"
 #include "tensorflow/core/framework/graph.pb.h"
 #include "tensorflow/core/framework/graph_def_util.h"
 #include "tensorflow/core/framework/log_memory.h"
 #include "tensorflow/core/framework/node_def.pb.h"
+#include "tensorflow/core/framework/resource_mgr.h" // by wxf
+#include "tensorflow/core/framework/resource_var.h" // by wxf
 #include "tensorflow/core/framework/run_handler.h"
 #include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/framework/versions.pb.h"
@@ -2391,15 +2394,18 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
   std::shared_ptr<ExecutorsAndKeys> executors_and_keys;
   const int64 step_id = step_id_counter_.fetch_add(1);
 
-  // wxf: if high priority task exists, then the low priority task use the low
+  // wxf 
+  // if high priority task exists, then the low priority task use the low
   // priority executor.
-  if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW &&
-      direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)){
+  // the submit code branch condition
+//  if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW &&
+//      direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)){
+    if (step_id > 11) { // only for debugging one task for lower priority 
     {
       tf_shared_lock l(callables_lock_);
       CallableHandle low_priority_handle = usr_handle_to_low_priority_handle_[handle];
       if (low_priority_handle >= next_low_priority_callable_handle_) {
-        return errors::InvalidArgument("No such callable handle: ", low_priority_handle);
+        return errors::InvalidArgument("Low Priority case: No such callable handle: ", low_priority_handle);
       }
       executors_and_keys = low_priority_callables_[low_priority_handle].executors_and_keys;
     }
@@ -2428,6 +2434,65 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
           "`fetch_tensors` must be provided when the callable has one or more "
           "outputs.");
     }
+
+    // Start to transfer stateful data from GPU to CPU via device resource mgr.
+    ResourceMgr* gpu_resource_mgr = devices_[6]->resource_manager();
+    // CPU resource mgr
+    ResourceMgr* cpu_resource_mgr = devices_[0]->resource_manager();
+
+    // iterate all GPU stateful variables per container per item
+    for (const auto& p: gpu_resource_mgr->Containers()){
+      const string & container = p.first;
+      for (const auto & q: *p.second) {
+        const std::pair<uint64, string>& key = q.first;
+        const uint64 hash_code = key.first;
+        const string& resource_name = key.second;
+        Var* variable = nullptr;
+        gpu_resource_mgr->LookupTransferVar(
+            container, hash_code, resource_name, &variable);
+        tf_shared_lock ml(*variable->mu());
+        const Tensor* gpu_tensor = variable->tensor();
+        // gpu_tensor->DeviceSafeDebugString();
+        // TODO: transfer from GPU to CPU
+        // lookup by resource name, if null then create via memcpy
+        Var* cpu_variable = nullptr;
+
+        // std::function<Status(T**)>
+        auto creator = [this, gpu_tensor](Var** cpu_variable){
+          // construct Var cpu_variable
+          *cpu_variable = new Var(gpu_tensor->dtype());
+          (*cpu_variable)->tensor()->set_shape(gpu_tensor->shape());
+
+          // use CPU allocator to construct the buf_ in the tensor
+          Device* cpu_device = devices_[0];
+          AllocatorAttributes attr;
+          attr.set_on_host(true);
+          attr.set_gpu_compatible(true);
+          Allocator* cpu_allocator = cpu_device->GetAllocator(attr);
+          Tensor copy(cpu_allocator, gpu_tensor->dtype(), gpu_tensor->shape());
+          *((*cpu_variable)->tensor()) = copy;
+
+          // transfer GPU tensor to CPU
+          Device* gpu_device = devices_[6];
+          const DeviceContext* device_context = devices_[6]->tensorflow_gpu_device_info()->default_context;
+          Tensor* cpu_tensor = (*cpu_variable)->tensor();
+          GPUUtil::CopyGPUTensorToCPU(
+              gpu_device, device_context, gpu_tensor, cpu_tensor, 
+              [](const Status& s){
+                if (!s.ok()){
+                  VLOG(0) << "GPU->CPU MemCpy Fail!";
+                }
+              });
+
+          return Status::OK();
+        };
+
+        cpu_resource_mgr->LookupOrCreateCpuVar<Var>(
+            container, resource_name, &cpu_variable, creator);
+      }
+    }
+
+    // End of transferring, start to execute the graph.
 
     RunCallableCallFrame call_frame(this, executors_and_keys.get(), &feed_tensors,
                                     fetch_tensors);
