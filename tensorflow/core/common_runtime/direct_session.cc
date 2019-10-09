@@ -403,25 +403,208 @@ DirectSession::~DirectSession() {
  // }
 }
 
+// wxf
 // Set and Get the priority of this DirectSession instance.
 void DirectSession::SetDirectSessionPriority(int priority){
   // Each instance sets its own priority, no need to set a lock.
   direct_session_priority_ = priority;
 }
 
+// wxf
 int DirectSession::GetDirectSessionPriority(){
   return direct_session_priority_;
 }
 
+// wxf
 DirectSessionsManager* DirectSession::direct_sessions_manager_ = 
   new DirectSessionsManager();
+
+// wxf
+void DirectSession::TransferGPU2CPUStatefulVars(){
+  // GPU resource mgr (src)
+  Device* gpu_device = devices_[6];
+  ResourceMgr* gpu_resource_mgr = gpu_device->resource_manager();
+  // CPU resource mgr (dst)
+  Device* cpu_device = devices_[0];
+  ResourceMgr* cpu_resource_mgr = cpu_device->resource_manager();
+
+  // iterate all GPU stateful variables per container per item
+  for (const auto& p: gpu_resource_mgr->Containers()){
+    const string& container = p.first;
+    for (const auto& q: *p.second){
+      const std::pair<uint64, string>& key = q.first;
+      const uint64 hash_code = key.first;
+      const string& resource_name = key.second;
+      Var* variable = nullptr;
+      gpu_resource_mgr->LookupTransferVar(
+          container, hash_code, resource_name, &variable);
+
+      // We're acquiring a reference to the underlying buffer while
+      // holding a shared lock to guarantee ordering of reads and
+      // writes.
+      tf_shared_lock ml(*variable->mu());
+      const Tensor* gpu_tensor = variable->tensor();
+      // gpu_tensor->DeviceSafeDebugString();
+      // Transfer from GPU to CPU
+      // Lookup by resource name, if null then create via memcpy
+      Var* cpu_variable = nullptr;
+
+      // std::function<Status(T**)>
+      auto creator = [this, gpu_device, cpu_device, gpu_tensor](Var** cpu_variable){
+        // construct Var cpu_variable
+        *cpu_variable = new Var(gpu_tensor->dtype());
+        (*cpu_variable)->tensor()->set_shape(gpu_tensor->shape());
+
+        // use CPU allocator to construct the buf_ in the tensor
+        AllocatorAttributes attr;
+        attr.set_on_host(true);
+        attr.set_gpu_compatible(true);
+        Allocator* cpu_allocator = cpu_device->GetAllocator(attr);
+        Tensor copy(cpu_allocator, gpu_tensor->dtype(), gpu_tensor->shape());
+        *((*cpu_variable)->tensor()) = copy;
+
+        // transfer GPU tensor to CPU
+        const DeviceContext* device_context = gpu_device->tensorflow_gpu_device_info()->default_context;
+        // 1.
+        // default_context explanation:  
+        // gpu_device_info_->default_context = device_contexts_[0] assigned in common_runtime/gpu/gpu_device.cc
+
+        Tensor* cpu_tensor = (*cpu_variable)->tensor();
+        GPUUtil::CopyGPUTensorToCPU(
+            gpu_device, device_context, gpu_tensor, cpu_tensor, 
+            [](const Status& s){
+              if (!s.ok()){
+                VLOG(0) << "GPU->CPU MemCpy Fail!";
+              }
+            });
+
+        return Status::OK();
+      };
+
+      bool is_init = false; 
+      // 1.
+      // is_init explanation:
+      // is_init means: is cpu_variable created by creator(true) or
+      //   it has already existed(false).
+      // Once get from LookupOrCreateCpuVar, the value is determined.
+      // I just arbitrarily set false to is_init at first.
+
+      cpu_resource_mgr->LookupOrCreateCpuVar<Var>(
+          container, resource_name, &is_init, &cpu_variable, creator);
+
+      // if is not by init, then we need to update those stateful vars
+      if (!is_init){
+        // Update by transferring GPU tensor to CPU
+        // Preparation
+        const DeviceContext* device_context = gpu_device->tensorflow_gpu_device_info()->default_context;
+        Tensor* cpu_tensor = cpu_variable->tensor();
+        GPUUtil::CopyGPUTensorToCPU(
+            gpu_device, device_context, gpu_tensor, cpu_tensor,
+            [](const Status& s){
+              if (!s.ok()){
+                VLOG(0) << "GPU->CPU MemCpy Fail!";
+              }
+            });
+      } // End of updating CPU stateful variables
+
+    } // End of for loop of each item 
+  }// End of for loop of each container
+}
+
+// wxf
+void DirectSession::TransferCPU2GPUStatefulVars(){
+  // Get CPU Resource Mgr (src)
+  Device* cpu_device = devices_[0];
+  ResourceMgr* cpu_resource_mgr = cpu_device->resource_manager();
+  // Get GPU Resource Mgr (dst)
+  Device* gpu_device = devices_[6];
+  ResourceMgr* gpu_resource_mgr = gpu_device->resource_manager();
+
+  // Iterate all CPU (src) stateful variables per container per item except
+  // "Iterator resource", e.g., "_1_IteratorV2_1"
+  for (const auto& p: cpu_resource_mgr->Containers()){
+    const string& container = p.first;
+    for (const auto& q: *p.second){
+    	if (q.second->DebugString()=="Iterator resource") continue;
+      const std::pair<uint64, string>& key = q.first;
+      const uint64 hash_code = key.first;
+      const string& resource_name = key.second;
+      Var* variable = nullptr;
+      cpu_resource_mgr->LookupTransferVar(
+          container, hash_code, resource_name, &variable);
+
+      // We're acquiring a reference to the underlying buffer while
+      // holding a shared lock to guarantee ordering of reads and
+      // writes.
+      tf_shared_lock ml(*variable->mu());
+      const Tensor* cpu_tensor = variable->tensor();
+
+      // Lookup by resource name, if null then create via memcpy
+      Var* gpu_variable = nullptr;
+
+      // creator lambda: std::function<Status(T**)>
+      auto creator = [this, gpu_device, cpu_device, cpu_tensor](Var** gpu_variable){
+        // construct Var gpu_variable according to cpu tensor attribute
+        *gpu_variable = new Var(cpu_tensor->dtype());
+        (*gpu_variable)->tensor()->set_shape(cpu_tensor->shape());
+
+        // use GPU allocator to construct buf_ in the GPU tensor
+        AllocatorAttributes attr;
+        attr.set_on_host(true);
+        attr.set_gpu_compatible(true);
+        Allocator* gpu_allocator = gpu_device->GetAllocator(attr);
+        Tensor copy(gpu_allocator, cpu_tensor->dtype(), cpu_tensor->shape());
+        // GPU Tensor is not filled with values, which should be transferred from CPU
+        *((*gpu_variable)->tensor()) = copy;
+
+        // transfer CPU tensor to GPU
+        const DeviceContext* device_context = gpu_device->tensorflow_gpu_device_info()->default_context;
+        Tensor* gpu_tensor = (*gpu_variable)->tensor();
+        GPUUtil::CopyCPUTensorToGPU(
+            cpu_tensor, device_context, gpu_device, gpu_tensor,
+            [](const Status& s){
+              if (!s.ok()){
+                VLOG(0) << "CPU->GPU MemCpy Fail!";
+              }
+            });
+
+        return Status::OK();
+      };
+
+      bool is_init = false;
+      gpu_resource_mgr->LookupOrCreateCpuVar<Var>(
+          container, resource_name, &is_init, &gpu_variable, creator);
+
+      if (!is_init){
+        const DeviceContext* device_context = gpu_device->tensorflow_gpu_device_info()->default_context;
+        Tensor* gpu_tensor = gpu_variable->tensor();
+        GPUUtil::CopyCPUTensorToGPU(
+            cpu_tensor, device_context, gpu_device, gpu_tensor,
+            [](const Status& s){
+              if (!s.ok()){
+                VLOG(0) << "CPU->GPU MemCpy Fail!";
+              }
+            });
+      } // End of updating GPU tensors
+
+    } // End of for of each item
+  } // End of for of container
+} 
 
 Status DirectSession::MaybeInitializeExecutionState(
     const GraphDef& graph, bool* out_already_initialized) {
   // If already initialized, do nothing.
-  if (flib_def_ && execution_state_ && low_priority_execution_state_) {
-    *out_already_initialized = true;
-    return Status::OK();
+  // wxf 
+  if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW){
+    if (flib_def_ && execution_state_ && low_priority_execution_state_) {
+      *out_already_initialized = true;
+      return Status::OK();
+    }
+  } else if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_HIGH){
+    if (flib_def_ && execution_state_) {
+      *out_already_initialized = true;
+      return Status::OK();
+    }
   }
 
   // Set up the per-session execution state.
@@ -448,16 +631,18 @@ Status DirectSession::MaybeInitializeExecutionState(
   
   // wxf 
   // Create low_priority_executor_state_ graph
-  GraphExecutionStateOptions low_priority_options;
-  low_priority_options.device_set = &low_priority_device_set_;
-  low_priority_options.session_options = &options_;
-  low_priority_options.session_handle = session_handle_;
-  GraphDef temp2(graph);
-  TF_RETURN_IF_ERROR(
-      GraphExecutionState::MakeForLowPriorityBaseGraph(
-        &temp2, 
-        low_priority_options, 
-        &low_priority_execution_state_));
+  if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW){
+    GraphExecutionStateOptions low_priority_options;
+    low_priority_options.device_set = &low_priority_device_set_;
+    low_priority_options.session_options = &options_;
+    low_priority_options.session_handle = session_handle_;
+    GraphDef temp2(graph);
+    TF_RETURN_IF_ERROR(
+        GraphExecutionState::MakeForLowPriorityBaseGraph(
+          &temp2, 
+          low_priority_options, 
+          &low_priority_execution_state_));
+  }
 
   graph_created_ = true;
   *out_already_initialized = false;
@@ -497,9 +682,11 @@ Status DirectSession::ExtendLocked(const GraphDef& graph) {
     
     // wxf
     // Extend low_priority_execution_state_
-    std::unique_ptr<GraphExecutionState> low_priority_state;
-    TF_RETURN_IF_ERROR(low_priority_execution_state_->Extend(graph, &low_priority_state));
-    low_priority_execution_state_.swap(low_priority_state);
+    if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW){
+      std::unique_ptr<GraphExecutionState> low_priority_state;
+      TF_RETURN_IF_ERROR(low_priority_execution_state_->Extend(graph, &low_priority_state));
+      low_priority_execution_state_.swap(low_priority_state);
+    }
   }
   return Status::OK();
 }
@@ -2053,7 +2240,8 @@ Status DirectSession::CreateLowPriorityGraphs(
         &temp_exec_state_holder, &client_graph));
     execution_state = temp_exec_state_holder.get();
   } else {
-    // TODO: wxf after DirectSession::MaybeInitializeExecutionState init low_priority_execution_state_
+    // wxf  
+    // DirectSession::MaybeInitializeExecutionState init low_priority_execution_state_
     execution_state = low_priority_execution_state_.get();
     TF_RETURN_IF_ERROR(
         execution_state->BuildGraph(subgraph_options, &client_graph));
@@ -2407,7 +2595,7 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
   // the submit code branch condition
   if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW &&
       direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)){
-//    if (step_id > 11) { // wxf: only for debugging one thread task for lower priority for easy developing
+//  if (step_id > 11 && step_id < 17) { // wxf: only for debugging one thread task for lower priority for easy developing
     {
       tf_shared_lock l(callables_lock_);
       CallableHandle low_priority_handle = usr_handle_to_low_priority_handle_[handle];
@@ -2443,62 +2631,10 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
     }
 
     // Start to transfer stateful data from GPU to CPU via device resource mgr.
-    ResourceMgr* gpu_resource_mgr = devices_[6]->resource_manager();
-    // CPU resource mgr
-    ResourceMgr* cpu_resource_mgr = devices_[0]->resource_manager();
-
-    // iterate all GPU stateful variables per container per item
-    for (const auto& p: gpu_resource_mgr->Containers()){
-      const string & container = p.first;
-      for (const auto & q: *p.second) {
-        const std::pair<uint64, string>& key = q.first;
-        const uint64 hash_code = key.first;
-        const string& resource_name = key.second;
-        Var* variable = nullptr;
-        gpu_resource_mgr->LookupTransferVar(
-            container, hash_code, resource_name, &variable);
-        tf_shared_lock ml(*variable->mu());
-        const Tensor* gpu_tensor = variable->tensor();
-        // gpu_tensor->DeviceSafeDebugString();
-        // TODO: transfer from GPU to CPU
-        // lookup by resource name, if null then create via memcpy
-        Var* cpu_variable = nullptr;
-
-        // std::function<Status(T**)>
-        auto creator = [this, gpu_tensor](Var** cpu_variable){
-          // construct Var cpu_variable
-          *cpu_variable = new Var(gpu_tensor->dtype());
-          (*cpu_variable)->tensor()->set_shape(gpu_tensor->shape());
-
-          // use CPU allocator to construct the buf_ in the tensor
-          Device* cpu_device = devices_[0];
-          AllocatorAttributes attr;
-          attr.set_on_host(true);
-          attr.set_gpu_compatible(true);
-          Allocator* cpu_allocator = cpu_device->GetAllocator(attr);
-          Tensor copy(cpu_allocator, gpu_tensor->dtype(), gpu_tensor->shape());
-          *((*cpu_variable)->tensor()) = copy;
-
-          // transfer GPU tensor to CPU
-          Device* gpu_device = devices_[6];
-          const DeviceContext* device_context = devices_[6]->tensorflow_gpu_device_info()->default_context;
-          Tensor* cpu_tensor = (*cpu_variable)->tensor();
-          GPUUtil::CopyGPUTensorToCPU(
-              gpu_device, device_context, gpu_tensor, cpu_tensor, 
-              [](const Status& s){
-                if (!s.ok()){
-                  VLOG(0) << "GPU->CPU MemCpy Fail!";
-                }
-              });
-
-          return Status::OK();
-        };
-
-        cpu_resource_mgr->LookupOrCreateCpuVar<Var>(
-            container, resource_name, &cpu_variable, creator);
-      }
+    if (last_execute_device_ == "" || last_execute_device_ == "GPU"){
+      TransferGPU2CPUStatefulVars();
     }
-
+    last_execute_device_ = "CPU";
     // End of transferring, start to execute the graph.
 
     RunCallableCallFrame call_frame(this, executors_and_keys.get(), &feed_tensors,
@@ -2547,6 +2683,11 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
           "outputs.");
     }
   
+    if (last_execute_device_ != "" && last_execute_device_ == "CPU"){
+      TransferCPU2GPUStatefulVars();
+    }
+    last_execute_device_ = "GPU"; 
+
     // A specialized CallFrame implementation that takes advantage of the
     // optimized RunCallable interface.
   

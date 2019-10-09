@@ -123,9 +123,15 @@ class DirectSession : public Session {
                                    RunMetadata* run_metadata) override;
   ::tensorflow::Status ReleaseCallable(CallableHandle handle) override;
 
+  // wxf
   // Set and Get the priority of this DirectSession instance.
   void SetDirectSessionPriority(int priority);
   int GetDirectSessionPriority();
+
+  // wxf
+  // Transfer GPU/CPU Stateful variables to CPU/GPU device
+  void TransferGPU2CPUStatefulVars(); 
+  void TransferCPU2GPUStatefulVars();
 
   // -----------------------------------------------------------------------
   // wxf
@@ -367,6 +373,9 @@ class DirectSession : public Session {
   // DirectSession Execution Priority Level
   // Use set, get function to modify and access it.
   int direct_session_priority_;
+
+  // wxf
+  string last_execute_device_ = "";
 
   // Unique session identifier.
   string session_handle_;

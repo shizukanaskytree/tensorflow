@@ -209,6 +209,7 @@ class ResourceMgr {
   template <typename T, bool use_dynamic_cast = false>
   Status LookupOrCreateCpuVar(const string& container,
                               const string& name,
+                              bool* is_init,
                               T** resource,
                               std::function<Status(T**)> creator); 
 
@@ -544,6 +545,7 @@ Status ResourceMgr::LookupTransferVar(const string& container,
 template<typename T, bool use_dynamic_cast>
 Status ResourceMgr::LookupOrCreateCpuVar(const string& container,
                                          const string& name,
+                                         bool* is_init, // init:true, found: false
                                          T** resource,
                                          std::function<Status(T**)> creator){
   CheckDeriveFromResourceBase<T>();
@@ -566,6 +568,7 @@ Status ResourceMgr::LookupOrCreateCpuVar(const string& container,
     }
 
     if (s.ok()) {
+      *is_init= false; 
       found = const_cast<ResourceBase*>(r);
       *resource = TypeCastFunctor<T, use_dynamic_cast>::Cast(found);
       return s;
@@ -575,6 +578,7 @@ Status ResourceMgr::LookupOrCreateCpuVar(const string& container,
   // not found, then create the resource by callback: done
   mutex_lock l(mu_);
   TF_RETURN_IF_ERROR(creator(resource));
+  *is_init = true; // found but not init
 
   // insert the created resource to the container.
   Container** b = &containers_[container];
