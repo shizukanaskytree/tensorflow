@@ -63,6 +63,7 @@ limitations under the License.
 #include "tensorflow/core/lib/core/threadpool.h"
 #include "tensorflow/core/lib/gtl/array_slice.h"
 #include "tensorflow/core/lib/gtl/stl_util.h"
+#include "tensorflow/core/lib/gtl/map_util.h" // wxf
 #include "tensorflow/core/lib/monitoring/counter.h"
 #include "tensorflow/core/lib/random/random.h"
 #include "tensorflow/core/lib/strings/numbers.h"
@@ -421,6 +422,8 @@ DirectSessionsManager* DirectSession::direct_sessions_manager_ =
 
 // wxf
 void DirectSession::TransferGPU2CPUStatefulVars(){
+  const uint64 start_time_usecs = Env::Default()->NowMicros();
+
   // GPU resource mgr (src)
   Device* gpu_device = devices_[6];
   ResourceMgr* gpu_resource_mgr = gpu_device->resource_manager();
@@ -428,15 +431,18 @@ void DirectSession::TransferGPU2CPUStatefulVars(){
   Device* cpu_device = devices_[0];
   ResourceMgr* cpu_resource_mgr = cpu_device->resource_manager();
 
+  std::vector<string> gpu_containers;
   // iterate all GPU stateful variables per container per item
   for (const auto& p: gpu_resource_mgr->Containers()){
     const string& container = p.first;
+    gpu_containers.push_back(container);
     for (const auto& q: *p.second){
       const std::pair<uint64, string>& key = q.first;
       const uint64 hash_code = key.first;
       const string& resource_name = key.second;
+
       Var* variable = nullptr;
-      gpu_resource_mgr->LookupTransferVar(
+      gpu_resource_mgr->LookupTransferVar<Var>(
           container, hash_code, resource_name, &variable);
 
       // We're acquiring a reference to the underlying buffer while
@@ -445,12 +451,13 @@ void DirectSession::TransferGPU2CPUStatefulVars(){
       tf_shared_lock ml(*variable->mu());
       const Tensor* gpu_tensor = variable->tensor();
       // gpu_tensor->DeviceSafeDebugString();
-      // Transfer from GPU to CPU
-      // Lookup by resource name, if null then create via memcpy
-      Var* cpu_variable = nullptr;
 
-      // std::function<Status(T**)>
+      // Transfer from GPU to CPU
       auto creator = [this, gpu_device, cpu_device, gpu_tensor](Var** cpu_variable){
+        // 1.
+        // creator lambda interface Explanation:
+        // std::function<Status(T**)>
+
         // construct Var cpu_variable
         *cpu_variable = new Var(gpu_tensor->dtype());
         (*cpu_variable)->tensor()->set_shape(gpu_tensor->shape());
@@ -470,6 +477,17 @@ void DirectSession::TransferGPU2CPUStatefulVars(){
         // gpu_device_info_->default_context = device_contexts_[0] assigned in common_runtime/gpu/gpu_device.cc
 
         Tensor* cpu_tensor = (*cpu_variable)->tensor();
+
+        // -----------------------------------------------------------------------
+        // logging the tensor allocation memory size for quantitive analysis
+        if (cpu_tensor->buf_ != nullptr && cpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
+          LogMemory::RecordTensorAllocation("TransferGPU2CPUAllocationCreate", LogMemory::UNKNOWN_STEP_ID, *cpu_tensor);
+          // 1.
+          // Notice:
+          // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
+        }
+        // -----------------------------------------------------------------------
+
         GPUUtil::CopyGPUTensorToCPU(
             gpu_device, device_context, gpu_tensor, cpu_tensor, 
             [](const Status& s){
@@ -481,15 +499,17 @@ void DirectSession::TransferGPU2CPUStatefulVars(){
         return Status::OK();
       };
 
+      Var* cpu_variable = nullptr;
       bool is_init = false; 
       // 1.
       // is_init explanation:
       // is_init means: is cpu_variable created by creator(true) or
       //   it has already existed(false).
-      // Once get from LookupOrCreateCpuVar, the value is determined.
+      // Once get from LookupOrCreateVar, the value is determined.
       // I just arbitrarily set false to is_init at first.
 
-      cpu_resource_mgr->LookupOrCreateCpuVar<Var>(
+      // Lookup by resource name, if null then create via memcpy
+      cpu_resource_mgr->LookupOrCreateVar<Var>(
           container, resource_name, &is_init, &cpu_variable, creator);
 
       // if is not by init, then we need to update those stateful vars
@@ -498,6 +518,16 @@ void DirectSession::TransferGPU2CPUStatefulVars(){
         // Preparation
         const DeviceContext* device_context = gpu_device->tensorflow_gpu_device_info()->default_context;
         Tensor* cpu_tensor = cpu_variable->tensor();
+        // -----------------------------------------------------------------------
+        // logging the tensor allocation memory size for quantitive analysis
+        if (cpu_tensor->buf_ != nullptr && cpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
+          LogMemory::RecordTensorAllocation("TransferGPU2CPUAllocationUpdate", LogMemory::UNKNOWN_STEP_ID, *cpu_tensor);
+          // 1.
+          // Notice:
+          // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
+        }
+        // -----------------------------------------------------------------------
+
         GPUUtil::CopyGPUTensorToCPU(
             gpu_device, device_context, gpu_tensor, cpu_tensor,
             [](const Status& s){
@@ -509,10 +539,21 @@ void DirectSession::TransferGPU2CPUStatefulVars(){
 
     } // End of for loop of each item 
   }// End of for loop of each container
+
+  // Deallocate GPU memory since low priority task executes on CPU, no need to have a copy on GPU.
+  //gpu_resource_mgr->Cleanup("localhost"); // test: pass! 2019-10-11 17:51:33
+  for (auto& gpu_container: gpu_containers) {
+    gpu_resource_mgr->Cleanup(gpu_container);
+  }
+
+  uint64 gpu2cpu_eclipsed_time = Env::Default()->NowMicros() - start_time_usecs;
+  VLOG(0) << "GPU to CPU transfer stateful vars time eclipsed(micro sec): " << gpu2cpu_eclipsed_time;
 }
 
 // wxf
 void DirectSession::TransferCPU2GPUStatefulVars(){
+  const uint64 start_time_usecs = Env::Default()->NowMicros();
+
   // Get CPU Resource Mgr (src)
   Device* cpu_device = devices_[0];
   ResourceMgr* cpu_resource_mgr = cpu_device->resource_manager();
@@ -530,6 +571,12 @@ void DirectSession::TransferCPU2GPUStatefulVars(){
       const uint64 hash_code = key.first;
       const string& resource_name = key.second;
       Var* variable = nullptr;
+      // 1.
+      // variable Explanation:
+      // CPU doesn't clear Var resource, so I don't call variable->Unref();
+      // It is good to try ResourceBase* variable = nullptr here and 
+      // LookupTransferVar<Var>(...) below.
+
       cpu_resource_mgr->LookupTransferVar(
           container, hash_code, resource_name, &variable);
 
@@ -550,7 +597,7 @@ void DirectSession::TransferCPU2GPUStatefulVars(){
 
         // use GPU allocator to construct buf_ in the GPU tensor
         AllocatorAttributes attr;
-        attr.set_on_host(true);
+        //attr.set_on_host(true);
         attr.set_gpu_compatible(true);
         Allocator* gpu_allocator = gpu_device->GetAllocator(attr);
         Tensor copy(gpu_allocator, cpu_tensor->dtype(), cpu_tensor->shape());
@@ -560,6 +607,16 @@ void DirectSession::TransferCPU2GPUStatefulVars(){
         // transfer CPU tensor to GPU
         const DeviceContext* device_context = gpu_device->tensorflow_gpu_device_info()->default_context;
         Tensor* gpu_tensor = (*gpu_variable)->tensor();
+        // -----------------------------------------------------------------------
+        // logging the tensor allocation memory size for quantitive analysis
+        if (gpu_tensor->buf_ != nullptr && gpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
+          LogMemory::RecordTensorAllocation("TransferCPU2GPUAllocationCreate", LogMemory::UNKNOWN_STEP_ID, *gpu_tensor);
+          // 1.
+          // Notice:
+          // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
+        }
+        // -----------------------------------------------------------------------
+
         GPUUtil::CopyCPUTensorToGPU(
             cpu_tensor, device_context, gpu_device, gpu_tensor,
             [](const Status& s){
@@ -572,12 +629,23 @@ void DirectSession::TransferCPU2GPUStatefulVars(){
       };
 
       bool is_init = false;
-      gpu_resource_mgr->LookupOrCreateCpuVar<Var>(
+      gpu_resource_mgr->LookupOrCreateVar<Var>(
           container, resource_name, &is_init, &gpu_variable, creator);
 
       if (!is_init){
         const DeviceContext* device_context = gpu_device->tensorflow_gpu_device_info()->default_context;
+
         Tensor* gpu_tensor = gpu_variable->tensor();
+        // -----------------------------------------------------------------------
+        // logging the tensor allocation memory size for quantitive analysis
+        if (gpu_tensor->buf_ != nullptr && gpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
+          LogMemory::RecordTensorAllocation("TransferCPU2GPUAllocationUpdate", LogMemory::UNKNOWN_STEP_ID, *gpu_tensor);
+          // 1.
+          // Notice:
+          // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
+        }
+        // -----------------------------------------------------------------------
+
         GPUUtil::CopyCPUTensorToGPU(
             cpu_tensor, device_context, gpu_device, gpu_tensor,
             [](const Status& s){
@@ -589,6 +657,9 @@ void DirectSession::TransferCPU2GPUStatefulVars(){
 
     } // End of for of each item
   } // End of for of container
+
+  uint64 cpu2gpu_eclipsed_time = Env::Default()->NowMicros() - start_time_usecs;
+  VLOG(0) << "CPU to GPU transfer stateful vars time eclipsed(micro sec): " << cpu2gpu_eclipsed_time;
 } 
 
 Status DirectSession::MaybeInitializeExecutionState(
@@ -903,28 +974,28 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
     };
   } else {
     default_runner = [this, pool](Executor::Args::Closure c) {
-  	  /// Partition threads in the threadpool into two groups, high priority
-  	  /// threads and low priority threads.
-  	  /// Schedule low priority in the range of [0, 1], high: [2: end]
-      /// If high priority and low priority tasks both exist,
+      // Partition threads in the threadpool into two groups, high priority 
+      // threads and low priority threads.
+      // Schedule low priority in the range of [0, 1], high: [2: end]
+      // If high priority and low priority tasks both exist,
       if (direct_sessions_manager_->
   	        high_priority_direct_session_count_.load(std::memory_order_relaxed)&&
           direct_sessions_manager_->
             low_priority_direct_session_count_.load(std::memory_order_relaxed)){
-        /// For High Priority tasks
+        // For High Priority tasks
         if (this->GetDirectSessionPriority() == DirectSessionPriority::DIRECTSESSION_PRIORITY_HIGH){
           // Range: start to limit
-        	pool->Schedule(std::move(c));
+          pool->Schedule(std::move(c));
         }else if (this->GetDirectSessionPriority() == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW){
-        	/// For low priority tasks
+          // For low priority tasks
           //low_priority_thread_pool_->SleepAll();
-        	low_priority_thread_pool_->ScheduleWithHint(std::move(c), 0, 1);
+          low_priority_thread_pool_->ScheduleWithHint(std::move(c), 0, 1);
         }
       }else{
-        /// Either only high or low, use all threads in the threadpool
-      	pool->Schedule(std::move(c));
+        // Either only high or low, use all threads in the threadpool
+        pool->Schedule(std::move(c));
       }
-      ///SchedClosure(pool, std::move(c));
+      //SchedClosure(pool, std::move(c));
     };
   }
 
@@ -2593,9 +2664,9 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
   // if high priority task exists, then the low priority task use the low
   // priority executor.
   // the submit code branch condition
-  if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW &&
-      direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)){
-//  if (step_id > 11 && step_id < 17) { // wxf: only for debugging one thread task for lower priority for easy developing
+//  if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW &&
+//      direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)){
+  if (step_id > 11 && step_id < 17) { // wxf: only for debugging one thread task for lower priority for easy developing
     {
       tf_shared_lock l(callables_lock_);
       CallableHandle low_priority_handle = usr_handle_to_low_priority_handle_[handle];

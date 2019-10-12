@@ -161,6 +161,26 @@ Status ResourceMgr::DoCreate(const string& container, TypeIndex type,
                                type.name());
 }
 
+// wxf
+//Status ResourceMgr::LookupResourceBase(
+//    const string& container, uint64 hash_code,
+//    const string& name, ResourceBase** resource) const {
+//
+//  const Container* b = gtl::FindPtrOrNull(containers_, container);
+//  if (b == nullptr) {
+//    return errors::NotFound("Container ", container,
+//                            " does not exist. (Could not find resource: ",
+//                            container, "/", name, ")");
+//  }
+//  auto r = gtl::FindPtrOrNull(*b, {hash_code, name});
+//  if (r == nullptr) {
+//    return errors::NotFound("Resource ", container, "/", name, "/", hash_code,
+//                            " does not exist.");
+//  }
+//  *resource = const_cast<ResourceBase*>(r);
+//  return Status::OK();
+//}
+
 Status ResourceMgr::DoLookup(const string& container, TypeIndex type,
                              const string& name,
                              ResourceBase** resource) const {
@@ -202,6 +222,27 @@ Status ResourceMgr::DoDelete(const string& container, uint64 type_hash_code,
   base->Unref();
   return Status::OK();
 }
+
+// wxf
+//Status ResourceMgr::DeleteContainerResources(const string& container){
+//  ResourceBase* base = nullptr;
+//  {
+//    mutex_lock l(mu_);
+//    Container* b = gtl::FindPtrOrNull(containers_, container);
+//    if (b == nullptr) {
+//      return errors::NotFound("Container ", container, " does not exist.");
+//    }
+//
+//    // Delete all 
+//    for (auto it = b->begin(); it != b->end();) {
+//      base = it->second;
+//      CHECK(base != nullptr);
+//      base->Unref();
+//      // Must use the updated iterator
+//      it = b->erase(it);
+//    } 
+//  }
+//}
 
 Status ResourceMgr::DoDelete(const string& container, TypeIndex type,
                              const string& resource_name) {
