@@ -3222,7 +3222,7 @@ tf_cuda_library(
     hdrs = [
         "common_runtime/direct_session.h",
         "util/env_var.h",
-        "common_runtime/gpu/gpu_util.h",
+        "common_runtime/gpu/gpu_util.h", # wxf
     ],
     copts = tf_copts(),
     deps = [
@@ -3237,6 +3237,7 @@ tf_cuda_library(
         ":protos_all_cc",
         "//tensorflow/core/debug:debug_graph_utils",
         "//tensorflow/core/kernels:function_ops",
+        "//tensorflow/core/kernels:variable_ops", # wxf
     ],
     alwayslink = 1,
 )

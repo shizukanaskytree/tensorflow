@@ -21,6 +21,7 @@ limitations under the License.
 #include <iostream>
 #include <thread>
 #include <thread>
+#include <unordered_map>
 
 #include "tensorflow/core/common_runtime/collective_executor_mgr.h"
 #include "tensorflow/core/common_runtime/collective_param_resolver_local.h"
@@ -56,6 +57,7 @@ limitations under the License.
 #include "tensorflow/core/graph/graph_partition.h"
 #include "tensorflow/core/graph/subgraph.h"
 #include "tensorflow/core/graph/tensor_id.h"
+#include "tensorflow/core/kernels/variable_ops.h" // wxf
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/lib/core/notification.h"
 #include "tensorflow/core/lib/core/refcount.h"
@@ -431,6 +433,10 @@ void DirectSession::TransferGPU2CPUStatefulVars(){
   Device* cpu_device = devices_[0];
   ResourceMgr* cpu_resource_mgr = cpu_device->resource_manager();
 
+  // for debug ResourceBase real type
+  //gpu_resource_mgr->DebugString();
+  //cpu_resource_mgr->DebugString();
+
   std::vector<string> gpu_containers;
   // iterate all GPU stateful variables per container per item
   for (const auto& p: gpu_resource_mgr->Containers()){
@@ -441,102 +447,217 @@ void DirectSession::TransferGPU2CPUStatefulVars(){
       const uint64 hash_code = key.first;
       const string& resource_name = key.second;
 
-      Var* variable = nullptr;
-      gpu_resource_mgr->LookupTransferVar<Var>(
-          container, hash_code, resource_name, &variable);
+      // Record what variables are transferred to CPU and it will be used 
+      // when it is transferred back
+      string resource_var_name = resource_name;
+      transferred_resource_names_and_device_type_.insert({resource_var_name, "GPU"});
+      
+      ResourceBase* resource;
+      gpu_resource_mgr->LookupResourceBase(container, hash_code, resource_name, &resource);
 
-      // We're acquiring a reference to the underlying buffer while
-      // holding a shared lock to guarantee ordering of reads and
-      // writes.
-      tf_shared_lock ml(*variable->mu());
-      const Tensor* gpu_tensor = variable->tensor();
-      // gpu_tensor->DeviceSafeDebugString();
-
-      // Transfer from GPU to CPU
-      auto creator = [this, gpu_device, cpu_device, gpu_tensor](Var** cpu_variable){
-        // 1.
-        // creator lambda interface Explanation:
-        // std::function<Status(T**)>
-
-        // construct Var cpu_variable
-        *cpu_variable = new Var(gpu_tensor->dtype());
-        (*cpu_variable)->tensor()->set_shape(gpu_tensor->shape());
-
-        // use CPU allocator to construct the buf_ in the tensor
-        AllocatorAttributes attr;
-        attr.set_on_host(true);
-        attr.set_gpu_compatible(true);
-        Allocator* cpu_allocator = cpu_device->GetAllocator(attr);
-        Tensor copy(cpu_allocator, gpu_tensor->dtype(), gpu_tensor->shape());
-        *((*cpu_variable)->tensor()) = copy;
-
-        // transfer GPU tensor to CPU
-        const DeviceContext* device_context = gpu_device->tensorflow_gpu_device_info()->default_context;
-        // 1.
-        // default_context explanation:  
-        // gpu_device_info_->default_context = device_contexts_[0] assigned in common_runtime/gpu/gpu_device.cc
-
-        Tensor* cpu_tensor = (*cpu_variable)->tensor();
-
-        // -----------------------------------------------------------------------
-        // logging the tensor allocation memory size for quantitive analysis
-        if (cpu_tensor->buf_ != nullptr && cpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
-          LogMemory::RecordTensorAllocation("TransferGPU2CPUAllocationCreate", LogMemory::UNKNOWN_STEP_ID, *cpu_tensor);
+      // Right now, I only consider LegacyVar and Var type
+      if (dynamic_cast<LegacyVar*>(resource) == nullptr) {
+        // not LegacyVar, so is Var
+        Var* variable = nullptr;
+        variable = TypeCastFunctor<Var, false>::Cast(resource);
+        
+        // gpu_resource_mgr->LookupTransferVar<Var>(
+        //     container, hash_code, resource_name, &variable);
+  
+        // We're acquiring a reference to the underlying buffer while
+        // holding a shared lock to guarantee ordering of reads and
+        // writes.
+        tf_shared_lock ml(*variable->mu());
+        const Tensor* gpu_tensor = variable->tensor();
+        // gpu_tensor->DeviceSafeDebugString();
+  
+        // Transfer from GPU to CPU
+        auto creator = [this, gpu_device, cpu_device, gpu_tensor](Var** cpu_variable){
           // 1.
-          // Notice:
-          // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
-        }
-        // -----------------------------------------------------------------------
+          // creator lambda interface Explanation:
+          // std::function<Status(T**)>
 
-        GPUUtil::CopyGPUTensorToCPU(
-            gpu_device, device_context, gpu_tensor, cpu_tensor, 
-            [](const Status& s){
-              if (!s.ok()){
-                VLOG(0) << "GPU->CPU MemCpy Fail!";
-              }
-            });
+          // construct Var cpu_variable
+          *cpu_variable = new Var(gpu_tensor->dtype());
+          (*cpu_variable)->tensor()->set_shape(gpu_tensor->shape());
 
-        return Status::OK();
-      };
+          // use CPU allocator to construct the buf_ in the tensor
+          AllocatorAttributes attr;
+          attr.set_on_host(true);
+          attr.set_gpu_compatible(true);
+          Allocator* cpu_allocator = cpu_device->GetAllocator(attr);
+          Tensor copy(cpu_allocator, gpu_tensor->dtype(), gpu_tensor->shape());
+          *((*cpu_variable)->tensor()) = copy;
 
-      Var* cpu_variable = nullptr;
-      bool is_init = false; 
-      // 1.
-      // is_init explanation:
-      // is_init means: is cpu_variable created by creator(true) or
-      //   it has already existed(false).
-      // Once get from LookupOrCreateVar, the value is determined.
-      // I just arbitrarily set false to is_init at first.
-
-      // Lookup by resource name, if null then create via memcpy
-      cpu_resource_mgr->LookupOrCreateVar<Var>(
-          container, resource_name, &is_init, &cpu_variable, creator);
-
-      // if is not by init, then we need to update those stateful vars
-      if (!is_init){
-        // Update by transferring GPU tensor to CPU
-        // Preparation
-        const DeviceContext* device_context = gpu_device->tensorflow_gpu_device_info()->default_context;
-        Tensor* cpu_tensor = cpu_variable->tensor();
-        // -----------------------------------------------------------------------
-        // logging the tensor allocation memory size for quantitive analysis
-        if (cpu_tensor->buf_ != nullptr && cpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
-          LogMemory::RecordTensorAllocation("TransferGPU2CPUAllocationUpdate", LogMemory::UNKNOWN_STEP_ID, *cpu_tensor);
+          // transfer GPU tensor to CPU
+          const DeviceContext* device_context = gpu_device->tensorflow_gpu_device_info()->default_context;
           // 1.
-          // Notice:
-          // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
-        }
-        // -----------------------------------------------------------------------
+          // default_context explanation:  
+          // gpu_device_info_->default_context = device_contexts_[0] assigned in common_runtime/gpu/gpu_device.cc
 
-        GPUUtil::CopyGPUTensorToCPU(
-            gpu_device, device_context, gpu_tensor, cpu_tensor,
-            [](const Status& s){
-              if (!s.ok()){
-                VLOG(0) << "GPU->CPU MemCpy Fail!";
-              }
-            });
-      } // End of updating CPU stateful variables
+          Tensor* cpu_tensor = (*cpu_variable)->tensor();
 
+          // -----------------------------------------------------------------------
+          // logging the tensor allocation memory size for quantitive analysis
+          if (cpu_tensor->buf_ != nullptr && cpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
+            LogMemory::RecordTensorAllocation("TransferGPU2CPUAllocationCreate", LogMemory::UNKNOWN_STEP_ID, *cpu_tensor);
+            // 1.
+            // Notice:
+            // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
+          }
+          // -----------------------------------------------------------------------
+
+          GPUUtil::CopyGPUTensorToCPU(
+              gpu_device, device_context, gpu_tensor, cpu_tensor, 
+              [](const Status& s){
+                if (!s.ok()){
+                  VLOG(0) << "GPU->CPU MemCpy Fail!";
+                }
+              });
+
+          return Status::OK();
+        };
+
+        Var* cpu_variable = nullptr;
+
+        bool is_init = false; 
+        // 1.
+        // is_init explanation:
+        // is_init means: is cpu_variable created by creator(true) or
+        //   it has already existed(false).
+        // Once get from LookupOrCreateVar, the value is determined.
+        // I just arbitrarily set false to is_init at first.
+        
+        // Lookup by resource name, if null then create via memcpy
+        cpu_resource_mgr->LookupOrCreateVar<Var>(
+            container, resource_name, &is_init, &cpu_variable, creator);
+
+        // if is not by init, then we need to update those stateful vars
+        if (!is_init){
+          // Update by transferring GPU tensor to CPU
+          // Preparation
+          const DeviceContext* device_context = gpu_device->tensorflow_gpu_device_info()->default_context;
+          Tensor* cpu_tensor = cpu_variable->tensor();
+          // -----------------------------------------------------------------------
+          // logging the tensor allocation memory size for quantitive analysis
+          if (cpu_tensor->buf_ != nullptr && cpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
+            LogMemory::RecordTensorAllocation("TransferGPU2CPUAllocationUpdate", LogMemory::UNKNOWN_STEP_ID, *cpu_tensor);
+            // 1.
+            // Notice:
+            // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
+          }
+          // -----------------------------------------------------------------------
+
+          GPUUtil::CopyGPUTensorToCPU(
+              gpu_device, device_context, gpu_tensor, cpu_tensor,
+              [](const Status& s){
+                if (!s.ok()){
+                  VLOG(0) << "GPU->CPU MemCpy Fail!";
+                }
+              });
+        } // End of updating CPU stateful variables
+  
+      } else if (dynamic_cast<Var*>(resource) == nullptr) {
+        // not Var, so is LegacyVar
+        LegacyVar* variable = nullptr;
+        variable = TypeCastFunctor<LegacyVar, false>::Cast(resource);
+
+        // gpu_resource_mgr->LookupTransferVar<Var>(
+        //     container, hash_code, resource_name, &variable);
+  
+        // We're acquiring a reference to the underlying buffer while
+        // holding a shared lock to guarantee ordering of reads and
+        // writes.
+        tf_shared_lock ml(*variable->mu());
+        const Tensor* gpu_tensor = variable->tensor();
+        // gpu_tensor->DeviceSafeDebugString();
+
+        // Transfer from GPU to CPU
+        auto creator = [this, gpu_device, cpu_device, gpu_tensor](LegacyVar** cpu_variable){
+          // 1.
+          // creator lambda interface Explanation:
+          // std::function<Status(T**)>
+
+          // construct Var cpu_variable
+          *cpu_variable = new LegacyVar(gpu_tensor->dtype());
+          (*cpu_variable)->tensor()->set_shape(gpu_tensor->shape());
+
+          // use CPU allocator to construct the buf_ in the tensor
+          AllocatorAttributes attr;
+          attr.set_on_host(true);
+          attr.set_gpu_compatible(true);
+          Allocator* cpu_allocator = cpu_device->GetAllocator(attr);
+          Tensor copy(cpu_allocator, gpu_tensor->dtype(), gpu_tensor->shape());
+          *((*cpu_variable)->tensor()) = copy;
+
+          // transfer GPU tensor to CPU
+          const DeviceContext* device_context = gpu_device->tensorflow_gpu_device_info()->default_context;
+          // 1.
+          // default_context explanation:  
+          // gpu_device_info_->default_context = device_contexts_[0] assigned in common_runtime/gpu/gpu_device.cc
+
+          Tensor* cpu_tensor = (*cpu_variable)->tensor();
+
+          // -----------------------------------------------------------------------
+          // logging the tensor allocation memory size for quantitive analysis
+          if (cpu_tensor->buf_ != nullptr && cpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
+            LogMemory::RecordTensorAllocation("TransferGPU2CPUAllocationCreate", LogMemory::UNKNOWN_STEP_ID, *cpu_tensor);
+            // 1.
+            // Notice:
+            // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
+          }
+          // -----------------------------------------------------------------------
+
+          GPUUtil::CopyGPUTensorToCPU(
+              gpu_device, device_context, gpu_tensor, cpu_tensor, 
+              [](const Status& s){
+                if (!s.ok()){
+                  VLOG(0) << "GPU->CPU MemCpy Fail!";
+                }
+              });
+
+          return Status::OK();
+        };
+
+        LegacyVar* cpu_variable = nullptr;
+
+        bool is_init = false; 
+        // 1.
+        // is_init explanation:
+        // is_init means: is cpu_variable created by creator(true) or
+        //   it has already existed(false).
+        // Once get from LookupOrCreateVar, the value is determined.
+        // I just arbitrarily set false to is_init at first.
+
+        // Lookup by resource name, if null then create via memcpy
+        cpu_resource_mgr->LookupOrCreateVar<LegacyVar>(
+            container, resource_name, &is_init, &cpu_variable, creator);
+
+        // if is not by init, then we need to update those stateful vars
+        if (!is_init){
+          // Update by transferring GPU tensor to CPU
+          // Preparation
+          const DeviceContext* device_context = gpu_device->tensorflow_gpu_device_info()->default_context;
+          Tensor* cpu_tensor = cpu_variable->tensor();
+          // -----------------------------------------------------------------------
+          // logging the tensor allocation memory size for quantitive analysis
+          if (cpu_tensor->buf_ != nullptr && cpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
+            LogMemory::RecordTensorAllocation("TransferGPU2CPUAllocationUpdate", LogMemory::UNKNOWN_STEP_ID, *cpu_tensor);
+            // 1.
+            // Notice:
+            // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
+          }
+          // -----------------------------------------------------------------------
+
+          GPUUtil::CopyGPUTensorToCPU(
+              gpu_device, device_context, gpu_tensor, cpu_tensor,
+              [](const Status& s){
+                if (!s.ok()){
+                  VLOG(0) << "GPU->CPU MemCpy Fail!";
+                }
+              });
+        } // End of updating CPU stateful variables
+      } // if branch end of LegacyVar
     } // End of for loop of each item 
   }// End of for loop of each container
 
@@ -566,95 +687,195 @@ void DirectSession::TransferCPU2GPUStatefulVars(){
   for (const auto& p: cpu_resource_mgr->Containers()){
     const string& container = p.first;
     for (const auto& q: *p.second){
-    	if (q.second->DebugString()=="Iterator resource") continue;
+
+      // Skip moving IteratorResource, LookupInterface
+    	//if (q.second->DebugString()=="Iterator resource" || 
+      //    q.second->DebugString().find("A lookup table") != string::npos) {
+      //  continue;
+      //}
+
       const std::pair<uint64, string>& key = q.first;
       const uint64 hash_code = key.first;
       const string& resource_name = key.second;
-      Var* variable = nullptr;
-      // 1.
-      // variable Explanation:
-      // CPU doesn't clear Var resource, so I don't call variable->Unref();
-      // It is good to try ResourceBase* variable = nullptr here and 
-      // LookupTransferVar<Var>(...) below.
 
-      cpu_resource_mgr->LookupTransferVar(
-          container, hash_code, resource_name, &variable);
+      // Skip those vars that are not on GPU originally
+      string resource_var_name(resource_name);
+      auto iter = transferred_resource_names_and_device_type_.find(resource_var_name); 
+      if (iter == transferred_resource_names_and_device_type_.end()) {
+        continue;
+      }
 
-      // We're acquiring a reference to the underlying buffer while
-      // holding a shared lock to guarantee ordering of reads and
-      // writes.
-      tf_shared_lock ml(*variable->mu());
-      const Tensor* cpu_tensor = variable->tensor();
+      ResourceBase* resource;
+      cpu_resource_mgr->LookupResourceBase(container, hash_code, resource_name, &resource);
 
-      // Lookup by resource name, if null then create via memcpy
-      Var* gpu_variable = nullptr;
+      // LegacyVar or Var type?
+      if (dynamic_cast<LegacyVar*>(resource) == nullptr) {
+        // not LegacyVar, so it is Var
+        Var* variable = nullptr;
+        // 1.
+        // variable Explanation:
+        // CPU doesn't clear Var resource, so I don't call variable->Unref();
+        // It is good to try ResourceBase* variable = nullptr here and 
+        // LookupTransferVar<Var>(...) below.
+        //cpu_resource_mgr->LookupTransferVar(
+        //    container, hash_code, resource_name, &variable);
+        variable = TypeCastFunctor<Var, false>::Cast(resource);
 
-      // creator lambda: std::function<Status(T**)>
-      auto creator = [this, gpu_device, cpu_device, cpu_tensor](Var** gpu_variable){
-        // construct Var gpu_variable according to cpu tensor attribute
-        *gpu_variable = new Var(cpu_tensor->dtype());
-        (*gpu_variable)->tensor()->set_shape(cpu_tensor->shape());
+        // We're acquiring a reference to the underlying buffer while
+        // holding a shared lock to guarantee ordering of reads and
+        // writes.
+        tf_shared_lock ml(*variable->mu());
+        const Tensor* cpu_tensor = variable->tensor();
 
-        // use GPU allocator to construct buf_ in the GPU tensor
-        AllocatorAttributes attr;
-        //attr.set_on_host(true);
-        attr.set_gpu_compatible(true);
-        Allocator* gpu_allocator = gpu_device->GetAllocator(attr);
-        Tensor copy(gpu_allocator, cpu_tensor->dtype(), cpu_tensor->shape());
-        // GPU Tensor is not filled with values, which should be transferred from CPU
-        *((*gpu_variable)->tensor()) = copy;
+        // creator lambda: std::function<Status(T**)>
+        auto creator = [this, gpu_device, cpu_device, cpu_tensor](Var** gpu_variable){
+          // construct Var gpu_variable according to cpu tensor attribute
+          *gpu_variable = new Var(cpu_tensor->dtype());
+          (*gpu_variable)->tensor()->set_shape(cpu_tensor->shape());
+  
+          // use GPU allocator to construct buf_ in the GPU tensor
+          AllocatorAttributes attr;
+          //attr.set_on_host(true);
+          attr.set_gpu_compatible(true);
+          Allocator* gpu_allocator = gpu_device->GetAllocator(attr);
+          Tensor copy(gpu_allocator, cpu_tensor->dtype(), cpu_tensor->shape());
+          // GPU Tensor is not filled with values, which should be transferred from CPU
+          *((*gpu_variable)->tensor()) = copy;
+  
+          // transfer CPU tensor to GPU
+          const DeviceContext* device_context = gpu_device->tensorflow_gpu_device_info()->default_context;
+          Tensor* gpu_tensor = (*gpu_variable)->tensor();
+          // -----------------------------------------------------------------------
+          // logging the tensor allocation memory size for quantitive analysis
+          if (gpu_tensor->buf_ != nullptr && gpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
+            LogMemory::RecordTensorAllocation("TransferCPU2GPUAllocationCreate", LogMemory::UNKNOWN_STEP_ID, *gpu_tensor);
+            // 1.
+            // Notice:
+            // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
+          }
+          // -----------------------------------------------------------------------
+  
+          GPUUtil::CopyCPUTensorToGPU(
+              cpu_tensor, device_context, gpu_device, gpu_tensor,
+              [](const Status& s){
+                if (!s.ok()){
+                  VLOG(0) << "CPU->GPU MemCpy Fail!";
+                }
+              });
+  
+          return Status::OK();
+        };
+  
+        // Lookup by resource name, if null then create via memcpy
+        Var* gpu_variable = nullptr;
 
-        // transfer CPU tensor to GPU
-        const DeviceContext* device_context = gpu_device->tensorflow_gpu_device_info()->default_context;
-        Tensor* gpu_tensor = (*gpu_variable)->tensor();
-        // -----------------------------------------------------------------------
-        // logging the tensor allocation memory size for quantitive analysis
-        if (gpu_tensor->buf_ != nullptr && gpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
-          LogMemory::RecordTensorAllocation("TransferCPU2GPUAllocationCreate", LogMemory::UNKNOWN_STEP_ID, *gpu_tensor);
-          // 1.
-          // Notice:
-          // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
-        }
-        // -----------------------------------------------------------------------
+        bool is_init = false;
+        gpu_resource_mgr->LookupOrCreateVar<Var>(
+            container, resource_name, &is_init, &gpu_variable, creator);
 
-        GPUUtil::CopyCPUTensorToGPU(
-            cpu_tensor, device_context, gpu_device, gpu_tensor,
-            [](const Status& s){
-              if (!s.ok()){
-                VLOG(0) << "CPU->GPU MemCpy Fail!";
-              }
-            });
+        if (!is_init){
+          const DeviceContext* device_context = gpu_device->tensorflow_gpu_device_info()->default_context;
 
-        return Status::OK();
-      };
+          Tensor* gpu_tensor = gpu_variable->tensor();
+          // -----------------------------------------------------------------------
+          // logging the tensor allocation memory size for quantitive analysis
+          if (gpu_tensor->buf_ != nullptr && gpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
+            LogMemory::RecordTensorAllocation("TransferCPU2GPUAllocationUpdate", LogMemory::UNKNOWN_STEP_ID, *gpu_tensor);
+            // 1.
+            // Notice:
+            // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
+          }
+          // -----------------------------------------------------------------------
 
-      bool is_init = false;
-      gpu_resource_mgr->LookupOrCreateVar<Var>(
-          container, resource_name, &is_init, &gpu_variable, creator);
+          GPUUtil::CopyCPUTensorToGPU(
+              cpu_tensor, device_context, gpu_device, gpu_tensor,
+              [](const Status& s){
+                if (!s.ok()){
+                  VLOG(0) << "CPU->GPU MemCpy Fail!";
+                }
+              });
+        } // End of updating GPU tensors
+            
+      } else if (dynamic_cast<Var*>(resource) == nullptr) {
+        // not Var, so is LegacyVar
+        LegacyVar* variable = nullptr;
+        variable = TypeCastFunctor<LegacyVar, false>::Cast(resource);
 
-      if (!is_init){
-        const DeviceContext* device_context = gpu_device->tensorflow_gpu_device_info()->default_context;
+        // We're acquiring a reference to the underlying buffer while
+        // holding a shared lock to guarantee ordering of reads and
+        // writes.
+        tf_shared_lock ml(*variable->mu());
+        const Tensor* cpu_tensor = variable->tensor();
 
-        Tensor* gpu_tensor = gpu_variable->tensor();
-        // -----------------------------------------------------------------------
-        // logging the tensor allocation memory size for quantitive analysis
-        if (gpu_tensor->buf_ != nullptr && gpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
-          LogMemory::RecordTensorAllocation("TransferCPU2GPUAllocationUpdate", LogMemory::UNKNOWN_STEP_ID, *gpu_tensor);
-          // 1.
-          // Notice:
-          // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
-        }
-        // -----------------------------------------------------------------------
+        // creator lambda: std::function<Status(T**)>
+        auto creator = [this, gpu_device, cpu_device, cpu_tensor](LegacyVar** gpu_variable){
+          // construct Var gpu_variable according to cpu tensor attribute
+          *gpu_variable = new LegacyVar(cpu_tensor->dtype());
+          (*gpu_variable)->tensor()->set_shape(cpu_tensor->shape());
+  
+          // use GPU allocator to construct buf_ in the GPU tensor
+          AllocatorAttributes attr;
+          //attr.set_on_host(true);
+          attr.set_gpu_compatible(true);
+          Allocator* gpu_allocator = gpu_device->GetAllocator(attr);
+          Tensor copy(gpu_allocator, cpu_tensor->dtype(), cpu_tensor->shape());
+          // GPU Tensor is not filled with values, which should be transferred from CPU
+          *((*gpu_variable)->tensor()) = copy;
+  
+          // transfer CPU tensor to GPU
+          const DeviceContext* device_context = gpu_device->tensorflow_gpu_device_info()->default_context;
+          Tensor* gpu_tensor = (*gpu_variable)->tensor();
+          // -----------------------------------------------------------------------
+          // logging the tensor allocation memory size for quantitive analysis
+          if (gpu_tensor->buf_ != nullptr && gpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
+            LogMemory::RecordTensorAllocation("TransferCPU2GPUAllocationCreate", LogMemory::UNKNOWN_STEP_ID, *gpu_tensor);
+            // 1.
+            // Notice:
+            // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
+          }
+          // -----------------------------------------------------------------------
+  
+          GPUUtil::CopyCPUTensorToGPU(
+              cpu_tensor, device_context, gpu_device, gpu_tensor,
+              [](const Status& s){
+                if (!s.ok()){
+                  VLOG(0) << "CPU->GPU MemCpy Fail!";
+                }
+              });
+  
+          return Status::OK();
+        };
 
-        GPUUtil::CopyCPUTensorToGPU(
-            cpu_tensor, device_context, gpu_device, gpu_tensor,
-            [](const Status& s){
-              if (!s.ok()){
-                VLOG(0) << "CPU->GPU MemCpy Fail!";
-              }
-            });
-      } // End of updating GPU tensors
+        // Lookup by resource name, if null then create via memcpy
+        LegacyVar* gpu_variable = nullptr;
 
+        bool is_init = false;
+        gpu_resource_mgr->LookupOrCreateVar<LegacyVar>(
+            container, resource_name, &is_init, &gpu_variable, creator);
+
+        if (!is_init){
+          const DeviceContext* device_context = gpu_device->tensorflow_gpu_device_info()->default_context;
+
+          Tensor* gpu_tensor = gpu_variable->tensor();
+          // -----------------------------------------------------------------------
+          // logging the tensor allocation memory size for quantitive analysis
+          if (gpu_tensor->buf_ != nullptr && gpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
+            LogMemory::RecordTensorAllocation("TransferCPU2GPUAllocationUpdate", LogMemory::UNKNOWN_STEP_ID, *gpu_tensor);
+            // 1.
+            // Notice:
+            // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
+          }
+          // -----------------------------------------------------------------------
+
+          GPUUtil::CopyCPUTensorToGPU(
+              cpu_tensor, device_context, gpu_device, gpu_tensor,
+              [](const Status& s){
+                if (!s.ok()){
+                  VLOG(0) << "CPU->GPU MemCpy Fail!";
+                }
+              });
+        } // End of updating GPU tensors
+      } // if branch End
     } // End of for of each item
   } // End of for of container
 
@@ -1107,6 +1328,9 @@ Status DirectSession::Run(const RunOptions& run_options,
 
   // Check if we already have an executor for these arguments.
   ExecutorsAndKeys* executors_and_keys;
+
+  const int64 step_id = step_id_counter_.fetch_add(1);
+
   RunStateArgs run_state_args(run_options.debug_options());
   run_state_args.collective_graph_key =
       run_options.experimental().collective_graph_key();
@@ -1115,27 +1339,32 @@ Status DirectSession::Run(const RunOptions& run_options,
   // priority executor.
   if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW &&
       direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)){
+//  if (step_id > 17 && step_id < 21) { // wxf: only for debugging one thread task for lower priority for easy developing
     // itself is low priority and high priority exists, then get or create low priority executors
     // Get or Create low priority CPU executors
     TF_RETURN_IF_ERROR(GetOrCreateLowPriorityExecutors(input_tensor_names, output_names,
                                                        target_nodes, &executors_and_keys,
                                                        &run_state_args));
-  
-  }else {
+
+    // Start to transfer stateful data from GPU to CPU via device resource mgr.
+    if (last_execute_device_ == "" || last_execute_device_ == "GPU"){
+      TransferGPU2CPUStatefulVars();
+    }
+    last_execute_device_ = "CPU";
+    // End of transferring, start to execute the graph.
+ 
+  } else {
     TF_RETURN_IF_ERROR(GetOrCreateExecutors(input_tensor_names, output_names,
                                             target_nodes, &executors_and_keys,
                                             &run_state_args));
+  
+    // Start to transfer stateful data from CPU to GPU via device resource mgr.
+    if (last_execute_device_ != "" && last_execute_device_ == "CPU"){
+      TransferCPU2GPUStatefulVars();
+    }
+    last_execute_device_ = "GPU"; 
+    // End of transferring, start to execute the graph.
   }
-
-//  // wxf : for testing 
-//  TF_RETURN_IF_ERROR(GetOrCreateExecutors(input_tensor_names, output_names,
-//                                          target_nodes, &executors_and_keys,
-//                                          &run_state_args));
-//
-//  // Get or Create low priority CPU executors
-//  TF_RETURN_IF_ERROR(GetOrCreateLowPriorityExecutors(input_tensor_names, output_names,
-//                                                     target_nodes, &executors_and_keys,
-//                                                     &run_state_args));
 
   {
     mutex_lock l(collective_graph_key_lock_);
@@ -1164,16 +1393,13 @@ Status DirectSession::Run(const RunOptions& run_options,
   } else if (!s.ok()) {
     return s;
   }
-
-  const int64 step_id = step_id_counter_.fetch_add(1);
-
+  
   if (LogMemory::IsEnabled()) {
     LogMemory::RecordStep(step_id, run_state_args.handle);
   }
-
+  
   TF_RETURN_IF_ERROR(RunInternal(step_id, run_options, &call_frame,
                                  executors_and_keys, run_metadata));
-
   // Receive outputs.
   if (outputs) {
     std::vector<Tensor> sorted_outputs;
@@ -2666,7 +2892,7 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
   // the submit code branch condition
   if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW &&
       direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)){
-//  if (step_id > 11 && step_id < 17) { // wxf: only for debugging one thread task for lower priority for easy developing
+//  if (step_id > 20 && step_id < 23) { // wxf: only for debugging one thread task for lower priority for easy developing
     {
       tf_shared_lock l(callables_lock_);
       CallableHandle low_priority_handle = usr_handle_to_low_priority_handle_[handle];
@@ -2754,10 +2980,12 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
           "outputs.");
     }
   
+    // Start to transfer stateful data from CPU to GPU via device resource mgr.
     if (last_execute_device_ != "" && last_execute_device_ == "CPU"){
       TransferCPU2GPUStatefulVars();
     }
     last_execute_device_ = "GPU"; 
+    // End of transferring, start to execute the graph.
 
     // A specialized CallFrame implementation that takes advantage of the
     // optimized RunCallable interface.

@@ -162,24 +162,24 @@ Status ResourceMgr::DoCreate(const string& container, TypeIndex type,
 }
 
 // wxf
-//Status ResourceMgr::LookupResourceBase(
-//    const string& container, uint64 hash_code,
-//    const string& name, ResourceBase** resource) const {
-//
-//  const Container* b = gtl::FindPtrOrNull(containers_, container);
-//  if (b == nullptr) {
-//    return errors::NotFound("Container ", container,
-//                            " does not exist. (Could not find resource: ",
-//                            container, "/", name, ")");
-//  }
-//  auto r = gtl::FindPtrOrNull(*b, {hash_code, name});
-//  if (r == nullptr) {
-//    return errors::NotFound("Resource ", container, "/", name, "/", hash_code,
-//                            " does not exist.");
-//  }
-//  *resource = const_cast<ResourceBase*>(r);
-//  return Status::OK();
-//}
+Status ResourceMgr::LookupResourceBase(
+    const string& container, uint64 hash_code,
+    const string& name, ResourceBase** resource) const {
+
+  const Container* b = gtl::FindPtrOrNull(containers_, container);
+  if (b == nullptr) {
+    return errors::NotFound("Container ", container,
+                            " does not exist. (Could not find resource: ",
+                            container, "/", name, ")");
+  }
+  auto r = gtl::FindPtrOrNull(*b, {hash_code, name});
+  if (r == nullptr) {
+    return errors::NotFound("Resource ", container, "/", name, "/", hash_code,
+                            " does not exist.");
+  }
+  *resource = const_cast<ResourceBase*>(r);
+  return Status::OK();
+}
 
 Status ResourceMgr::DoLookup(const string& container, TypeIndex type,
                              const string& name,

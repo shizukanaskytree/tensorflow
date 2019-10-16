@@ -377,6 +377,10 @@ class DirectSession : public Session {
   // wxf
   string last_execute_device_ = "";
 
+  // wxf
+  // resource name : device type, eg. "Variable":"CPU"
+  std::unordered_map<string, string> transferred_resource_names_and_device_type_;
+
   // Unique session identifier.
   string session_handle_;
   mutex graph_state_lock_;

@@ -23,30 +23,6 @@ limitations under the License.
 
 namespace tensorflow {
 
-// Resource stored by variables in the resource manager
-// (legacy, ref-style version).
-class LegacyVar : public ResourceBase {
- public:
-  explicit LegacyVar(DataType dtype) : tensor_(dtype) {}
-  // Not copyable or movable.
-  LegacyVar(const LegacyVar&) = delete;
-  LegacyVar& operator=(const LegacyVar&) = delete;
-
-  mutex* mu() { return &mu_; }
-  Tensor* tensor() { return &tensor_; }
-
-  string DebugString() const override {
-    return strings::StrCat(DataTypeString(tensor_.dtype()), "/",
-                           tensor_.shape().DebugString());
-  }
-
- private:
-  mutex mu_;
-  Tensor tensor_;
-
-  ~LegacyVar() override {}
-};
-
 VariableOp::VariableOp(OpKernelConstruction* context) : OpKernel(context) {
   OP_REQUIRES_OK(context, context->GetAttr("shape", &shape_));
   dtype_ = RemoveRefType(context->output_type(0));

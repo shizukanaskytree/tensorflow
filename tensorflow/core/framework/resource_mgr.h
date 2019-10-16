@@ -212,10 +212,10 @@ class ResourceMgr {
                            bool* is_init,
                            T** resource,
                            std::function<Status(T**)> creator); 
-//  // wxf
-//  Status LookupResourceBase(
-//      const string& container, uint64 hash_code,
-//      const string& name, ResourceBase** resource) const; 
+  // wxf
+  Status LookupResourceBase(
+      const string& container, uint64 hash_code,
+      const string& name, ResourceBase** resource) const; 
 //
 //  // wxf
 //  Status DeleteContainerResources(const string& container);
