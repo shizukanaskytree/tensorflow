@@ -133,6 +133,13 @@ class DirectSession : public Session {
   void TransferGPU2CPUStatefulVars(); 
   void TransferCPU2GPUStatefulVars();
 
+  // wxf
+  // Transfer HPU <--> LPU Stateful variables to CPU/GPU device
+  // HPU: High Performance Processing Unit, e.g., V100 GPU, 2080i GPU.
+  // LPU: Low Performance Processing Unit, e.g., low performance GPU, 1080ti
+  void TransferHPU2LPUStatefulVars();
+  void TransferLPU2HPUStatefulVars();
+
   // -----------------------------------------------------------------------
   // wxf
   static DirectSessionsManager* direct_sessions_manager_;
@@ -378,8 +385,35 @@ class DirectSession : public Session {
   string last_execute_device_ = "";
 
   // wxf
+  // Record what variables are transferred to LPU and it will be used
+  // when it is transferred back.
   // resource name : device type, eg. "Variable":"CPU"
   std::unordered_map<string, string> transferred_resource_names_and_device_type_;
+
+  // wxf
+  // Sort the computation capability : Device* map by descending order
+  // +-----------------------------------------------------------------------------------+
+  // |                       computation_capability_device_map_                           |
+  // |-----------------------------------------------------------------------------------|
+  // |                                                                                   |
+  // | +--------------------------+     +-----------+-----------+-----------+-----------+|
+  // | |computation capability|7.5|---->| Device*   | Device*   | Device*   | Device*   ||
+  // | +--------------------------+     +-----------+-----------+-----------+-----------+|
+  // |                                                                                   |
+  // | +--------------------------+     +-----------+-----------+-----------+-----------+|
+  // | |computation capability|6.1|---->| Device*   | Device*   | Device*   | Device*   ||
+  // | +--------------------------+     +-----------+-----------+-----------+-----------+|
+  // |                                                                                   |
+  // |      ...                           ...                                            |
+  // |                                                                                   |
+  // | +--------------------------+     +-----------+-----------+-----------+-----------+|
+  // | |computation capability|1.0|---->| Device*   | Device*   | Device*   | Device*   ||
+  // | +--------------------------+     +-----------+-----------+-----------+-----------+|
+  // +-----------------------------------------------------------------------------------+
+  std::function<bool(const float& lhs, const float& rhs)> ComputationLambda_;
+  std::map<float, std::vector<Device*>, decltype(ComputationLambda_)>* 
+    computation_capability_device_map_;
+
 
   // Unique session identifier.
   string session_handle_;
@@ -493,6 +527,7 @@ class DirectSession : public Session {
   friend class DebugGateway;
 };
 
+// wxf:
 class DirectSessionsManager{
  public:
 	DirectSessionsManager(): high_priority_direct_session_count_(0),

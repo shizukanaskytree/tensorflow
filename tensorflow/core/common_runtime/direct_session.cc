@@ -20,8 +20,10 @@ limitations under the License.
 #include <vector>
 #include <iostream>
 #include <thread>
-#include <thread>
 #include <unordered_map>
+#include <map>
+#include <regex>
+
 
 #include "tensorflow/core/common_runtime/collective_executor_mgr.h"
 #include "tensorflow/core/common_runtime/collective_param_resolver_local.h"
@@ -340,24 +342,114 @@ DirectSession::DirectSession(const SessionOptions& options,
     }
     LOG(INFO) << "Device mapping:\n" << mapping_str;
   }
+
+  // wxf: Collect low_priority_device_set_ for class Placer
+  auto ComputationLambda = [](const float &lhs, const float &rhs) {
+    return lhs > rhs; 
+    // 7.5 > 6.1 order
+  };
+  std::function<bool(const float& lhs, const float& rhs)> CompuLambda;
+
+  computation_capability_device_map_ = 
+    new std::map<float, std::vector<Device*>, decltype(CompuLambda)>(ComputationLambda);
+
+  // wxf: sort the computation capability : Device* map by descending order
+  // +-----------------------------------------------------------------------------------+
+  // |                       computation_capability_device_map_                           |
+  // |-----------------------------------------------------------------------------------|
+  // |                                                                                   |
+  // | +--------------------------+     +-----------+-----------+-----------+-----------+|
+  // | |computation capability|7.5|---->| Device*   | Device*   | Device*   | Device*   ||
+  // | +--------------------------+     +-----------+-----------+-----------+-----------+|
+  // |                                                                                   |
+  // | +--------------------------+     +-----------+-----------+-----------+-----------+|
+  // | |computation capability|6.1|---->| Device*   | Device*   | Device*   | Device*   ||
+  // | +--------------------------+     +-----------+-----------+-----------+-----------+|
+  // |                                                                                   |
+  // |      ...                           ...                                            |
+  // |                                                                                   |
+  // | +--------------------------+     +-----------+-----------+-----------+-----------+|
+  // | |computation capability|1.0|---->| Device*   | Device*   | Device*   | Device*   ||
+  // | +--------------------------+     +-----------+-----------+-----------+-----------+|
+  // +-----------------------------------------------------------------------------------+
+
   for (auto d : device_mgr_->ListDevices()) {
     devices_.push_back(d);
     device_set_.AddDevice(d);
     d->op_segment()->AddHold(session_handle_);
 
+    // Deprecated:
+    //std::map<float, std::vector<Device*>, decltype(ComputationLambda)> 
+    //  computation_capability_device_map(ComputationLambda);
+
     // The first device added is special: it is the 'client device' (a
     // CPU device) from which we feed and fetch Tensors.
     if (devices_added == 0) {
       device_set_.set_client_device(d);
+
       // wxf, used for create low_priority_execution_state_
-      low_priority_device_set_.AddDevice(d);
+      // Deprecated. I want to use less powerful GPUs and CPUs
+      //low_priority_device_set_.AddDevice(d);
       // wxf, don't forget to set client device, which is used in 
       // GraphExecutionState::PruneGraph
       // ==> LookupDevice
       low_priority_device_set_.set_client_device(d);
+      // wxf, CPU is hardcoded to 1.0 as its computation capacity
+      std::vector<Device*> ds{d};
+      computation_capability_device_map_->emplace(1.0, ds);
     }
+
+    // wxf: Skip the CPU since we have already added it
+    if (devices_added != 0) {
+      // wxf: after add the CPU, then adding GPUs
+      string device_name = d->DebugString();
+      std::smatch m;
+      float computation_capacity = 0.0; // major_minor
+      std::regex e ("compute capability: (\\d\\.\\d)");
+      while (std::regex_search (device_name, m, e)) {
+        computation_capacity = std::stof(m[1]);
+        // iterate the following substring
+        device_name = m.suffix().str(); 
+      }
+
+      auto search = computation_capability_device_map_->find(computation_capacity);
+      if (search == computation_capability_device_map_->end()) {
+        // construct a new row in this map
+        std::vector<Device*> temp_ds{d};
+        computation_capability_device_map_->emplace(computation_capacity, temp_ds);
+      } else {
+        // add the Device* to the existing one
+        (*computation_capability_device_map_)[computation_capacity].push_back(d);
+      }
+    }
+
     ++devices_added;
+
+  } // End of for each device
+
+  // wxf:
+  // Deprecated! 
+  // I choose to keep it and skip the 1st one when adding it to the
+  // low_priority_device_set_
+  // 
+  // after getting the sorted computation_capability : Device*
+  // we discard the 1st one most powerful GPU and add the following to the
+  // low_priority_device_set_ 
+  //computation_capability_device_map_->erase(
+  //    computation_capability_device_map_->begin());
+
+  int skip = 0;
+  // add the left Device* to the low_priority_device_set_ 
+  for (auto item: *computation_capability_device_map_){
+    skip++;
+    if (skip == 1) {
+      continue;
+    }
+    for (auto e: item.second){
+      low_priority_device_set_.AddDevice(e);
+    }
   }
+  // Done: add second-tier devices to the low_priority_device_set_
 }
 
 DirectSession::~DirectSession() {
@@ -474,13 +566,15 @@ void DirectSession::TransferGPU2CPUStatefulVars(){
         // Transfer from GPU to CPU
         auto creator = [this, gpu_device, cpu_device, gpu_tensor](Var** cpu_variable){
           // 1.
-          // creator lambda interface Explanation:
+          // creator lambda signature Explanation:
           // std::function<Status(T**)>
 
           // construct Var cpu_variable
           *cpu_variable = new Var(gpu_tensor->dtype());
           (*cpu_variable)->tensor()->set_shape(gpu_tensor->shape());
 
+          // 1. Construct Tensor of CPU;
+          // 2. Init CPU tenors value by tranferred GPU tensor.
           // use CPU allocator to construct the buf_ in the tensor
           AllocatorAttributes attr;
           attr.set_on_host(true);
@@ -882,6 +976,224 @@ void DirectSession::TransferCPU2GPUStatefulVars(){
   uint64 cpu2gpu_eclipsed_time = Env::Default()->NowMicros() - start_time_usecs;
   VLOG(0) << "CPU to GPU transfer stateful vars time eclipsed(micro sec): " << cpu2gpu_eclipsed_time;
 } 
+
+// wxf
+void DirectSession::TransferHPU2LPUStatefulVars(){
+  const uint64 start_time_usecs = Env::Default()->NowMicros();
+  
+  // HPU resource mgr (src)
+  Device* hpu_device = nullptr;
+  Device* lpu_device = nullptr;
+  
+  // Iterate the first 2 : NO.1 HPU, NO.2 LPU
+  int i = 0;
+  for (auto const& item : *computation_capability_device_map_) {
+    // The default device is the first one of the list of the same computation
+    // capability.
+    if (i == 0) {
+      // +--------------------------+     +-----------+-----------+-----------+
+      // |computation capability|7.5|---->| Device*<==| Device*   | Device*   |
+      // +--------------------------+     +-----------+-----------+-----------+
+      hpu_device = item.second[0];
+    }
+
+    if (i == 1) {
+      // +--------------------------+     +-----------+-----------+-----------+
+      // |computation capability|6.1|---->| Device*<==| Device*   | Device*   |
+      // +--------------------------+     +-----------+-----------+-----------+
+      lpu_device = item.second[0];
+    }
+
+    // Iteration stop condition:
+    i++;
+    if (i == 2) break;
+  }
+
+  ResourceMgr* hpu_resource_mgr = hpu_device->resource_manager();
+  ResourceMgr* lpu_resource_mgr = lpu_device->resource_manager();
+  // for debug ResourceBase real type
+  //string debug_hpu_resource = hpu_resource_mgr->DebugString();
+  //string debug_lpu_resource = lpu_resource_mgr->DebugString();
+
+  // Used to take down all hpu containers in which resource tensors to be 
+  // deallocated in the end.
+  std::vector<string> hpu_containers;
+
+  // Iterate all HPU stateful variables per container per item to construct LPU's
+  for (const auto& p : hpu_resource_mgr->Containers()) {
+    const string& container = p.first;
+    hpu_containers.push_back(container);
+    for (const auto& q: *p.second) {
+      const std::pair<uint64, string>& key = q.first;
+      const uint64 hash_code = key.first;
+      const string& resource_name = key.second;
+
+      // Record what variables are transferred to LPU and it will be used
+      // when it is transferred back.
+      string resource_var_name = resource_name;
+      transferred_resource_names_and_device_type_.insert(
+          {resource_var_name, "HPU"});
+
+      ResourceBase* resource;
+      hpu_resource_mgr->LookupResourceBase(container, hash_code, resource_name,
+          &resource);
+
+      // Check Var or LegacyVar type
+      if (dynamic_cast<LegacyVar*>(resource) == nullptr) {
+        // not LegacyVar, so is Var 
+        Var* variable = nullptr;
+        variable = TypeCastFunctor<Var, false>::Cast(resource);
+        // We're acquiring a reference to the underlying buffer while 
+        // holding a shared lock to guarantee ordering of reads and 
+        // writes.
+        tf_shared_lock ml(*variable->mu());
+        const Tensor* hpu_tensor = variable->tensor();
+
+        // Transfer from GPU to CPU
+        // lambda function of creating variable if the LPU does not construct
+        // it.
+        auto creator = [this, hpu_device, lpu_device, hpu_tensor](Var** lpu_variable){
+          // 1.
+          // creator type (i.e. auto real type) lambda signature Explanation:
+          // std::function<Status(T**)>
+
+          // construct Var lpu_variable
+          *lpu_variable = new Var(hpu_tensor->dtype());
+          (*lpu_variable)->tensor()->set_shape(hpu_tensor->shape());
+
+          // 1. Construct LPU Tensor; 2. Initialize Tenor values from HPU
+          // use LPU allocator(GPU) to construct the buf_ in the tensor.
+          AllocatorAttributes lpu_alloc_attr;
+          lpu_alloc_attr.set_on_host(false);
+          lpu_alloc_attr.set_gpu_compatible(true);
+          Allocator* lpu_allocator = lpu_device->GetAllocator(lpu_alloc_attr); 
+          Tensor copy(lpu_allocator, hpu_tensor->dtype(), hpu_tensor->shape());
+          *((*lpu_variable)->tensor()) = copy;
+
+          // construct a hpu_attr used in GPUUtil::DeviceToDeviceCopy.
+          AllocatorAttributes hpu_alloc_attr;
+          hpu_alloc_attr.set_on_host(false);
+          hpu_alloc_attr.set_gpu_compatible(true);
+          
+          // transfer HPU(src) tensor to LPU(dst)
+          DeviceContext* hpu_device_context = hpu_device->tensorflow_gpu_device_info()->default_context;
+          DeviceContext* lpu_device_context = lpu_device->tensorflow_gpu_device_info()->default_context;
+          // 1.
+          // default_context explanation:  
+          // gpu_device_info_->default_context = device_contexts_[0] assigned in common_runtime/gpu/gpu_device.cc
+          
+          Tensor* lpu_tensor = (*lpu_variable)->tensor();
+
+          // logging the tensor allocation memory size for quantitive analysis
+          if (lpu_tensor->buf_ != nullptr && lpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
+            LogMemory::RecordTensorAllocation("TransferHPU2LPUAllocationCreate", LogMemory::UNKNOWN_STEP_ID, *lpu_tensor);
+            // 1.
+            // Notice:
+            // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
+          }
+
+          GPUUtil::DeviceToDeviceCopy(
+            hpu_device_context, /* ==> */ lpu_device_context,
+            hpu_device, /* ==> */ lpu_device,
+            hpu_alloc_attr, lpu_alloc_attr,
+            hpu_tensor, /* ==> */ lpu_tensor,
+            0, 
+            [](const Status& s){
+              if (!s.ok()){
+                VLOG(0) << "HPU->LPU MemCpy Fail!";
+              }
+            }
+          );
+          // 1.
+          // dev_to_dev_stream_index Explanation:
+          // Only 1 stream group is created so the index is 0.
+          // Check the log:
+          // https://gist.github.com/shizukanaskytree/1c60070597bdf60fdfd59e8177e9c127
+          
+          // 2.
+          // StatusCallback Explanation:
+          // signature: std::function<void(const Status&)> StatusCallback
+          // defined in tensorflow/core/common_runtime/rendezvous_mgr.h:79
+
+          return Status::OK();
+        };
+
+        Var* lpu_variable = nullptr;
+        
+        bool is_init = false;
+        // 1.
+        // is_init Explanation:
+        // 1. If variables are constructed and initialized in the LookupOrCreateVar, 
+        // is_init == true  
+        // 2. If not, is_init == false, they've already existed. Only need update. 
+
+        // Lookup by resource name, if null then create via memcpy
+        lpu_resource_mgr->LookupOrCreateVar<Var>(
+            container, resource_name, &is_init, &lpu_variable, creator);
+
+        // If not by constructed and initialized, then we need to update those 
+        // stateful vars.
+        if (!is_init){
+          // Update vars by transferring tensors from HPU to LPU
+          DeviceContext* hpu_device_context = hpu_device->tensorflow_gpu_device_info()->default_context;
+          DeviceContext* lpu_device_context = lpu_device->tensorflow_gpu_device_info()->default_context;
+
+          AllocatorAttributes lpu_alloc_attr;
+          lpu_alloc_attr.set_on_host(false);
+          lpu_alloc_attr.set_gpu_compatible(true);
+
+          AllocatorAttributes hpu_alloc_attr;
+          hpu_alloc_attr.set_on_host(false);
+          hpu_alloc_attr.set_gpu_compatible(true);
+
+          // from LookupOrCreateVar, lpu_variable
+          Tensor* lpu_tensor = lpu_variable->tensor();
+
+          // logging the tensor allocation memory size for quantitive analysis
+          if (lpu_tensor->buf_ != nullptr && lpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
+            LogMemory::RecordTensorAllocation("TransferGPU2CPUAllocationUpdate", LogMemory::UNKNOWN_STEP_ID, *lpu_tensor);
+            // 1.
+            // Notice:
+            // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
+          }
+
+          GPUUtil::DeviceToDeviceCopy(
+            hpu_device_context, /* ==> */ lpu_device_context,
+            hpu_device, /* ==> */ lpu_device,
+            hpu_alloc_attr, lpu_alloc_attr,
+            hpu_tensor, /* ==> */ lpu_tensor,
+            0, 
+            [](const Status& s){
+              if (!s.ok()){
+                VLOG(0) << "HPU->LPU MemCpy Fail!";
+              }
+            }
+          );
+        } // End of updating LPU stateful variables
+      
+      // if branch Var Branch End.
+      } else if (dynamic_cast<Var*>(resource) == nullptr) {
+        // not Var, so is LegacyVar
+        // TODO
+      
+      } // if branch Legacy Branch End
+      
+    } // End of for loop of each item
+  } // End of for loop of each container
+
+  // Deallocate HPU memory after HPU ==> LPU
+  for (auto& hpu_container: hpu_containers) {
+    hpu_resource_mgr->Cleanup(hpu_container);
+  }
+
+  uint64 hpu2lpu_eclipsed_time = Env::Default()->NowMicros() - start_time_usecs;
+  VLOG(0) << "HPU to LPU transfer stateful vars time eclipsed(micro sec): " << hpu2lpu_eclipsed_time;
+}
+
+// wxf
+void DirectSession::TransferLPU2HPUStatefulVars(){
+  // TODO
+}
 
 Status DirectSession::MaybeInitializeExecutionState(
     const GraphDef& graph, bool* out_already_initialized) {
@@ -2259,7 +2571,7 @@ Status DirectSession::GetOrCreateLowPriorityExecutors(
 
   // Fast lookup path, no sorting.
   const string key = strings::StrCat(
-      "cpu/",
+      "low_priority_device/",
       str_util::Join(inputs, ","), "->", str_util::Join(outputs, ","), "/",
       str_util::Join(target_nodes, ","), "/", run_state_args->is_partial_run,
       "/", debug_tensor_watches_summary);
@@ -2293,7 +2605,7 @@ Status DirectSession::GetOrCreateLowPriorityExecutors(
   std::sort(tn_sorted.begin(), tn_sorted.end());
 
   const string sorted_key = strings::StrCat(
-      "cpu->",
+      "low_priority_device/",
       str_util::Join(inputs_sorted, ","), "->",
       str_util::Join(outputs_sorted, ","), "/", str_util::Join(tn_sorted, ","),
       "/", run_state_args->is_partial_run, "/", debug_tensor_watches_summary);
@@ -2800,8 +3112,10 @@ Status DirectSession::MakeCallable(const CallableOptions& callable_options,
   // -----------------------------------------------------------------------
 
   // wxf
-  // For low priority task, we create a backup CPU-only executors;
-  // For high priority task, we don't create CPU-only executors.
+  // For low priority task, we create a backup LPU-only executors;
+  // For high priority task, we don't create LPU-only executors.
+  // LPU: Low Performance Processing Unit
+  // HPU: High Performance Processing Unit
   if(direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW){
     CallableHandle low_priority_handle = 0;
     // 1.
@@ -2887,11 +3201,11 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
   const int64 step_id = step_id_counter_.fetch_add(1);
 
   // wxf 
-  // if high priority task exists, then the low priority task use the low
+  // if high priority task exists, then the low priority task uses the low
   // priority executor.
-  // the submit code branch condition
-  if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW &&
-      direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)){
+//  if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW &&
+//      direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)){
+  if (step_id > 20) { // wxf: only for debugging one thread task for lower priority for easy developing
 //  if (step_id > 20 && step_id < 23) { // wxf: only for debugging one thread task for lower priority for easy developing
     {
       tf_shared_lock l(callables_lock_);
@@ -2927,11 +3241,12 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
           "outputs.");
     }
 
-    // Start to transfer stateful data from GPU to CPU via device resource mgr.
-    if (last_execute_device_ == "" || last_execute_device_ == "GPU"){
-      TransferGPU2CPUStatefulVars();
+    // Start to transfer stateful data from HPU to LPU via device resource mgr.
+    if (last_execute_device_ == "" || last_execute_device_ == "HPU"){
+      //TransferGPU2CPUStatefulVars();
+      TransferHPU2LPUStatefulVars();
     }
-    last_execute_device_ = "CPU";
+    last_execute_device_ = "LPU";
     // End of transferring, start to execute the graph.
 
     RunCallableCallFrame call_frame(this, executors_and_keys.get(), &feed_tensors,
@@ -2980,11 +3295,12 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
           "outputs.");
     }
   
-    // Start to transfer stateful data from CPU to GPU via device resource mgr.
-    if (last_execute_device_ != "" && last_execute_device_ == "CPU"){
-      TransferCPU2GPUStatefulVars();
+    // Start to transfer stateful data from LPU to HPU via device resource mgr.
+    if (last_execute_device_ != "" && last_execute_device_ == "LPU"){
+      //TransferCPU2GPUStatefulVars();
+      TransferLPU2HPUStatefulVars();
     }
-    last_execute_device_ = "GPU"; 
+    last_execute_device_ = "HPU"; 
     // End of transferring, start to execute the graph.
 
     // A specialized CallFrame implementation that takes advantage of the
