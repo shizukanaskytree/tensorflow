@@ -983,6 +983,7 @@ void DirectSession::TransferHPU2LPUStatefulVars(){
   
   // HPU resource mgr (src)
   Device* hpu_device = nullptr;
+  // LPU resource mgr (dst)
   Device* lpu_device = nullptr;
   
   // Iterate the first 2 : NO.1 HPU, NO.2 LPU
@@ -1028,11 +1029,12 @@ void DirectSession::TransferHPU2LPUStatefulVars(){
       const uint64 hash_code = key.first;
       const string& resource_name = key.second;
 
+      // No need to record the transferred stateful variables for dev_to_dev case.
       // Record what variables are transferred to LPU and it will be used
       // when it is transferred back.
-      string resource_var_name = resource_name;
-      transferred_resource_names_and_device_type_.insert(
-          {resource_var_name, "HPU"});
+      //string resource_var_name = resource_name;
+      //transferred_resource_names_and_device_type_.insert(
+      //    {resource_var_name, "HPU"});
 
       ResourceBase* resource;
       hpu_resource_mgr->LookupResourceBase(container, hash_code, resource_name,
@@ -1050,8 +1052,7 @@ void DirectSession::TransferHPU2LPUStatefulVars(){
         const Tensor* hpu_tensor = variable->tensor();
 
         // Transfer from GPU to CPU
-        // lambda function of creating variable if the LPU does not construct
-        // it.
+        // lambda function of creating variable if the LPU does not construct it.
         auto creator = [this, hpu_device, lpu_device, hpu_tensor](Var** lpu_variable){
           // 1.
           // creator type (i.e. auto real type) lambda signature Explanation:
@@ -1131,6 +1132,7 @@ void DirectSession::TransferHPU2LPUStatefulVars(){
         lpu_resource_mgr->LookupOrCreateVar<Var>(
             container, resource_name, &is_init, &lpu_variable, creator);
 
+        // If not by creator:
         // If not by constructed and initialized, then we need to update those 
         // stateful vars.
         if (!is_init){
@@ -1146,12 +1148,79 @@ void DirectSession::TransferHPU2LPUStatefulVars(){
           hpu_alloc_attr.set_on_host(false);
           hpu_alloc_attr.set_gpu_compatible(true);
 
-          // from LookupOrCreateVar, lpu_variable
+          // since we find it from LookupOrCreateVar, lpu_variable
           Tensor* lpu_tensor = lpu_variable->tensor();
 
           // logging the tensor allocation memory size for quantitive analysis
           if (lpu_tensor->buf_ != nullptr && lpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
-            LogMemory::RecordTensorAllocation("TransferGPU2CPUAllocationUpdate", LogMemory::UNKNOWN_STEP_ID, *lpu_tensor);
+            LogMemory::RecordTensorAllocation("TransferHPU2LPUAllocationUpdate", LogMemory::UNKNOWN_STEP_ID, *lpu_tensor);
+            // 1.
+            // Notice:
+            // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
+          }
+
+          GPUUtil::DeviceToDeviceCopy(
+            hpu_device_context, /* ==> */ lpu_device_context,
+            hpu_device, /* ==> */ lpu_device,
+            hpu_alloc_attr, lpu_alloc_attr,
+            hpu_tensor, /* ==> */ lpu_tensor,
+            0, 
+            [](const Status& s){
+              if (!s.ok()){
+                VLOG(0) << "HPU->LPU MemCpy Fail!";
+              }
+            }
+          ); // End of GPUUtil::DeviceToDeviceCopy
+        } // End of updating LPU stateful variables
+      
+      // if branch Var Branch End.
+      } else if (dynamic_cast<Var*>(resource) == nullptr) {
+        // not Var, so is LegacyVar
+        LegacyVar* variable = nullptr;
+        variable = TypeCastFunctor<LegacyVar, false>::Cast(resource);
+        // We're acquiring a reference to the underlying buffer while 
+        // holding a shared lock to guarantee ordering of reads and 
+        // writes.
+        tf_shared_lock ml(*variable->mu());
+        const Tensor* hpu_tensor = variable->tensor();
+
+        // Transfer from GPU to CPU
+        // lambda function of creating variable if the LPU does not construct it.
+        auto creator = [this, hpu_device, lpu_device, hpu_tensor](LegacyVar** lpu_variable){
+          // 1.
+          // creator type (i.e. auto real type) lambda signature Explanation:
+          // std::function<Status(T**)>
+
+          // construct LegacyVar lpu_variable
+          *lpu_variable = new LegacyVar(hpu_tensor->dtype());
+          (*lpu_variable)->tensor()->set_shape(hpu_tensor->shape());
+
+          // 1. Construct LPU Tensor; 2. Initialize Tenor values from HPU
+          // use LPU allocator(GPU) to construct the buf_ in the tensor.
+          AllocatorAttributes lpu_alloc_attr;
+          lpu_alloc_attr.set_on_host(false);
+          lpu_alloc_attr.set_gpu_compatible(true);
+          Allocator* lpu_allocator = lpu_device->GetAllocator(lpu_alloc_attr); 
+          Tensor copy(lpu_allocator, hpu_tensor->dtype(), hpu_tensor->shape());
+          *((*lpu_variable)->tensor()) = copy;
+
+          // construct a hpu_attr used in GPUUtil::DeviceToDeviceCopy.
+          AllocatorAttributes hpu_alloc_attr;
+          hpu_alloc_attr.set_on_host(false);
+          hpu_alloc_attr.set_gpu_compatible(true);
+          
+          // transfer HPU(src) tensor to LPU(dst)
+          DeviceContext* hpu_device_context = hpu_device->tensorflow_gpu_device_info()->default_context;
+          DeviceContext* lpu_device_context = lpu_device->tensorflow_gpu_device_info()->default_context;
+          // 1.
+          // default_context explanation:  
+          // gpu_device_info_->default_context = device_contexts_[0] assigned in common_runtime/gpu/gpu_device.cc
+          
+          Tensor* lpu_tensor = (*lpu_variable)->tensor();
+
+          // logging the tensor allocation memory size for quantitive analysis
+          if (lpu_tensor->buf_ != nullptr && lpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
+            LogMemory::RecordTensorAllocation("TransferHPU2LPUAllocationCreate", LogMemory::UNKNOWN_STEP_ID, *lpu_tensor);
             // 1.
             // Notice:
             // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
@@ -1169,13 +1238,73 @@ void DirectSession::TransferHPU2LPUStatefulVars(){
               }
             }
           );
+          // 1.
+          // dev_to_dev_stream_index Explanation:
+          // Only 1 stream group is created so the index is 0.
+          // Check the log:
+          // https://gist.github.com/shizukanaskytree/1c60070597bdf60fdfd59e8177e9c127
+          
+          // 2.
+          // StatusCallback Explanation:
+          // signature: std::function<void(const Status&)> StatusCallback
+          // defined in tensorflow/core/common_runtime/rendezvous_mgr.h:79
+
+          return Status::OK();
+        };
+
+        LegacyVar* lpu_variable = nullptr;
+        
+        bool is_init = false;
+        // 1.
+        // is_init Explanation:
+        // 1. If variables are constructed and initialized in the LookupOrCreateVar, 
+        // is_init == true  
+        // 2. If not, is_init == false, they've already existed. Only need update. 
+
+        // Lookup by resource name, if null then create via memcpy
+        lpu_resource_mgr->LookupOrCreateVar<LegacyVar>(
+            container, resource_name, &is_init, &lpu_variable, creator);
+
+        // If not by creator:
+        // If not by constructed and initialized, then we need to update those 
+        // stateful vars.
+        if (!is_init){
+          // Update vars by transferring tensors from HPU to LPU
+          DeviceContext* hpu_device_context = hpu_device->tensorflow_gpu_device_info()->default_context;
+          DeviceContext* lpu_device_context = lpu_device->tensorflow_gpu_device_info()->default_context;
+
+          AllocatorAttributes lpu_alloc_attr;
+          lpu_alloc_attr.set_on_host(false);
+          lpu_alloc_attr.set_gpu_compatible(true);
+
+          AllocatorAttributes hpu_alloc_attr;
+          hpu_alloc_attr.set_on_host(false);
+          hpu_alloc_attr.set_gpu_compatible(true);
+
+          // since we find it from LookupOrCreateVar, lpu_variable
+          Tensor* lpu_tensor = lpu_variable->tensor();
+
+          // logging the tensor allocation memory size for quantitive analysis
+          if (lpu_tensor->buf_ != nullptr && lpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
+            LogMemory::RecordTensorAllocation("TransferHPU2LPUAllocationUpdate", LogMemory::UNKNOWN_STEP_ID, *lpu_tensor);
+            // 1.
+            // Notice:
+            // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
+          }
+
+          GPUUtil::DeviceToDeviceCopy(
+            hpu_device_context, /* ==> */ lpu_device_context,
+            hpu_device, /* ==> */ lpu_device,
+            hpu_alloc_attr, lpu_alloc_attr,
+            hpu_tensor, /* ==> */ lpu_tensor,
+            0, 
+            [](const Status& s){
+              if (!s.ok()){
+                VLOG(0) << "HPU->LPU MemCpy Fail!";
+              }
+            }
+          ); // End of GPUUtil::DeviceToDeviceCopy
         } // End of updating LPU stateful variables
-      
-      // if branch Var Branch End.
-      } else if (dynamic_cast<Var*>(resource) == nullptr) {
-        // not Var, so is LegacyVar
-        // TODO
-      
       } // if branch Legacy Branch End
       
     } // End of for loop of each item
@@ -1192,7 +1321,342 @@ void DirectSession::TransferHPU2LPUStatefulVars(){
 
 // wxf
 void DirectSession::TransferLPU2HPUStatefulVars(){
-  // TODO
+  const uint64 start_time_usecs = Env::Default()->NowMicros();
+
+  // HPU resource mgr (src)
+  Device* hpu_device = nullptr;
+  // LPU resource mgr (dst)
+  Device* lpu_device = nullptr;
+
+  // Iterate the first 2 : NO.1 HPU, NO.2 LPU
+  int i = 0;
+  for (auto const& item : *computation_capability_device_map_) {
+    // The default device is the first one of the list of the same computation
+    // capability.
+    if (i == 0) {
+      // +--------------------------+     +-----------+-----------+-----------+
+      // |computation capability|7.5|---->| Device*<==| Device*   | Device*   |
+      // +--------------------------+     +-----------+-----------+-----------+
+      hpu_device = item.second[0];
+    }
+
+    if (i == 1) {
+      // +--------------------------+     +-----------+-----------+-----------+
+      // |computation capability|6.1|---->| Device*<==| Device*   | Device*   |
+      // +--------------------------+     +-----------+-----------+-----------+
+      lpu_device = item.second[0];
+    }
+
+    // Iteration stop condition:
+    i++;
+    if (i == 2) break;
+  }
+
+  ResourceMgr* hpu_resource_mgr = hpu_device->resource_manager();
+  ResourceMgr* lpu_resource_mgr = lpu_device->resource_manager();
+
+  // for debug ResourceBase real type
+  //string debug_hpu_resource = hpu_resource_mgr->DebugString();
+  //string debug_lpu_resource = lpu_resource_mgr->DebugString();
+  
+  // Used to take down all lpu containers in which resource tensors to be 
+  // deallocated in the end.
+  std::vector<string> lpu_containers;
+
+  // Iterate all LPU stateful variables per container per item to construct HPU's
+  for (const auto& p : lpu_resource_mgr->Containers()) {
+    const string& container = p.first;
+    lpu_containers.push_back(container);
+    for (const auto& q: *p.second) {
+      const std::pair<uint64, string>& key = q.first;
+      const uint64 hash_code = key.first;
+      const string& resource_name = key.second;
+
+      // No need to record the transferred stateful variables for dev_to_dev case.
+      ResourceBase* resource;
+      lpu_resource_mgr->LookupResourceBase(container, hash_code, resource_name,
+          &resource);
+
+      // Check Var or LegacyVar type
+      if (dynamic_cast<LegacyVar*>(resource) == nullptr) {
+        // not LegacyVar, so is Var
+        Var* variable = nullptr;
+        variable = TypeCastFunctor<Var, false>::Cast(resource);
+
+        // We're acquiring a reference to the underlying buffer while 
+        // holding a shared lock to guarantee ordering of reads and 
+        // writes.
+        tf_shared_lock ml(*variable->mu());
+        const Tensor* lpu_tensor = variable->tensor();
+
+        // Transfer from GPU to CPU
+        // lambda function of creating variable if the LPU does not construct it.
+        auto creator = [this, hpu_device, lpu_device, lpu_tensor](Var** hpu_variable){
+          // 1.
+          // creator type (i.e. auto real type) lambda signature Explanation:
+          // std::function<Status(T**)>
+
+          // construct Var lpu_variable
+          *hpu_variable = new Var(lpu_tensor->dtype());
+          (*hpu_variable)->tensor()->set_shape(lpu_tensor->shape());
+
+          // 1. Construct HPU Tensor; 2. Initialize Tenor values from LPU
+          // use HPU allocator(GPU) to construct the buf_ in the tensor.
+          AllocatorAttributes hpu_alloc_attr;
+          hpu_alloc_attr.set_on_host(false);
+          hpu_alloc_attr.set_gpu_compatible(true);
+          Allocator* hpu_allocator = hpu_device->GetAllocator(hpu_alloc_attr); 
+          Tensor copy(hpu_allocator, lpu_tensor->dtype(), lpu_tensor->shape());
+          *((*hpu_variable)->tensor()) = copy;
+
+          // construct a lpu_attr used in GPUUtil::DeviceToDeviceCopy.
+          AllocatorAttributes lpu_alloc_attr;
+          lpu_alloc_attr.set_on_host(false);
+          lpu_alloc_attr.set_gpu_compatible(true);
+          
+          // transfer LPU(src) tensor to HPU(dst)
+          DeviceContext* hpu_device_context = hpu_device->tensorflow_gpu_device_info()->default_context;
+          DeviceContext* lpu_device_context = lpu_device->tensorflow_gpu_device_info()->default_context;
+          // 1.
+          // default_context explanation:  
+          // gpu_device_info_->default_context = device_contexts_[0] assigned in common_runtime/gpu/gpu_device.cc
+          
+          Tensor* hpu_tensor = (*hpu_variable)->tensor();
+
+          // logging the tensor allocation memory size for quantitive analysis
+          if (hpu_tensor->buf_ != nullptr && hpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
+            LogMemory::RecordTensorAllocation("TransferLPU2HPUAllocationCreate", LogMemory::UNKNOWN_STEP_ID, *hpu_tensor);
+            // 1.
+            // Notice:
+            // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
+          }
+
+          GPUUtil::DeviceToDeviceCopy(
+            lpu_device_context, /* ==> */ hpu_device_context,
+            lpu_device, /* ==> */ hpu_device,
+            lpu_alloc_attr, hpu_alloc_attr,
+            lpu_tensor, /* ==> */ hpu_tensor,
+            0, 
+            [](const Status& s){
+              if (!s.ok()){
+                VLOG(0) << "HPU->LPU MemCpy Fail!";
+              }
+            }
+          );
+          // 1.
+          // dev_to_dev_stream_index Explanation:
+          // Only 1 stream group is created so the index is 0.
+          // Check the log:
+          // https://gist.github.com/shizukanaskytree/1c60070597bdf60fdfd59e8177e9c127
+          
+          // 2.
+          // StatusCallback Explanation:
+          // signature: std::function<void(const Status&)> StatusCallback
+          // defined in tensorflow/core/common_runtime/rendezvous_mgr.h:79
+
+          return Status::OK();
+        };
+
+        Var* hpu_variable = nullptr;
+        
+        bool is_init = false;
+        // 1.
+        // is_init Explanation:
+        // 1. If variables are constructed and initialized in the LookupOrCreateVar, 
+        // is_init == true  
+        // 2. If not, is_init == false, they've already existed. Only need update. 
+
+        // Lookup by resource name, if null then create via memcpy
+        hpu_resource_mgr->LookupOrCreateVar<Var>(
+            container, resource_name, &is_init, &hpu_variable, creator);
+
+        // If not by creator:
+        // If not by constructed and initialized, then we need to update those 
+        // stateful vars.
+        if (!is_init){
+          // Update vars by transferring tensors from LPU to HPU
+          DeviceContext* hpu_device_context = hpu_device->tensorflow_gpu_device_info()->default_context;
+          DeviceContext* lpu_device_context = lpu_device->tensorflow_gpu_device_info()->default_context;
+
+          AllocatorAttributes lpu_alloc_attr;
+          lpu_alloc_attr.set_on_host(false);
+          lpu_alloc_attr.set_gpu_compatible(true);
+
+          AllocatorAttributes hpu_alloc_attr;
+          hpu_alloc_attr.set_on_host(false);
+          hpu_alloc_attr.set_gpu_compatible(true);
+
+          // since we find it from LookupOrCreateVar, hpu_variable
+          Tensor* hpu_tensor = hpu_variable->tensor();
+
+          // logging the tensor allocation memory size for quantitive analysis
+          if (hpu_tensor->buf_ != nullptr && hpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
+            LogMemory::RecordTensorAllocation("TransferLPU2HPUAllocationUpdate", LogMemory::UNKNOWN_STEP_ID, *hpu_tensor);
+            // 1.
+            // Notice:
+            // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
+          }
+
+          GPUUtil::DeviceToDeviceCopy(
+            lpu_device_context, /* ==> */ hpu_device_context,
+            lpu_device, /* ==> */ hpu_device,
+            lpu_alloc_attr, hpu_alloc_attr,
+            lpu_tensor, /* ==> */ hpu_tensor,
+            0, 
+            [](const Status& s){
+              if (!s.ok()){
+                VLOG(0) << "HPU->LPU MemCpy Fail!";
+              }
+            }
+          ); // End of GPUUtil::DeviceToDeviceCopy
+        } // End of updating HPU stateful variables
+
+      // if branch Var Branch End.
+      } else if (dynamic_cast<Var*>(resource) == nullptr) {
+        // not Var, so is LegacyVar
+        LegacyVar* variable = nullptr;
+        variable = TypeCastFunctor<LegacyVar, false>::Cast(resource);
+
+        // We're acquiring a reference to the underlying buffer while 
+        // holding a shared lock to guarantee ordering of reads and 
+        // writes.
+        tf_shared_lock ml(*variable->mu());
+        const Tensor* lpu_tensor = variable->tensor();
+
+        // Transfer from GPU to CPU
+        // lambda function of creating variable if the LPU does not construct it.
+        auto creator = [this, hpu_device, lpu_device, lpu_tensor](LegacyVar** hpu_variable){
+          // 1.
+          // creator type (i.e. auto real type) lambda signature Explanation:
+          // std::function<Status(T**)>
+
+          // construct LegacyVar lpu_variable
+          *hpu_variable = new LegacyVar(lpu_tensor->dtype());
+          (*hpu_variable)->tensor()->set_shape(lpu_tensor->shape());
+
+          // 1. Construct HPU Tensor; 2. Initialize Tenor values from LPU
+          // use HPU allocator(GPU) to construct the buf_ in the tensor.
+          AllocatorAttributes hpu_alloc_attr;
+          hpu_alloc_attr.set_on_host(false);
+          hpu_alloc_attr.set_gpu_compatible(true);
+          Allocator* hpu_allocator = hpu_device->GetAllocator(hpu_alloc_attr); 
+          Tensor copy(hpu_allocator, lpu_tensor->dtype(), lpu_tensor->shape());
+          *((*hpu_variable)->tensor()) = copy;
+
+          // construct a lpu_attr used in GPUUtil::DeviceToDeviceCopy.
+          AllocatorAttributes lpu_alloc_attr;
+          lpu_alloc_attr.set_on_host(false);
+          lpu_alloc_attr.set_gpu_compatible(true);
+          
+          // transfer LPU(src) tensor to HPU(dst)
+          DeviceContext* hpu_device_context = hpu_device->tensorflow_gpu_device_info()->default_context;
+          DeviceContext* lpu_device_context = lpu_device->tensorflow_gpu_device_info()->default_context;
+          // 1.
+          // default_context explanation:  
+          // gpu_device_info_->default_context = device_contexts_[0] assigned in common_runtime/gpu/gpu_device.cc
+          
+          Tensor* hpu_tensor = (*hpu_variable)->tensor();
+
+          // logging the tensor allocation memory size for quantitive analysis
+          if (hpu_tensor->buf_ != nullptr && hpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
+            LogMemory::RecordTensorAllocation("TransferLPU2HPUAllocationCreate", LogMemory::UNKNOWN_STEP_ID, *hpu_tensor);
+            // 1.
+            // Notice:
+            // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
+          }
+
+          GPUUtil::DeviceToDeviceCopy(
+            lpu_device_context, /* ==> */ hpu_device_context,
+            lpu_device, /* ==> */ hpu_device,
+            lpu_alloc_attr, hpu_alloc_attr,
+            lpu_tensor, /* ==> */ hpu_tensor,
+            0, 
+            [](const Status& s){
+              if (!s.ok()){
+                VLOG(0) << "HPU->LPU MemCpy Fail!";
+              }
+            }
+          );
+          // 1.
+          // dev_to_dev_stream_index Explanation:
+          // Only 1 stream group is created so the index is 0.
+          // Check the log:
+          // https://gist.github.com/shizukanaskytree/1c60070597bdf60fdfd59e8177e9c127
+          
+          // 2.
+          // StatusCallback Explanation:
+          // signature: std::function<void(const Status&)> StatusCallback
+          // defined in tensorflow/core/common_runtime/rendezvous_mgr.h:79
+
+          return Status::OK();
+        };
+
+        LegacyVar* hpu_variable = nullptr;
+        
+        bool is_init = false;
+        // 1.
+        // is_init Explanation:
+        // 1. If variables are constructed and initialized in the LookupOrCreateVar, 
+        // is_init == true  
+        // 2. If not, is_init == false, they've already existed. Only need update. 
+
+        // Lookup by resource name, if null then create via memcpy
+        hpu_resource_mgr->LookupOrCreateVar<LegacyVar>(
+            container, resource_name, &is_init, &hpu_variable, creator);
+
+        // If not by creator:
+        // If not by constructed and initialized, then we need to update those 
+        // stateful vars.
+        if (!is_init){
+          // Update vars by transferring tensors from LPU to HPU
+          DeviceContext* hpu_device_context = hpu_device->tensorflow_gpu_device_info()->default_context;
+          DeviceContext* lpu_device_context = lpu_device->tensorflow_gpu_device_info()->default_context;
+
+          AllocatorAttributes lpu_alloc_attr;
+          lpu_alloc_attr.set_on_host(false);
+          lpu_alloc_attr.set_gpu_compatible(true);
+
+          AllocatorAttributes hpu_alloc_attr;
+          hpu_alloc_attr.set_on_host(false);
+          hpu_alloc_attr.set_gpu_compatible(true);
+
+          // since we find it from LookupOrCreateVar, hpu_variable
+          Tensor* hpu_tensor = hpu_variable->tensor();
+
+          // logging the tensor allocation memory size for quantitive analysis
+          if (hpu_tensor->buf_ != nullptr && hpu_tensor->buf_->data() != nullptr && LogMemory::IsEnabled()) {
+            LogMemory::RecordTensorAllocation("TransferLPU2HPUAllocationUpdate", LogMemory::UNKNOWN_STEP_ID, *hpu_tensor);
+            // 1.
+            // Notice:
+            // LOG(INFO) level can output the above information or say VLOG_IS_ON(1)
+          }
+
+          GPUUtil::DeviceToDeviceCopy(
+            lpu_device_context, /* ==> */ hpu_device_context,
+            lpu_device, /* ==> */ hpu_device,
+            lpu_alloc_attr, hpu_alloc_attr,
+            lpu_tensor, /* ==> */ hpu_tensor,
+            0, 
+            [](const Status& s){
+              if (!s.ok()){
+                VLOG(0) << "HPU->LPU MemCpy Fail!";
+              }
+            }
+          ); // End of GPUUtil::DeviceToDeviceCopy
+        } // End of updating HPU stateful variables
+      
+      } // if branch Legacy Branch End
+    } // End of for loop of each item
+  } // End of for loop of each container
+
+
+  // Deallocate LPU memory after LPU ==> HPU
+  for (auto& lpu_container: lpu_containers) {
+    lpu_resource_mgr->Cleanup(lpu_container);
+  }
+
+  uint64 lpu2hpu_eclipsed_time = Env::Default()->NowMicros() - start_time_usecs;
+  VLOG(0) << "LPU to HPU transfer stateful vars time eclipsed(micro sec): " << lpu2hpu_eclipsed_time;
 }
 
 Status DirectSession::MaybeInitializeExecutionState(
@@ -1651,7 +2115,7 @@ Status DirectSession::Run(const RunOptions& run_options,
   // priority executor.
   if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW &&
       direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)){
-//  if (step_id > 17 && step_id < 21) { // wxf: only for debugging one thread task for lower priority for easy developing
+//  if (step_id > 20 && step_id < 23) { // wxf: only for debugging one thread task for lower priority for easy developing
     // itself is low priority and high priority exists, then get or create low priority executors
     // Get or Create low priority CPU executors
     TF_RETURN_IF_ERROR(GetOrCreateLowPriorityExecutors(input_tensor_names, output_names,
@@ -1659,22 +2123,26 @@ Status DirectSession::Run(const RunOptions& run_options,
                                                        &run_state_args));
 
     // Start to transfer stateful data from GPU to CPU via device resource mgr.
-    if (last_execute_device_ == "" || last_execute_device_ == "GPU"){
-      TransferGPU2CPUStatefulVars();
+    if (last_execute_device_ == "" || last_execute_device_ == "HPU"){
+      //TransferGPU2CPUStatefulVars();
+      TransferHPU2LPUStatefulVars();
     }
-    last_execute_device_ = "CPU";
+    last_execute_device_ = "LPU";
     // End of transferring, start to execute the graph.
  
   } else {
+    // High performance device branch:
+
     TF_RETURN_IF_ERROR(GetOrCreateExecutors(input_tensor_names, output_names,
                                             target_nodes, &executors_and_keys,
                                             &run_state_args));
   
     // Start to transfer stateful data from CPU to GPU via device resource mgr.
-    if (last_execute_device_ != "" && last_execute_device_ == "CPU"){
-      TransferCPU2GPUStatefulVars();
+    if (last_execute_device_ != "" && last_execute_device_ == "LPU"){
+      //TransferCPU2GPUStatefulVars();
+      TransferLPU2HPUStatefulVars();
     }
-    last_execute_device_ = "GPU"; 
+    last_execute_device_ = "HPU"; 
     // End of transferring, start to execute the graph.
   }
 
@@ -3203,9 +3671,8 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
   // wxf 
   // if high priority task exists, then the low priority task uses the low
   // priority executor.
-//  if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW &&
-//      direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)){
-  if (step_id > 20) { // wxf: only for debugging one thread task for lower priority for easy developing
+  if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW &&
+      direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)){
 //  if (step_id > 20 && step_id < 23) { // wxf: only for debugging one thread task for lower priority for easy developing
     {
       tf_shared_lock l(callables_lock_);
@@ -3262,6 +3729,7 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
       
   }else {
     // normal case: original code logic
+    // High performance branch:
     {
       tf_shared_lock l(callables_lock_);
       if (handle >= next_callable_handle_) {
