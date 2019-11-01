@@ -71,7 +71,6 @@ limitations under the License.
 #include "tensorflow/core/util/env_var.h"
 
 
-
 namespace tensorflow {
 
 // Creates an Executor that computes the given "graph".
@@ -185,6 +184,18 @@ class Executor {
     typedef std::function<void()> Closure;
     typedef std::function<void(Closure)> Runner;
     Runner runner = nullptr;
+
+    // wxf
+    // Priority of this ExecutorState instance inherited from DirectSession which
+    // creates this ExecutorState instance. 
+    // It should be initialized by const Executor::Args& args.
+    int executor_state_priority = 0;
+
+    // wxf
+    // It will be initialized as either "LPU" or "HPU", BUT NOT empty "". 
+    // So, it can be used to indicate which device type the current 
+    // DirectSession's Executor/ExecutorImpl/ExecutoState is executing on.
+    string device_type_executing_on = "";
   };
   typedef std::function<void(const Status&)> DoneCallback;
   virtual void RunAsync(const Args& args, DoneCallback done) = 0;
@@ -525,7 +536,32 @@ class ExecutorState {
 
   void RunAsync(Executor::DoneCallback done);
 
+  // wxf
+  // if detect high priority task comes in, freeze the state as catched_.
+  // static is used to for all low priority ExecutorStates.
+  static bool catched_ ;
+  // wxf
+  // Has already entered the Finish function by one thread. Other threads
+  // must not enter again.
+  bool entered_ = false;
+
  private:
+  enum ExecutorStatePriority{
+    HIGH = 2,
+    LOW = 1, 
+    // 0 is reserved.
+  };
+  // wxf
+  // Priority of this ExecutorState instance inherited from DirectSession which
+  // creates this ExecutorState instance. 
+  // It should be initialized by const Executor::Args& args.
+  int executor_state_priority_;
+
+  // wxf
+  // Tell the ExecutorState which device type it is running on now.
+  // It is used to construct the ExecutorState instances.
+  string device_type_executing_on_;
+
   // Either a tensor pointer (pass-by-reference) or a tensor (pass-by-value).
   // TODO(yuanbyu): A better way to do "has_value"?
   struct Entry {
@@ -899,6 +935,12 @@ class ExecutorState {
     const TaggedNode* begin() const { return ready_.begin() + front_index_; }
     const TaggedNode* end() const { return ready_.end(); }
 
+    // wxf
+    void clear() { ready_.clear(); }
+
+    // wxf
+    int size() { return (end()-begin()); }
+
    private:
     gtl::InlinedVector<TaggedNode, 16> ready_;
     int front_index_;
@@ -1140,6 +1182,16 @@ class ExecutorBarrier {
   StatusGroup status_group_ GUARDED_BY(mu_);
 
   void WhenDone(const Status& s) {
+    // wxf
+    // filter the tensorflow::error::CANCELLED status as ok.
+    Status s_new;
+    if (s.code() != tensorflow::error::SESS_RUN_CANCELLED &&
+        s.code() != tensorflow::error::OK) {
+      s_new.Update(s);
+    }
+
+    //~wxf
+    
     Rendezvous* error_rendez = nullptr;
     StatusCallback done = nullptr;
     Status status;
@@ -1149,12 +1201,16 @@ class ExecutorBarrier {
 
       // If we are the first error encountered, trigger an abort of the
       // Rendezvous object by this thread only.
-      if (status_group_.ok() && !s.ok()) {
+      //if (status_group_.ok() && !s.ok()) {
+      // wxf
+      if (status_group_.ok() && !s_new.ok()) {
         error_rendez = rendez_;
         error_rendez->Ref();
       }
 
-      status_group_.Update(s);
+      //status_group_.Update(s);
+      // wxf
+      status_group_.Update(s_new);
 
       // If this is the last call to WhenDone, call the final callback
       // below.

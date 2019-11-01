@@ -25,6 +25,7 @@ limitations under the License.
 #include <iostream>
 
 #include "tensorflow/core/common_runtime/costmodel_manager.h"
+#include "tensorflow/core/common_runtime/direct_session.h" // wxf
 #include "tensorflow/core/common_runtime/executor_factory.h"
 #include "tensorflow/core/common_runtime/pending_counts.h"
 #include "tensorflow/core/common_runtime/step_stats_collector.h"
@@ -72,6 +73,14 @@ limitations under the License.
 //#include "tensorflow/c/c_api.h"
 
 namespace tensorflow {
+// wxf
+DirectSessionsManager* direct_sessions_manager_ = new DirectSessionsManager();
+
+// wxf
+bool ExecutorState::catched_ = false;
+// wxf
+//bool ExecutorState::entered_ = false;
+
 //namespace {
 
 // 1-D, 0 element tensor.
@@ -605,7 +614,19 @@ Status InferAllocAttr(const Node* n, const Node* dst,
 // ---------------------------------------------------------------------
 
 ExecutorState::ExecutorState(const Executor::Args& args, ExecutorImpl* impl)
-    : vlog_(VLOG_IS_ON(1)),
+    : 
+      // wxf
+      // Priority of this ExecutorState instance inherited from DirectSession which
+      // creates this ExecutorState instance. 
+      // It should be initialized by const Executor::Args& args.
+      executor_state_priority_(args.executor_state_priority),
+
+      // wxf
+      // Tell the ExecutorState which device type it is running on now.
+      // It is used to construct the ExecutorState instances.
+      device_type_executing_on_(args.device_type_executing_on),
+
+      vlog_(VLOG_IS_ON(1)),
       log_memory_(LogMemory::IsEnabled()),
       step_id_(args.step_id),
       rendezvous_(args.rendezvous),
@@ -639,6 +660,13 @@ ExecutorState::ExecutorState(const Executor::Args& args, ExecutorImpl* impl)
       root_frame_->pending_counts, root_frame_->total_input_tensors);
 
   outstanding_frames_.insert({root_frame_->frame_name, root_frame_});
+
+  // wxf
+  // reset the global catched_ var after this iteration.
+  if (executor_state_priority_ == ExecutorStatePriority::LOW) {
+    catched_ = false; 
+  }
+  //~wxf
 }
 
 ExecutorState::~ExecutorState() {
@@ -756,7 +784,14 @@ void ExecutorState::RunAsync(Executor::DoneCallback done) {
     delete this;
     done(Status::OK());
   } else {
+    // wxf
+//    VLOG(0) << std::this_thread::get_id() << ", 1. ExecutorState::RunAsync: num_outstanding_ops_: " << num_outstanding_ops_ ;
+
     num_outstanding_ops_ = ready.size();
+
+    // wxf
+//    VLOG(0) << std::this_thread::get_id() << ", 2. ExecutorState::RunAsync: num_outstanding_ops_: " << num_outstanding_ops_ ;
+
     root_frame_->iterations[0]->outstanding_ops = ready.size();
     done_cb_ = std::move(done);
     // Schedule to run all the ready ops in thread pool.
@@ -793,6 +828,27 @@ bool MightTrace(const NodeItem& item,
 }
 
 void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
+
+  // wxf
+  VLOG(0) << "Process node: " << tagged_node.node->id() << " step " << step_id_ << " ";
+//         << SummarizeNode(*(tagged_node.node));
+
+// // python step id ==2 //  0, 1, "2"
+// if (step_id_ == 11 && tagged_node.node->id() == 25) {
+//   // simulate high task enters
+//   direct_sessions_manager_->high_priority_direct_session_count_.fetch_add(1, std::memory_order_relaxed);
+// } 
+//
+// if (step_id_ == 11 && tagged_node.node->id() == 1530) {
+//   // simulate high task exit 
+//   direct_sessions_manager_->high_priority_direct_session_count_.fetch_sub(1, std::memory_order_relaxed);
+// } 
+ 
+
+  //VLOG(0) << std::this_thread::get_id() << ", === ExecutorState::Process: num_outstanding_ops_: " << num_outstanding_ops_ ;
+
+
+
   WithContext wc(context_);
   const GraphView& gview = impl_->gview_;
   TaggedNodeSeq ready;
@@ -806,14 +862,7 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
   OpKernelContext::Params params;
   params.step_id = step_id_;
 
-  // wxf: dynamically change to low priority device once high priority tasks exists
-  // Pseudo Code
-  // if high_priority_tasks_exist() :
-  //   Device* device = impl_->params_.low_priority_device
-  // else:
-  //   Device* device = impl_->params_.device
   Device* device = impl_->params_.device;
-
 
   params.device = device;
   params.log_memory = log_memory_;
@@ -855,6 +904,36 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
   while (!inline_ready.empty()) {
     tagged_node = inline_ready.front();
     inline_ready.pop_front();
+
+//    // wxf
+//    if ( (executor_state_priority_ == ExecutorStatePriority::LOW &&
+//          device_type_executing_on_ == "HPU" &&
+//          direct_sessions_manager_->high_priority_direct_session_count_.\
+//            load(std::memory_order_relaxed)) || 
+//          (catched_ && (executor_state_priority_ == ExecutorStatePriority::LOW)) 
+//       ){
+//      catched_ = true;
+//    
+//      VLOG(0) << std::this_thread::get_id() << ", *** Low priority abort branch Debugging message.";
+//      bool finished = false;
+//      {
+//        mutex_lock l(mu_);
+//        num_outstanding_ops_.fetch_sub(inline_ready.size());
+//        VLOG(0) << std::this_thread::get_id() << ", ExecutorState::Process: num_outstanding_ops_: " << num_outstanding_ops_ ;
+//        if (num_outstanding_ops_.load(std::memory_order_relaxed) == 0) {
+//          finished = true;
+//        }
+//        VLOG(0) << std::this_thread::get_id() << ", ExecutorState::Process: finished: " << finished;
+//        if (finished) {
+//          done_cb_(Status());
+//          //done_cb_(Status());
+//        } 
+//      }
+//      
+//      return;
+//    }
+//    //~wxf
+
     const Node* node = tagged_node.node;
     FrameState* input_frame = tagged_node.input_frame;
     const int64 input_iter = tagged_node.input_iter;
@@ -1064,8 +1143,14 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
     }
   }  // while !inline_ready.empty()
 
+  // wxf
+  //VLOG(0) << std::this_thread::get_id() << ", Process(), Do ScheduleFinish? : completed: " << completed;
+
   // This thread of computation is done if completed = true.
   if (completed) ScheduleFinish();
+
+  // wxf
+//  VLOG(0) << std::this_thread::get_id() << ", Process(), End!";
 }
 
 Status ExecutorState::PrepareInputs(const NodeItem& item, Entry* first_input,
@@ -1415,6 +1500,7 @@ bool ExecutorState::NodeDone(const Status& s, const Node* node,
       status_ = s;
     }
   }
+
   if (abort_run) {
     TRACEPRINTF("StartAbort: %s", s.ToString().c_str());
     if (rendezvous_) {
@@ -1429,22 +1515,101 @@ bool ExecutorState::NodeDone(const Status& s, const Node* node,
   }
 
   bool completed = false;
+
+  // wxf
+  // study how to use cancellation_manager_ StartCancel to abort 
+  // current node execution
+  // 1. If low priority ExecutorState, then we need to consider abort this node execution.
+  //    (short-circuit condition) give the Condition 2 an assumption: it is low priority executor
+  // 2. If the low priority is executing on HPU and high priority tasks exist, must abort.
+  //    (short-circuit condition) Otherwise, it will not skip executing the current node 
+  //    and abort the left graph nodes.
+  // 3. Only high and low co-exist, low will abort. Only high or low will not go into 
+  //    this branch. 
+  // If the data is transferred, only abort the 1st time. Then don't 
+  // go into this branch and abort again and again!
+  if ( (executor_state_priority_ == ExecutorStatePriority::LOW &&
+        device_type_executing_on_ == "HPU" &&
+        direct_sessions_manager_->high_priority_direct_session_count_.\
+          load(std::memory_order_relaxed)) || 
+        (catched_ && (executor_state_priority_ == ExecutorStatePriority::LOW)) 
+     ){
+    catched_ = true;
+    VLOG(0) << std::this_thread::get_id() << ", *** Low priority abort branch Debugging message.";
+    VLOG(0) << std::this_thread::get_id() << ", 1. ExecutorState::NodeDone: :num_outstanding_ops_ " << num_outstanding_ops_;
+
+    if (rendezvous_) {
+      rendezvous_->StartAbort(Status(tensorflow::error::SESS_RUN_CANCELLED, "wxf cancelled"));
+    }
+    if (collective_executor_) {
+      collective_executor_->StartAbort(Status(tensorflow::error::SESS_RUN_CANCELLED, "wxf cancelled"));
+    }
+    if (cancellation_manager_) {
+      cancellation_manager_->StartCancel();
+    }
+
+    if (inline_ready && !inline_ready->empty()) {
+//      VLOG(0) << std::this_thread::get_id() << ", inline_ready->size()" << inline_ready->size();
+      num_outstanding_ops_.fetch_sub(inline_ready->size() + 1); 
+      // pop all inline_ready nodes
+      inline_ready->clear();
+    } else {
+      num_outstanding_ops_.fetch_sub(1);
+    }
+
+//    VLOG(0) << std::this_thread::get_id() << ", 2. ExecutorState::NodeDone: :num_outstanding_ops_ " << num_outstanding_ops_;
+
+    if (num_outstanding_ops_.load(std::memory_order_relaxed) == 0) {
+      completed = true;
+    }
+
+    return completed;
+  }
+  //~wxf
+
   const size_t ready_size = ready.size();
   if (ready_size == 0 || !s.ok()) {
+    // wxf
+//    VLOG(0) << std::this_thread::get_id() << ", 1. ExecutorState::NodeDone: num_outstanding_ops_: " << num_outstanding_ops_ ;
+
     completed = (num_outstanding_ops_.fetch_sub(1) == 1);
+
+    // wxf
+//    VLOG(0) << std::this_thread::get_id() << ", 2. ExecutorState::NodeDone: num_outstanding_ops_: " << num_outstanding_ops_ ;
+
   } else if (ready_size > 1) {
+    // wxf
+//    VLOG(0) << std::this_thread::get_id() << ", 3. ExecutorState::NodeDone: num_outstanding_ops_: " << num_outstanding_ops_ ;
+    
     num_outstanding_ops_.fetch_add(ready_size - 1, std::memory_order_relaxed);
+
+    // wxf
+//    VLOG(0) << std::this_thread::get_id() << ", 4. ExecutorState::NodeDone: num_outstanding_ops_: " << num_outstanding_ops_ ;
   }
 
   // Schedule the ready nodes in 'ready'.
   if (s.ok()) {
     ScheduleReady(ready, inline_ready);
   }
+
+//  // wxf
+//  // python step id ==3 //  0, 1, 2, "3"
+//  if (step_id_ == 11 && node->id() == 0) {
+//    // simulate high task enters
+//    direct_sessions_manager_->high_priority_direct_session_count_.fetch_add(1, std::memory_order_relaxed);
+//  } 
+// 
+//  if (step_id_ == 11 && node->id() == 1530) {
+//    // simulate high task exit 
+//    direct_sessions_manager_->high_priority_direct_session_count_.fetch_sub(1, std::memory_order_relaxed);
+//  } 
+//  // test passed
+//  //~wxf
+
   return completed;
 }
 
 
-// wxf: TODO
 void ExecutorState::ScheduleReady(const TaggedNodeSeq& ready,
                                   TaggedNodeReadyQueue* inline_ready) {
 
@@ -1467,11 +1632,6 @@ void ExecutorState::ScheduleReady(const TaggedNodeSeq& ready,
 	//std::cout << "ScheduleReady Low Pirority" << std::endl;
 	//std::cout << impl_->executors_pool_manager_->high_priority_executors_ref_count_.load(std::memory_order_relaxed) << std::endl;
 	// ~~ debug
-
-//    while(impl_->executors_pool_manager_->high_priority_executors_ref_count_.load(
-//          std::memory_order_relaxed));
-//  }
-
 
   if (ready.empty()) return;
 
@@ -1669,6 +1829,9 @@ void ExecutorState::ScheduleFinish() {
 }
 
 void ExecutorState::Finish() {
+  // wxf 
+  //VLOG(0) << std::this_thread::get_id() << ", ExecutorState::Finish()";
+  //~wxf
   mu_.lock();
   auto status = status_;
   auto done_cb = std::move(done_cb_);

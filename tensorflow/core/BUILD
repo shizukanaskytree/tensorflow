@@ -3144,7 +3144,11 @@ tf_cuda_library(
         "public/session_options.h",
         "public/version.h",
     ],
-    hdrs = CORE_CPU_LIB_HEADERS,
+    hdrs = CORE_CPU_LIB_HEADERS + [
+           # wxf
+           'common_runtime/direct_session.h',
+           'common_runtime/graph_execution_state.h'
+           ],
     copts = tf_copts(),
     deps = [
         ":graph",

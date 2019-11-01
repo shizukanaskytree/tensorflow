@@ -182,7 +182,7 @@ class DirectSessionFactory : public SessionFactory {
     DirectSession* session =
         new DirectSession(options, new DeviceMgr(std::move(devices)), this);
     // Collect DirectSession instances into DirectSessionsManager
-    DirectSession::direct_sessions_manager_->AddDirectSessionAndPriority(&session);
+    direct_sessions_manager_->AddDirectSessionAndPriority(&session);
     {
       mutex_lock l(sessions_lock_);
       /// Set the priority of this DirectSession
@@ -510,9 +510,6 @@ int DirectSession::GetDirectSessionPriority(){
   return direct_session_priority_;
 }
 
-// wxf
-DirectSessionsManager* DirectSession::direct_sessions_manager_ = 
-  new DirectSessionsManager();
 
 // wxf
 void DirectSession::TransferGPU2CPUStatefulVars(){
@@ -1863,6 +1860,17 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
       });
 
   Executor::Args args;
+  // wxf
+  // Priority of this ExecutorState instance inherited from DirectSession which
+  // creates this ExecutorState instance. 
+  // It should be initialized by const Executor::Args& args.
+  args.executor_state_priority = direct_session_priority_;
+
+  // Tell the ExecutorState which device type it is running on now.
+  // It is used to construct the ExecutorState instances.
+  args.device_type_executing_on = last_execute_device_;
+  //~wxf
+
   args.step_id = step_id;
   args.call_frame = call_frame;
   args.rendezvous = run_state.rendez;
@@ -1981,12 +1989,15 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
             low_priority_direct_session_count_.load(std::memory_order_relaxed)){
         // For High Priority tasks
         if (this->GetDirectSessionPriority() == DirectSessionPriority::DIRECTSESSION_PRIORITY_HIGH){
-          // Range: start to limit
+          // Range: [start , limit)
           pool->Schedule(std::move(c));
         }else if (this->GetDirectSessionPriority() == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW){
           // For low priority tasks
           //low_priority_thread_pool_->SleepAll();
-          low_priority_thread_pool_->ScheduleWithHint(std::move(c), 0, 1);
+          //low_priority_thread_pool_->ScheduleWithHint(std::move(c), 0, 16);
+
+          // 2019-10-30 test to not use global threadpool when we use HPU and LPU(GPU)
+          pool->Schedule(std::move(c));
         }
       }else{
         // Either only high or low, use all threads in the threadpool
@@ -2184,7 +2195,8 @@ Status DirectSession::Run(const RunOptions& run_options,
   if (outputs) {
     std::vector<Tensor> sorted_outputs;
     const Status s = call_frame.ConsumeRetvals(
-        &sorted_outputs, /* allow_dead_tensors = */ false);
+        &sorted_outputs, /* allow_dead_tensors = */ true); // modified by wxf
+        //&sorted_outputs, /* allow_dead_tensors = */ false); // original 
     if (errors::IsInternal(s)) {
       return errors::InvalidArgument(s.error_message());
     } else if (!s.ok()) {
@@ -2245,6 +2257,12 @@ Status DirectSession::PRunSetup(const std::vector<string>& input_names,
 
   // Create the run state and save it for future PRun calls.
   Executor::Args args;
+//  // wxf
+//  // Priority of this ExecutorState instance inherited from DirectSession which
+//  // creates this ExecutorState instance. 
+//  // It should be initialized by const Executor::Args& args.
+//  args.executor_state_priority = direct_session_priority_;
+
   args.step_id = step_id_counter_.fetch_add(1);
   RunState* run_state =
       new RunState(input_names, output_names, args.step_id, &devices_);

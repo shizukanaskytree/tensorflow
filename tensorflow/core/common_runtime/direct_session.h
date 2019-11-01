@@ -53,6 +53,10 @@ class Device;
 class DirectSessionFactory;
 class DirectSessionsManager;
 
+// wxf
+extern DirectSessionsManager* direct_sessions_manager_;
+
+
 class DirectSession : public Session {
  public:
   // wxf: define DirectSession Priority
@@ -142,7 +146,7 @@ class DirectSession : public Session {
 
   // -----------------------------------------------------------------------
   // wxf
-  static DirectSessionsManager* direct_sessions_manager_;
+  //static DirectSessionsManager* direct_sessions_manager_;
   // -----------------------------------------------------------------------
 
  private:
@@ -382,6 +386,14 @@ class DirectSession : public Session {
   int direct_session_priority_;
 
   // wxf
+  // Meaning of last_execute_device_: The current DirectSession's last execution devie type.
+  // 1. last_execute_device_ stores the device type for next sess.run 's reference.
+  //    So, next sess.run knows whether it needs to transfer stateful vars or not.
+  // 2. It also indicates the device type that the current sess.run is using.
+  //    Note: Once DirectSession starts to execute DirectSession::RunInternal, last_execute_device_
+  //    is either "LPU" or "HPU", BUT NOT empty "". So, it can be reused to indicate which device
+  //    the current DirectSession is using. More specifically, it indicates which device type
+  //    the DirectSession's Executor/ExecutorImpl/ExecutoState is executing on.
   string last_execute_device_ = "";
 
   // wxf
@@ -541,6 +553,10 @@ class DirectSessionsManager{
   // Update count when DirectSession is deleted in ~DirectSession()
 	void DeleteDirectSession(DirectSession* direct_session);
 	int InquirePriorityByDirectSession(const DirectSession* direct_session);
+
+  // Deem class ExecutorState as friend. So, class ExecutorState can access
+  // DirectSessionsManager inner Priority information.   
+  friend class ExecutorState; 
  private:
   mutex add_mu_;
   mutex delete_mu_;
@@ -548,6 +564,7 @@ class DirectSessionsManager{
 
 	std::unordered_map<DirectSession*, int> direct_session_priority_map_;
 };
+
 
 }  // end namespace tensorflow
 
