@@ -516,7 +516,7 @@ void DirectSession::TransferGPU2CPUStatefulVars(){
   const uint64 start_time_usecs = Env::Default()->NowMicros();
 
   // GPU resource mgr (src)
-  Device* gpu_device = devices_[6];
+  Device* gpu_device = devices_[3];
   ResourceMgr* gpu_resource_mgr = gpu_device->resource_manager();
   // CPU resource mgr (dst)
   Device* cpu_device = devices_[0];
@@ -770,7 +770,7 @@ void DirectSession::TransferCPU2GPUStatefulVars(){
   Device* cpu_device = devices_[0];
   ResourceMgr* cpu_resource_mgr = cpu_device->resource_manager();
   // Get GPU Resource Mgr (dst)
-  Device* gpu_device = devices_[6];
+  Device* gpu_device = devices_[3];
   ResourceMgr* gpu_resource_mgr = gpu_device->resource_manager();
 
   // Iterate all CPU (src) stateful variables per container per item except
@@ -1994,10 +1994,10 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
         }else if (this->GetDirectSessionPriority() == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW){
           // For low priority tasks
           //low_priority_thread_pool_->SleepAll();
-          //low_priority_thread_pool_->ScheduleWithHint(std::move(c), 0, 16);
+          low_priority_thread_pool_->ScheduleWithHint(std::move(c), 0, 2);
 
           // 2019-10-30 test to not use global threadpool when we use HPU and LPU(GPU)
-          pool->Schedule(std::move(c));
+          //pool->Schedule(std::move(c));
         }
       }else{
         // Either only high or low, use all threads in the threadpool
@@ -2135,8 +2135,8 @@ Status DirectSession::Run(const RunOptions& run_options,
 
     // Start to transfer stateful data from GPU to CPU via device resource mgr.
     if (last_execute_device_ == "" || last_execute_device_ == "HPU"){
-      //TransferGPU2CPUStatefulVars();
-      TransferHPU2LPUStatefulVars();
+      TransferGPU2CPUStatefulVars();
+      //TransferHPU2LPUStatefulVars();
     }
     last_execute_device_ = "LPU";
     // End of transferring, start to execute the graph.
@@ -2150,8 +2150,8 @@ Status DirectSession::Run(const RunOptions& run_options,
   
     // Start to transfer stateful data from CPU to GPU via device resource mgr.
     if (last_execute_device_ != "" && last_execute_device_ == "LPU"){
-      //TransferCPU2GPUStatefulVars();
-      TransferLPU2HPUStatefulVars();
+      TransferCPU2GPUStatefulVars();
+      //TransferLPU2HPUStatefulVars();
     }
     last_execute_device_ = "HPU"; 
     // End of transferring, start to execute the graph.
@@ -3737,8 +3737,8 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
 
     // Start to transfer stateful data from HPU to LPU via device resource mgr.
     if (last_execute_device_ == "" || last_execute_device_ == "HPU"){
-      //TransferGPU2CPUStatefulVars();
-      TransferHPU2LPUStatefulVars();
+      TransferGPU2CPUStatefulVars();
+      //TransferHPU2LPUStatefulVars();
     }
     last_execute_device_ = "LPU";
     // End of transferring, start to execute the graph.
@@ -3792,8 +3792,8 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
   
     // Start to transfer stateful data from LPU to HPU via device resource mgr.
     if (last_execute_device_ != "" && last_execute_device_ == "LPU"){
-      //TransferCPU2GPUStatefulVars();
-      TransferLPU2HPUStatefulVars();
+      TransferCPU2GPUStatefulVars();
+      //TransferLPU2HPUStatefulVars();
     }
     last_execute_device_ = "HPU"; 
     // End of transferring, start to execute the graph.
