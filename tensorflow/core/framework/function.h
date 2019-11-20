@@ -286,6 +286,9 @@ class FunctionCallFrame : public CallFrameInterface {
   // false it will fail if any of the retvals do not have a value.
   Status ConsumeRetvals(std::vector<Tensor>* rets, bool allow_dead_tensors);
 
+  // wxf
+  bool NeedReexecute();
+
   size_t num_args() const override { return arg_types_.size(); }
   size_t num_retvals() const override { return ret_types_.size(); }
 

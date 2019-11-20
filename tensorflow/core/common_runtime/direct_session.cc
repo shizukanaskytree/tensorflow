@@ -2193,10 +2193,19 @@ Status DirectSession::Run(const RunOptions& run_options,
                                  executors_and_keys, run_metadata));
   // Receive outputs.
   if (outputs) {
+    // wxf:
+    // If we detect that any output tensor is dead, re-execute it on LPU.
+    if (call_frame.NeedReexecute()) {
+      VLOG(0) << "NEED Re-execute";
+      Run(run_options, inputs, output_names, target_nodes, outputs, run_metadata);
+    }
+    //~wxf
+
     std::vector<Tensor> sorted_outputs;
     const Status s = call_frame.ConsumeRetvals(
         &sorted_outputs, /* allow_dead_tensors = */ true); // modified by wxf
         //&sorted_outputs, /* allow_dead_tensors = */ false); // original 
+
     if (errors::IsInternal(s)) {
       return errors::InvalidArgument(s.error_message());
     } else if (!s.ok()) {

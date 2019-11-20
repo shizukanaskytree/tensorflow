@@ -988,6 +988,19 @@ Status FunctionCallFrame::ConsumeRetvals(std::vector<Tensor>* rets,
   return Status::OK();
 }
 
+// wxf
+// To test whether it has dead output tensors or not, logic similar to 
+// FunctionCallFrame::ConsumeRetvals
+bool FunctionCallFrame::NeedReexecute(){
+  bool need_reexecute = false;
+  for (size_t i = 0; i < rets_.size(); ++i) {
+    if (!rets_[i].has_val) {
+      need_reexecute = true;
+    }
+  }
+  return need_reexecute;
+}
+
 Status FunctionCallFrame::GetArg(int index, Tensor* val) const {
   if (index < 0 || static_cast<size_t>(index) >= args_.size()) {
     return errors::InvalidArgument("GetArg ", index, " is not within [0, ",

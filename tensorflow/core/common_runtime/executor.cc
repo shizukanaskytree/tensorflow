@@ -830,7 +830,10 @@ bool MightTrace(const NodeItem& item,
 void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
 
   // wxf
-  VLOG(0) << "Process node: " << tagged_node.node->id() << " step " << step_id_ << " ";
+  // useful to test terminal of graph
+  // ===
+  //VLOG(0) << "Process node: " << tagged_node.node->id() << " step " << step_id_ << " ";
+  // ~~~
 //         << SummarizeNode(*(tagged_node.node));
 
 // // python step id ==2 //  0, 1, "2"
