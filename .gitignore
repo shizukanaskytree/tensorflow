@@ -43,3 +43,9 @@ gradleBuild
 Podfile.lock
 Pods
 xcuserdata
+
+# IDE
+.cproject
+.project
+.pydevproject
+.settings/
