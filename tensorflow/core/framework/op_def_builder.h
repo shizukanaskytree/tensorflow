@@ -36,6 +36,7 @@ class InferenceContext;
 typedef std::function<Status(shape_inference::InferenceContext* c)>
     OpShapeInferenceFn;
 
+// 这个结构体感觉仅仅是用来封装这个 OpDef 的
 struct OpRegistrationData {
  public:
   OpRegistrationData() {}
@@ -48,6 +49,12 @@ struct OpRegistrationData {
   OpShapeInferenceFn shape_inference_fn;
   bool is_function_op = false;
 };
+// struct OpRegistrationData 数据结构
+// tensorflow/core/framework/op_def_builder.h
+// - op_def: OpDef
+// - shape_inference_fn: OpShapeInferenceFn
+// - is_function_op: bool, default : false
+
 
 // Builder class passed to the REGISTER_OP() macro.
 class OpDefBuilder {

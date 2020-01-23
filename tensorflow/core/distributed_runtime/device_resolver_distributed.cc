@@ -18,6 +18,24 @@ limitations under the License.
 #include "tensorflow/core/distributed_runtime/worker_cache.h"
 
 namespace tensorflow {
+
+/** \brief DeviceResolverDistributed Constructor
+ *
+ *  \details DeviceResolverDistributed 1. get device locality information; 2.
+ *           clear all devices' attributes belonging to that target name.
+ *
+ *  \param dev_mgr: DeviceMgr* ;
+ *         Manage a list of devices, including lookup devices, their attributes.
+ *
+ *  \param worker_cache: WorkerCacheInterface*
+ *         WorkerCacheInterface provides interface for 1. list workers' names;
+ *         2. list workers' name of a job name; 3. create worker with a name;
+ *         4. destory a worker; 5. get device locality information of a device;
+ *         6. logging.
+ *
+ *  \param task_name: string&;
+ *         e.g., "/job:localhost/replica:0/task:0"
+ */
 DeviceResolverDistributed::DeviceResolverDistributed(
     const DeviceMgr* dev_mgr, WorkerCacheInterface* worker_cache,
     const string& task_name)

@@ -36,15 +36,23 @@ OpSegment::~OpSegment() {
 }
 
 Status OpSegment::FindOrCreate(const string& session_handle,
-                               const string& node_name, OpKernel** kernel,
+                               const string& node_name,
+                               OpKernel** kernel,
                                CreateKernelFn create_fn) {
   {
     mutex_lock l(mu_);
+    // ./tensorflow/core/lib/gtl/map_util.h:64:
+    //   typename Collection::value_type::second_type FindPtrOrNull(
+    // 在 sessions_ 里面找 sessions_.key 为 session_handle 的 sessions_.value
     auto item = gtl::FindPtrOrNull(sessions_, session_handle);
     if (item == nullptr) {
       return errors::NotFound("Session ", session_handle, " is not found.");
     }
+
+    // name_kernel: KernelMap
+    //   typedef std::unordered_map<string, OpKernel*> KernelMap;
     *kernel = gtl::FindPtrOrNull(item->name_kernel, node_name);
+
     if (*kernel != nullptr) {
       return Status::OK();
     }
@@ -60,6 +68,7 @@ Status OpSegment::FindOrCreate(const string& session_handle,
     if (item == nullptr) {
       return errors::NotFound("Session ", session_handle, " is not found.");
     }
+    // op_kernel.h, class OpKernel
     OpKernel** p_kernel = &(item->name_kernel[node_name]);
     if (*p_kernel == nullptr) {
       *p_kernel = *kernel;  // Inserts 'kernel' in the map.

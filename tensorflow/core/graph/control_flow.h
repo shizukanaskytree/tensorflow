@@ -29,6 +29,11 @@ struct ControlFlowInfo {
   const Node* parent_frame = nullptr;  // parent frame of a node
   string frame_name;                   // frame name of a node
 };
+// struct ControlFlowInfo 数据结构
+// tensorflow/core/graph/control_flow.h
+// - frame: const Node*
+// - parent_frame: const Node*
+// - frame_name: string
 
 // Clear and populate `info` with each node's frame and the level it belongs to.
 // We check the well-formedness of the graph:

@@ -26,6 +26,12 @@ namespace tensorflow {
 // Resource stored by variables in the resource manager
 // (legacy, ref-style version).
 class LegacyVar : public ResourceBase {
+  // 1.
+  // 参考 :
+  // class Var
+  // class Var : public ResourceBase
+  // tensorflow/core/framework/resource_var.h
+
  public:
   explicit LegacyVar(DataType dtype) : tensor_(dtype) {}
   // Not copyable or movable.
@@ -33,50 +39,238 @@ class LegacyVar : public ResourceBase {
   LegacyVar& operator=(const LegacyVar&) = delete;
 
   mutex* mu() { return &mu_; }
+
+  // =======================================================================
   Tensor* tensor() { return &tensor_; }
+  // =======================================================================
+  // 1.
+  // tensor_ 变量说明:
+  // tensor_: Tensor 就是 VariableOp 真真正正的存的 persistent 值.
+  //
+  // 比如:
+  // 2019-10-04 20:25:10.277766:
+  // I tensorflow/core/common_runtime/executor.cc:888]
+  // Process node: 2 step 3 {{node W}} = VariableV2[_class=["loc:@assign_W"],
+  // container="", dtype=DT_FLOAT, shape=[1], shared_name="",
+  // _device="/job:localhost/replica:0/task:0/device:CPU:0"]()
+  // device: /job:localhost/replica:0/task:0/device:CPU:0
+
 
   string DebugString() const override {
     return strings::StrCat(DataTypeString(tensor_.dtype()), "/",
                            tensor_.shape().DebugString());
   }
+  // 1.
+  // DebugString 函数用途
+  // 在 tensorflow/core/framework/resource_mgr.cc 中的
+  // Line l{
+  //         &container,
+  //         port::Demangle(type),
+  //         &resource,
+  //         q.second->DebugString()  // ResourceBase*
+  //       };
+  // 里面用到了
+
+  // 2.
+  // 打印:
+  // "float/[25,15]"
 
  private:
   mutex mu_;
+  // -----------------------------------------------------------------------
   Tensor tensor_;
+  // -----------------------------------------------------------------------
+  // 1.
+  // tensor_ 说明:
+  // 这个 tensor_ 的构造是在 VariableOp::Compute 内:
+  // auto creator = [this](LegacyVar** var) { // output
+  //   *var = new LegacyVar(dtype_); // 构造，作为输出
+  //   (*var)->tensor()->set_shape(shape_);
+  //   return Status::OK();
+  // };
+  // 1.
+  // creator 等价
+  // Status creator(LegacyVar** var)
 
   ~LegacyVar() override {}
 };
+// 1.
+// class LegacyVar 数据结构
+// class LegacyVar : public ResourceBase
+// tensorflow/core/kernels/variable_ops.cc
+// - tensor_: Tensor
+// - mu_: mutex
+
+// 2.
+// class Var 数据结构
+// class Var : public ResourceBase
+// tensorflow/core/framework/resource_var.h
+// - tensor_: Tensor
+// - is_initialized: bool, default_value: false
+// - copy_on_read_mode: std::atomic<bool>, default_value: false
+
 
 VariableOp::VariableOp(OpKernelConstruction* context) : OpKernel(context) {
+  // class OpKernelConstruction 数据结构
+  // tensorflow/core/framework/op_kernel.h:264
+  // 被构造是在 CreateOpKernel, tensorflow/core/framework/op_kernel.cc
+
   OP_REQUIRES_OK(context, context->GetAttr("shape", &shape_));
+
   dtype_ = RemoveRefType(context->output_type(0));
 }
 
+
+// -----------------------------------------------------------------------
+
 void VariableOp::Compute(OpKernelContext* ctx) {
   mutex_lock l(init_mu_);
+
   if (!initialized_) {
-    OP_REQUIRES_OK(ctx, cinfo_.Init(ctx->resource_manager(), def(),
+    OP_REQUIRES_OK(ctx, cinfo_.Init(ctx->resource_manager(), // 初始化 cinfo_ 的 ResourceMgr*
+                                    def(),
                                     true /* use name() */));
+    // 1.
+    // VariableOp::cinfo_ 变量说明:
+    // cinfo_: ContainerInfo
+
+    // 2.
+    // class ContainerInfo 数据结构
+    // tensorflow/core/framework/resource_mgr.h
+    // - rmgr: ResourceMgr*, default: nullptr
+    // - container_: string
+    // - name_: string
+    // - resource_is_private_to_kernel_: bool, default: false
+
+    // 3.
+    // ContainerInfo::Init 函数说明:
+    // tensorflow/core/framework/resource_mgr.h
+    // tensorflow/core/framework/resource_mgr.cc
+    // Status Init(ResourceMgr* rmgr,
+    //             const NodeDef& ndef,
+    //             bool use_node_name_as_default);
+
     initialized_ = true;
   }
-  auto creator = [this](LegacyVar** var) {
-    *var = new LegacyVar(dtype_);
+
+  // =======================================================================
+  // 如果这个变量已经初始化过了，这次会取出在 resource_manager 里面的值
+  // =======================================================================
+
+  // 函数体
+  auto creator = [this](LegacyVar** var) { // output
+    *var = new LegacyVar(dtype_); // 构造，作为输出
     (*var)->tensor()->set_shape(shape_);
     return Status::OK();
   };
+  // 1.
+  // creator 等价
+  // Status creator(LegacyVar** var)
+
   LegacyVar* var;
-  OP_REQUIRES_OK(ctx, cinfo_.resource_manager()->LookupOrCreate<LegacyVar>(
-                          cinfo_.container(), cinfo_.name(), &var, creator));
+
+  OP_REQUIRES_OK(ctx,
+                 cinfo_.resource_manager()->LookupOrCreate<LegacyVar>(
+                                              cinfo_.container(), // input
+                                              cinfo_.name(), // input
+                                              &var, // output
+                                              creator)); // input
+  // 1.
+  // cinfo_ 变量说明
+  // class VariableOp : public OpKernel 类内的 成员变量
+  // ContainerInfo cinfo_ GUARDED_BY(init_mu_);
+
+  // 2.
+  // class ContainerInfo 数据结构
+  // tensorflow/core/framework/resource_mgr.h
+  // - rmgr: ResourceMgr*, default: nullptr
+  // - container_: string
+  // - name_: string
+  // - resource_is_private_to_kernel_: bool, default: false
+
+  // 3.
+  // cinfo_.resource_manager() 函数说明
+  // ResourceMgr* resource_manager() const { return rmgr_; }
+  // tensorflow/core/framework/resource_mgr.h
+  // 函数返回 rmgr_: ResourceMgr*
+
+  // 4.
+  // LookupOrCreate 函数说明:
+  //
+  // template <typename T, bool use_dynamic_cast>
+  // Status ResourceMgr::LookupOrCreate(const string& container,
+  //                                    const string& name,
+  //                                    T** resource,
+  //                                    std::function<Status(T**)> creator)
+  //
+  // tensorflow/core/framework/resource_mgr.h
+
+  // 5.
+  // 打印
+  // cinfo_.container(): "localhost"
+  // cinfo_.name(): "W"
+  //
+
+
   // Output a reference to our tensor, so it may be updated.
   //
   // As long as the resource manager hasn't been cleared the ref we return
   // here is valid because it owns a ref on var.
-  ctx->set_output_ref(0, var->mu(), var->tensor());
+  ctx->set_output_ref(0, // input
+                      var->mu(),  // input
+                      var->tensor()); // input
+  // 1.
+  // ctx 变量说明:
+  // ctx: OpKernelContext*
+  // ======================================================================
+  // 目的:
+  // ctx 的 output_[0] 会指向 此 Op 内的 Tensor 值，这个 op compute 主要就是干这个，取值而已。
+  // ======================================================================
+
+  // 2.
+  // set_output_ref 函数说明：
+  // 概述:
+  // 把 LegacyVar::tensor_ 的指针赋值给 OpKernelContext::outputs_, 类型是 gtl::InlinedVector<TensorValue, 4> outputs_;
+  //
+  // tensorflow/core/framework/op_kernel.cc:821:
+  // void OpKernelContext::set_output_ref(
+  //                         int index,
+  //                         mutex* mu,
+  //                         Tensor* tensor_for_ref)
+
+  // 3.
+  // QQQ. 为什么是硬编码 0 作为 index？
+  // AAA. 因为它知道只有一个吧。
+  // 2019-10-01 21:21:58.624203: I tensorflow/core/common_runtime/executor.cc:888] Process node: 3 step 1 {{node v4}} = VariableV2[_class=["loc:@v4/Assign"], container="", dtype=DT_FLOAT, shape=[25,15], shared_name="", _device="/job:localhost/replica:0/task:0/device:GPU:0"]() device: /job:localhost/replica:0/task:0/device:GPU:0
+
+  // 4.
+  // var->tensor() 变量说明:
+  // 打印
+  // p tensor_for_ref->DebugString() # 说明，我是进入 set_output_ref 后打印的。
+  // $28 = "Tensor<type: float shape: [25,15] values: uninitialized Tensor of 375 elements of type 1>"
+
   if (ctx->track_allocations() && var->tensor()->IsInitialized()) {
-    ctx->record_persistent_memory_allocation(var->tensor()->AllocatedBytes());
+    ctx->record_persistent_memory_allocation(
+      var->tensor()->AllocatedBytes());
   }
+
   var->Unref();
 }
+/*
+结束时我又打印了一次，这次不为空了。
+p ctx->resource_manager()->DebugString()
+$31 = "localhost            | N10tensorflow9LegacyVarE                 | v4                                       | float/[25,15]"
+
+逐项对应
+
+line.container->c_str(),
+line.type.c_str(),
+line.resource->c_str(),
+line.detail.c_str()));
+
+tensorflow/core/framework/resource_mgr.cc
+*/
+
 
 class TemporaryVariableOp : public OpKernel {
  public:

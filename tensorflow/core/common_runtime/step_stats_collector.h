@@ -89,6 +89,51 @@ class NodeExecStatsInterface {
   // runnable (i.e. was scheduled for execution).
   virtual void SetScheduled(int64 nanos) = 0;
 };
+// 1.
+// class NodeExecStatsInterface 数据结构:
+// tensorflow/core/common_runtime/step_stats_collector.h
+//
+// 概述
+// Statistics collection interface for individual node execution.
+//
+// See `NodeExecStatsWrapper` for a concrete implementation of this interface
+// that interfaces with the `Session` layer.
+//
+// 纯虚函数
+//
+// 1.1
+// 继承类
+// - class NodeExecStatsWrapper [final]
+//   tensorflow/core/common_runtime/step_stats_collector.h
+// - class SimpleNodeExecStats [final]
+//   tensorflow/core/kernels/data/captured_function.cc
+//
+// 1.2
+// 接口函数:
+// - void Done(const string& device)
+//   Called when the statistics collection for the node has finished. Once this
+//   method is called, the caller should not make assumptions about the validity
+//   of this object.
+// - void RecordExecutorStarted()
+//   Called immediately after this node starts being processed by the executor.
+// - void RecordComputeStarted()
+//   Called immediately before this node's `Compute()` or `ComputeAsync()` method is called.
+// - void RecordComputeEnded()
+//   Called immediately after this node's `Compute()` method returned (or, for asynchronous operations, the callback passed to its `ComputeAsync()` method was called).
+// - void RecordExecutorEnded()
+//   Called immediately after this executor finishes processing this node.
+// - bool TrackAllocations() const
+//   Returns `true` if this object should track memory allocations.
+// - void SetMemory(OpKernelContext* ctx)
+//   Records information about the memory allocated during the execution of this node.
+//   Takes ownership of any `TrackingAllocator` objects stored in `ctx`.
+// - void SetOutput(int slot, const Tensor* tensor)
+//   Records information about the tensor produced by this node at the given output slot.
+// - void SetReferencedTensors(const TensorReferenceVector& tensors)
+//   Records information about the tensors that were accessed during the execution of this node.
+// - void SetScheduled(int64 nanos)
+//   Records the absolute time in nanoseconds at which this node became runnable (i.e. was scheduled for execution).
+
 
 // Wraps NodeExecStats and adds allocation to it.
 class NodeExecStatsWrapper : public NodeExecStatsInterface {
@@ -154,13 +199,38 @@ class StepStatsCollectorInterface {
   // on /job:localhost/replica:0/task:0/device:GPU:0 by allocator GPU_0_bfc"
   virtual string ReportAllocsOnResourceExhausted(const string& err) = 0;
 };
+// 1.
+// class StepStatsCollectorInterface 数据结构
+// 纯虚函数
+// - NodeExecStatsInterface* CreateNodeExecStats(const Node* node)
+//   Creates an instance of `NodeExecStatsInterface` that should be used for
+//   collecting statistics about individual node execution.
+// - string ReportAllocsOnResourceExhausted(const string& err)
+//   Generates a string reporting the currently used memory based
+//   on ResourceExhausted OOM `err` message.
+//   `err` message needs to contain device name and allocator name, e.g.:
+//   "ResourceExhaustedError: OOM when allocating tensor ...
+//   on /job:localhost/replica:0/task:0/device:GPU:0 by allocator GPU_0_bfc"
+
+// 1.1
+// class StepStatsCollectorInterface 继承类
+// - class StepStatsCollector
+//   tensorflow/core/common_runtime/step_stats_collector.h
+// - class SimpleStepStatsCollector
+//   tensorflow/core/kernels/data/captured_function.cc
+
 
 // StepStatsCollector manages the collection of a StepStats object.
 // The StepStats object holds multiple DeviceStats.
 // Each DeviceStats object holds multiple NodeExecStats.
+/////////////////////////////////////////////////////////////////////////
+/// step_stats[out]: message StepStats*
+/// 这个类的主要目的就是 为了 填充 step_stats
+/////////////////////////////////////////////////////////////////////////
 class StepStatsCollector : public StepStatsCollectorInterface {
  public:
   // Does not take ownership of `step_stats`.
+  /// step_stats: message StepStats*
   explicit StepStatsCollector(StepStats* step_stats);
 
   // BuildCostModel builds or updates a CostModel managed by cost_model_manager,

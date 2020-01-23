@@ -75,6 +75,40 @@ class DeviceMgr {
 
   TF_DISALLOW_COPY_AND_ASSIGN(DeviceMgr);
 };
+// 1.1
+// class DeviceMgr 数据结构说明:
+// tensorflow/core/common_runtime/device_mgr.h
+// - devices_: const std::vector<std::unique_ptr<Device>>
+// - device_map_: std::unordered_map<StringPiece, Device*, StringPieceHasher>
+// - name_backing_store_: core::Arena
+// - device_type_counts_: std::unordered_map<string, int>
+
+// 1.2
+// message DeviceAttributes 数据结构
+// tensorflow/core/framework/device_attributes.proto
+// - name: string
+// - device_type: string
+// - memory_limit: int64
+// - locality: DeviceLocality
+// - incarnation: fixed64
+// - physical_device_desc: string
+
+// 1.2.1
+// message DeviceLocality 数据结构说明:
+// - bus_id: int32
+// - numa_node: int32
+// - links: LocalLinks
+
+// 1.2.2
+// message LocalLinks 数据结构说明:
+// - link: repeated InterconnectLink , i.e., vector of InterconnectLink instance
+
+// 1.2.3
+// message InterconnectLink 数据结构说明:
+// - device_id: int32
+// - type: string
+// - strength: int32
+
 
 }  // namespace tensorflow
 

@@ -35,6 +35,12 @@ void OutputToLog(const T& proto) {
   LOG(INFO) << LogMemory::kLogMemoryLabel << " " << type_name << " { "
             << ProtoShortDebugString(proto) << " }";
 }
+// 1.
+// OutputToLog 函数说明:
+// void OutputToLog(const T& proto)
+// tensorflow/core/framework/log_memory.cc
+// 核心操作 : ProtoShortDebugString(proto)
+
 
 }  // namespace
 
@@ -49,10 +55,66 @@ void LogMemory::RecordTensorAllocation(const string& kernel_name,
                                        const int64 step_id,
                                        const Tensor& tensor) {
   MemoryLogTensorAllocation allocation;
+  // 1.
+  // message MemoryLogTensorAllocation 数据结构
+  // tensorflow/core/framework/log_memory.proto
+  // - step_id: int64
+  // - kernel_name: string
+  // - tensor: TensorDescription
+
+  // 1.2.
+  // message TensorDescription 数据结构
+  // tensorflow/core/framework/tensor_description.proto
+  // - dtype: DataType
+  //   Data type of tensor elements
+  // - shape: TensorShapeProto
+  //   Shape of the tensor.
+  // - allocation_description: AllocationDescription
+  //   Information about the size and allocator used for the data
+
+  // 1.3.
+  // tensorflow/core/framework/allocation_description.proto
+  // message AllocationDescription 数据结构
+  // tensorflow/core/framework/allocation_description.proto
+  // - requested_bytes: int64
+  //   Total number of bytes requested
+  // - allocated_bytes: int64
+  //   Total number of bytes allocated if known
+  // - allocator_name: string
+  //   Name of the allocator used
+  // - allocation_id: int64
+  //   Identifier of the allocated buffer if known
+  // - has_single_reference: bool
+  //   Set if this tensor only has one remaining reference
+  // - ptr: uint64
+  //   Address of the allocation.
+
+  // 2.
+  // 使用的例子
+  // 2.1
+  // LogMemory::RecordTensorAllocation("Unknown (with attributes)", LogMemory::UNKNOWN_STEP_ID, *this);
+  // tensorflow/core/framework/tensor.cc
+  // 2.2
+  // LogMemory::RecordTensorAllocation("Unknown (from Proto)", LogMemory::UNKNOWN_STEP_ID, *this);
+  // tensorflow/core/framework/tensor.cc
+  // 2.3
+  // LogMemory::RecordTensorAllocation(def_->name(), LogMemory::OP_KERNEL_CONSTRUCTION_STEP_ID, new_temp);
+  // tensorflow/core/framework/op_kernel.cc
+  // 2.4
+  // LogMemory::RecordTensorAllocation(params_->op_kernel->name(), params_->step_id, new_tensor);
+  // tensorflow/core/framework/op_kernel.cc
+
   allocation.set_step_id(step_id);
   allocation.set_kernel_name(kernel_name);
   tensor.FillDescription(allocation.mutable_tensor());
+
+
   OutputToLog(allocation);
+  // 1.
+  // OutputToLog 函数说明:
+  // void OutputToLog(const T& proto)
+  // tensorflow/core/framework/log_memory.cc
+  // 核心操作 : ProtoShortDebugString(proto)
 }
 
 void LogMemory::RecordTensorDeallocation(const int64 allocation_id,

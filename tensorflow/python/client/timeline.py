@@ -248,8 +248,11 @@ class _ChromeTraceFormatter(object):
   def format_to_string(self, pretty=False):
     """Formats the chrome trace to a string.
 
+    # -----------------------------------------------------------------------
+    # TODO: 记得把这个设置成 True, 方便我查。
     Args:
       pretty: (Optional.)  If True, produce human-readable JSON output.
+    # -----------------------------------------------------------------------
 
     Returns:
       A JSON-formatted string in Chrome Trace format.
@@ -359,7 +362,16 @@ class Timeline(object):
       graph: (Optional) The 'Graph' that was executed.
     """
 
+    # -----------------------------------------------------------------------
+    # run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+    # run_metadata = tf.RunMetadata()
+    # trace = timeline.Timeline(step_stats=run_metadata.step_stats)
+    # with open('timeline.ctf.json', 'w') as f:
+    #   f.write(trace.generate_chrome_trace_format())
+    #
     self._step_stats = step_stats
+    # This variable stores start and end information of an op.
+    # -----------------------------------------------------------------------
     self._graph = graph
     self._chrome_trace = _ChromeTraceFormatter()
     self._next_pid = 0
@@ -521,8 +533,10 @@ class Timeline(object):
 
       for node_stats in dev_stats.node_stats:
         tid = node_stats.thread_id
+        # -----------------------------------------------------------------------
         start_time = node_stats.all_start_micros
         end_time = node_stats.all_start_micros + node_stats.all_end_rel_micros
+        # -----------------------------------------------------------------------
         self._emit_op(node_stats, device_pid, is_gputrace)
 
         if is_gputrace or node_stats.node_name == 'RecvTensor':
@@ -618,7 +632,13 @@ class Timeline(object):
         chrome_trace=self._chrome_trace,
         allocator_maximums=self._allocator_maximums)
 
+  # -----------------------------------------------------------------------
+  # trace = timeline.Timeline(step_stats=run_metadata.step_stats)
+  # with open('timeline.ctf.json', 'w') as f:
+  #   f.write(trace.generate_chrome_trace_format(show_dataflow=True,
+  #                                              show_memory=True))
   def generate_chrome_trace_format(self, show_dataflow=True, show_memory=False):
+  # -----------------------------------------------------------------------
     """Produces a trace in Chrome Trace Format.
 
     Args:
@@ -630,6 +650,12 @@ class Timeline(object):
     Returns:
       A JSON formatted string in Chrome Trace format.
     """
+    # -----------------------------------------------------------------------
+    # with open('timeline.ctf.json', 'w') as f:
+    #   f.write(trace.generate_chrome_trace_format())
+    #
+    # TODO: 记得把 show_memory 设置成 True.
+    # -----------------------------------------------------------------------
     step_stats_analysis = self.analyze_step_stats(
         show_dataflow=show_dataflow, show_memory=show_memory)
 

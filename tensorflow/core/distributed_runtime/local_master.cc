@@ -213,12 +213,33 @@ struct MasterInfo {
 };
 
 typedef std::unordered_map<string, MasterInfo> LocalMasterRegistry;
+/** \brief Create an unorder map to store the target string (ip:port string)
+ *         with Master grpc service into an unorder map.
+ *         i.e., ip:port string <-> {class Master, timeout}
+ *         class Master is responsible for grpc service functions:
+ *         1. Create a session; 2. extend a session; 3. close a session;
+ *         4. run a step of the graph; 5. list devices;
+ */
 LocalMasterRegistry* local_master_registry() {
   static LocalMasterRegistry* local_master_registry_ = new LocalMasterRegistry;
   return local_master_registry_;
 }
 }  // namespace
 
+/** \brief Store the target string (ip:port string) with Master grpc service
+ *         into an unorder map, i.e., ip:port string <-> {class Master, timeout}
+ *
+ *  \param target: const string& ;
+ *         For example, "localhost:2223"
+ *
+ *  \param master: Master*
+ *         class Master is responsible for grpc service functions:
+ *         1. Create a session; 2. extend a session; 3. close a session;
+ *         4. run a step of the graph; 5. list devices;
+ *
+ *  \param default_timeout_in_ms: int64
+ *
+ */
 /* static */
 void LocalMaster::Register(const string& target, Master* master,
                            int64 default_timeout_in_ms) {
@@ -227,6 +248,21 @@ void LocalMaster::Register(const string& target, Master* master,
       {target, MasterInfo(master, default_timeout_in_ms)});
 }
 
+/** \brief Get the LocalMaster class which provide Session interface functions.
+ *         class Master is responsible for grpc service functions:
+ *         1. Create a session; 2. extend a session; 3. close a session;
+ *         4. run a step of the graph; 5. list devices;
+ *
+ *  \param[in] target: const string& ;
+ *         The name of the target, i.e., "ip:port", e.g., "localhost:2223".
+ *
+ *  \return std::unique_ptr<LocalMaster> ;
+ *         As a contrast to Remote Master, Remote Master is in a process, client
+ *         is in another process. LocalMaster enables direct intraprocess
+ *         communication between the client and master implementation.
+ *
+ *   \details Local master registry has local master inside, so ret is nullptr.
+ */
 /* static */
 std::unique_ptr<LocalMaster> LocalMaster::Lookup(const string& target) {
   std::unique_ptr<LocalMaster> ret;

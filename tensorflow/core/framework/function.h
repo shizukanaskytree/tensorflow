@@ -130,8 +130,10 @@ class FunctionDefHelper {
   // - `control_ret_def` holds a mapping from the function control
   //   output names to the nodes from `node_def`.
   static FunctionDef Create(
-      const string& function_name, gtl::ArraySlice<string> in_def,
-      gtl::ArraySlice<string> out_def, gtl::ArraySlice<string> attr_def,
+      const string& function_name,
+      gtl::ArraySlice<string> in_def,
+      gtl::ArraySlice<string> out_def,
+      gtl::ArraySlice<string> attr_def,
       gtl::ArraySlice<Node> node_def,
       gtl::ArraySlice<std::pair<string, string>> ret_def,
       gtl::ArraySlice<std::pair<string, string>> control_ret_def);
@@ -274,7 +276,10 @@ class CallFrameInterface {
 //   2. GetRetvals happens after all SetRetval();
 class FunctionCallFrame : public CallFrameInterface {
  public:
-  FunctionCallFrame(DataTypeSlice arg_types, DataTypeSlice ret_types);
+  FunctionCallFrame(
+    DataTypeSlice arg_types,
+    DataTypeSlice ret_types);
+
   ~FunctionCallFrame();
 
   // Caller methods.
@@ -295,15 +300,19 @@ class FunctionCallFrame : public CallFrameInterface {
  private:
   DataTypeVector arg_types_;
   DataTypeVector ret_types_;
+
   gtl::InlinedVector<Tensor, 4> args_;
+
   struct Retval {
     bool has_val = false;
     Tensor val;
   };
+
   gtl::InlinedVector<Retval, 4> rets_;
 
   TF_DISALLOW_COPY_AND_ASSIGN(FunctionCallFrame);
 };
+
 
 // Helper to maintain a map between function names in a given
 // FunctionDefLibrary and function definitions.
@@ -313,6 +322,8 @@ class FunctionLibraryDefinition : public OpRegistryInterface {
  public:
   // Note: This constructor grabs `lib_def`'s lock in shared mode.
   FunctionLibraryDefinition(const FunctionLibraryDefinition& lib_def);
+
+  // 通常用的是这个
   FunctionLibraryDefinition(const OpRegistryInterface* default_registry,
                             const FunctionDefLibrary& lib_def);
   ~FunctionLibraryDefinition() override;
@@ -462,14 +473,65 @@ class FunctionLibraryDefinition : public OpRegistryInterface {
       EXCLUSIVE_LOCKS_REQUIRED(mu_);
 
   mutable mutex mu_;
+
   const OpRegistryInterface* const default_registry_;
+  // 1.
+  // default_registry_ 变量说明
+  // 通常只有这个
+
+  // 2.
+  // class OpRegistryInterface 数据结构
+  // tensorflow/core/framework/op.h:41:class OpRegistryInterface
+  //
+  // 目的和功能说明:
+  // Users that want to look up an OpDef by type name should take an
+  // OpRegistryInterface.  Functions accepting a
+
   gtl::FlatMap<string, std::unique_ptr<FunctionDefAndOpRegistration>>
-      function_defs_ GUARDED_BY(mu_);
+                                                function_defs_ GUARDED_BY(mu_);
+  // 1.
+  // function_defs_ 变量说明:
+  // 通常这个为空, size = 0, 因为只有 default_registry_
+  // 看构造函数就能懂
+
+  // 2.
+  // FunctionDefAndOpRegistration 数据结构
+  // struct FunctionDefAndOpRegistration {
+  //   FunctionDef fdef;
+  //   OpRegistrationData op_registration_data;
+  // }
+  //
+  // 例子
+  // string: name of the function
+  // second: function definition
+  // example: https://gist.github.com/shizukanaskytree/8660a751d41a25db1848ec1be20dfd1e
+
+  // 3.
+  // FunctionDef 数据结构
+  // tensorflow/core/framework/function.proto:25:message FunctionDef
+
+  // 4.
+  // OpRegistrationData 数据结构
+  // tensorflow/core/framework/op_def_builder.h:39:struct OpRegistrationData
+  // - OpDef op_def;
+  // - OpShapeInferenceFn shape_inference_fn;
+  // - bool is_function_op = false;
+
+  // 5.
+  // OpDef 数据结构
+  // tensorflow/core/framework/op_def.proto
+
   gtl::FlatMap<string, string> func_grad_ GUARDED_BY(mu_);
+  // 1.
+  // func_grad_ 变量说明:
+  // 通常这个为空, size = 0, 因为只有 default_registry_
+  // 看构造函数就能懂
 
   // Helper function for GetAttr. Returns the FunctionDef* to get the
   // attr from.
   const FunctionDef* GetAttrImpl(const NodeDef& ndef) const LOCKS_EXCLUDED(mu_);
+  // FunctionDef 数据结构:
+  // message FunctionDef: tensorflow/core/framework/function.proto
 
   // Remove all functions in `funcs` and all gradients of functions in
   // `funcs_with_grads` from this library.
@@ -485,7 +547,60 @@ class FunctionLibraryDefinition : public OpRegistryInterface {
   // Remove gradient of function `func` from the library. Returns non-OK Status
   // unless `func` has a gradient.
   Status RemoveGradient(const string& func) EXCLUSIVE_LOCKS_REQUIRED(mu_);
-};
+}; // class FunctionLibraryDefinition END!
+
+// 1.
+// class FunctionLibraryDefinition 数据结构
+// tensorflow/core/framework/function.h:313:
+// class FunctionLibraryDefinition : public OpRegistryInterface
+//
+// - struct FunctionDefAndOpRegistration
+// - default_registry_: const OpRegistryInterface* const
+// - function_defs_: gtl::FlatMap<string, std::unique_ptr<FunctionDefAndOpRegistration>>
+// - func_grad_: gtl::FlatMap<string, string>
+
+// 2.
+// struct FunctionDefAndOpRegistration 数据结构 (within class FunctionLibraryDefinition)
+// - fdef: FunctionDef
+// - op_registration_data: OpRegistrationData
+//
+// 例子
+// string: name of the function
+// second: function definition
+// example: https://gist.github.com/shizukanaskytree/8660a751d41a25db1848ec1be20dfd1e
+
+// 3.
+// message FunctionDef 数据结构
+// tensorflow/core/framework/function.proto
+// - signature: OpDef
+//   The definition of the function's name, arguments, return values, attrs etc.
+// - attr: map<string, AttrValue> attr
+//   Attributes specific to this function definition.
+// - node_def: repeated NodeDef
+//   In both of the following fields, there is the need to specify an
+//   output that is used as either the input to another node (in
+//   `node_def`) or as a return value of the function (in `ret`).
+// - ret: map<string, string>
+//   A mapping from the output arg names from `signature` to the
+//   outputs from `node_def` that should be returned by the function.
+// - control_ret: map<string, string>
+//   A mapping from control output names from `signature` to node names in
+//   `node_def` which should be control outputs of this function.
+
+// 5.
+// struct OpRegistrationData 数据结构
+// tensorflow/core/framework/op_def_builder.h
+// - op_def: OpDef
+// - shape_inference_fn: OpShapeInferenceFn
+// - is_function_op: bool, default : false;
+
+// 6.
+// OpDef 数据结构
+// tensorflow/core/framework/op_def.proto
+
+
+////////////////////////////////////////////////////////////////////////
+
 
 // Forward declare. Defined in common_runtime/function.h
 struct FunctionBody;
@@ -495,6 +610,10 @@ class Device;
 // Forward declare. Defined in common_runtime/device_mgr.h
 class DeviceMgr;
 
+/** \class FunctionLibraryRuntime
+ *
+ *  \brief FunctionLibraryRuntime defines how to execute an op on devices.
+ */
 class FunctionLibraryRuntime {
  public:
   virtual ~FunctionLibraryRuntime() {}
@@ -582,10 +701,14 @@ class FunctionLibraryRuntime {
     // `graph_collector` must be alive during the call to Instantiate.
     GraphCollector* graph_collector = nullptr;
   };
+  // struct InstantiateOptions END!
+
   typedef uint64 Handle;
+
   virtual Status Instantiate(const string& function_name, AttrSlice attrs,
                              const InstantiateOptions& options,
                              Handle* handle) = 0;
+
   Status Instantiate(const string& function_name, AttrSlice attrs,
                      Handle* handle) {
     return Instantiate(function_name, attrs, {}, handle);
@@ -639,10 +762,14 @@ class FunctionLibraryRuntime {
     // If True, allow returning dead tensors.
     bool allow_dead_tensors = false;
   };
+  // struct Options END!
+
   typedef std::function<void(const Status&)> DoneCallback;
+
   virtual void Run(const Options& opts, Handle handle,
                    gtl::ArraySlice<Tensor> args, std::vector<Tensor>* rets,
                    DoneCallback done) = 0;
+
   virtual void Run(const Options& opts, Handle handle,
                    CallFrameInterface* call_frame, DoneCallback done) = 0;
 
@@ -650,6 +777,9 @@ class FunctionLibraryRuntime {
   //
   // If succeeds, returns OK and the caller takes the ownership of the
   // returned "*kernel". Otherwise, returns an error.
+  // 参考 具体实现
+  // class FunctionLibraryRuntimeImpl : public FunctionLibraryRuntime
+  //   tensorflow/core/common_runtime/function.cc
   virtual Status CreateKernel(const NodeDef& ndef, OpKernel** kernel) = 0;
 
   // Returns true iff the function named `function_name` is stateful.
@@ -675,6 +805,9 @@ class FunctionLibraryRuntime {
   // overlay libraries, which are not returned by this function.
   virtual const FunctionLibraryDefinition* GetFunctionLibraryDefinition()
       const = 0;
+  // class FunctionLibraryDefinition 数据结构
+  // tensorflow/core/framework/function.h:313:
+  // class FunctionLibraryDefinition : public OpRegistryInterface
 
   // Returns the environment on which the function executes.
   virtual Env* env() = 0;
@@ -699,6 +832,52 @@ class FunctionLibraryRuntime {
   static string ExecutorType(const InstantiateOptions& options,
                              AttrSlice attrs);
 };
+// class FunctionLibraryRuntime END!
+
+// 1.
+// class FunctionLibraryRuntime 数据结构
+// tensorflow/core/framework/function.h
+// - struct InstantiateOptions
+//  - 概述:
+//    Instantiate a function with the given "attrs".
+//  - target: string
+//  - is_multi_device_function: bool, default : false
+//  - input_devices: std::vector<string>
+//  - output_devices: std::vector<string>
+//  - overlay_lib: const FunctionLibraryDefinition*
+//  - state_handle: string
+//  - executor_type : string
+//  - create_kernels_eagerly: bool, default: false
+//  - config_proto: ConfigProto
+//  - optimize_graph_fn:
+//      std::function<Status(std::vector<string> /*ret_node_names*/,
+//                           std::vector<string> /*keep_node_names*/,
+//                           FunctionLibraryDefinition*, const DeviceSet&,
+//                           Device* /*cpu_device*/, std::unique_ptr<Graph>*)>
+//  - graph_collector: GraphCollector*
+// - typedef uint64 Handle
+// - struct Options
+//  - step_id: int64
+//  - rendezvous: Rendezvous*
+//  - cancellation_manager: CancellationManager*
+//  - collective_executor: CollectiveExecutor*
+//  - step_container: ScopedStepContainer*
+//  - stats_collector: StepStatsCollectorInterface
+//  - runner: std::function<void(std::function<void()>)>*
+//  - remote_execution: bool
+//  - source_device: string
+//  - args_alloc_attrs: std::vector<AllocatorAttributes>
+//  - rets_alloc_attrs: std::vector<AllocatorAttributes>
+//  - create_rendezvous: bool
+//  - allow_dead_tensors: bool
+// - DoneCallback
+//
+// 核心函数
+// - CreateKernel
+
+
+////////////////////////////////////////////////////////////////////////
+
 
 // Returns a canonicalized string for the instantiation of the
 // function of the given "name", attributes "attrs", and "options".

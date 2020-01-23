@@ -30,6 +30,16 @@ namespace tensorflow {
 
 Worker::Worker(WorkerEnv* env) : env_(env) {}
 
+/** \brief Server side implementation of GetStatus.
+ *
+ *  \param request: const GetStatusRequest* ;
+ *
+ *  \param response: GetStatusResponse* ;
+ *
+ *  \param done: StatusCallback ;
+ *         a lambda function/callback in remote_device.cc in NewRemoteDevices
+ *         function.
+ */
 void Worker::GetStatusAsync(const GetStatusRequest* request,
                             GetStatusResponse* response, StatusCallback done) {
   DeviceMgr* dm = env_->device_mgr;
@@ -42,9 +52,31 @@ void Worker::GetStatusAsync(const GetStatusRequest* request,
   done(Status::OK());
 }
 
+/** \brief Worker server side implementation of stub of grpc.
+ *
+ *  \param[in] request: const CreateWorkerSessionRequest* ;
+ *
+ *  \param[out] response: CreateWorkerSessionResponse* ;
+ *
+ *  \param[in] done: StatusCallback
+ *
+ *  \remark No return value.
+ *
+ *  \details The client side grpc stub is defined in grpc_remote_worker.cc.
+ *   The essential step is to call CreateSession to fill in
+ *   std::map< string, std::shared_ptr< WorkerSession > > sessions_ of the
+ *   SessionMgr instance managed by the GrpcServer.
+ *   So, it indirectly creates worker sessions inside the grpc server.
+ */
 void Worker::CreateWorkerSessionAsync(const CreateWorkerSessionRequest* request,
                                       CreateWorkerSessionResponse* response,
                                       StatusCallback done) {
+  /// env_: WorkerEnv*; env_->session_mgr: SessionMgr*
+  /// session_mgr encapsulates state for each session.
+  /// It finally sets
+  /// std::map< string, std::shared_ptr< WorkerSession > > sessions_ of this
+  /// SessionMgr instance.
+  /// Q. Worker::env_ shares whose WorkerEnv* env_? A.GrpcServer::worker_env_
   Status s = env_->session_mgr->CreateSession(request->session_handle(),
                                               request->server_def(),
                                               request->isolate_session_state());
@@ -59,6 +91,11 @@ void Worker::DeleteWorkerSessionAsync(CallOptions* opts,
   done(s);
 }
 
+/** \brief
+ *
+ *
+ *
+ */
 void Worker::RegisterGraphAsync(const RegisterGraphRequest* request,
                                 RegisterGraphResponse* response,
                                 StatusCallback done) {
@@ -110,6 +147,14 @@ void Worker::AbortStep(int64 step_id) {
   });
 }
 
+/** \brief Fill in NamedTensors of in and out of the graph from request message
+ *
+ *  \param[in] req: RunGraphRequestWrapper*;
+ *
+ *  \param[out] in: GraphMgr::NamedTensors*;
+ *
+ *  \param[out] out: GraphMgr::NamedTensors*;
+ */
 Status Worker::PrepareRunGraph(RunGraphRequestWrapper* req,
                                GraphMgr::NamedTensors* in,
                                GraphMgr::NamedTensors* out) {
@@ -127,6 +172,9 @@ Status Worker::PrepareRunGraph(RunGraphRequestWrapper* req,
   return Status::OK();
 }
 
+/** \brief Receive Master server side request to run graph computing. So, for
+ *         a worker, it is a server side.
+ */
 void Worker::RunGraphAsync(CallOptions* opts, RunGraphRequestWrapper* request,
                            MutableRunGraphResponseWrapper* response,
                            StatusCallback done) {
@@ -151,9 +199,28 @@ MutableRunGraphResponseWrapper* Worker::CreateRunGraphResponse() {
   return new InMemoryRunGraphResponse;
 }
 
+/** \brief Worker gets request from the master(master's server) to run graph.
+ *
+ *  \param[in] opts: CallOptions*;
+ *
+ *  \param[in] request: RunGraphRequestWrapper*;
+ *             Abstract interface for an immutable RunGraphRequest message.
+ *             This interface is typically used by server-side components in the
+ *             TensorFlow worker.
+ *
+ *  \param[out] response: MutableRunGraphResponseWrapper*;
+ *              Abstract interface for a mutable RunGraphResponse message.
+ *              Note that there is no corresponding (immutable)
+ *              RunGraphResponseWrapper class, because the RunGraphResponse
+ *              object is always used as a mutable pointer.
+ *
+ *  \param[in] done: StatusCallback;
+ *
+ */
 void Worker::DoRunGraph(CallOptions* opts, RunGraphRequestWrapper* request,
                         MutableRunGraphResponseWrapper* response,
                         StatusCallback done) {
+  /// \todo gdb step id, it's abnormal.
   const int64 step_id = request->step_id();
   TRACEPRINTF("RunGraph: %lld", step_id);
   std::shared_ptr<WorkerSession> session;
@@ -225,6 +292,7 @@ void Worker::DoRunGraph(CallOptions* opts, RunGraphRequestWrapper* request,
   session->graph_mgr->ExecuteAsync(
       request->graph_handle(), step_id, session.get(), request->exec_opts(),
       collector, response, cm, in,
+      /// the last param is the callback function: StatusCallback;
       [this, step_id, response, session, cm, out, token, collector, tracer,
        opts, done](Status s) {
         if (s.ok()) {

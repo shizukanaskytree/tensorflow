@@ -13,6 +13,10 @@ import "tensorflow/core/framework/versions.proto";
 // Represents the graph of operations
 message GraphDef {
   repeated NodeDef node = 1;
+  // 1.
+  // QQQ. 如何写 C++ 遍历 node 呢?
+  // AAA. 参考: ConvertGraphDefToGraph, 和 class GraphConstructor
+  // tensorflow/core/graph/graph_constructor.cc
 
   // Compatibility versions of the graph.  See core/public/version.h for version
   // history.  The GraphDef version is distinct from the TensorFlow version, and
@@ -24,6 +28,9 @@ message GraphDef {
   // compatible, this field is entirely ignored.
   int32 version = 3 [deprecated = true];
 
+  // ===================
+  // 注意: 这一项通常都为空
+  // ===================
   // EXPERIMENTAL. DO NOT USE OR DEPEND ON THIS YET.
   //
   // "library" provides user-defined functions.
@@ -53,4 +60,36 @@ message GraphDef {
   //     consumer does not start until all return values of the callee
   //     function are ready.
   FunctionDefLibrary library = 2;
+  // 1.
+  // message FunctionDefLibrary 数据结构
+  // tensorflow/core/framework/function.proto:14:message FunctionDefLibrary
+  // - function: repeated FunctionDef
+  // - gradient: repeated GradientDef
+
+  // 2.
+  // FunctionDef 数据结构
+  // tensorflow/core/framework/function.proto
+  // - signature: OpDef
+  //   The definition of the function's name, arguments, return values, attrs etc.
+  // - attr: map<string, AttrValue> attr
+  //   Attributes specific to this function definition.
+  // - node_def: repeated NodeDef
+  //   In both of the following fields, there is the need to specify an
+  //   output that is used as either the input to another node (in
+  //   `node_def`) or as a return value of the function (in `ret`).
+  // - ret: map<string, string>
+  //   A mapping from the output arg names from `signature` to the
+  //   outputs from `node_def` that should be returned by the function.
+  // - control_ret: map<string, string>
+  //   A mapping from control output names from `signature` to node names in
+  //   `node_def` which should be control outputs of this function.
+
+  // 3.
+  // OpDef 数据结构
+  // tensorflow/core/framework/op_def.proto
 };
+// GraphDef 数据结构
+// - node: repeated NodeDef
+// - versions: VersionDef
+// - library: FunctionDefLibrary # EXPERIMENTAL. DO NOT USE OR DEPEND ON THIS YET.
+//   注意: 这一项通常都为空

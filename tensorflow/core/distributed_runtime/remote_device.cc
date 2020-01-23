@@ -54,6 +54,27 @@ class RemoteDevice : public Device {
   TF_DISALLOW_COPY_AND_ASSIGN(RemoteDevice);
 };
 
+/** \brief Create a worker mapping to a target, i.e., job:task_index, and manage
+ *         remote devices.
+ *
+ *  \param env: Env*;
+ *         OS environment.
+ *
+ *  \param worker_cache: WorkerCacheInterface*
+ *         WorkerCacheInterface provides interface for 1. list workers' names;
+ *         2. list workers' name of a job name; 3. create worker with a name;
+ *         4. destory a worker; 5. get device locality information of a device;
+ *         6. logging.
+ *
+ *  \param worker_name: const string&;
+ *         target name.
+ *
+ *  \param done: NewRemoteDevicesDone;
+ *         A callback function. The lambda function signature is
+ *         std::function<void(const Status&, std::vector<Device*>*)> .
+ *
+ *  \remark No return value.
+ */
 void NewRemoteDevices(Env* env, WorkerCacheInterface* worker_cache,
                       const string& worker_name, NewRemoteDevicesDone done) {
   WorkerInterface* wi = worker_cache->CreateWorker(worker_name);
@@ -67,6 +88,7 @@ void NewRemoteDevices(Env* env, WorkerCacheInterface* worker_cache,
     GetStatusResponse resp;
   };
   Call* call = new Call;
+  /// callback function will be called in worker.cc, GetStatusAsync;
   auto cb = [env, worker_cache, worker_name, done, wi,
              call](const Status& status) {
     Status s = status;
@@ -112,6 +134,7 @@ void NewRemoteDevices(Env* env, WorkerCacheInterface* worker_cache,
       }
     }
   };
+  /// pay attention to callback function.
   wi->GetStatusAsync(&call->req, &call->resp, cb);
 }
 

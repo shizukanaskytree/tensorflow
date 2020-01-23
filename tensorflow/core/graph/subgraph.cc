@@ -56,8 +56,11 @@ typedef std::unordered_map<StringPiece, Node*, StringPieceHasher> NameIndex;
 // an appropriate error message (and *g is left in an indeterminate
 // state).
 Status FeedInputs(
-    Graph* g, const std::vector<std::unique_ptr<PruneRewrite>>& feed_rewrites,
-    NameIndex* name_index, DataTypeVector* out_feed_types) {
+    Graph* g, // input
+    const std::vector<std::unique_ptr<PruneRewrite>>& feed_rewrites, // input
+    NameIndex* name_index, // input
+    DataTypeVector* out_feed_types) // output
+{
   out_feed_types->clear();
   out_feed_types->reserve(feed_rewrites.size());
   for (size_t i = 0; i < feed_rewrites.size(); ++i) {
@@ -121,13 +124,23 @@ Status FeedInputs(
 }
 
 Status FetchOutputs(
-    Graph* g, const std::vector<std::unique_ptr<PruneRewrite>>& fetch_rewrites,
-    NameIndex* name_index, std::vector<Node*>* out_fetch_nodes,
-    DataTypeVector* out_fetch_types) {
+    Graph* g, // input, https://docs.google.com/document/d/19JJMlSxdq2PvwbfxJ2jtKAkAOQq_Q_wYNeekZFlFioc/edit#
+    const std::vector<std::unique_ptr<PruneRewrite>>& fetch_rewrites, // input
+    NameIndex* name_index, // output (add item into this map)
+    std::vector<Node*>* out_fetch_nodes,  // output
+    DataTypeVector* out_fetch_types) { // output
+
   out_fetch_nodes->clear();
   out_fetch_nodes->reserve(fetch_rewrites.size());
+
   for (size_t i = 0; i < fetch_rewrites.size(); ++i) {
     const string& t = fetch_rewrites[i]->endpoint_name();
+/*
+比如说:
+
+p t
+$5 = "out:0"
+*/
 
     // Parse t into node_name and output_index.
     TensorId id(ParseTensorName(t));
@@ -164,6 +177,154 @@ Status FetchOutputs(
     // Update the index.
     (*name_index)[fetch_node->name()] = fetch_node;
 
+    /**
+    name_index 比如
+
+    p *name_index
+
+    {
+      [{
+          static npos = 18446744073709551615,
+          static kMaxSize = 9223372036854775807,
+          ptr_ = 0x55b643d083f8 "_retval_out_0_0", // 这个应该是新增的
+          length_ = 15
+        }
+
+      ] = 0x55b643d3b198,
+      [{
+          static npos = 18446744073709551615,
+          static kMaxSize = 9223372036854775807,
+          ptr_ = 0x55b641e21578 "out",
+          length_ = 3
+        }
+
+      ] = 0x55b643d3b040,
+      [{
+          static npos = 18446744073709551615,
+          static kMaxSize = 9223372036854775807,
+          ptr_ = 0x55b641d7a0b8 "c",
+          length_ = 1
+        }
+
+      ] = 0x55b643d3af88,
+      [{
+          static npos = 18446744073709551615,
+          static kMaxSize = 9223372036854775807,
+          ptr_ = 0x55b6411f4e08 "a/RandomStandardNormal",
+          length_ = 22
+        }
+
+      ] = 0x55b643d3ae38,
+      [{
+          static npos = 18446744073709551615,
+          static kMaxSize = 9223372036854775807,
+          ptr_ = 0x55b641dd96d8 "b/RandomStandardNormal",
+          length_ = 22
+        }
+
+      ] = 0x55b643d3ada0,
+      [{
+          static npos = 18446744073709551615,
+          static kMaxSize = 9223372036854775807,
+          ptr_ = 0x55b641d66068 "z",
+          length_ = 1
+        }
+
+      ] = 0x55b643d3aed0,
+      [{
+          static npos = 18446744073709551615,
+          static kMaxSize = 9223372036854775807,
+          ptr_ = 0x55b641d590d8 "y/RandomStandardNormal",
+          length_ = 22
+        }
+
+      ] = 0x55b643d3ac70,
+      [{
+          static npos = 18446744073709551615,
+          static kMaxSize = 9223372036854775807,
+          ptr_ = 0x55b641829a58 "a/shape",
+          length_ = 7
+        }
+
+      ] = 0x55b643d3abf8,
+      [{
+          static npos = 18446744073709551615,
+          static kMaxSize = 9223372036854775807,
+          ptr_ = 0x55b6418fe378 "x/RandomStandardNormal",
+          length_ = 22
+        }
+
+      ] = 0x55b643d3ad08,
+      [{
+          static npos = 18446744073709551615,
+          static kMaxSize = 9223372036854775807,
+          ptr_ = 0x55b641d53ce8 "b/shape",
+          length_ = 7
+        }
+
+      ] = 0x55b643d3ab80,
+      [{
+          static npos = 18446744073709551615,
+          static kMaxSize = 9223372036854775807,
+          ptr_ = 0x55b6411f1c88 "y/shape",
+          length_ = 7
+        }
+
+      ] = 0x55b643d3aa90,
+      [{
+          static npos = 18446744073709551615,
+          static kMaxSize = 9223372036854775807,
+          ptr_ = 0x55b6411f5378 "x/shape",
+          length_ = 7
+        }
+
+      ] = 0x55b643d3ab08,
+      [{
+          static npos = 18446744073709551615,
+          static kMaxSize = 9223372036854775807,
+          ptr_ = 0x55b643d28768 "_SINK",
+          length_ = 5
+        }
+
+      ] = 0x55b643d3a9f8,
+      [{
+          static npos = 18446744073709551615,
+          static kMaxSize = 9223372036854775807,
+          ptr_ = 0x55b643d51e78 "_SOURCE",
+          length_ = 7
+        }
+
+      ] = 0x55b643d3a980
+    }
+
+    */
+
+// -----------------------------------------------------------------------
+/*
+p fetch_node ->DebugString()
+{
+  name:'_retval_out_0_0'
+
+  id:13
+
+  op device: {
+    /job: localhost/replica:0/task:0/device:CPU:0
+  }
+
+  def: {
+      {
+        {
+        node _retval_out_0_0
+      }
+    }
+
+    =_Retval[T=DT_FLOAT,
+    index=0](out) // 看这里，这个节点的输入是 out 节点
+  }
+}
+*/
+
+
     // Duplicate control edges aren't allowed, but fetch_node was *just* created
     // so there's no need to check for a duplicate.
     g->AddControlEdge(fetch_node, g->sink_node(), true);
@@ -174,9 +335,143 @@ Status FetchOutputs(
   return Status::OK();
 }
 
-bool AddNodeToTargets(const string& node_or_tensor_name,
-                      const NameIndex& name_index,
-                      std::unordered_set<const Node*>* targets) {
+
+// callstack see "AddNodeToTargets callstack" in Doc: Cross Device experiment
+// https://docs.google.com/document/d/1tUPyuaG6wlW76FGTPrEFXRMczFVXMZGL_DoH9xt6uQU/edit#heading=h.4irhh7mrp0pf
+
+bool AddNodeToTargets(
+  const string& node_or_tensor_name, // input
+  // 打印：p node_or_tensor_name, $14 = "_retval_out_0_0"
+
+  const NameIndex& name_index, // input, 打印见下面
+  std::unordered_set<const Node*>* targets) // output
+{
+
+/*
+p name_index
+
+std::unordered_map with 14 elements
+{
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b643d083f8 "_retval_out_0_0",
+      length_ = 15
+    }
+
+  ] = 0x55b643d3b198,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b641e21578 "out",
+      length_ = 3
+    }
+
+  ] = 0x55b643d3b040,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b641d7a0b8 "c",
+      length_ = 1
+    }
+
+  ] = 0x55b643d3af88,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b6411f4e08 "a/RandomStandardNormal",
+      length_ = 22
+    }
+
+  ] = 0x55b643d3ae38,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b641dd96d8 "b/RandomStandardNormal",
+      length_ = 22
+    }
+
+  ] = 0x55b643d3ada0,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b641d66068 "z",
+      length_ = 1
+    }
+
+  ] = 0x55b643d3aed0,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b641d590d8 "y/RandomStandardNormal",
+      length_ = 22
+    }
+
+  ] = 0x55b643d3ac70,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b641829a58 "a/shape",
+      length_ = 7
+    }
+
+  ] = 0x55b643d3abf8,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b6418fe378 "x/RandomStandardNormal",
+      length_ = 22
+    }
+
+  ] = 0x55b643d3ad08,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b641d53ce8 "b/shape",
+      length_ = 7
+    }
+
+  ] = 0x55b643d3ab80,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b6411f1c88 "y/shape",
+      length_ = 7
+    }
+
+  ] = 0x55b643d3aa90,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b6411f5378 "x/shape",
+      length_ = 7
+    }
+
+  ] = 0x55b643d3ab08,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b643d28768 "_SINK",
+      length_ = 5
+    }
+
+  ] = 0x55b643d3a9f8,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b643d51e78 "_SOURCE",
+      length_ = 7
+    }
+
+  ] = 0x55b643d3a980
+}
+*/
+
+
+
+  // TensorId 数据结构
+  // first == operation_name, second == output_index, "out:0"
+  // tensorflow/core/graph/tensor_id.h:33:struct TensorId : public std::pair<StringPiece, int>
   TensorId id = ParseTensorName(node_or_tensor_name);
   auto iter = name_index.find(id.first);
   if (iter == name_index.end()) {
@@ -184,33 +479,72 @@ bool AddNodeToTargets(const string& node_or_tensor_name,
   }
   const Node* n = iter->second;
   CHECK_EQ(n->name(), id.first);
+
+  // 就这里，把 name_index 里面那个 targets node 放进 targets[output] 里面
   targets->insert(n);
+
   return true;
 }
 
-Status PruneForTargets(Graph* g, const NameIndex& name_index,
-                       const std::vector<Node*>& fetch_nodes,
-                       const gtl::ArraySlice<string>& target_nodes) {
+
+
+
+Status PruneForTargets(
+  Graph* g,  // input and output
+  const NameIndex& name_index, // input
+  const std::vector<Node*>& fetch_nodes, // input
+  const gtl::ArraySlice<string>& target_nodes) { // input
+
   string not_found;
+
   std::unordered_set<const Node*> targets;
+
   for (Node* n : fetch_nodes) {
-    if (!AddNodeToTargets(n->name(), name_index, &targets)) {
+    // -----------------------------------------------------------------------
+    // AddNodeToTargets 说明
+    if (!AddNodeToTargets(
+           n->name(), // input, 打印：p node_or_tensor_name, $14 = "_retval_out_0_0"
+           name_index, // input
+           &targets)) // output
+    // -----------------------------------------------------------------------
+    {
       strings::StrAppend(&not_found, n->name(), " ");
     }
   }
+
   for (const string& s : target_nodes) {
+    // -----------------------------------------------------------------------
     if (!AddNodeToTargets(s, name_index, &targets)) {
+    // -----------------------------------------------------------------------
       strings::StrAppend(&not_found, s, " ");
     }
   }
+
   if (!not_found.empty()) {
     return errors::NotFound("PruneForTargets: Some target nodes not found: ",
                             not_found);
   }
-  PruneForReverseReachability(g, targets);
 
+  // -----------------------------------------------------------------------
+  // PruneForReverseReachability 说明:
+  // tensorflow/core/graph/algorithm.h
+  // tensorflow/core/graph/algorithm.cc
+  // PruneForReverseReachability(Graph* g, std::unordered_set<const Node*> nodes)
+  PruneForReverseReachability(
+    g,  // input
+    targets); // input and output 
+  // -----------------------------------------------------------------------
+
+
+  // -----------------------------------------------------------------------
   // Reconnect nodes with no outgoing edges to the sink node
+
+  // FixupSourceAndSinkEdges 说明：
+  // tensorflow/core/graph/algorithm.cc:248:bool FixupSourceAndSinkEdges(Graph* g)
+  // Connect all nodes with no incoming edges to source.
+  // Connect all nodes with no outgoing edges to sink.
   FixupSourceAndSinkEdges(g);
+  // -----------------------------------------------------------------------
 
   return Status::OK();
 }
@@ -291,14 +625,20 @@ Status SendFetchRewrite::AddNode(Graph* g, NodeBuilder::NodeOut fetch_tensor,
   return Status::OK();
 }
 
+
 Status RewriteGraphForExecution(
-    Graph* g, const gtl::ArraySlice<string>& fed_outputs,
+    Graph* g,
+    const gtl::ArraySlice<string>& fed_outputs,
     const gtl::ArraySlice<string>& fetch_outputs,
     const gtl::ArraySlice<string>& target_node_names,
-    const DeviceAttributes& device_info, bool use_function_convention,
+    const DeviceAttributes& device_info,
+    bool use_function_convention,
     RewriteGraphMetadata* out_metadata) {
+
   std::vector<std::unique_ptr<PruneRewrite>> feed_rewrites;
+
   feed_rewrites.reserve(fed_outputs.size());
+
   if (use_function_convention) {
     for (size_t i = 0; i < fed_outputs.size(); ++i) {
       feed_rewrites.emplace_back(new ArgFeedRewrite(
@@ -325,8 +665,12 @@ Status RewriteGraphForExecution(
     }
   }
 
-  return RewriteGraphForExecution(g, feed_rewrites, fetch_rewrites,
-                                  target_node_names, out_metadata);
+  return RewriteGraphForExecution(
+    g,
+    feed_rewrites,
+    fetch_rewrites,
+    target_node_names,
+    out_metadata);
 }
 
 namespace {
@@ -336,17 +680,33 @@ std::vector<string> ConvertToVector(StringContainer field) {
 }
 }  // namespace
 
+
+
+
+
 Status RewriteGraphForExecution(
-    Graph* g, const std::vector<std::unique_ptr<PruneRewrite>>& feed_rewrites,
-    const std::vector<std::unique_ptr<PruneRewrite>>& fetch_rewrites,
-    const gtl::ArraySlice<string>& target_node_names,
-    RewriteGraphMetadata* out_metadata) {
+    Graph* g, // input and output
+    const std::vector<std::unique_ptr<PruneRewrite>>& feed_rewrites, // input
+    const std::vector<std::unique_ptr<PruneRewrite>>& fetch_rewrites, // inputs
+    const gtl::ArraySlice<string>& target_node_names, // inputs
+    RewriteGraphMetadata* out_metadata) // output
+
+// RewriteGraphMetadata 数据结构
+// tensorflow/core/graph/subgraph.h:32:struct RewriteGraphMetadata
+// - feed_types : DataTypeVector
+//                The element type of each tensor fed to this subgraph.
+// - fetch_types : DataTypeVector
+//                 The element type of each tensor fetched from this subgraph.
+
+{
   if (fetch_rewrites.empty() && target_node_names.empty()) {
     return errors::InvalidArgument(
         "Must specify at least one target to fetch or execute.");
   }
 
   std::unordered_set<string> endpoints;
+
+  // 我的例子没有 feed
   for (const auto& feed_rewrite : feed_rewrites) {
     auto result = endpoints.insert(feed_rewrite->endpoint_name());
     if (!result.second) {
@@ -365,32 +725,186 @@ Status RewriteGraphForExecution(
 
   // A separate index mapping name to Node*, for use by FeedInputs,
   // FetchOutputs, and PruneForTargets
+
+  // NameIndex 数据结构
+  // tensorflow/core/graph/subgraph.cc:47:
+  // typedef std::unordered_map<StringPiece, Node*, StringPieceHasher> NameIndex;
+  //                                 |         |
+  //                             node name   node
+  // 后面会往里面塞入 {string node_name: Node* node} 来增加 fetch, feed node
   NameIndex name_index;
+  // 初始化 name_index
   name_index.reserve(g->num_nodes());
   for (Node* n : g->nodes()) {
     name_index[n->name()] = n;
   }
 
+
+/**
+比如
+
+p *name_index (我是从 FetchOutputs 这个函数里面打印的)
+
+{
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b643d083f8 "_retval_out_0_0",
+      length_ = 15
+    }
+
+  ] = 0x55b643d3b198,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b641e21578 "out",
+      length_ = 3
+    }
+
+  ] = 0x55b643d3b040,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b641d7a0b8 "c",
+      length_ = 1
+    }
+
+  ] = 0x55b643d3af88,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b6411f4e08 "a/RandomStandardNormal",
+      length_ = 22
+    }
+
+  ] = 0x55b643d3ae38,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b641dd96d8 "b/RandomStandardNormal",
+      length_ = 22
+    }
+
+  ] = 0x55b643d3ada0,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b641d66068 "z",
+      length_ = 1
+    }
+
+  ] = 0x55b643d3aed0,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b641d590d8 "y/RandomStandardNormal",
+      length_ = 22
+    }
+
+  ] = 0x55b643d3ac70,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b641829a58 "a/shape",
+      length_ = 7
+    }
+
+  ] = 0x55b643d3abf8,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b6418fe378 "x/RandomStandardNormal",
+      length_ = 22
+    }
+
+  ] = 0x55b643d3ad08,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b641d53ce8 "b/shape",
+      length_ = 7
+    }
+
+  ] = 0x55b643d3ab80,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b6411f1c88 "y/shape",
+      length_ = 7
+    }
+
+  ] = 0x55b643d3aa90,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b6411f5378 "x/shape",
+      length_ = 7
+    }
+
+  ] = 0x55b643d3ab08,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b643d28768 "_SINK",
+      length_ = 5
+    }
+
+  ] = 0x55b643d3a9f8,
+  [{
+      static npos = 18446744073709551615,
+      static kMaxSize = 9223372036854775807,
+      ptr_ = 0x55b643d51e78 "_SOURCE",
+      length_ = 7
+    }
+
+  ] = 0x55b643d3a980
+}
+
+*/
+
+
+  // 我的例子没有 feed nodes
   // Add the feeds.  This may replace nodes in the graph, including the nodes
   // currently listed in "fetch_rewrites".  We pass "name_index" so the index is
   // kept up to date.
   if (!feed_rewrites.empty()) {
     TF_RETURN_IF_ERROR(
-        FeedInputs(g, feed_rewrites, &name_index, &out_metadata->feed_types));
+        // FeedInputs 函数:
+        // tensorflow/core/graph/subgraph.cc:58:Status FeedInputs
+        //
+        FeedInputs(
+          g, // input
+          feed_rewrites, // input
+          &name_index, // output
+          &out_metadata->feed_types)); // output
   }
+
 
   // Add the fetch nodes, also updating "name_index".
   std::vector<Node*> fetch_nodes;
   if (!fetch_rewrites.empty()) {
-    TF_RETURN_IF_ERROR(FetchOutputs(g, fetch_rewrites, &name_index,
-                                    &fetch_nodes, &out_metadata->fetch_types));
+    TF_RETURN_IF_ERROR(
+      FetchOutputs(
+        g, // input
+        fetch_rewrites, // input
+        &name_index, // output
+        &fetch_nodes,  // output
+        &out_metadata->fetch_types)); // output
   }
 
+  // -----------------------------------------------------------------------
   // Prune the graph to only compute what is needed for the fetch nodes and the
   // target nodes.
+  // -----------------------------------------------------------------------
   if (!fetch_nodes.empty() || !target_node_names.empty()) {
     TF_RETURN_IF_ERROR(
-        PruneForTargets(g, name_index, fetch_nodes, target_node_names));
+        // PruneForTargets 说明:
+        // tensorflow/core/graph/subgraph.cc
+        PruneForTargets(
+          g, // input and output
+          name_index, // input
+          fetch_nodes, // input
+          target_node_names)); // input
   }
 
   return Status::OK();

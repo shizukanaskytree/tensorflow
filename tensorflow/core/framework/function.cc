@@ -941,18 +941,25 @@ FunctionCallFrame::~FunctionCallFrame() {}
 
 Status FunctionCallFrame::SetArgs(gtl::ArraySlice<Tensor> args) {
   // Input type checks.
+  // 异常处理
   if (args.size() != arg_types_.size()) {
     return errors::InvalidArgument("Expects ", arg_types_.size(),
                                    " arguments, but ", args.size(),
                                    " is provided");
   }
+
+  // 正常处理
   for (size_t i = 0; i < args.size(); ++i) {
+
     if (arg_types_[i] != args[i].dtype()) {
+      // 异常处理
       return errors::InvalidArgument(
           "Expects arg[", i, "] to be ", DataTypeString(arg_types_[i]), " but ",
           DataTypeString(args[i].dtype()), " is provided");
     }
+    // 正常处理
     args_[i] = args[i];
+
   }
   return Status::OK();
 }
@@ -971,13 +978,17 @@ Status FunctionCallFrame::GetRetvals(std::vector<Tensor>* rets) const {
   return Status::OK();
 }
 
-Status FunctionCallFrame::ConsumeRetvals(std::vector<Tensor>* rets,
-                                         bool allow_dead_tensors) {
+Status FunctionCallFrame::ConsumeRetvals(std::vector<Tensor>* rets, // output
+                                         bool allow_dead_tensors) { // inpupt
   rets->clear();
+
   rets->reserve(rets_.size());
+
   for (size_t i = 0; i < rets_.size(); ++i) {
+
     if (rets_[i].has_val) {
       rets->emplace_back(std::move(rets_[i].val));
+
     } else if (allow_dead_tensors) {
       rets->emplace_back();
     } else {
@@ -1034,21 +1045,113 @@ FunctionLibraryDefinition::FunctionLibraryDefinition(
   func_grad_ = other.func_grad_;
 }
 
+
+// 被调用
+// DirectSession::MaybeInitializeExecutionState 里面的 构造 flib_def_
+// new FunctionLibraryDefinition(
+//       OpRegistry::Global(),
+//       graph.library())) // graph: GraphDef
 FunctionLibraryDefinition::FunctionLibraryDefinition(
-    const OpRegistryInterface* default_registry,
-    const FunctionDefLibrary& def_lib)
-    : default_registry_(default_registry),
-      function_defs_(def_lib.function_size()) {
+  const OpRegistryInterface* default_registry,
+  const FunctionDefLibrary& def_lib)
+
+  : default_registry_(default_registry),
+    function_defs_(def_lib.function_size()) {
+
+  // 1.
+  // default_registry_ 变量说明
+  // default_registry_: OpRegistry*
+  //
+  // default_registry_ 打印
+  // https://gist.github.com/shizukanaskytree/fc7f16c2dd6ea55c15950f80e98c51e1
+
+  // 2.
+  // OpRegistry 数据结构
+  // tensorflow/core/framework/op.h
+  // - deferred_: mutable std::vector<OpRegistrationDataFactory>
+  // - registry_: mutable std::unordered_map<string, const OpRegistrationData*>
+  // - watcher_: mutable Watcher
+
+  // 3.
+  // OpRegistrationDataFactory 数据结构
+  // tensorflow/core/framework/op.h:67:
+  // typedef std::function<Status(OpRegistrationData*)> OpRegistrationDataFactory;
+
+  // 4.
+  // struct OpRegistrationData 数据结构
+  // tensorflow/core/framework/op_def_builder.h
+  // - op_def: OpDef # owned
+  // - shape_inference_fn: OpShapeInferenceFn
+  // - is_function_op: bool, default : false
+
+  // 5.
+  // message FunctionDefLibrary 数据结构
+  // tensorflow/core/framework/function.proto:14:message FunctionDefLibrary
+  // - function: repeated FunctionDef
+  // - gradient: repeated GradientDef
+
+  // 6.
+  // FunctionDef 数据结构
+  // tensorflow/core/framework/function.proto
+  // - signature: OpDef
+  //   The definition of the function's name, arguments, return values, attrs etc.
+  // - attr: map<string, AttrValue> attr
+  //   Attributes specific to this function definition.
+  // - node_def: repeated NodeDef
+  //   In both of the following fields, there is the need to specify an
+  //   output that is used as either the input to another node (in
+  //   `node_def`) or as a return value of the function (in `ret`).
+  // - ret: map<string, string>
+  //   A mapping from the output arg names from `signature` to the
+  //   outputs from `node_def` that should be returned by the function.
+  // - control_ret: map<string, string>
+  //   A mapping from control output names from `signature` to node names in
+  //   `node_def` which should be control outputs of this function.
+
+  // 7.
+  // OpDef 数据结构
+  // tensorflow/core/framework/op_def.proto
+
+  // 构造时，没有进入，说明 def_lib.function() 数组元素为 0
   for (const auto& fdef : def_lib.function()) {
+    // 1.
+    // def_lib.function() 变量说明:
+    // def_lib.function()  是 function: repeated FunctionDef 数组
+
+    // 2.
+    // fdef 变量说明:
+    // fdef: message FunctionDef
+
     // The latter function definition wins.
     auto& ptr = function_defs_[fdef.signature().name()];
     ptr.reset(new FunctionDefAndOpRegistration(fdef));
+    // 1.
+    // struct FunctionDefAndOpRegistration 数据结构 (within class FunctionLibraryDefinition)
+    //
+    // FunctionDefAndOpRegistration 数据结构
+    // struct FunctionDefAndOpRegistration {
+    //   FunctionDef fdef;
+    //   OpRegistrationData op_registration_data;
+    // }
+
+    // 2.
+    // class FunctionLibraryDefinition 数据结构
+    // tensorflow/core/framework/function.h:313:
+    // class FunctionLibraryDefinition : public OpRegistryInterface
+    //
+    // - struct FunctionDefAndOpRegistration
+    // - default_registry_: const OpRegistryInterface* const
+    // - function_defs_: gtl::FlatMap<string, std::unique_ptr<FunctionDefAndOpRegistration>>
+    // - func_grad_: gtl::FlatMap<string, string>
   }
+
+  // 构造时，没有进入，说明 def_lib.gradient() 数组元素为 0
   for (const auto& grad : def_lib.gradient()) {
     func_grad_[grad.function_name()] = grad.gradient_func();
   }
 }
 
+// 析构随 Graph::~Graph() 内被调用，因为 Graph instance owns a FunctionLibraryDefinition instance .
 FunctionLibraryDefinition::~FunctionLibraryDefinition() {}
 
 bool FunctionLibraryDefinition::Contains(const string& func) const {
@@ -1077,11 +1180,14 @@ Status FunctionLibraryDefinition::AddFunctionDef(const FunctionDef& fdef) {
   return AddFunctionDefHelper(fdef, &added);
 }
 
+
 Status FunctionLibraryDefinition::AddFunctionDefHelper(const FunctionDef& fdef,
                                                        bool* added) {
   *added = false;
+
   std::unique_ptr<FunctionDefAndOpRegistration>* entry =
       &function_defs_[fdef.signature().name()];
+
   if (*entry != nullptr) {
     if (!FunctionDefsEqual((*entry)->fdef, fdef)) {
       return errors::InvalidArgument(
@@ -1092,13 +1198,17 @@ Status FunctionLibraryDefinition::AddFunctionDefHelper(const FunctionDef& fdef,
     // Ignore duplicate FunctionDefs
     return Status::OK();
   }
+
   const OpDef* op_def;
+
   if (default_registry_->LookUpOpDef(fdef.signature().name(), &op_def).ok()) {
     return errors::InvalidArgument(
         "Cannot add function '", fdef.signature().name(),
         "' because an op with the same name already exists.");
   }
+
   entry->reset(new FunctionDefAndOpRegistration(fdef));
+
   *added = true;
   return Status::OK();
 }
@@ -1140,6 +1250,8 @@ Status FunctionLibraryDefinition::AddLibrary(
   std::vector<string> funcs_with_grads;
   Status s;
   bool added;
+
+
   for (auto iter : clone.function_defs_) {
     s = AddFunctionDefHelper(iter.second->fdef, &added);
     if (!s.ok()) {
@@ -1150,6 +1262,8 @@ Status FunctionLibraryDefinition::AddLibrary(
       funcs.push_back(iter.second->fdef.signature().name());
     }
   }
+
+
   for (auto iter : clone.func_grad_) {
     GradientDef grad;
     grad.set_function_name(iter.first);
@@ -1166,8 +1280,54 @@ Status FunctionLibraryDefinition::AddLibrary(
   return Status::OK();
 }
 
+
+// 调用栈 :
+// https://docs.google.com/document/d/18XhMZldLWN-6RQAlznmWWceiztvVtFSdzDvMfb5IUnw/edit#
+// Search: FunctionLibraryDefinition::AddLibrary
+
+// AddLibrary 被调用
+/*
+Status Graph::AddFunctionLibrary(const FunctionDefLibrary& fdef_lib) {
+  // Need a new-enough consumer to support the functions we add to the graph.
+  if (fdef_lib.function_size() > 0 && versions_->min_consumer() < 12) {
+    versions_->set_min_consumer(12);
+  }
+  return ops_.AddLibrary(fdef_lib);
+  // 对象是 Graph::ops_
+}
+*/
 Status FunctionLibraryDefinition::AddLibrary(
-    const FunctionDefLibrary& lib_def) {
+    const FunctionDefLibrary& lib_def) { // input
+  // 1.
+  // lib_def
+  // message FunctionDefLibrary 数据结构
+  // tensorflow/core/framework/function.proto
+  // - function: repeated FunctionDef
+  // - gradient: repeated GradientDef
+
+  // 2.
+  // message FunctionDef 数据结构
+  // tensorflow/core/framework/function.proto
+  // - signature: OpDef
+  //   The definition of the function's name, arguments, return values, attrs etc.
+  // - attr: map<string, AttrValue> attr
+  //   Attributes specific to this function definition.
+  // - node_def: repeated NodeDef
+  //   In both of the following fields, there is the need to specify an
+  //   output that is used as either the input to another node (in
+  //   `node_def`) or as a return value of the function (in `ret`).
+  // - ret: map<string, string>
+  //   A mapping from the output arg names from `signature` to the
+  //   outputs from `node_def` that should be returned by the function.
+  // - control_ret: map<string, string>
+  //   A mapping from control output names from `signature` to node names in
+  //   `node_def` which should be control outputs of this function.
+
+  // 3.
+  // message GradientDef 数据结构
+  // - function_name: string
+  // - gradient_func: string
+
   // Remember the funcs and grads that we added successfully so that
   // we can roll them back on error.
   mutex_lock l(mu_);
@@ -1175,6 +1335,12 @@ Status FunctionLibraryDefinition::AddLibrary(
   std::vector<string> funcs_with_grads;
   Status s;
   bool added;
+
+  // FunctionDef
+  // 没有进入，说明 lib_def.function() 数组为空
+  // 原因:
+  // GraphDef::FunctionDefLibrary library = 2; 是实验性质的，通常都为空
+  // tensorflow/core/framework/graph.proto
   for (const FunctionDef& fdef : lib_def.function()) {
     s = AddFunctionDefHelper(fdef, &added);
     if (!s.ok()) {
@@ -1185,6 +1351,9 @@ Status FunctionLibraryDefinition::AddLibrary(
       funcs.push_back(fdef.signature().name());
     }
   }
+
+  // GradientDef
+  // 没有进入，说明 lib_def.gradient() 数组为空
   for (const GradientDef& grad : lib_def.gradient()) {
     s = AddGradientDefHelper(grad, &added);
     if (!s.ok()) {
@@ -1195,14 +1364,19 @@ Status FunctionLibraryDefinition::AddLibrary(
       funcs_with_grads.push_back(grad.function_name());
     }
   }
+
   return Status::OK();
 }
+
 
 Status FunctionLibraryDefinition::ReplaceFunction(const string& func,
                                                   const FunctionDef& fdef) {
   mutex_lock l(mu_);
   bool added;
+  // RemoveFunctionHelper 函数说明
   TF_RETURN_IF_ERROR(RemoveFunctionHelper(func));
+
+  // AddFunctionDefHelper 函数说明
   TF_RETURN_IF_ERROR(AddFunctionDefHelper(fdef, &added));
   return Status::OK();
 }
@@ -1222,11 +1396,16 @@ Status FunctionLibraryDefinition::RemoveFunction(const string& func) {
 }
 
 Status FunctionLibraryDefinition::RemoveFunctionHelper(const string& func) {
+  // function_defs_ 变量说明:
+  // tensorflow/core/framework/function.h
+  // 打开这个文件。已经整理的非常好了，不想再抄一遍了。
   const auto& i = function_defs_.find(func);
+
   if (i == function_defs_.end()) {
     return errors::InvalidArgument("Tried to remove non-existent function ",
                                    func);
   }
+
   function_defs_.erase(i);
   return Status::OK();
 }
@@ -1263,15 +1442,67 @@ string FunctionLibraryDefinition::FindGradientHelper(const string& func) const {
   return gtl::FindWithDefault(func_grad_, func, "");
 }
 
+// 功能概述:
+// 从 default_registry_ : std::unordered_map with 1288 elements 里面根据 key , i.e. op_type_name : string
+// 返回对应的 value 值, i.e. const OpRegistrationData* res
+// 如果未能找到就 赋值 nullptr
+// 赋值给 op_reg_data 作为输出
+//
+// 调用栈: https://docs.google.com/document/d/18XhMZldLWN-6RQAlznmWWceiztvVtFSdzDvMfb5IUnw/edit#
 Status FunctionLibraryDefinition::LookUp(
-    const string& op, const OpRegistrationData** op_reg_data) const {
+    const string& op, // input
+    const OpRegistrationData** op_reg_data) const {  // output
+  // 1.
+  // OpRegistrationData 数据结构
+  // tensorflow/core/framework/op_def_builder.h
+  // - op_def: OpDef
+  // - shape_inference_fn: OpShapeInferenceFn
+  // - is_function_op: bool, default : false
+
+  // 2.
+  // op 变量说明
+  // 打印
+  // p op
+  // $5 = "Const"
+
   tf_shared_lock l(mu_);
+  // 因为 function_defs_ 为空，所以这个分支没有进入，
   auto iter = function_defs_.find(op);
   if (iter != function_defs_.end()) {
     *op_reg_data = &iter->second->op_registration_data;
     return Status::OK();
   }
-  return default_registry_->LookUp(op, op_reg_data);
+
+  // 所以在 default_registry_ 里面找
+  return default_registry_->LookUp(op, // input, string
+                                   op_reg_data); // output, const OpRegistrationData**
+  // 1.
+  // default_registry_ 数据结构
+  //
+  // ptype default_registry_
+  // type = const class tensorflow::OpRegistryInterface {
+  //   public:
+  //     ~OpRegistryInterface();
+  //     virtual tensorflow::Status LookUp(const std::string &, const tensorflow::OpRegistrationData **) const;
+  //     tensorflow::Status LookUpOpDef(const std::string &, const tensorflow::OpDef **) const;
+  // } * const
+  //
+  // 实际的数据结构是
+  // class OpRegistry : public OpRegistryInterface
+  // tensorflow/core/framework/op.h
+
+  // 2.
+  // OpRegistry::LookUp 函数说明
+  //
+  // Status LookUp(const string& op_type_name,              // input
+  //               const OpRegistrationData** op_reg_data)  // output
+  //              const override;
+  //
+  // 功能概述:
+  // 从 default_registry_ : std::unordered_map with 1288 elements 里面根据 key , i.e. op_type_name : string
+  // 返回对应的 value 值, i.e. const OpRegistrationData* res
+  // 如果未能找到就 赋值 nullptr
+  // 赋值给 op_reg_data 作为输出
 }
 
 string FunctionLibraryDefinition::UniqueFunctionName(StringPiece prefix) const {
@@ -1317,12 +1548,17 @@ std::vector<string> FunctionLibraryDefinition::ListFunctionNames() const {
   std::vector<string> function_names;
   tf_shared_lock l(mu_);
   function_names.reserve(function_defs_.size());
+  // 没有进入
   for (const auto& it : function_defs_) {
     function_names.emplace_back(it.first);
   }
   return function_names;
 }
 
+// 主要的用途是 DumpGraphToFile
+// core/util/dump_graph.cc
+// 调用栈 search "ToProto"
+// https://docs.google.com/document/d/18XhMZldLWN-6RQAlznmWWceiztvVtFSdzDvMfb5IUnw/edit#heading=h.vc4o1xxsku3h
 FunctionDefLibrary FunctionLibraryDefinition::ToProto() const {
   FunctionDefLibrary lib;
   tf_shared_lock l(mu_);
@@ -1366,6 +1602,8 @@ namespace {
 
 constexpr char kApiImplements[] = "api_implements";
 
+// 调用栈:
+// https://docs.google.com/document/d/18XhMZldLWN-6RQAlznmWWceiztvVtFSdzDvMfb5IUnw/edit#heading=h.xlexvsbqbwfr
 absl::flat_hash_set<string> ReachableFunctions(
     const FunctionLibraryDefinition& flib,
     const protobuf::RepeatedPtrField<NodeDef>& nodes) {
@@ -1450,11 +1688,19 @@ absl::flat_hash_set<string> ReachableFunctions(
   }
 
   return reachable_funcs;
+  // 1.
+  // 打印
+  // p reachable_funcs.size()
+  // $6 = 0
 }
 
+// 1.
+// QQQ. ReachableFunctionLibraryDefinition 目的是什么?
+// AAA.
 FunctionLibraryDefinition ReachableFunctionLibraryDefinition(
     const FunctionLibraryDefinition& flib,
     const protobuf::RepeatedPtrField<NodeDef>& nodes) {
+
   absl::flat_hash_set<string> reachable_funcs = ReachableFunctions(flib, nodes);
 
   FunctionLibraryDefinition reachable_flib(flib.default_registry(),

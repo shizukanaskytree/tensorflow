@@ -60,26 +60,92 @@ namespace tensorflow {
 using se::DeviceMemoryBase;
 using se::Stream;
 
-Status PrepareCopy(Device* device, const DeviceContext* ctx, const Tensor& src,
-                   const Tensor* dst,
-                   const DeviceBase::GpuDeviceInfo** dev_info,
-                   se::Stream** stream) {
+// 概述:
+// PrepareCopy 是 CopyCPUTensorToGPU 的第一步准备工作
+// 主要是进行检查, 和根据 Device* device 初始化 gpu device info dev_info
+// 和从 DeviceContext* 内取出 stream
+Status PrepareCopy(Device* device, // input
+                   const DeviceContext* ctx, // input
+                   const Tensor& src, // input
+                   const Tensor* dst, // input
+                   const DeviceBase::GpuDeviceInfo** dev_info, // output
+                   se::Stream** stream) { // output
+  // 1.
+  // class DeviceContext
+  // tensorflow/core/framework/device_base.h
+  // class DeviceContext: public core::RefCounted
+  // 概述:
+  // A class that devices can subclass to pass around
+  // Device-specific context to OpKernels.
+  //
+  // 没有成员变量
+  //
+  // 接口:
+  // - stream()
+  // - MaintainLifetimeOnStream
+  // - CopyCPUTensorToDevice
+  // - CopyTensorInSameDevice
+  // - CopyDeviceTensorToCPU
+  // - ThenExecute
+
   if (device == nullptr) {
     return errors::Internal("Unexpected null device.");
   }
+
   auto di = device->tensorflow_gpu_device_info();
+  // 1.
+  // tensorflow_gpu_device_info 函数说明
+  // tensorflow/core/framework/device_base.h
+  //
+
+  // 2.
+  // di 变量说明:
+  // di: GpuDeviceInfo*
+
+  // 3.
+  // struct GpuDeviceInfo 数据结构
+  // tensorflow/core/framework/device_base.h
+  // - stream: stream_executor::Stream*
+  // - default_context: DeviceContext*
+  // - event_mgr: EventMgr*
+  // - gpu_id: int , default_value : -1
+
+  // 4.
+  // class DeviceContext 数据结构
+  // tensorflow/core/framework/device_base.h
+  // class DeviceContext: public core::RefCounted
+  // 概述:
+  // A class that devices can subclass to pass around
+  // Device-specific context to OpKernels.
+  //
+  // 没有成员变量
+  //
+  // 接口:
+  // - stream()
+  // - MaintainLifetimeOnStream
+  // - CopyCPUTensorToDevice
+  // - CopyTensorInSameDevice
+  // - CopyDeviceTensorToCPU
+  // - ThenExecute
+
   if (di == nullptr) {
     return errors::Internal("Unexpected null device info.");
   }
+
   *dev_info = di;
+
   if (ctx == nullptr) {
     return errors::Internal("Unexpected null device context.");
   }
+
   auto gs = static_cast<const GPUDeviceContext*>(ctx)->stream();
+
   if (gs == nullptr) {
     return errors::Internal("No gpu stream is available.");
   }
+
   *stream = gs;
+
   if (dst != nullptr) {
     if (src.dtype() != dst->dtype()) {
       return errors::Internal("Can't copy a tensor of ",
@@ -98,11 +164,14 @@ Status PrepareCopy(Device* device, const DeviceContext* ctx, const Tensor& src,
       return errors::Internal("Dst tensor is not initialized.");
     }
   }
+
   if (!DMAHelper::CanUseDMA(&src)) {
     return errors::Internal("GPU copy from non-DMA ",
                             DataTypeString(src.dtype()), "tensor");
   }
+
   return Status::OK();
+
 }
 
 void* GetBase(const Tensor* src) {
@@ -184,23 +253,85 @@ void GPUUtil::SetProtoFromGPU(const Tensor& tensor, Device* dev,
       });
 }
 
+
+// -----------------------------------------------------------------------
+
 // static
 void GPUUtil::DeviceToDeviceCopy(
-    DeviceContext* send_dev_context, DeviceContext* recv_dev_context,
-    Device* src, Device* dst, AllocatorAttributes src_alloc_attr,
-    AllocatorAttributes dst_alloc_attr, const Tensor* input, Tensor* output,
-    int dev_to_dev_stream_index, StatusCallback done) {
+    DeviceContext* send_dev_context,
+    DeviceContext* recv_dev_context,
+    Device* src,
+    Device* dst,
+    AllocatorAttributes src_alloc_attr,
+    AllocatorAttributes dst_alloc_attr,
+    const Tensor* input, Tensor* output,
+    int dev_to_dev_stream_index,
+    StatusCallback done) {
+  // 1.
+  // AllocatorAttributes 数据结构说明
+  //
+  // tensorflow/core/framework/allocator.h
+  // - uint32 value = 0;
+  //   value 是比特的方
+  //
+  //  00000000
+  //  ^^^^^^^^
+  //  ||||||||
+  //  |||||||+----+ on host ?
+  //  ||||||+-----+ nic compatible ?
+  //  |||||+------+ gpu compatible ?
+  //  ||||+-------+
+  //  |||+--------+
+  //  ||+---------+
+  //  |+----------+
+  //  +-----------+
+
+  // 1.1
+  // 介绍:
+  // A tensorflow Op may need access to different kinds of memory that
+  // are not simply a function of the device to which the Op has been
+  // assigned.  For example, an Op executing on a GPU may still need
+  // to allocate CPU RAM for some purpose.  Internal to the tensorflow
+  // runtime we may choose to allocate CPU ram from special regions
+  // that have been prepared for higher performance in some use
+  // contexts, e.g. doing DMA with particular devices.  For these
+  // reasons, the Device interface does not expose just one memory
+  // Allocator, but instead provides an accessor that takes a
+  // specification of the desired memory attributes in order to select
+  // an Allocator.
+  //
+  // Example use:
+  //  // Allocator for ordinary device memory:
+  //  Allocator* a = allocator(AllocatorAttributes());
+  // ...
+  //  // Allocator for CPU RAM, regardless of where Op is executing:
+  //  AllocatorAttributes attr;
+  //  attr.set_on_host(true);
+  //  Allocator* a = allocator(attr);
+
+  // 2.
+  // StatusCallback 函数说明:
+  // tensorflow/core/common_runtime/rendezvous_mgr.h:79:
+  // typedef std::function<void(const Status&)> StatusCallback;
+
+
   const DeviceBase::GpuDeviceInfo* dev_info = nullptr;
+
   se::Stream* send_stream = nullptr;
-  Status s = PrepareCopy(src, send_dev_context, *input, output, &dev_info,
+
+  Status s = PrepareCopy(src, send_dev_context, *input, output,
+                         &dev_info, // output
                          &send_stream);
+
   if (!s.ok()) {
     done(s);
     return;
   }
+
   auto send_device_to_device_stream =
       static_cast<const GPUDeviceContext*>(send_dev_context)
           ->device_to_device_stream(dev_to_dev_stream_index);
+
   if (send_device_to_device_stream == nullptr) {
     done(errors::Internal("No send gpu copy-out-stream is available."));
     return;
@@ -248,33 +379,140 @@ void GPUUtil::DeviceToDeviceCopy(
                                              send_device_to_device_stream);
 }
 
+
+// -----------------------------------------------------------------------
+
+
 static CopyTensor::Registration register_gpu_gpu_copy(
     DEVICE_GPU, DEVICE_GPU, GPUUtil::DeviceToDeviceCopy);
+
 
 // static
 void GPUUtil::CopyGPUTensorToCPU(Device* gpu_device,
                                  const DeviceContext* device_context,
-                                 const Tensor* gpu_tensor, Tensor* cpu_tensor,
+                                 const Tensor* gpu_tensor, // src
+                                 Tensor* cpu_tensor, // dst
                                  StatusCallback done) {
+  // 1.
+  // StatusCallback 函数说明:
+  // tensorflow/core/common_runtime/rendezvous_mgr.h:79:
+  // typedef std::function<void(const Status&)> StatusCallback;
+
   VLOG(1) << "CopyGPUTensorToCPU";
+
   const DeviceBase::GpuDeviceInfo* dev_info = nullptr;
+  // 1.
+  // struct GpuDeviceInfo 数据结构
+  // tensorflow/core/framework/device_base.h
+  // - stream: stream_executor::Stream*
+  // - default_context: DeviceContext*
+  // - event_mgr: EventMgr*
+  // - gpu_id: int , default_value : -1
+
   se::Stream* send_stream = nullptr;
-  Status s = PrepareCopy(gpu_device, device_context, *gpu_tensor, cpu_tensor,
-                         &dev_info, &send_stream);
+
+  Status s = PrepareCopy(gpu_device,    // input
+                         device_context,// input
+                         *gpu_tensor,   // input // src
+                         cpu_tensor,    // input // dst
+                         &dev_info,     // output
+                         &send_stream); // output
+  // 1.
+  // PrepareCopy 函数说明:
+  // tensorflow/core/common_runtime/gpu/gpu_util.cc
+  // 概述:
+  // 主要是进行检查, 和根据 Device* gpu_device 初始化 gpu device info dev_info
+  // 和从 DeviceContext* device_context 内取出 stream
+  //
+  // Status PrepareCopy(Device* device,
+  //                    const DeviceContext* ctx,
+  //                    const Tensor& src,
+  //                    const Tensor* dst,
+  //                    const DeviceBase::GpuDeviceInfo** dev_info,
+  //                    se::Stream** stream) {
+
+  // 2.
+  // class Device 数据结构
+  // tensorflow/core/common_runtime/device.h
+  // 重要接口
+  // - Compute
+  // - ComputeAsync
+  // - FillContextMap
+  // - resource_manager
+  // 成员变量:
+  // - device_mgr_: DeviceMgr*
+  // - device_attributes_: const DeviceAttributes
+  // - parsed_name_: DeviceNameUtils::ParsedName
+  // - op_seg_: OpSegment
+  // - rmgr_: ResourceMgr*
+
+  // 3.
+  // class DeviceBase 数据结构
+  // tensorflow/core/framework/device_base.h
+  // - struct CpuWorkerThreads
+  //    - num_threads: int , default : 0
+  //    - workers: thread::ThreadPool*, default : nullptr
+  // - struct GpuDeviceInfo
+  //    - stream: stream_executor::Stream*
+  //    - default_context: DeviceContext*
+  //    - event_mgr: EventMgr*
+  //    - gpu_id: int, default: -1
+  // - env_: Env* const
+  // - cpu_worker_threads_: CpuWorkerThreads* , default : nullptr
+  // - gpu_device_info_: GpuDeviceInfo* , default : nullptr
+  // - device_thread_pool_: thread::ThreadPool* , default : nullptr
+  // - eigen_cpu_devices_: std::vector<Eigen::ThreadPoolDevice*>
+  // - eigen_sycl_device_: Eigen::SyclDevice*, default : nullptr
+
+  // 4.
+  // class DeviceContext
+  // tensorflow/core/framework/device_base.h
+  // class DeviceContext: public core::RefCounted
+  // 概述:
+  // A class that devices can subclass to pass around
+  // Device-specific context to OpKernels.
+  //
+  // 没有成员变量
+  //
+  // 接口:
+  // - stream()
+  // - MaintainLifetimeOnStream
+  // - CopyCPUTensorToDevice
+  // - CopyTensorInSameDevice
+  // - CopyDeviceTensorToCPU
+  // - ThenExecute
+
+  // 5.
+  // struct GpuDeviceInfo 数据结构
+  // tensorflow/core/framework/device_base.h
+  // - stream: stream_executor::Stream*
+  // - default_context: DeviceContext*
+  // - event_mgr: EventMgr*
+  // - gpu_id: int , default_value : -1
+
   if (!s.ok()) {
     done(s);
     return;
   }
 
+  // GPU -> CPU
   auto send_device_to_host_stream =
       static_cast<const GPUDeviceContext*>(device_context)
           ->device_to_host_stream();
+  // 1.
+  // send_device_to_host_stream 变量说明
+  //
+
+
   if (send_device_to_host_stream == nullptr) {
     done(errors::Internal("No send gpu copy-out-stream is available."));
     return;
   }
+
   // Wait for the sender's main stream to make sure the data are available.
   send_device_to_host_stream->ThenWaitFor(send_stream);
+  // ThenWaitFor 函数说明
+  //
 
   const int64 total_bytes = gpu_tensor->TotalBytes();
   if (total_bytes > 0) {
@@ -296,16 +534,42 @@ void GPUUtil::CopyGPUTensorToCPU(Device* gpu_device,
       });
 }
 
+
+
 /*  static */
-void GPUUtil::CopyCPUTensorToGPU(const Tensor* cpu_tensor,
-                                 const DeviceContext* device_context,
-                                 Device* gpu_device, Tensor* gpu_tensor,
-                                 StatusCallback done) {
+void GPUUtil::CopyCPUTensorToGPU(
+  const Tensor* cpu_tensor,             // input  // const Tensor* cpu_tensor
+  const DeviceContext* device_context,  // input  // GPUDeviceContext*
+  Device* gpu_device,                   // input  //dst: Device*
+  Tensor* gpu_tensor,                   // output // Tensor* device_tensor
+  StatusCallback done)                  // input  // StatusCallback done
+{
   VLOG(1) << "CopyCPUTensorToGPU";
+
   const DeviceBase::GpuDeviceInfo* dev_info = nullptr;
+
   se::Stream* recv_stream = nullptr;
-  Status s = PrepareCopy(gpu_device, device_context, *cpu_tensor, gpu_tensor,
-                         &dev_info, &recv_stream);
+
+  Status s = PrepareCopy(gpu_device,  // input
+                         device_context, // input
+                         *cpu_tensor, // input
+                         gpu_tensor, // input
+                         &dev_info, // output
+                         &recv_stream); // output
+  // PrepareCopy 函数说明:
+  // tensorflow/core/common_runtime/gpu/gpu_util.cc
+  // 概述:
+  // PrepareCopy 是 CopyCPUTensorToGPU 的第一步准备工作
+  // 主要是进行检查, 和根据 Device* device 初始化 gpu device info dev_info
+  // 和从 DeviceContext* 内取出 stream
+  //
+  // Status PrepareCopy(Device* device, // input
+  //                    const DeviceContext* ctx, // input
+  //                    const Tensor& src, // input
+  //                    const Tensor* dst, // input
+  //                    const DeviceBase::GpuDeviceInfo** dev_info, // output
+  //                    se::Stream** stream) { // output
+
   if (!s.ok()) {
     done(s);
     return;
@@ -314,21 +578,80 @@ void GPUUtil::CopyCPUTensorToGPU(const Tensor* cpu_tensor,
   auto recv_host_to_device_stream =
       static_cast<const GPUDeviceContext*>(device_context)
           ->host_to_device_stream();
+  // 1.
+  // host_to_device_stream 函数说明
+  // common_runtime/gpu_device_context.h
+  // host_to_device_stream: se::Stream*
+
+  // 2.
+  // recv_host_to_device_stream 变量说明
+  // recv_host_to_device_stream: class stream_executor::Stream*
+
+  // 2.
+  // class GPUDeviceContext
+  // se::Stream* host_to_device_stream() const { return host_to_device_stream_; }
+
   if (recv_host_to_device_stream == nullptr) {
     done(errors::Internal("No send gpu copy-out-stream is available."));
     return;
   }
+
   // Wait for the recv-stream to make sure the buffer is truly available.
-  recv_host_to_device_stream->ThenWaitFor(recv_stream);
+  recv_host_to_device_stream->ThenWaitFor(recv_stream); // output
+  // 1.
+  // ThenWaitFor 函数说明
+  // tensorflow/stream_executor/stream.cc
+  // Stream &Stream::ThenWaitFor(Stream *other) // output
 
   const int64 total_bytes = cpu_tensor->TotalBytes();
+
   // Note that 0-size tensors have no backing buffer.
   if (total_bytes > 0) {
+    // 进入这里
     void* src_ptr = GetBase(cpu_tensor);
     void* dst_ptr = GetBase(gpu_tensor);
+
     DeviceMemoryBase gpu_dst_ptr(dst_ptr, total_bytes);
-    recv_host_to_device_stream->ThenMemcpy(&gpu_dst_ptr, src_ptr, total_bytes);
+    // DeviceMemoryBase 数据结构
+    // tensorflow/stream_executor/device_memory.h
+    //
+    // void*-analogous device memory allocation. For the typed variation, see
+    // DeviceMemory<T>.
+    //
+    // This is effectively a two-tuple of a pointer and size; however, note that the
+    // pointer may not be to the virtual address itself -- in OpenCL the pointer is
+    // to a cl_mem handle that describes the device allocation. Therefore,
+    // DeviceMemoryBase::opaque does not necessarily produce a pointer that can be
+    // referenced directly, so use it with caution.
+    //
+    // Thread-compatible.
+
+    // -----------------------------------------------------------------------
+    recv_host_to_device_stream->ThenMemcpy(&gpu_dst_ptr,  // output
+                                           src_ptr, // input
+                                           total_bytes); // input
+    // -----------------------------------------------------------------------
+    // 1.
+    // recv_host_to_device_stream 变量说明
+    // recv_host_to_device_stream : class stream_executor::Stream *
+
+    // 2.
+    // ThenMemcpy 函数说明
+    // tensorflow/stream_executor/stream.cc
+    // Stream &Stream::ThenMemcpy(DeviceMemoryBase *gpu_dst, const void *host_src, uint64 size)
+    // line: 4797
+    ///////////////////////////////////////////////////////////////////////
+    // ThenMemcpy 最后使用 cuMemcpyHtoDAsync
+    ///////////////////////////////////////////////////////////////////////
+    //
+    // 接口
+    // Stream &Stream::ThenMemcpy(
+    //                   DeviceMemoryBase *gpu_dst, // output
+    //                   const void *host_src,      // input
+    //                   uint64 size)               // input
+
   }
+
   // Use of cpu_tensor may outlive stack scope, so keep a ref.
   TensorReference input_ref(*cpu_tensor);
   dev_info->event_mgr->ThenExecute(

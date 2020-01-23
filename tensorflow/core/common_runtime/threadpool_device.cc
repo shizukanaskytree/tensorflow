@@ -42,18 +42,26 @@ limitations under the License.
 namespace tensorflow {
 
 ThreadPoolDevice::ThreadPoolDevice(const SessionOptions& options,
-                                   const string& name, Bytes memory_limit,
+                                   const string& name,
+                                   Bytes memory_limit,
                                    const DeviceLocality& locality,
                                    Allocator* allocator)
-    : LocalDevice(options, Device::BuildDeviceAttributes(
-                               name, DEVICE_CPU, memory_limit, locality)),
+    : LocalDevice(options,
+                  Device::BuildDeviceAttributes(
+                            name,
+                            DEVICE_CPU,
+                            memory_limit,
+                            locality)),
       allocator_(allocator),
       scoped_allocator_mgr_(new ScopedAllocatorMgr(name)) {
+
 #ifdef INTEL_MKL
   // Early return when MKL is disabled
   if (DisableMKL()) return;
 #ifdef _OPENMP
+
   const char* user_omp_threads = getenv("OMP_NUM_THREADS");
+
   if (user_omp_threads == nullptr) {
     // OMP_NUM_THREADS controls MKL's intra-op parallelization
     // Default to available physical cores

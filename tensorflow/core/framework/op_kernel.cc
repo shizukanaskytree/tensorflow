@@ -199,11 +199,17 @@ Tensor* PersistentTensor::AccessTensor(OpKernelContext* context) {
 // OpKernelConstruction ------------------------------------------------------
 
 OpKernelConstruction::OpKernelConstruction(
-    DeviceType device_type, DeviceBase* device, Allocator* allocator,
-    const NodeDef* node_def, const OpDef* op_def, FunctionLibraryRuntime* flib,
-    const DataTypeSlice& input_types, const MemoryTypeSlice& input_memory_types,
+    DeviceType device_type,
+    DeviceBase* device,
+    Allocator* allocator,
+    const NodeDef* node_def,
+    const OpDef* op_def,
+    FunctionLibraryRuntime* flib,
+    const DataTypeSlice& input_types,
+    const MemoryTypeSlice& input_memory_types,
     const DataTypeSlice& output_types,
-    const MemoryTypeSlice& output_memory_types, int graph_def_version,
+    const MemoryTypeSlice& output_memory_types,
+    int graph_def_version,
     Status* status)
     : device_type_(std::move(device_type)),
       device_(device),
@@ -276,23 +282,47 @@ const int OpKernelContext::Params::kNoReservation;
 
 OpKernelContext::OpKernelContext(Params* params)
     : OpKernelContext(
-          params, static_cast<int>(params->op_kernel->output_types().size())) {}
+          params,
+          static_cast<int>(params->op_kernel->output_types().size())) {}
 
-OpKernelContext::OpKernelContext(Params* params, int num_outputs)
+// NodeItem& instance 的 num_outputs
+//
+OpKernelContext::OpKernelContext(
+  Params* params,
+  int num_outputs)
+
     : params_(params),
       outputs_(num_outputs),
       temp_memory_allocated_(0),
       persistent_memory_allocated_(0) {
+
+  // OpKernelContext::Params 数据结构
+  // 和 device, op kernel 相关的
+  // - op_kernel: OpKernel*
+  // - device: DeviceBase*
+  // - eigen_gpu_device: PerOpGpuDevice*
+  // - output_attr_array: const AllocatorAttributes*
+  // - rendezvous: Rendezvous*
+  // - input_alloc_attrs: const gtl::InlinedVector<TensorValue, 4>*
+  // - input_device_contexts: const gtl::InlinedVector<DeviceContext*, 4>*
+  // - op_device_context: DeviceContext*
+  // - ... others
+
   params_->ensure_eigen_gpu_device();
+
   if (params_->eigen_gpu_device != nullptr) {
     Allocator* eigen_gpu_allocator = get_allocator(AllocatorAttributes());
     Status s = params_->device->ReinitializeGpuDevice(
-        this, params_->eigen_gpu_device, params_->op_device_context,
+        this,
+        params_->eigen_gpu_device,
+        params_->op_device_context,
         eigen_gpu_allocator);
+
     if (!s.ok()) {
       SetStatus(s);
     }
   }
+
   if (params_->record_tensor_accesses) {
     referenced_tensors_.Init();
   }
@@ -818,13 +848,29 @@ void OpKernelContext::set_output(int index, const Tensor& tensor) {
   }
 }
 
-void OpKernelContext::set_output_ref(int index, mutex* mu,
-                                     Tensor* tensor_for_ref) {
+// 概述:
+// OpKernelContext::outputs_[index] 实际会指向 Tensor* tensor_for_ref ，
+// 这样后面的操作对这个 tensor 造成的修改都是直接反映在这个 tensor 上的。
+void OpKernelContext::set_output_ref(int index, // input
+                                     mutex* mu, // input
+                                     Tensor* tensor_for_ref) { // input
   DCHECK_GE(index, 0);
   DCHECK_LT(index, outputs_.size());
   DCHECK(IsRefType(params_->op_kernel->output_type(index)));
+
   record_tensor_reference(*tensor_for_ref);
+  // record_tensor_reference 函数说明:
+  // inline void OpKernelContext::record_tensor_reference(const Tensor& tensor)
+
   outputs_[index] = TensorValue(mu, tensor_for_ref);
+  // TensorValue 数据结构
+  // tensorflow/core/framework/op_kernel.h:513:struct TensorValue
+  // 概述:
+  // Holds a tensor or tensor reference. For tensor references, we need
+  // a mutex to prevent concurrent access to the tensor.
+  //
+  // - tensor: Tensor*
+  // - mutex_if_ref: mutex*
 }
 
 Status OpKernelContext::set_output_ref(StringPiece name, mutex* mu,
@@ -939,8 +985,10 @@ void OpKernelContext::clear_recorded_memory() {
 // OpKernel registration ------------------------------------------------------
 
 struct KernelRegistration {
-  KernelRegistration(const KernelDef& d, StringPiece c,
-                     std::unique_ptr<kernel_factory::OpKernelFactory> f)
+  KernelRegistration(
+    const KernelDef& d,
+    StringPiece c,
+    std::unique_ptr<kernel_factory::OpKernelFactory> f)
       : def(d), kernel_class_name(c), factory(std::move(f)) {}
 
   const KernelDef def;
@@ -1088,26 +1136,45 @@ void OpKernelRegistrar::InitInternal(const KernelDef* kernel_def,
   delete kernel_def;
 }
 
-OpKernel* OpKernelRegistrar::PtrOpKernelFactory::Create(
-    OpKernelConstruction* context) {
+
+// =======================================================================
+OpKernel* OpKernelRegistrar::PtrOpKernelFactory::Create(OpKernelConstruction* context){
   return (*create_func_)(context);
+  // 构造函数说明:
+  // create_func_ 会进入具体的 op 的 kernel 的构造函数
+  // 比如说 VariableOp::VariableOp, tensorflow/core/kernels/variable_ops.cc
 }
+// =======================================================================
 
 }  // namespace kernel_factory
 
 namespace {
 
 static const StringPiece kKernelAttr("_kernel");
-
+/**
+ *  \params
+ *    device_type
+ *
+ *
+ *
+ */
 // TODO(irving): Replace with const Node& version below.
-Status FindKernelRegistration(const DeviceType& device_type,
-                              const NodeDef& node_def,
-                              const KernelRegistration** reg,
-                              bool* was_attr_mismatch) {
+Status FindKernelRegistration(const DeviceType& device_type, // input
+                              const NodeDef& node_def, // input
+                              const KernelRegistration** reg, // output
+                              bool* was_attr_mismatch) { // output
   *reg = nullptr;
   *was_attr_mismatch = false;
+
   // Label defaults to empty if not found in NodeDef.
-  const string& label = GetNodeAttrString(node_def, kKernelAttr);
+
+  // GetNodeAttrString 函数说明:
+  // tensorflow/core/framework/node_def_util.cc:304:
+  // const string& GetNodeAttrString(const AttrSlice& attrs,
+  //                                 StringPiece attr_name)
+  const string& label = GetNodeAttrString(
+    node_def, // input
+    kKernelAttr); // input
 
   const string key = Key(node_def.op(), device_type, label);
   auto regs = GlobalKernelRegistryTyped()->equal_range(key);
@@ -1143,13 +1210,63 @@ bool KernelDefAvailable(const DeviceType& device_type,
   return result.ok() && reg != nullptr;
 }
 
+/**
+ *  \params
+ *    device_type
+ *    node_def
+ *    def
+ *    kernel_class_name
+ *
+ *
+ */
 // TODO(irving): Change const NodeDef& to const Node&
-Status FindKernelDef(const DeviceType& device_type, const NodeDef& node_def,
-                     const KernelDef** def, string* kernel_class_name) {
+Status FindKernelDef(
+  const DeviceType& device_type, // input
+  const NodeDef& node_def, // input
+  const KernelDef** def, // output
+  string* kernel_class_name) { // input = nullptr
+
+  // KernelRegistration 数据结构
+  // tensorflow/core/framework/op_kernel.cc
+  // struct KernelRegistration
+  //  - def: const KernelDef ;
+  //    * KernelDef 数据结构:
+  //      tensorflow/core/framework/kernel_def.proto:11: message KernelDef
+  //      - op: string, op name
+  //      - device_type : string
+  //         * Type of device this kernel runs on.
+  //      - constraint: AttrConstraint (name, allowed_values)
+  //      - host_memory_arg: string
+  //      - label: string
+  //      - priority: int32
+  //         * Prioritization of kernel amongst different devices.
+  //  - kernel_class_name: const string
+  //  - factory: std::unique_ptr<kernel_factory::OpKernelFactory>
+  //    * OpKernelFactory 数据结构:
+  //    * tensorflow/core/framework/op_kernel.h:1443:class OpKernelFactory
+  //    * 纯虚函数
+  //    * 继承
+  //    *   class OpKernelRegistrar::struct PtrOpKernelFactory : public OpKernelFactory
+
   const KernelRegistration* reg = nullptr;
+
   bool was_attr_mismatch;
+
+  // FindKernelRegistration 函数说明
+  // tensorflow/core/framework/op_kernel.cc:1103:
+  // Status FindKernelRegistration(const DeviceType& device_type,
+  //                               const NodeDef& node_def,
+  //                               const KernelRegistration** reg,
+  //                               bool* was_attr_mismatch)
+  //
   TF_RETURN_IF_ERROR(
-      FindKernelRegistration(device_type, node_def, &reg, &was_attr_mismatch));
+      FindKernelRegistration(
+        device_type, // input
+        node_def, // input
+        &reg, // output
+        &was_attr_mismatch)); // output
+
+  // error handling part
   if (reg == nullptr) {
     Status s = errors::NotFound(
         "No registered '", node_def.op(), "' OpKernel for ",
@@ -1164,27 +1281,59 @@ Status FindKernelDef(const DeviceType& device_type, const NodeDef& node_def,
         &s, ".  Registered:", KernelsRegisteredForOp(node_def.op()));
     return s;
   }
+
   if (def != nullptr) *def = &reg->def;
   if (kernel_class_name != nullptr) *kernel_class_name = reg->kernel_class_name;
+
   return Status::OK();
 }
 
+// 调用栈:
+// https://docs.google.com/document/d/12bnaSTuI_L6OTtYi15KQInuo7QG_BASk4hcr1BzrScc/edit#
 Status SupportedDeviceTypesForNode(
-    const std::vector<DeviceType>& prioritized_types, const NodeDef& def,
-    PrioritizedDeviceTypeVector* prioritized_device_types) {
+    const std::vector<DeviceType>& prioritized_types,  // input
+    const NodeDef& def, // input
+    PrioritizedDeviceTypeVector* prioritized_device_types) { // output
+  // 1.
+  // PrioritizedDeviceTypeVector 数据结构
+  // PrioritizedDeviceTypeVector: typedef gtl::InlinedVector<std::pair<DeviceType, int32>, 4>
+  //                                                                       |         |
+  //                                                                    DeviceType  priority
+  // framework/types.h
+
+  // 2.
+  // prioritized_types 数据结构
+  // prioritized_types: const std::vector<DeviceType>&
+  // p prioritized_types
+  // $17 = std::vector of length 4, capacity 4 = {{type_ = "GPU"}, {type_ = "CPU"}, {type_ = "XLA_CPU"}, {type_ = "XLA_GPU"}}
+
+  // 3.
+  // class DeviceType 数据结构
+  // A DeviceType is just a string, but we wrap it up in a class to give
+  // some type checking as we're passing these around
+  // - type_: string
+
   // TODO(zhifengc): Changes the callers (SimplePlacer and
   // DynamicPlacer) to consider the possibility that 'def' is call to
   // a user-defined function and only calls this
   // SupportedDeviceTypesForNode for primitive ops.
   const OpRegistrationData* op_reg_data;
+
   const Status s = OpRegistry::Global()->LookUp(def.op(), &op_reg_data);
+
   if (s.ok()) {
+    // 正常处理
+    //
     for (const DeviceType& device_type : prioritized_types) {
+      // 遍历 {{type_ = "GPU"}, {type_ = "CPU"}, {type_ = "XLA_CPU"}, {type_ = "XLA_GPU"}}
       const KernelRegistration* reg = nullptr;
       bool was_attr_mismatch;
+
       TF_RETURN_IF_ERROR(
           FindKernelRegistration(device_type, def, &reg, &was_attr_mismatch));
+
       if (reg != nullptr) {
+        // 进入这个分支
         int32 priority = reg->def.priority();
         prioritized_device_types->emplace_back(device_type, priority);
       }
@@ -1195,6 +1344,21 @@ Status SupportedDeviceTypesForNode(
                  const std::pair<DeviceType, int32>& b) {
                 return a.second > b.second;
               });
+    /*
+    打印
+
+    p (*prioritized_device_types)[0]
+    $13 = {first = {type_ = "GPU"}, second = 0}
+
+    p (*prioritized_device_types)[1]
+    $14 = {first = {type_ = "CPU"}, second = 0}
+
+    p (*prioritized_device_types)[2]
+    $15 = {first = {type_ = "XLA_CPU"}, second = 0}
+
+    p (*prioritized_device_types)[3]
+    $16 = {first = {type_ = "XLA_GPU"}, second = 0}
+    */
   } else {
     // Assumes that all device types support this node.
     for (const DeviceType& device_type : prioritized_types) {
@@ -1254,22 +1418,45 @@ string KernelsRegisteredForOp(StringPiece op_name) {
 }
 
 std::unique_ptr<OpKernel> CreateOpKernel(
-    DeviceType device_type, DeviceBase* device, Allocator* allocator,
-    const NodeDef& node_def, int graph_def_version, Status* status) {
+    DeviceType device_type,
+    DeviceBase* device,
+    Allocator* allocator,
+    const NodeDef& node_def,
+    int graph_def_version,
+    Status* status) {
+
   OpKernel* kernel = nullptr;
-  *status = CreateOpKernel(std::move(device_type), device, allocator, nullptr,
-                           node_def, graph_def_version, &kernel);
+  *status = CreateOpKernel(std::move(device_type),
+                           device,
+                           allocator,
+                           nullptr,
+                           node_def,
+                           graph_def_version,
+                           &kernel);
+
   return std::unique_ptr<OpKernel>(kernel);
 }
 
-Status CreateOpKernel(DeviceType device_type, DeviceBase* device,
-                      Allocator* allocator, FunctionLibraryRuntime* flib,
-                      const NodeDef& node_def, int graph_def_version,
-                      OpKernel** kernel) {
+/** \brief 根据 node_def 来创建具体的 OpKernel
+ *
+ *  \param [out] kernel : OpKernel**
+ */
+Status CreateOpKernel(
+  // -----------------------------------------
+  DeviceType device_type,
+  // -----------------------------------------
+  DeviceBase* device,
+  Allocator* allocator,
+  FunctionLibraryRuntime* flib,
+  const NodeDef& node_def,
+  int graph_def_version,
+  OpKernel** kernel)
+{
   VLOG(1) << "Instantiating kernel for node: " << SummarizeNodeDef(node_def);
 
   // Look up the Op registered for this op name.
   const OpDef* op_def = nullptr;
+  /// 根据 node op name 找到 op def 相关的
   Status s = OpRegistry::Global()->LookUpOpDef(node_def.op(), &op_def);
   if (!s.ok()) return s;
 
@@ -1315,15 +1502,58 @@ Status CreateOpKernel(DeviceType device_type, DeviceBase* device,
   // the kernel's input and output memory types.
   MemoryTypeVector input_memory_types;
   MemoryTypeVector output_memory_types;
-  TF_RETURN_IF_ERROR(MemoryTypesForNode(OpRegistry::Global(), device_type,
-                                        node_def, &input_memory_types,
-                                        &output_memory_types));
+
+  TF_RETURN_IF_ERROR(
+    MemoryTypesForNode(
+      OpRegistry::Global(),
+      device_type,
+      node_def,
+      &input_memory_types,
+      &output_memory_types));
 
   // Everything needed for OpKernel construction.
   OpKernelConstruction context(
-      device_type, device, allocator, &node_def, op_def, flib, inputs,
-      input_memory_types, outputs, output_memory_types, graph_def_version, &s);
+      device_type,
+      device,
+      allocator,
+      &node_def,
+      op_def,
+      flib,
+      inputs,
+      input_memory_types,
+      outputs,
+      output_memory_types,
+      graph_def_version,
+      &s);
+  // OpKernelConstruction 数据结构
+  // tensorflow/core/framework/op_kernel.h
+  //
+  // OpKernelConstruction(
+  //   DeviceType device_type,
+  //   DeviceBase* device,
+  //   Allocator* allocator,
+  //   const NodeDef* node_def,
+  //   const OpDef* op_def,
+  //   FunctionLibraryRuntime* flib,
+  //   const DataTypeSlice& input_types,
+  //   const MemoryTypeSlice& input_memory_types,
+  //   const DataTypeSlice& output_types,
+  //   const MemoryTypeSlice& output_memory_types,
+  //   int graph_def_version,
+  //   Status* status);
+
+  // -----------------------------------------------------------------------
   *kernel = registration->factory->Create(&context);
+  // -----------------------------------------------------------------------
+  // 1.
+  // e.g.
+  // Search "Variable"
+  // https://docs.google.com/document/d/1Mv0c72uu8ljaZ2bwSvXNE6E53HFhH_JVxc8lTCIBCds/edit#
+
+  // 2.
+  // PtrOpKernelFactory::Create() 函数说明:
+  // tensorflow/core/framework/op_kernel.cc
+
   if (!s.ok()) {
     delete *kernel;
     *kernel = nullptr;

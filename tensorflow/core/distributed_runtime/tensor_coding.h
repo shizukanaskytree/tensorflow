@@ -29,6 +29,11 @@ class Allocator;
 class DeviceBase;
 class TensorProto;
 
+/** \class TensorResponse
+ *
+ *  \brief It efficiently decodes the incoming data into Tensor contents as well
+ *         as associated metadata.
+ */
 // TensorResponse can be used as the destination of an RPC that returns
 // a RecvTensorResponse.  It efficiently decodes the incoming data
 // into Tensor contents as well as associated metadata.

@@ -14,6 +14,8 @@ namespace Eigen {
 
 template <typename Environment>
 class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
+//    ---------------
+
  public:
   typedef typename Environment::Task Task;
   typedef RunQueue<Task, 1024> Queue;
@@ -35,7 +37,9 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
         done_(false),
         cancelled_(false),
         ec_(waiters_) {
+    /// QQQ. waiters_ 个数和它起的作用是什么关系?
     waiters_.resize(num_threads_);
+
     // Calculate coprimes of all numbers [1, num_threads].
     // Coprimes are used for random walks over all threads in Steal
     // and NonEmptyQueueIndex. Iteration is based on the fact that if we take
@@ -43,20 +47,35 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     // indices as (t + coprime) % num_threads, we will cover all threads without
     // repetitions (effectively getting a presudo-random permutation of thread
     // indices).
+    /// 如果我修改了 线程可用的范围，那么这些都要重算。
     eigen_plain_assert(num_threads_ < kMaxThreads);
     for (int i = 1; i <= num_threads_; ++i) {
       all_coprimes_.emplace_back(i);
       ComputeCoprimes(i, &all_coprimes_.back());
     }
+
 #ifndef EIGEN_THREAD_LOCAL
     init_barrier_.reset(new Barrier(num_threads_));
 #endif
+
     thread_data_.resize(num_threads_);
+
+
+    ////////////////////////////////////////////////////////////////////
+    // 这里构造了 thread 并且都执行 WorkerLoop 函数
     for (int i = 0; i < num_threads_; i++) {
+
+      // ---------------------------------------------------
+      // 原来出事话的偷是全部范围
       SetStealPartition(i, EncodePartition(0, num_threads_));
+      // ---------------------------------------------------
+
       thread_data_[i].thread.reset(
           env_.CreateThread([this, i]() { WorkerLoop(i); }));
     }
+    ////////////////////////////////////////////////////////////////////
+
+
 #ifndef EIGEN_THREAD_LOCAL
     // Wait for workers to initialize per_thread_map_. Otherwise we might race
     // with them in Schedule or CurrentThreadId.
@@ -85,6 +104,12 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       thread_data_[i].thread.reset();
   }
 
+
+  /// 构想: 底层还要能够动态地对每个线程设置 steal partition
+  /// QQQ.谁调用了这个函数，我想知道起初是在哪里被调用的，当然了，我后面想着应该可以从 tf 那边比如写个
+  /// AAA. grep -nwr please.  首先看下 run_handler.cc:115 有没有被调用，其次我可以不理会原理的，直接设置我想要的结果。
+  /// pool->SetStealPartition(partitions)
+  /// 这样就能重新编排 steal 的区间了。
   void SetStealPartitions(const std::vector<std::pair<unsigned, unsigned>>& partitions) {
     eigen_plain_assert(partitions.size() == static_cast<std::size_t>(num_threads_));
 
@@ -93,7 +118,9 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       const auto& pair = partitions[i];
       unsigned start = pair.first, end = pair.second;
       AssertBounds(start, end);
+
       unsigned val = EncodePartition(start, end);
+      /// 我想，需要动态设置这个 partition 的值
       SetStealPartition(i, val);
     }
   }
@@ -102,12 +129,21 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     ScheduleWithHint(std::move(fn), 0, num_threads_);
   }
 
-  void ScheduleWithHint(std::function<void()> fn, int start,
+  /// Range: [start, limit)
+  /// e.g., [71], [71, 72)
+  void ScheduleWithHint(std::function<void()> fn,
+                        int start,
                         int limit) override {
+
     Task t = env_.CreateTask(std::move(fn));
+
     PerThread* pt = GetPerThread();
+
     if (pt->pool == this) {
       // Worker thread of this pool, push onto the thread's queue.
+      // 1.
+      // 什么情况下会是这样的?
+
       Queue& q = thread_data_[pt->thread_id].queue;
       t = q.PushFront(std::move(t));
     } else {
@@ -115,10 +151,14 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       // queue.
       eigen_plain_assert(start < limit);
       eigen_plain_assert(limit <= num_threads_);
+
       int num_queues = limit - start;
+
       int rnd = Rand(&pt->rand) % num_queues;
       eigen_plain_assert(start + rnd < limit);
+
       Queue& q = thread_data_[start + rnd].queue;
+
       t = q.PushBack(std::move(t));
     }
     // Note: below we touch this after making w available to worker threads.
@@ -169,15 +209,32 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   // Exposed publicly as static functions so that external callers can reuse
   // this encode/decode logic for maintaining their own thread-safe copies of
   // scheduling and steal domain(s).
+  /// 16 = offset
   static const int kMaxPartitionBits = 16;
+  /// kMaxThreads = 1 0000 0000 0000 0000
   static const int kMaxThreads = 1 << kMaxPartitionBits;
 
+
+  /// Encode 规则:
+  /// 前 16 bits 表示 start | 后 16 bits 表示 limit
+  /// [start, limit)
   inline unsigned EncodePartition(unsigned start, unsigned limit) {
     return (start << kMaxPartitionBits) | limit;
   }
 
+  /// 对应看 EncodePartition()
+  /// [start, limit)
+  /// **encode rule** :
+  /// 前 16 bits | 后 16 bits
+  /// start 属于 0-71； limit 最大 72 且始终大于 start.
+  /// val max eg = 1000111 | 1001000  这个例子很好！
   inline void DecodePartition(unsigned val, unsigned* start, unsigned* limit) {
+    /// 因为计算机是 64 bit 的，编码规则是取后 16 bits 为 limit 的值
+
+    /// limit = val &  0000 0000 0000 0000 1111 1111 1111 1111  in binary format
     *limit = val & (kMaxThreads - 1);
+
+    /// val = val >> 16
     val >>= kMaxPartitionBits;
     *start = val;
   }
@@ -188,10 +245,13 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     eigen_plain_assert(end <= num_threads_);
   }
 
+  /// 这个函数结合着 DecodePartition() 看
   inline void SetStealPartition(size_t i, unsigned val) {
     thread_data_[i].steal_partition.store(val, std::memory_order_relaxed);
   }
 
+  /// 这个函数结合着 DecodePartition() 看
+  /// 注意: 每一个线程内都存着自己可以偷的范围
   inline unsigned GetStealPartition(int i) {
     return thread_data_[i].steal_partition.load(std::memory_order_relaxed);
   }
@@ -228,6 +288,8 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   struct ThreadData {
     constexpr ThreadData() : thread(), steal_partition(0), queue() {}
     std::unique_ptr<Thread> thread;
+
+    /// 这个值是多少? 怎么个初始化的?
     std::atomic<unsigned> steal_partition;
     Queue queue;
   };
@@ -236,14 +298,35 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   const int num_threads_;
   const bool allow_spinning_;
   MaxSizeVector<ThreadData> thread_data_;
+
   MaxSizeVector<MaxSizeVector<unsigned>> all_coprimes_;
+  /// 这里的 vector 只说明了 type 类型，没有说明 vector 个数
   MaxSizeVector<EventCount::Waiter> waiters_;
+  // 1.
+  // class Waiter 数据结构
+  // lib-python-site-package-tf/tensorflow/include/unsupported/Eigen/CXX11/src/ThreadPool/EventCount.h
+  // - cv: std::condition_variable
+  // - mu: std::mutex
+  // - next: EIGEN_ALIGN_TO_BOUNDARY(128) std::atomic<uint64_t>
+  // - epoch: uint64_t
+  // - state: unsigned, default_value: kNotSignaled
+  // * enum {kNotSignaled, kWaiting, kSignaled}
+
+  // 2.
+  // MaxSizeVector 数据结构
+  // 本质是一个数组
+
   unsigned global_steal_partition_;
   std::atomic<unsigned> blocked_;
   std::atomic<bool> spinning_;
   std::atomic<bool> done_;
   std::atomic<bool> cancelled_;
   EventCount ec_;
+  // 1.
+  // EventCount 数据结构
+  // lib-python-site-package-tf/tensorflow/include/unsupported/Eigen/CXX11/src/ThreadPool/EventCount.h:50
+  //
+
 #ifndef EIGEN_THREAD_LOCAL
   std::unique_ptr<Barrier> init_barrier_;
   std::mutex per_thread_map_mutex_;  // Protects per_thread_map_.
@@ -261,6 +344,8 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     init_barrier_->Wait();
 #endif
     PerThread* pt = GetPerThread();
+
+    // 初始化了 PerThread() 数据结构
     pt->pool = this;
     pt->rand = GlobalThreadIdHash();
     pt->thread_id = thread_id;
@@ -331,6 +416,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
 
   // Steal tries to steal work from other worker threads in the range [start,
   // limit) in best-effort manner.
+  /// [start, limit)
   Task Steal(unsigned start, unsigned limit) {
     PerThread* pt = GetPerThread();
     const size_t size = limit - start;
@@ -380,6 +466,9 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     // We already did best-effort emptiness check in Steal, so prepare for
     // blocking.
     if (!ec_.Prewait()) return true;
+    /// 没有 signal 了就返回
+    /// 还有 signal 说明有新的 task 进来了，可以被闲着的 threads 偷。
+
     // Now do a reliable emptiness check.
     int victim = NonEmptyQueueIndex();
     if (victim != -1) {
@@ -415,7 +504,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       }
       // Reached stable termination state.
       ec_.Notify(true);
-      return false;
+      return false;  // 这句不能删掉，否则编译无法结束
     }
     ec_.CommitWait(waiter);
     blocked_--;

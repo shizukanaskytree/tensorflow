@@ -239,14 +239,20 @@ class CuptiCallbackHook {
                                      const CUpti_CallbackData& cbdata,
                                      CudaEventRecorder* recorder) {
     switch (cbid) {
+
       case CUPTI_DRIVER_TRACE_CBID_cuLaunchKernel: {
         DCHECK_NE(cbdata.symbolName, nullptr);
         auto params =
             static_cast<const cuLaunchKernel_params*>(cbdata.functionParams);
+        // -----------------------------------------------------------------
+        // StartKernel
+        // 这个 case 用于 kernel function 的计时
         *cbdata.correlationData = recorder->StartKernel(
             cbdata.symbolName, cbdata.context, params->hStream);
+        // -----------------------------------------------------------------
         return;
       }
+
 
       case CUPTI_DRIVER_TRACE_CBID_cuMemcpy: {
         auto params =
@@ -317,46 +323,86 @@ class CuptiCallbackHook {
 };
 }  // namespace
 
+
+
+/// 只有一个 TraceCollectorImpl instance 因为只构造了一个 instance
 class TraceCollectorImpl : public tracing::TraceCollector {
  public:
+
+
+  // -----------------------------------------------------------------------
   class ActivityHandle : public Handle {
    public:
     ActivityHandle(std::string&& name, int level)
         : trace_me_(std::move(name), level) {}
 
    private:
+    //////////////////////////////////////////////////////////////
+    // 原来 profiler::TraceMe 从属于 class ActivityHandle, 从属于
+    //   class TraceCollectorImpl
+    // TraceMe trace_me_ 一旦被构造就开始计时了！！！
+    //////////////////////////////////////////////////////////////
     profiler::TraceMe trace_me_;
+    //////////////////////////////////////////////////////////////
   };
+  // -----------------------------------------------------------------------
+
+
+  ///////////////////////////////////////////////////////////
+  // 这个就是每次都会去取用的 那个 TraceCollector instance
+  // tracing::SetTraceCollector 在 tensorflow/core/platform/tracing.cc
+  ///////////////////////////////////////////////////////////
   TraceCollectorImpl() { tracing::SetTraceCollector(this); }
+  ///////////////////////////////////////////////////////////
 
   ~TraceCollectorImpl() override {
     DCHECK(!active_trace_session_)
         << "Unexpected active trace session detected. ";
   }
 
+
+
   // Note the method can be called after a call to Stop().
   virtual std::unique_ptr<Handle> CreateAnnotationHandle(
       StringPiece name_part1, StringPiece name_part2) const {
+    // -----------------------------------------------------------------------
     struct Impl : public tracing::TraceCollector::Handle {
+      // 主要功能是 create a name string tag for cuda kernel tracer.
       std::string annotation;
+
+      ////////////////////////////////////////////////////////////////
       explicit Impl(std::string&& name_scope) : annotation(name_scope) {
         VLOG(2) << "CreateAnnotationHandle " << annotation;
         // Remember the most recent ScopedAnnotation for each thread.
         tls_current_annotation = annotation.c_str();
       }
+      ////////////////////////////////////////////////////////////////
+
+      ////////////////////////////////////////////////////////////////
       ~Impl() override { tls_current_annotation = nullptr; }
+      ////////////////////////////////////////////////////////////////
     };
+    // -----------------------------------------------------------------------
+
     return absl::make_unique<Impl>(ConcatenateNames(name_part1, name_part2));
   }
 
+
+
+  ////////////////////////////////////////////////////////////////////////
   virtual std::unique_ptr<Handle> CreateActivityHandle(
       StringPiece name_part1, StringPiece name_part2, bool is_expensive) const {
     if (!IsEnabledForActivities(is_expensive)) {
       return nullptr;
     }
+
     return absl::make_unique<ActivityHandle>(
         ConcatenateNames(name_part1, name_part2), GetLevel(is_expensive));
   }
+  ////////////////////////////////////////////////////////////////////////
+
+
+
 
   bool IsEnabledForAnnotations() const override {
     return active_trace_session_.load(std::memory_order_relaxed);
@@ -378,6 +424,18 @@ class TraceCollectorImpl : public tracing::TraceCollector {
   }
 
  private:
+
+  /// 有关系吗？
+  /// options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+  ///   enum TraceLevel {
+  ///     NO_TRACE = 0;
+  ///     SOFTWARE_TRACE = 1;
+  ///     HARDWARE_TRACE = 2;
+  ///     FULL_TRACE = 3;
+  ///   }
+
+  // is_expensive: False, return 3
+  // is_expensive: True , return 2
   static int GetLevel(bool is_expensive) {
     return profiler::GetTFTraceMeLevel(is_expensive);
   }
@@ -386,9 +444,12 @@ class TraceCollectorImpl : public tracing::TraceCollector {
 };
 
 TraceCollectorImpl* GlobalDefaultTraceCollector() {
+  /// 只有一个
   static auto* instance = new TraceCollectorImpl();
   return instance;
 }
+
+
 
 class DeviceTracerImpl : public DeviceTracer {
  public:
@@ -433,7 +494,13 @@ Status DeviceTracerImpl::Start() {
   // Register as a TraceEngine to receive ScopedAnnotations.
   GlobalDefaultTraceCollector()->Start();
 
+
+  // -----------------------------------------------------------------------
+  /// QQQ. host_tracer_ 是什么作用？
   host_tracer_->Start().IgnoreError();
+  // -----------------------------------------------------------------------
+
+
   enabled_ = true;
   return Status::OK();
 }
@@ -453,7 +520,12 @@ Status DeviceTracerImpl::Stop() {
 }
 
 namespace {
+////////////////////////////////////////////////////////////////////////
+// 收集 compute, memory kernel 的 时间和其他指标
+////////////////////////////////////////////////////////////////////////
 class CudaEventCollector {
+////////////////////////////////////////////////////////////////////////
+
   struct DeviceInfo {
     int ordinal;
     std::string name;
@@ -573,6 +645,13 @@ class CudaEventCollector {
     return Status::OK();
   }
 
+  /** \brief
+   *  \params
+   *    stats: std::unique_ptr<NodeExecStats>,
+   *           NodeExecStats is message NodeExecStats in
+   *           tensorflow/core/framework/step_stats.proto
+   *
+   */
   // Save stats to collector;
   Status SaveStats(std::unique_ptr<NodeExecStats> stats,
                    const StreamInfo& stream_info) const {
@@ -580,9 +659,15 @@ class CudaEventCollector {
     auto dev_info = ctx_info->dev_info;
     // TODO(csigg): tfprof_node.cc, run_metadata_test.py, and timeline_test.py
     // currently require this particular formatting.
+    //
+    // 关于 collector_->Save 的说明:
+    // collector_ : StepStatsCollector,
+    //   tensorflow/core/common_runtime/step_stats_collector.cc
+    //
     collector_->Save(
         absl::StrFormat("/device:GPU:%d/stream:all", dev_info->ordinal),
         new NodeExecStats(*stats));
+
     auto name = absl::StrFormat("/gpu:%d (%s)/context#%d/", dev_info->ordinal,
                                 dev_info->name, ctx_info->index);
     if (stream_info.index) {
@@ -597,15 +682,23 @@ class CudaEventCollector {
     return Status::OK();
   }
 
+  ////////////////////////////////////////////////////////////////////////
+  // Kernel Compute Record
+  ////////////////////////////////////////////////////////////////////////
   Status SaveRecord(const KernelRecord& record) const {
     if (!record.start_event || !record.stop_event) {
       return Status::OK();
     }
     const auto& stream_info =
         stream_infos_.at(StreamKey(record.context, record.stream));
+    ////////////////////////////////////////////////////////////////////////
     auto start_us =
         GetElasedTimeUs(record.start_event, stream_info.ctx_info->end_event);
+    ////////////////////////////////////////////////////////////////////////
+
+    ////////////////////////////////////////////////////////////////////////
     auto elapsed_us = GetElasedTimeUs(record.start_event, record.stop_event);
+    ////////////////////////////////////////////////////////////////////////
 
     auto stats = absl::make_unique<NodeExecStats>();
     std::string node_name = record.kernel_name;
@@ -622,15 +715,24 @@ class CudaEventCollector {
     return SaveStats(std::move(stats), stream_info);
   }
 
+  ////////////////////////////////////////////////////////////////////////
+  // MEMORY
+  ////////////////////////////////////////////////////////////////////////
   Status SaveRecord(const MemcpyRecord& record) const {
     if (!record.start_event || !record.stop_event) {
       return Status::OK();
     }
     const auto& stream_info =
         stream_infos_.at(StreamKey(record.context, record.stream));
+    ////////////////////////////////////////////////////////////////////////
     auto start_us =
         GetElasedTimeUs(record.start_event, stream_info.ctx_info->end_event);
+    ////////////////////////////////////////////////////////////////////////
+
+
+    ////////////////////////////////////////////////////////////////////////
     auto elapsed_us = GetElasedTimeUs(record.start_event, record.stop_event);
+    ////////////////////////////////////////////////////////////////////////
 
     auto stats = absl::make_unique<NodeExecStats>();
     std::string node_name = GetMemcpyName(record);
@@ -644,6 +746,8 @@ class CudaEventCollector {
     stats->set_all_start_micros(end_walltime_us_ - start_us);
     stats->set_op_end_rel_micros(elapsed_us);
     stats->set_all_end_rel_micros(elapsed_us);
+
+    /// 原来这里是临时构造了一个
     return SaveStats(std::move(stats), stream_info);
   }
 
@@ -685,6 +789,7 @@ class CudaEventCollector {
   }
 
  public:
+
   // Consumes the records in recorder and saves them to the collector.
   static Status Collect(CudaEventRecorder* recorder,
                         StepStatsCollector* collector) {
@@ -696,26 +801,42 @@ class CudaEventCollector {
   }
 
  private:
+
+  ////////////////////////////////////////////////////////////////////////
   CudaEventRecorder* recorder_;
+  ////////////////////////////////////////////////////////////////////////
+
   StepStatsCollector* collector_;
 
   absl::node_hash_map<CUdevice, DeviceInfo> device_infos_;
   absl::node_hash_map<CUcontext, ContextInfo> context_infos_;
+
+
   absl::flat_hash_map<StreamKey, StreamInfo, hash<StreamKey>> stream_infos_;
+
+
   int64 end_walltime_us_;
 };
 }  // namespace
 
+///////////////////////////////////////////////////////////////
 Status DeviceTracerImpl::Collect(StepStatsCollector* collector) {
   mutex_lock l(mu_);
   if (enabled_) {
     return errors::FailedPrecondition("DeviceTracer is still enabled.");
   }
 
+  /// GPU
+  // std::unique_ptr<CudaEventRecorder> recorder_
+  // StepStatsCollector* collector
   TF_RETURN_IF_ERROR(CudaEventCollector::Collect(recorder_.get(), collector));
+
+  /// CPU
   host_tracer_->CollectDataToCollector(collector).IgnoreError();
+
   return Status::OK();
 }
+///////////////////////////////////////////////////////////////
 
 std::unique_ptr<DeviceTracer> CreateDeviceTracer() {
   auto status = cuInit(0);

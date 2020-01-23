@@ -128,6 +128,8 @@ Status NodeBuilder::Finalize(Graph* graph, Node** created_node) const {
   Node* node = graph->AddNode(node_def, &status);
   if (!status.ok()) return status;
 
+  // 我感觉是在 NodeBuilder().AssignedDevice("xxx") 这种情况下才会把 device 给
+  // 赋值了，仅仅是在 NodeBuilder 构造的时候才这么做，后续就不会这样。
   node->set_assigned_device_name(assigned_device_);
 
   for (size_t i = 0; i < inputs_.size(); ++i) {

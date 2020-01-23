@@ -3228,7 +3228,24 @@ tf_cuda_library(
         ":core_cpu_internal",
         ":device_tracer",
         ":framework",
+        # 1.
+        # QQQ. 是否允许我在 direct_session.cc 里面包含 resource_mgr.h ?
+        # AAA.
+        # 因为
+        # tf_cuda_library(
+        #     name = "framework", # tensorflow/core/BUILD
+        #     ...
+        #     hdrs = [
+        #     	"framework/resource_mgr.h",
+        #       ...
+        # 所以，我在 direct_session.cc 里面包含 resource_mgr.h 是 OK 的。
+
         ":framework_internal",
+        # 1.
+        # 因为 framework_internal 包含
+        # #include "tensorflow/core/framework/resource_var.h"
+        # 所以 "common_runtime/direct_session.cc" 内可以写 resource_var.h .
+
         ":graph",
         ":lib",
         ":lib_internal",

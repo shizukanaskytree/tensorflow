@@ -49,6 +49,18 @@ struct PartitionOptions {
   // If specified, flib_def defines a function library that should be
   // partitioned and replicated into each resulting partition graphs.
   const FunctionLibraryDefinition* flib_def = nullptr;
+  // 1.
+  // FunctionLibraryDefinition 数据结构
+  // tensorflow/core/framework/function.h:313:
+  // class FunctionLibraryDefinition : public OpRegistryInterface
+  // - default_registry_ : const OpRegistryInterface* const
+  // - function_defs_ : gtl::FlatMap<string, std::unique_ptr<FunctionDefAndOpRegistration>>
+  // - func_grad_ : gtl::FlatMap<string, string>
+
+  // 2.
+  // FunctionDefAndOpRegistration 数据结构
+  // - fdef: FunctionDef
+  // - op_registration_data: OpRegistrationData
 
   // True if all the control flow "code" has already been added. The
   // control flow code needs to be added when we still have the entire
@@ -77,6 +89,7 @@ struct PartitionOptions {
   bool need_to_record_start_times = false;
   std::vector<Microseconds> start_times;
 };
+
 
 // Partition "input" graph into a set of graphs, one per location.
 // The location for node n is derived by calling opts.node_to_loc(n).

@@ -30,7 +30,13 @@ limitations under the License.
 namespace tensorflow {
 
 namespace {
-
+/** \class GrpcWorkerCache
+ *
+ *  \details GrpcWorkerCache is a derived class of WorkerCacheInterface, which
+ *           provides interface for 1. list workers' names; 2. list workers' name
+ *           of a job name; 3. create worker with a name; 4. destory a worker;
+ *           5. get device locality information of a device; 6. logging.
+ */
 class GrpcWorkerCache : public WorkerCachePartial {
  public:
   // TODO(ncteisen): consider adding a config var or flag for this
@@ -60,7 +66,20 @@ class GrpcWorkerCache : public WorkerCachePartial {
     threads_.clear();  // Blocks until threads exit.
   }
 
+  /** \brief Get all workers from all ip:port, and store them to a string in the
+   *         of ("/job:", job, "/replica:0/task:", task).
+   *
+   *  \param workers: std::vector<string>*
+   *         The return value of ListWorkers, and store them to a string in the
+   *         of ("/job:", job, "/replica:0/task:", task).
+   *
+   *  \remark No return values.
+   */
   void ListWorkers(std::vector<string>* workers) const override {
+    /// std::shared_ptr<GrpcChannelCache> channel_cache_;
+    /// But, channel_cache_ will call SparseGrpcChannelCache::ListWorkers at
+    /// grpc_channel.cc.
+    /// SparseGrpcChannelCache --> CachingGrpcChannelCache --> GrpcChannelCache
     channel_cache_->ListWorkers(workers);
   }
 
@@ -69,6 +88,11 @@ class GrpcWorkerCache : public WorkerCachePartial {
     channel_cache_->ListWorkersInJob(job_name, workers);
   }
 
+  /** \brief Create a remote worker and initialize their grpc services.
+   *
+   *  \param target: const string&
+   *         worker name.
+   */
   WorkerInterface* CreateWorker(const string& target) override {
     if (target == local_target_) {
       return local_worker_;
@@ -81,6 +105,13 @@ class GrpcWorkerCache : public WorkerCachePartial {
     }
   }
 
+  /** \brief
+   *
+   *  \param target: const string&
+   *
+   *  \param worker: WorkerInterface*
+   *
+   */
   void ReleaseWorker(const string& target, WorkerInterface* worker) override {
     if (target == local_target_) {
       CHECK_EQ(worker, local_worker_)
@@ -103,6 +134,11 @@ class GrpcWorkerCache : public WorkerCachePartial {
   // CompletionQueue.
   class GrpcWorkerCacheThread {
    public:
+    /** \brief GrpcWorkerCacheThread constructor used in class GrpcWorkerCache
+     *
+     *  \details reset value of thread_ to Thread*, return from StartThread.
+     *           The lambda function is starting to run.
+     */
     GrpcWorkerCacheThread() {
       thread_.reset(Env::Default()->StartThread(
           ThreadOptions(), "grpc_worker_cache", [this]() {
@@ -162,6 +198,30 @@ WorkerCacheInterface* NewGrpcWorkerCache(std::shared_ptr<GrpcChannelCache> cc) {
   return new GrpcWorkerCache(cc, nullptr, "");
 }
 
+/** \brief NewGrpcWorkerCacheWithLocalWorker helps construct a new
+ *         GrpcWorkerCache, which can access all workers doing graph computing.
+ *
+ *  \param cc: std::shared_ptr<GrpcChannelCache>
+ *         GrpcChannelCache is an interface handling 1. listing all worker names,
+ *         2. listing names of all workers of a specific job name, 3. finding
+ *         ::grpc::channel of a worker by its name in the form of
+ *         /job:<job identifier>/task:<task id>, and 4. extract host:port string
+ *         via worker name "/job:X/task:Z".
+ *
+ *  \param local_worker: WorkerInterface*
+ *         WorkerInterface is an interface for talking with the TensorFlow
+ *         Worker grpc service functions, e.g., CreateWorkerSessionAsync,
+ *         RunGraphAsync.
+ *
+ *  \param local_target: string&. Name of the worker.
+ *
+ *  \return WorkerCacheInterface*
+ *          WorkerCacheInterface manages Worker (interface is defined in class
+ *          WorkerInterface), like 1. listing all worker names; 2. listing all
+ *          worker names in a specified job name; 3. create a worker by passing
+ *          a name to it; 4. destory a worker created by CreateWorker;
+ *          5. device locality information and logging setting.
+ */
 WorkerCacheInterface* NewGrpcWorkerCacheWithLocalWorker(
     std::shared_ptr<GrpcChannelCache> cc, WorkerInterface* local_worker,
     const string& local_target) {

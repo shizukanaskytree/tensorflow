@@ -33,7 +33,15 @@ static mutex* get_session_factory_lock() {
   return &session_factory_lock;
 }
 
+/** \brief SessionFactories is used to store session factory name and its real
+ *         derived runtime session factory type.
+ */
 typedef std::unordered_map<string, SessionFactory*> SessionFactories;
+
+/** \brief Create an unorder map to store all session factory class, i.e.
+ *         1. "DIRECT_SESSION" <--> DirectSessionFactory.
+ *         2. "GRPC_SESSION" <--> GrpcSessionFactory.
+ */
 SessionFactories* session_factories() {
   static SessionFactories* factories = new SessionFactories;
   return factories;
@@ -41,6 +49,22 @@ SessionFactories* session_factories() {
 
 }  // namespace
 
+/** \brief Register is used to store all kinds of session factory before tf runs.
+ *         1. "DIRECT_SESSION" <--> DirectSessionFactory
+ *         2. "GRPC_SESSION" <--> GrpcSessionFactory
+ *
+ *  \param[in] runtime_type: const string& ;
+ *         Name string of a session factory.
+ *         1. "DIRECT_SESSION" <--> DirectSessionFactory.
+ *         2. "GRPC_SESSION" <--> GrpcSessionFactory.
+ *
+ *  \param[out] factory: SessionFactory* ;
+ *         SessionFactory is used to create a specific session at runtime
+ *         1. "DIRECT_SESSION" <--> DirectSessionFactory.
+ *         2. "GRPC_SESSION" <--> GrpcSessionFactory.
+ *
+ *  \remark No return.
+ */
 void SessionFactory::Register(const string& runtime_type,
                               SessionFactory* factory) {
   mutex_lock l(*get_session_factory_lock());
@@ -65,6 +89,23 @@ string SessionOptionsToString(const SessionOptions& options) {
 }
 }  // namespace
 
+
+/** \brief Return a type of session factory (DirectSessionFactory or
+ *         GrpcSessionFactory) according to target string ("grpc" or not)
+ *         from SessionOptions.
+ *
+ *  \param[in] options: SessionOptions& ;
+ *         SessionOptions is used to provide 1. environment used; 2. target
+ *         used to perform all computations according to host:port. 3. A bunch
+ *         of Session configuration parameters.
+ *
+ *  \param[out] out_factory: SessionFactory** ;
+ *         SessionFactory is used to create a specific session at runtime
+ *         1. "DIRECT_SESSION" <--> DirectSessionFactory.
+ *         2. "GRPC_SESSION" <--> GrpcSessionFactory.
+ *
+ *  \return Status ;
+ */
 Status SessionFactory::GetFactory(const SessionOptions& options,
                                   SessionFactory** out_factory) {
   mutex_lock l(*get_session_factory_lock());  // could use reader lock

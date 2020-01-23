@@ -81,6 +81,12 @@ class IteratorStateWriter {
 
   virtual ~IteratorStateWriter() {}
 };
+// 1.
+// 唯一的继承者
+// class VariantTensorDataWriter : public IteratorStateWriter
+// tensorflow/core/kernels/data/dataset_utils.h
+//
+
 
 // Wrapper around GraphDefBuilder. Used to serialize Dataset graph.
 class GraphDefBuilderWrapper {
@@ -516,6 +522,13 @@ class IteratorBase {
   virtual Status SaveInternal(IteratorStateWriter* writer) {
     return errors::Unimplemented("SaveInternal");
   }
+  // 1.
+  // class IteratorStateWriter
+  // tensorflow/core/framework/dataset.h
+  // 纯虚函数，接口是：
+  // - Status WriteScalar(StringPiece key, const int64 val)
+  // - Status WriteScalar(StringPiece key, const string& val)
+  // - Status WriteTensor(StringPiece key, const Tensor& val)
 
   // Restores the state of this iterator recursively.
   virtual Status RestoreInternal(IteratorContext* ctx,
@@ -540,6 +553,22 @@ class IteratorBase {
   std::vector<std::function<void()>> cleanup_fns_;
   model::Node* node_ = nullptr;  // Not owned.
 };
+// 1.
+// class IteratorBase 数据结构
+// tensorflow/core/framework/dataset.h
+//
+// 概述:
+// 主要是和 iterator 相关的接口函数
+// - GetNext
+// - output_dtypes
+// - output_shapes
+// - Initialize
+// - Save
+// - Restore
+//
+// 成员变量:
+// - cleanup_fns_: std::vector<std::function<void()>>
+// - node_: model::Node*
 
 // Represents runtime information needed to construct a dataset.
 class DatasetContext {

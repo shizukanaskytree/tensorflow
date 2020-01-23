@@ -77,6 +77,54 @@ class GrpcMasterService : public AsyncServiceInterface {
     }
   }
 
+/** \brief Indirectly call, for example, for CreateSession:
+ *         Call<GrpcMasterService, grpc::MasterService::AsyncService           \
+ *              CreateSessionRequest, CreateSessionResponse>::                 \
+ *         EnqueueRequest(&master_service_, cq_.get(),                         \
+ *                   &grpc::MasterService::AsyncService::RequestCreateSession, \
+ *                   &GrpcMasterService::CreateSessionHandler,                 \
+ *                   (supports_cancel));
+ *
+ *  \param method: function name;
+ *         For example, CreateSession
+ *
+ *  \param supports_cancel: bool;
+ *
+ *  \fn EnqueueRequest
+ *  \param master_service_: grpc::MasterService::AsyncService;
+ *         Implement ::grpc::Service auto-generated request interface functions,
+ *         Request##method. e.g.,
+ *         RequestCreateSession, RequestExtendSession, RequestPartialRunSetup...
+ *
+ *  \param cq_: std::unique_ptr<::grpc::ServerCompletionQueue>
+ *         A specific type of completion queue used by the processing of
+ *         notifications by servers.
+ *
+ *  \param grpc::MasterService::AsyncService::Request##method
+ *         This function is mainly called by this wrapper function, which in
+ *         turn further call Master::CreateSession to handle the request and
+ *         response.
+ *         For example,
+ *         tensorflow::grpc::MasterService::AsyncService::RequestCreateSession
+ *         implements the auto-generated grpc service function by proto file.
+ *         in tensorflow/core/distributed_runtime/rpc/grpc_master_service_impl.h
+ *
+ *  \param GrpcMasterService::method##Handler
+ *         grpc server side handler function.
+ *         For example, GrpcMasterService::CreateSessionHandler,
+ *         ExtendSessionHandler, PartialRunSetupHandler, RunStepHandler...
+ *         It further calls class Master::CreateSession to handle session
+ *         creation.
+ *
+ *  \details Take `ENQUEUE_REQUEST(CreateSession, true);` as an example.
+ *           method is CreateSession; supports_cancel is true;
+ *           Call::EnqueueRequest is defined in grpc_call.h.
+ *           Call::EnqueueRequest indirectly invokes the grpc auto-generated
+ *           grpc service function via grpc signature of
+ *           grpc::MasterService::AsyncService::Request##method defined in
+ *           class tensorflow::grpc::MasterService::AsyncService . in
+ *           tensorflow/core/distributed_runtime/rpc/grpc_master_service_impl.h.
+ */
 // This macro creates a new request for the given RPC method name
 // (e.g., `ENQUEUE_REQUEST(RunStep);`), and enqueues it on
 // `this->cq_`.
@@ -101,7 +149,20 @@ class GrpcMasterService : public AsyncServiceInterface {
     }                                                                         \
   } while (0)
 
+  /** \brief Server starts to serve RPC request in a new thread.
+   *
+   *  \remark No params and no return.
+   *
+   *  \details This macro is invoked one or more times for each RPC method to
+   *           ensure that there are sufficient completion queue entries to
+   *           handle incoming requests without blocking.
+   *
+   *  \todo Why should these macro be called one or more times for completion
+   *        queue?
+   */
   void HandleRPCsLoop() override {
+    /// \todo Q. What is the diff between ENQUEUE_REQUEST for one time and
+    ///       multiple times?
     ENQUEUE_REQUEST(CreateSession, true);
     ENQUEUE_REQUEST(ExtendSession, false);
     for (int i = 0; i < 100; ++i) {
@@ -117,12 +178,37 @@ class GrpcMasterService : public AsyncServiceInterface {
     }
     ENQUEUE_REQUEST(ReleaseCallable, false);
 
+    /// the tag uniquely identifying the request
     void* tag;
     bool ok;
+
+    /// \fn Next
+    ///
+    /// \brief Read from the queue, blocking until an event(tag) is available or
+    ///        the queue is shutting down. Next is blocking here for client side
+    ///        request.
+    ///
+    /// \param tag: void* ;
+    ///        [out] Updated to point to the read event's tag.
+    ///
+    /// \param ok: bool ;
+    ///        [out] true if read a successful event, false otherwise.
+    ///
+    /// \details
+    /// Next grpc API:
+    /// https://grpc.github.io/grpc/cpp/classgrpc__impl_1_1_completion_queue.html#aed4c03e1d101c102ef289c2c472aa933
+    /// Next returns true if got an event, false if the queue is fully drained
+    /// and shut down.
+    ///
+    /// cq_: std::unique_ptr<::grpc::ServerCompletionQueue>
+    /// the completion queue "cq" used for asynchronous communication.
+    /// Tutorial: https://grpc.io/docs/tutorials/async/helloasync-cpp/
     while (cq_->Next(&tag, &ok)) {
       UntypedCall<GrpcMasterService>::Tag* callback_tag =
           static_cast<UntypedCall<GrpcMasterService>::Tag*>(tag);
       if (callback_tag) {
+        /// Once received request from the client,
+        /// OnCompleted indirectly invokes the grpc implementation functions.
         callback_tag->OnCompleted(this, ok);
       } else {
         // NOTE(mrry): A null `callback_tag` indicates that this is
@@ -133,6 +219,7 @@ class GrpcMasterService : public AsyncServiceInterface {
   }
 
  private:
+  /// class Master implements the server side grpc service function.
   Master* master_impl_ = nullptr;  // Not owned.
   std::unique_ptr<::grpc::ServerCompletionQueue> cq_;
   grpc::MasterService::AsyncService master_service_;
@@ -146,17 +233,56 @@ class GrpcMasterService : public AsyncServiceInterface {
   using MasterCall = Call<GrpcMasterService, grpc::MasterService::AsyncService,
                           RequestMessage, ResponseMessage>;
 
+  /** \brief Server side grpc handler function to create a session. Then, master
+   *         server delegates it to Worker by requesting a grpc.
+   *
+   *  \param[in] call: MasterCall<CreateSessionRequest, CreateSessionResponse>*
+   *         MasterCall is a type alias of a class "Call" defined in
+   *         tensorflow/core/distributed_runtime/rpc/grpc_call.h.
+   *         \todo direction is not clear, in or in,out?
+   *
+   *  \details
+   *  - typename CreateSessionRequest;
+   *         message CreateSessionRequest includes
+   *         1. GraphDef: NodeDef, versionDef, FunctionDefLibrary;
+   *         2. ConfigProto, including Session configuration parameters.
+   *         3. The target string used from the client's perspective.
+   *            e.g., "grpc://localhost:2223"
+   *
+   *  - typename CreateSessionResponse;
+   *         message CreateSessionResponse includes
+   *         1. session_handle string, and
+   *         2. graph version for the subsequent call to ExtendSession.
+   *
+   *  \remark No return.
+   */
   // RPC handler for creating a session.
   void CreateSessionHandler(
       MasterCall<CreateSessionRequest, CreateSessionResponse>* call) {
     CreateSessionRequest* rewritten_req = new CreateSessionRequest;
     rewritten_req->mutable_config()->MergeFrom(default_session_config_);
+    /// request is an instance of CreateSessionRequest, template typename in
+    /// class Call is RequestMessage. CreateSessionRequest is a proto message.
+    /// \fn MergeFrom
+    ///  Merge the fields from the given message into this message.
+    ///  Singular fields will be overwritten, if specified in from, except for
+    ///  embedded messages which will be merged.
+    ///  Repeated fields will be concatenated. The given message must be of the
+    ///  same type as this message same class).
     rewritten_req->MergeFrom(call->request);
+    
+    /// master_impl_ is Master*. Master::CreateSession is in master.cc.
+    /// master_impl_->CreateSession will create a session in another thread.
+    /// The callback lambda function is called at the very end of CreateSession
+    /// to make sure client has received the server's response message.
     master_impl_->CreateSession(rewritten_req, &call->response,
                                 [call, rewritten_req](const Status& status) {
                                   call->SendResponse(ToGrpcStatus(status));
                                   delete rewritten_req;
                                 });
+    /// This macro is invoked one or more times for each RPC method to
+    /// ensure that there are sufficient completion queue entries to
+    /// handle incoming requests without blocking.
     ENQUEUE_REQUEST(CreateSession, true);
   }
 
@@ -180,6 +306,16 @@ class GrpcMasterService : public AsyncServiceInterface {
     ENQUEUE_REQUEST(PartialRunSetup, false);
   }
 
+  /** \brief Client send a request to master to run one step via a new thread.
+   *
+   *  \param call: MasterCall<RunStepRequest, RunStepResponse>*
+   *
+   *  \param RunStepRequest
+   *
+   *  \param RunStepResponse
+   *
+   *  \return
+   */
   // RPC handler for running one step in a session.
   void RunStepHandler(MasterCall<RunStepRequest, RunStepResponse>* call) {
     auto* trace = TraceRpc("RunStep/Server", call->client_metadata());

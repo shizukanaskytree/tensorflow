@@ -49,11 +49,14 @@ typedef std::function<Status(const OpDef&, int, const NodeDef&,
 //  // Use node_def here.
 class NodeDefBuilder {
  public:
+
   // To specify an output to be consumed by one of the Input() methods below.
   struct NodeOut {
     NodeOut(StringPiece n, int i, DataType dt);
     NodeOut();  // uninitialized, call Reset() before use.
+
     void Reset(StringPiece n, int i, DataType dt);
+
     string node;
     int index;
     DataType data_type;

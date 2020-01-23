@@ -46,23 +46,34 @@ namespace {
 const StringPiece kColocationAttrNameStringPiece(kColocationAttrName);
 const StringPiece kColocationGroupPrefixStringPiece(kColocationGroupPrefix);
 
+
 // Returns a list of devices having type in supported_device_types.  The
 // returned list is sorted by preferred type (higher numeric type is preferred).
 std::vector<Device*> FilterSupportedDevices(
-    const std::vector<Device*>& devices,
-    const PrioritizedDeviceTypeVector& supported_device_types,
-    const Device* default_device) {
+    const std::vector<Device*>& devices, // input
+    const PrioritizedDeviceTypeVector& supported_device_types, // input
+    const Device* default_device) { // input
+
   Device* filtered_default_device = nullptr;
+
   std::vector<std::pair<Device*, int32>> prioritized_filtered_devices;
+
   for (const auto& supported_device_type : supported_device_types) {
+
     for (Device* device : devices) {
+
       if (DeviceType(device->attributes().device_type()) ==
           supported_device_type.first) {
+
         if (device == default_device) {
+
           filtered_default_device = device;
+
         } else {
+
           prioritized_filtered_devices.emplace_back(
               device, supported_device_type.second);
+
         }
       }
     }
@@ -85,6 +96,13 @@ std::vector<Device*> FilterSupportedDevices(
     }
     return StringPiece(a.first->name()) < StringPiece(b.first->name());
   };
+
+  // 1.
+  // prioritized_filtered_devices 变量说明:
+  // p prioritized_filtered_devices
+  // $4 = std::vector of length 6, capacity 8 = {{first = 0x55ff7b4e01a0, second = 0}, {first = 0x55ff7b4f2f20, second = 0}, {first = 0x55ff79676b10, second = 0}, {first = 0x55ff7b26ff40, second = 0}, {first = 0x55ff7b4bfe50, second = 0}, {first = 0x55ff7b4c9160, second = 0}}
+  // 对于 2 块 GPU, 1 CPU
+
   std::sort(prioritized_filtered_devices.begin(),
             prioritized_filtered_devices.end(), device_sort);
 
@@ -160,16 +178,28 @@ bool ArePrioritiesSame(const PrioritizedDeviceTypeVector& a_types,
 
 }  // namespace
 
+// 函数的目的:
+// 设定 这个 node 对应的 Member::supported_device_types_
 Status Member::SetParentAndSupportedDevices(
-    const Node& node, const std::vector<DeviceType>& types) {
+    const Node& node, // input
+    const std::vector<DeviceType>& types) { // input
+
   int id = node.id();
   if (id < 0) {
     return errors::Internal("Placer should not be creating a Member for node: ",
                             node.DebugString());
   }
   parent_ = id;
-  return SupportedDeviceTypesForNode(types, node.def(),
-                                     &supported_device_types_);
+  return SupportedDeviceTypesForNode(types, // input
+                                     node.def(), // input
+                                     &supported_device_types_); // output
+  // SupportedDeviceTypesForNode 函数说明:
+  // tensorflow/core/framework/op_kernel.cc
+  //
+  // Status SupportedDeviceTypesForNode(
+  //     const std::vector<DeviceType>& prioritized_types,  // input
+  //     const NodeDef& def, // input
+  //     PrioritizedDeviceTypeVector* prioritized_device_types) // output
 }
 
 Status Member::SetAssignedDeviceName(const string& device_name) {
@@ -187,18 +217,35 @@ Status Member::SetAssignedDeviceName(const string& device_name) {
   return Status::OK();
 }
 
+// 功能如其名, 设置 Member::requested_device_name_
 Status Member::SetRequestedDeviceName(const Node& node) {
-  if (!DeviceNameUtils::ParseFullName(node.requested_device(),
-                                      &requested_device_name_)) {
+
+  if (!DeviceNameUtils::ParseFullName(node.requested_device(), // input
+                                      &requested_device_name_)) // output
+  {
+    // ParseFullName 函数说明
+    // bool DeviceNameUtils::ParseFullName(StringPiece fullname, // input
+    //                                     ParsedName* p) // output
+    // tensorflow/core/util/device_name_utils.cc
+
+    // 2.
+    // Member::requested_device_name_ 变量说明
+    // requested_device_name_: DeviceNameUtils::ParsedName
+    // p requested_device_name_
+    // $18 = {has_job = false, job = "", has_replica = false, replica = 0, has_task = false, task = 0, has_type = true, type = "CPU", has_id = true, id = 0}
+
+
     return errors::InvalidArgument("Malformed device specification '",
                                    node.requested_device(),
                                    "' in node: ", node.DebugString());
   }
+
   if (DeviceNameUtils::HasSomeDetails(assigned_device_name_)) {
     return errors::Internal(
         "Setting requested device name when there is an assigned device set "
         "is unsupported");
   }
+
   return Status::OK();
 }
 
@@ -449,6 +496,8 @@ string Member::DebugString() {
       "] possible_devices_=[",
       absl::StrJoin(DevicesToString(possible_devices_), ", "), "]");
 }
+
+
 ColocationGraph::ColocationGraph(const Graph* graph,
                                  const DeviceSet* device_set,
                                  const Device* default_device,
@@ -461,6 +510,11 @@ ColocationGraph::ColocationGraph(const Graph* graph,
       allow_soft_placement_(allow_soft_placement),
       log_device_placement_(log_device_placement) {
   members_.resize(graph->num_node_ids());
+  // PrioritizedDeviceTypeList 函数说明:
+  // tensorflow/core/common_runtime/device_set.cc:74:
+  // std::vector<DeviceType> DeviceSet::PrioritizedDeviceTypeList()
+  //
+
 }
 
 // Adds each node of the Graph to this ColocationGraph as a singleton.
@@ -569,6 +623,8 @@ Status ColocationGraph::ColocateResourceAndRefEdges() {
 
 Status ColocationGraph::Initialize() {
   TF_RETURN_IF_ERROR(InitializeMembers());
+  // InitializeMembers 函数说明
+  //
   TF_RETURN_IF_ERROR(ColocateResourceAndRefEdges());
   TF_RETURN_IF_ERROR(ColocateAllNodes());
   return Status::OK();
@@ -682,6 +738,7 @@ Status ColocationGraph::LimitToAssignedDevice(const Node& node) {
   return root_member.AssignDevice(node, allow_soft_placement_);
 }
 
+
 // For the given node, subject to the constraints previously given
 // to this ColocationGraph, set its assigned_device_name. Returns OK
 // if a satisfying device can be found, otherwise an error.
@@ -690,9 +747,13 @@ Status ColocationGraph::LimitToAssignedDevice(const Node& node) {
 // The caller must not use the returned pointer after there is any possibility
 // that the members_[i].possible_devices field has been modified.
 Status ColocationGraph::GetDevicesForNode(
-    Node* node, const std::vector<Device*>** possible_devices) {
-  *possible_devices = nullptr;
+    Node* node,  // input
+    const std::vector<Device*>** possible_devices) { // output
+
+  *possible_devices = nullptr; // output
+
   const int node_root = FindRoot(node->id());
+
   if (!members_[node_root].possible_devices().empty()) {
     *possible_devices = &members_[node_root].possible_devices();
     return Status::OK();
@@ -705,6 +766,7 @@ Status ColocationGraph::GetDevicesForNode(
   // "devices" will contain the set of feasible placements for the
   // colocated node set containing 'node'.
   std::vector<Device*> devices;
+
   if (DeviceNameUtils::HasSomeDetails(
           members_[node_root].requested_device_name())) {
     // The root node has a (possibly partial) device
@@ -805,14 +867,20 @@ Status ColocationGraph::GetDevicesForNode(
       }
     }
   } else {
+    // 进入这个分支:
+
     // The device is completely unspecified, so enumerate the devices that
     // support all of the nodes in the set.
     if (device_set_->devices().empty()) {
       return errors::Internal("No devices are registered");
     }
+
+    // Returns a list of devices having type in supported_device_types.  The
+    // returned list is sorted by preferred type (higher numeric type is preferred).
     devices = FilterSupportedDevices(
-        device_set_->devices(), members_[node_root].supported_device_types(),
-        default_device_);
+        device_set_->devices(), // input
+        members_[node_root].supported_device_types(), // input
+        default_device_); // input
 
     if (devices.empty()) {
       return errors::InvalidArgument(
@@ -825,12 +893,40 @@ Status ColocationGraph::GetDevicesForNode(
   // Cache the result of the possible devices for this node group.
   members_[node_root].set_possible_devices(std::move(devices));
   *possible_devices = &members_[node_root].possible_devices();
+
   return Status::OK();
 }
 
 Status ColocationGraph::InitializeMembers() {
   for (Node* node : graph_->op_nodes()) {
-    Status status = InitializeMember(*node, &members_[node->id()]);
+
+    Status status = InitializeMember(
+                      *node,  // input
+                      &members_[node->id()]); // input
+    // 1.
+    // members_ 变量说明
+    // std::vector<Member> members_;
+
+    // 2.
+    // Member 数据结构
+    // - parent_: int , default: -1
+    // - rank_: int, default: 0
+    // - assigned_device_name_index_: int , default: -1
+    // - requested_device_name_: DeviceNameUtils::ParsedName
+    // - assigned_device_name_: DeviceNameUtils::ParsedName
+    // - supported_device_types_: PrioritizedDeviceTypeVector
+    // - possible_devices_: std::vector<Device*>
+
+    // 3.
+    // &members_[node->id()] 变量说明
+    // &members_[node->id()]  <==> Member* member
+
+    // 3.
+    // InitializeMember 函数说明：
+    // ColocationGraph::InitializeMember(
+    //                          const Node& node,  // input
+    //                          Member* member) {  // output
+
     if (!status.ok()) {
       return AttachDef(status, *node);
     }
@@ -937,10 +1033,16 @@ Status ColocationGraph::InitializeMemberWithAssignedDevice(
                           node_type);
 }
 
-Status ColocationGraph::InitializeMember(const Node& node, Member* member) {
+Status ColocationGraph::InitializeMember(
+                          const Node& node,  // input
+                          Member* member) {  // output
+  // Member 数据结构
+  // tensorflow/core/common_runtime/colocation_graph.h
+  // 综述: 设定 这个 node 对应的 Member::supported_device_types_
   TF_RETURN_IF_ERROR(member->SetParentAndSupportedDevices(node, device_types_));
 
   if (node.has_assigned_device_name()) {
+    // 未进入这个分支
     TF_RETURN_IF_ERROR(InitializeMemberWithAssignedDevice(
         node.assigned_device_name(), node.type_string(), true, member));
   } else {
@@ -951,6 +1053,7 @@ Status ColocationGraph::InitializeMember(const Node& node, Member* member) {
 
     // If no kernels are registered for this op type, fail with an error.
     if (member->supported_device_types().empty()) {
+      // 未进入这个分支
       std::set<string> registered_device_types;
       for (Device* d : device_set_->devices()) {
         registered_device_types.insert(d->device_type());
@@ -987,6 +1090,9 @@ Status ColocationGraph::InitializeMember(const Node& node, Member* member) {
         // NOTE: The full name may specify a device that is not in
         // n.supported_device_types(), but we check that in AssignDevice().
         TF_RETURN_IF_ERROR(member->SetRequestedDeviceName(node));
+        // SetRequestedDeviceName 函数说明:
+        // tensorflow/core/common_runtime/colocation_graph.cc
+        // 赋值 Member::requested_device_name_
       }
     }
   }

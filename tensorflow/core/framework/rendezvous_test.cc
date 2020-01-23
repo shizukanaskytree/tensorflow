@@ -71,6 +71,7 @@ class LocalRendezvousTest : public ::testing::Test {
 
   ~LocalRendezvousTest() override { rendez_->Unref(); }
 
+  /// #thread_usage example in tf.
   void SchedClosure(std::function<void()> fn) {
     threads_.Schedule(std::move(fn));
   }

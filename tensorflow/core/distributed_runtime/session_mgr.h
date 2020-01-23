@@ -29,6 +29,13 @@ namespace tensorflow {
 class WorkerCacheInterface;
 struct WorkerEnv;
 
+/** \class SessionMgr
+ *
+ * \brief SessionMgr manages a list of Sessions on a worker.
+ *         1. create a session to a list of sessions ; 2. delete a session;
+ *         3. lookup a session; 4. logging.
+ *
+ */
 // SessionMgr keeps track of information related to a given session.
 //
 // SessionMgr runs on the workers.

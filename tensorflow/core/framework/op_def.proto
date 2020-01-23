@@ -9,9 +9,16 @@ option go_package = "github.com/tensorflow/tensorflow/tensorflow/go/core/framewo
 import "tensorflow/core/framework/attr_value.proto";
 import "tensorflow/core/framework/types.proto";
 
+// global_op_registry
+// OpRegistry::Global() all:
+// https://gist.github.com/shizukanaskytree/8660a751d41a25db1848ec1be20dfd1e
+// https://gist.github.com/shizukanaskytree/80554656cedc23e2776fd89dbea02f89
+
 // Defines an operation. A NodeDef in a GraphDef specifies an Op by
 // using the "op" field which should match the name of a OpDef.
 // LINT.IfChange
+
+// 例子，全集: https://gist.github.com/shizukanaskytree/8660a751d41a25db1848ec1be20dfd1e
 message OpDef {
   // Op names starting with an underscore are reserved for internal use.
   // Names should be CamelCase and match the regexp "[A-Z][a-zA-Z0-9_]*".
@@ -35,9 +42,15 @@ message OpDef {
     //   single tensors.
     // * For a sequence of tensors, the "type_list_attr" field will be set
     //   to the name of an attr with type "list(type)".
+
+    // DataType 类型说明:
+    // tensorflow/core/framework/types.proto
+    // enum DataType 类型，比如 DT_FLOAT, DT_INT32, DT_STRING 等等
     DataType type = 3;
+
     string type_attr = 4;    // if specified, attr must have type "type"
     string number_attr = 5;  // if specified, attr must have type "int"
+
     // If specified, attr must have type "list(type)", and none of
     // type, type_attr, and number_attr may be specified.
     string type_list_attr = 6;

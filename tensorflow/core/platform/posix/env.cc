@@ -180,10 +180,12 @@ class PosixEnv : public Env {
 #if defined(PLATFORM_POSIX) || defined(__ANDROID__)
 REGISTER_FILE_SYSTEM("", PosixFileSystem);
 REGISTER_FILE_SYSTEM("file", LocalPosixFileSystem);
+
 Env* Env::Default() {
   static Env* default_env = new PosixEnv;
   return default_env;
 }
+
 #endif
 
 void PosixEnv::GetLocalTempDirectories(std::vector<string>* list) {

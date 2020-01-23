@@ -38,9 +38,9 @@ class DeviceFactory {
   // any device type specific properties/counts listed in "options".
   //
   // CPU devices are added first.
-  static Status AddDevices(const SessionOptions& options,
-                           const string& name_prefix,
-                           std::vector<std::unique_ptr<Device>>* devices);
+  static Status AddDevices(const SessionOptions& options, // input
+                           const string& name_prefix, // input
+                           std::vector<std::unique_ptr<Device>>* devices); // output 
 
   // Helper for tests.  Create a single device of type "type".  The
   // returned device is always numbered zero, so if creating multiple

@@ -79,6 +79,19 @@ class ResourceHandle {
   uint64 hash_code_ = 0;
   string maybe_type_name_;
 };
+// 2.
+// class ResourceHandle 数据结构
+// tensorflow/core/framework/resource_handle.h
+//
+// 概述:
+// Class representing a handle to a tensorflow resource.
+//
+// - device_: string
+// - container_: string
+// - name_: string
+// - hash_code_: uint64
+// - maybe_type_name_: string
+
 
 // For backwards compatibility for when this was a proto
 string ProtoDebugString(const ResourceHandle& handle);

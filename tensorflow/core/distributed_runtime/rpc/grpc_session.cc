@@ -36,26 +36,67 @@ namespace tensorflow {
 const char* const kSchemePrefix = "grpc://";
 const size_t kSchemePrefixLength = strlen(kSchemePrefix);
 
+/** \brief GrpcSession Constructor
+ *
+ *  \param options: const SessionOptions& ;
+ *
+ *  \note Constructor doesn't do any processing. It only store the
+ *        SessionOptions.
+ */
 GrpcSession::GrpcSession(const SessionOptions& options)
     : options_(options), current_graph_version_(-1) {}
 
 GrpcSession::~GrpcSession() {}
 
+/** \brief Create a GrpcSession subject to SessionOptions.
+ *
+ *  \param[in] options: SessionOptions& ;
+ *         SessionOptions is used to provide 1. environment used; 2. target
+ *         used to perform all computations according to host:port. 3. A bunch
+ *         of Session configuration parameters.
+ *
+ *  \param[out] out_session: std::unique_ptr<GrpcSession>* ;
+ *         GrpcSession is the return value.
+ *         GrpcSession implements the interface from class Session.
+ *         1. Create; 2. Extend; 3. Close; 4. Run; etc.
+ *
+ *  \return Status.
+ *
+ *  \details
+ *   Finally, it set one attributes of the GrpcSession.
+ *      - std::unique_ptr<MasterInterface> master_;
+ *   GrpcSession provides grpc stubs via GrpcSession::master_ , a
+ *   MasterInterface.
+ *   GrpcSession is a derived class of Session interface, including
+ *   1. Create 2. Extend 3. Close 4. LocalDeviceManager
+ *   5. MakeCallable 6. RunCallable 7. ReleaseCallable.
+ */
 /* static */
 Status GrpcSession::Create(const SessionOptions& options,
                            std::unique_ptr<GrpcSession>* out_session) {
+  /// A temp GrpcSession unique pointer for the return value.
   std::unique_ptr<GrpcSession> session(new GrpcSession(options));
+  /// Abstract interface for communicating with the TensorFlow Master service.
   std::unique_ptr<MasterInterface> master;
   // For testing, we enable the client to disable the use of the local
   // master registry, so that the RPC stack is exercised.
   if (!options.config.rpc_options().use_rpc_for_inprocess_master()) {
+    /// Get LocalMaster if the ConfigProto option specifies
+    /// use_rpc_for_inprocess_master option, which can avoid grpc stack.
+    /// This option is primarily for used testing the RPC stack.
+    /// Local master registry has local master inside, so ret is nullptr.
     master = LocalMaster::Lookup(options.target);
   }
   if (!master) {
+    /// When master from local is nullptr, so it tries to new a remote master.
+    /// SharedGrpcChannelPtr is a type alias of std::shared_ptr<::grpc::Channel>
+    /// Channels represent a connection to an endpoint.
     SharedGrpcChannelPtr master_channel;
     TF_RETURN_IF_ERROR(
         NewHostPortGrpcChannel(options.target.substr(kSchemePrefixLength),
                                &options.config.rpc_options(), &master_channel));
+    /// This is the main purpose of GrpcSession:
+    /// Create a master handler to handle client grpc request.
     master.reset(NewGrpcMaster(master_channel));
   }
   session->SetRemoteMaster(std::move(master));
@@ -64,13 +105,22 @@ Status GrpcSession::Create(const SessionOptions& options,
 }
 
 namespace {
+
+/** \brief
+ *
+ *  \param[in,out] gdef: GraphDef* ;
+ *
+ */
 // Re-encodes constant represented in tensor proto into
 // tensor_content, which is slightly better (less copies and lower peak
 // memory usage) when used with rpc subsystems.
 void ReEncodeConsts(GraphDef* gdef) {
   for (NodeDef& ndef : *(gdef->mutable_node())) {
     if (ndef.op() == "Const") {
+      /// TensorProto is a message protobuf defining representing a tensor.
       TensorProto* proto = nullptr;
+      /// mutable_attr: Returns a pointer to the mutable attr object that stores
+      /// the field's value.
       for (auto& attr : *ndef.mutable_attr()) {
         if (attr.first == "value") {
           proto = attr.second.mutable_tensor();
@@ -83,8 +133,19 @@ void ReEncodeConsts(GraphDef* gdef) {
         // a Cord. This is mildly helpful for reducing the peak memory
         // usage on the server side where GraphDef/NodeDef are copied
         // quite often.
+        /// \note dtype: DataType
+        /// \note class Tensor
+        /// Tensor constructor creates an empty Tensor of the given data
+        /// type with 1-dimensional, 0-element Tensor.
         Tensor parsed(proto->dtype());
+        /// FromProto function parses `*proto` and initializes the tensor.
         if (parsed.FromProto(*proto)) {
+          /// \brief
+          /// By taking advantage of AsProtoTensorContent from class Tensor to
+          /// encode content from proto of the gdef in a compact form.
+          ///
+          /// AsProtoTensorContent encodes the content in
+          /// `proto.tensor_content()` in a compact form.
           parsed.AsProtoTensorContent(proto);
         }
       }
@@ -93,6 +154,18 @@ void ReEncodeConsts(GraphDef* gdef) {
 }
 }  // namespace
 
+/** \brief To extract return value, session handler string and graph version,
+ *         from message CreateSessionResponse resp.
+ *
+ *  \param[in] handle: string
+ *        - set handle_, returned by the master grpc to identify this session.
+ *
+ *  \param[in] graph_version: int64
+ *        - The initial version number for the graph, to be used in the next
+ *          call to ExtendSession.
+ *
+ *  \remark No return value.
+ */
 void GrpcSession::SetHandleAndGraphVersion(string handle, int64 graph_version) {
   mutex_lock l(mu_);
   handle_ = std::move(handle);
@@ -108,6 +181,22 @@ Status GrpcSession::Handle(string* out_handle) {
   return Status::OK();
 }
 
+/** \brief grpc stub of creating a session called by a client.
+ *
+ *  \param[in] call_options: CallOptions* ;
+ *        - Options passed to grpc interface calls.
+ *
+ *  \param[in] graph: const GraphDef& ;
+ *        - GraphDef message represents the graph of operations, including
+ *         NodeDef, VersionDef, and FunctionDefLibrary.
+ *
+ *  \return Status
+ *
+ *  \details
+ *   The functionality of this function is to set
+ *   - GrpcSession::handle_ , to identify remote master session.
+ *   - Grpc::current_graph_version_
+ */
 Status GrpcSession::CreateImpl(CallOptions* call_options,
                                const GraphDef& graph) {
   {
@@ -122,19 +211,52 @@ Status GrpcSession::CreateImpl(CallOptions* call_options,
   req.set_target(options_.target);
   ReEncodeConsts(req.mutable_graph_def());
   CreateSessionResponse resp;
+
+  /// master_: std::unique_ptr<MasterInterface>
+  /// \note master_ real type is class GrpcRemoteMaster, a derived class
+  ///       implements MasterInterface.
+  /// grpc session use this master interface/stub to invoke session related
+  /// functions, like create a session, extend a session, run a step.
   Status s = master_->CreateSession(call_options, &req, &resp);
   if (s.ok()) {
+    /// extract return value, remote master session handler string and graph
+    /// version, from message CreateSessionResponse resp.
     SetHandleAndGraphVersion(resp.session_handle(), resp.graph_version());
   }
   return s;
 }
 
+/** \brief This is the real grpc stub of creating a session by a client, and
+ *         called by a client.
+ *
+ *  \param graph[in]: const GraphDef& ;
+ *
+ *  \details
+ */
 Status GrpcSession::Create(const GraphDef& graph) {
   CallOptions call_options;
   call_options.SetTimeout(options_.config.operation_timeout_in_ms());
   return CreateImpl(&call_options, graph);
 }
 
+/** \brief A wrapper to call CreateImpl.
+ *
+ *  \param[in] run_options: const RunOptions& ;
+ *         - RunOptions message is Options for a single Run() call.
+ *
+ *  \param[in] graph: const GraphDef& ;
+ *         - GraphDef message represents the graph of operations, including
+ *         NodeDef, VersionDef, and FunctionDefLibrary.
+ *
+ *  \details
+ *   Finally, it set two attributes of the GrpcSession.
+ *   - GrpcSession::handle_: string
+ *     - handle_ returned by the master to identify this session.
+ *   - GrpcSession::current_graph_version_: int64
+ *     - The current version of the graph.
+ *
+ *  \return Status
+ */
 Status GrpcSession::Create(const RunOptions& run_options,
                            const GraphDef& graph) {
   CallOptions call_options;
@@ -142,23 +264,52 @@ Status GrpcSession::Create(const RunOptions& run_options,
   return CreateImpl(&call_options, graph);
 }
 
+/** \brief Extend the graph by adding more nodes to its original graph.
+ *
+ *  \param[in] call_options: CallOptions*
+ *         CallOptions are options passed to interface calls. This class
+ *         provides portable functionality across different RPC systems on top
+ *         of platform-specific mechanisms (for client and server contexts,
+ *         cancellation, etc.).
+ *
+ *  \param[in] graph: const GraphDef&
+ *         GraphDef message represents the graph of operations, including
+ *         NodeDef, VersionDef, and FunctionDefLibrary.
+ *
+ *  \return Status
+ *
+ *  \details This function only changes GrpcSession::current_graph_version_
+ *
+ *  \todo Q. Why is enough to only get current_graph_version_ by this function?
+ */
 Status GrpcSession::ExtendImpl(CallOptions* call_options,
                                const GraphDef& graph) {
   bool handle_is_empty;
   {
     mutex_lock l(mu_);
+    /// handle_ is returned by the master to identify this session.
     handle_is_empty = handle_.empty();
   }
   if (handle_is_empty) {
     // Session was unitialized, so simply initialize the session with 'graph'.
+    /// When I do gdb, handle_ is empty even the client has called the
+    /// GrpcSession::Create
+    /// The result is to set
+    /// - GrpcSession::handle_ , to identify this session.
+    /// - Grpc::current_graph_version_
     return Create(graph);
   }
   mutex_lock l(mu_);
   ExtendSessionRequest req;
+  /// select the remote master session handler string, i.e., to specify which
+  /// master session in the server side to use.
   req.set_session_handle(handle_);
   *req.mutable_graph_def() = graph;
   req.set_current_graph_version(current_graph_version_);
   ExtendSessionResponse resp;
+  /// master_: std::unique_ptr<MasterInterface>
+  /// \note master_ real type is class GrpcRemoteMaster, a derived class
+  ///       implements MasterInterface.
   Status s = master_->ExtendSession(call_options, &req, &resp);
   if (s.ok()) {
     current_graph_version_ = resp.new_graph_version();
@@ -166,6 +317,14 @@ Status GrpcSession::ExtendImpl(CallOptions* call_options,
   return s;
 }
 
+/** \brief A wrapper of Extend function, which further call ExtendImpl.
+ *
+ *  \param[in] graph: const GraphDef&
+ *         GraphDef message represents the graph of operations, including
+ *         NodeDef, VersionDef, and FunctionDefLibrary.
+ *
+ *  \return Status
+ */
 Status GrpcSession::Extend(const GraphDef& graph) {
   CallOptions call_options;
   call_options.SetTimeout(options_.config.operation_timeout_in_ms());
@@ -179,6 +338,31 @@ Status GrpcSession::Extend(const RunOptions& run_options,
   return ExtendImpl(&call_options, graph);
 }
 
+ /** \brief Client sends a request to run the graph.
+  *
+  *  \param run_options: const RunOptions& ;
+  *         Options for a single Run() call.
+  *
+  *  \param inputs: const std::vector<std::pair<string,Tensor>>& ;
+  *  \todo  Let data be stored close to GPU and we don't need to send tensor by
+  *         grpc.
+  *
+  *  \param output_tensor_names: const std::vector<string>& ;
+  *
+  *  \param target_node_names: const std::vector<string>& ;
+  *
+  *  \param outputs: std::vector<Tensor>* ;
+  *         class Tensor is defined in tensor.h; Tensor represents n-dimensional
+  *         array of values.
+  *
+  *  \param run_metadata: RunMetadata* ;
+  *         Metadata output (i.e., non-Tensor) for a single Run() call.
+  *
+  *  \param prun_handle: const string& ;
+  *         It is "".
+  *
+  *  \return Status ;
+  */
 Status GrpcSession::RunHelper(
     const RunOptions& run_options,
     const std::vector<std::pair<string, Tensor>>& inputs,
@@ -224,6 +408,7 @@ Status GrpcSession::RunHelper(
 
   CallOptions call_options;
   call_options.SetTimeout(req->options().timeout_in_ms());
+  /// RunProto invokes the grpc call
   TF_RETURN_IF_ERROR(RunProto(&call_options, req.get(), resp.get()));
 
   // Look for an extended error returned in the response body.
@@ -266,6 +451,28 @@ Status GrpcSession::RunHelper(
   return Status::OK();
 }
 
+/** \brief Client side calls Run.
+ *
+ *  \param run_options: const RunOptions& ;
+ *         Options for a single Run() call.
+ *
+ *  \param inputs: const std::vector<std::pair<string,Tensor>>& ;
+ *  \todo  Let data be stored close to GPU and we don't need to send tensor by
+ *         grpc.
+ *
+ *  \param output_tensor_names: const std::vector<string>& ;
+ *
+ *  \param target_node_names: const std::vector<string>& ;
+ *
+ *  \param outputs: std::vector<Tensor>* ;
+ *         class Tensor is defined in tensor.h; Tensor represents n-dimensional
+ *         array of values.
+ *
+ *  \param run_metadata: RunMetadata* ;
+ *         Metadata output (i.e., non-Tensor) for a single Run() call.
+ *
+ *  \return Status ;
+ */
 Status GrpcSession::Run(const RunOptions& run_options,
                         const std::vector<std::pair<string, Tensor>>& inputs,
                         const std::vector<string>& output_tensor_names,
@@ -286,6 +493,20 @@ Status GrpcSession::Run(const std::vector<std::pair<string, Tensor>>& inputs,
              outputs, nullptr);
 }
 
+/** \brief
+ *
+ *  \param call_options: CallOptions* ;
+ *
+ *  \param req: MutableRunStepRequestWrapper* ;
+ *         Abstract interface for a mutable RunStepRequest message.
+ *         The real type is MutableProtoRunStepRequest.
+ *         This wrapper class should be used for RunStep requests between a
+ *         client and master in different address spaces.
+ *
+ *  \param resp: MutableRunStepResponseWrapper* ;
+ *         Abstract interface for a mutable RunStepResponse message.
+ *
+ */
 Status GrpcSession::RunProto(CallOptions* call_options,
                              MutableRunStepRequestWrapper* req,
                              MutableRunStepResponseWrapper* resp) {
@@ -383,6 +604,23 @@ Status GrpcSession::ListDevices(std::vector<DeviceAttributes>* response) {
   return Status::OK();
 }
 
+/** \brief Fill in or set the master field of the client grpc Session,
+*          GrpcSession.
+ *         MasterInterface master is responsible for serving as a handler of
+ *         all grpc stubs called by client side.
+ *         MasterInterface master will redirect to GrpcRemoteMaster as derived
+ *         class polymorphism.
+ *
+ *  \param master: std::unique_ptr<MasterInterface>
+ *         MasterInterface defines grpc stub functions interfaces related to
+ *         Session interface in master_interface.h, like 1. CreateSession,
+ *         2. ExtendSession 3. RunStep etc.
+ *         It is a base class for GrpcRemoteMaster. So, actuall, master will
+ *         redirect to member methods in the class GrpcRemoteMaster in
+ *         grpc_remote_master.cc .
+ *
+ *  \remark No return.
+ */
 void GrpcSession::SetRemoteMaster(std::unique_ptr<MasterInterface> master) {
   master_ = std::move(master);
 }
@@ -462,9 +700,23 @@ class GrpcSessionFactory : public SessionFactory {
     return str_util::StartsWith(options.target, kSchemePrefix);
   }
 
+  /** \brief Create a new GrpcSession subject to Session options.
+   *
+   *  \param[in] options: SessionOptions& ;
+   *         - SessionOptions is used to provide 1. environment used; 2. target
+   *         used to perform all computations according to host:port. 3. A bunch
+   *         of Session configuration parameters.
+   *
+   *  \param[out] out_session: Session** ;
+   *         - The real type is GrpcSession. Session is an interface class
+   *         providing Session 1. Create; 2. Extend; 3. Close; 4. Run; etc.
+   *
+   *  \return Status
+   */
   Status NewSession(const SessionOptions& options,
                     Session** out_session) override {
     std::unique_ptr<GrpcSession> session;
+    /// Call the **static** function GrpcSession::Create(options, &session)
     TF_RETURN_IF_ERROR(GrpcSession::Create(options, &session));
     *out_session = session.release();
     return Status::OK();

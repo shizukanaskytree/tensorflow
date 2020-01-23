@@ -55,6 +55,42 @@ NodeExecStatsWrapper::NodeExecStatsWrapper(
       node_(node),
       step_stats_collector_(step_stats_collector) {}
 
+// 1.
+// stats_ 变量说明:
+// stats_: std::unique_ptr<NodeExecStats>
+
+// 2.
+// message NodeExecStats 数据结构
+// tensorflow/core/framework/step_stats.proto
+//
+// 1.1
+// 具体:
+//
+// Time/size stats recorded for a single execution of a graph node.
+// message NodeExecStats {
+//   // TODO(tucker): Use some more compact form of node identity than
+//   // the full string name.  Either all processes should agree on a
+//   // global id (cost_id?) for each node, or we should use a hash of
+//   // the name.
+//   string node_name = 1;
+//   int64 all_start_micros = 2; // profiling info
+//   int64 op_start_rel_micros = 3;
+//   int64 op_end_rel_micros = 4;
+//   int64 all_end_rel_micros = 5; // profiling info
+//   repeated AllocatorMemoryUsed memory = 6;
+//   repeated NodeOutput output = 7;
+//   string timeline_label = 8;
+//   int64 scheduled_micros = 9;
+//   uint32 thread_id = 10;
+//   repeated AllocationDescription referenced_tensor = 11;
+//   MemoryStats memory_stats = 12;
+//   int64 all_start_nanos = 13;
+//   int64 op_start_rel_nanos = 14;
+//   int64 op_end_rel_nanos = 15;
+//   int64 all_end_rel_nanos = 16;
+//   int64 scheduled_nanos = 17;
+// };
+
 void NodeExecStatsWrapper::Done(const string& device) {
   // TODO(tucker): merge with the DetailText function in session.cc in a common
   // location.
@@ -106,6 +142,7 @@ void NodeExecStatsWrapper::RecordExecutorStarted() {
   stats_->set_all_start_nanos(now_nanos);
 }
 
+// 概述: 仅仅只是记录调用这个函数被调用时刻的时间于 NodeExecStats::op_start_rel_micros 内
 void NodeExecStatsWrapper::RecordComputeStarted() {
   int64 now_nanos = Env::Default()->NowNanos();
   DCHECK_NE(stats_->all_start_micros(), 0);
@@ -114,6 +151,18 @@ void NodeExecStatsWrapper::RecordComputeStarted() {
                                   stats_->all_start_micros());
   stats_->set_op_start_rel_nanos(now_nanos - stats_->all_start_nanos());
 }
+// 1.
+// NodeExecStatsWrapper::RecordComputeStarted() 函数说明:
+// 概述: 仅仅只是记录调用这个函数被调用时刻的时间于 NodeExecStats::op_start_rel_micros 内
+
+// 1.1
+// 示意图
+// +---------------------------------------------------------> timeline
+//         ^                   ^                         ^
+//         |                   |                         |
+//         +                   +                         +
+//  all_start_nanos()      now_nanos                 now_nanos
+//                      op_start_rel_micros       op_end_rel_micros
 
 void NodeExecStatsWrapper::RecordComputeEnded() {
   int64 now_nanos = Env::Default()->NowNanos();
@@ -123,6 +172,19 @@ void NodeExecStatsWrapper::RecordComputeEnded() {
                                 stats_->all_start_micros());
   stats_->set_op_end_rel_nanos(now_nanos - stats_->all_start_nanos());
 }
+// 1.
+// NodeExecStatsWrapper::RecordComputeEnded() 函数说明:
+// 概述: 仅仅只是记录调用这个函数被调用时刻的时间于 NodeExecStats::set_op_end_rel_micros 内
+
+// 1.1
+// 示意图
+// +---------------------------------------------------------> timeline
+//         ^                   ^                         ^
+//         |                   |                         |
+//         +                   +                         +
+//  all_start_nanos()      now_nanos                 now_nanos
+//                      op_start_rel_micros       op_end_rel_micros
+
 
 void NodeExecStatsWrapper::RecordExecutorEnded() {
   int64 now_nanos = Env::Default()->NowNanos();
@@ -132,6 +194,31 @@ void NodeExecStatsWrapper::RecordExecutorEnded() {
                                  stats_->all_start_micros());
   stats_->set_all_end_rel_nanos(now_nanos - stats_->all_start_nanos());
 }
+// 1.
+// kMicrosToNanos 变量说明
+// static constexpr uint64 kMicrosToNanos = 1000ULL;
+// tensorflow/core/platform/env_time.h
+
+// 1.1
+// kMicrosToNanos 变量作用
+// 1.1.1
+// 把 NanoSeconds 转换为 MicroSeconds
+//
+// 例子
+// - now_nanos / EnvTime::kMicrosToNanos
+// - NowNanos() / kMicrosToNanos;
+
+// 1.1.2
+// micros * EnvTime::kMicrosToNanos
+// 把 MicroSeconds 转换为 NanoSeconds
+// - micros * EnvTime::kMicrosToNanos
+
+// 1.2
+// 引申: NowMicros()
+// virtual uint64 NowMicros() { return NowNanos() / kMicrosToNanos; }
+// tensorflow/core/platform/env_time.h
+
+
 
 void NodeExecStatsWrapper::SetScheduled(int64 nanos) {
   stats_->set_scheduled_micros(nanos / EnvTime::kMicrosToNanos);
@@ -169,6 +256,7 @@ void NodeExecStatsWrapper::SetReferencedTensors(
 
 void NodeExecStatsWrapper::AddAllocation(
     Allocator* allocator, TrackingAllocator* tracking_allocator) {
+
   AllocatorMemoryUsed* memory = stats_->add_memory();
   memory->set_allocator_name(allocator->Name());
   auto sizes = tracking_allocator->GetSizes();
@@ -195,6 +283,8 @@ void NodeExecStatsWrapper::Finalize() {
   allocations_.clear();
 }
 
+/// step_stats[out]: message StepStats*
+/// 这个类的主要目的就是 为了 填充 step_stats
 StepStatsCollector::StepStatsCollector(StepStats* step_stats)
     : finalized_(false), step_stats_(step_stats) {}
 
@@ -213,6 +303,10 @@ static int ExtractGpuWithStreamAll(string device_name) {
   scanner.RestartCapture().Many(strings::Scanner::DIGIT).StopCapture();
   // Check that the digits are preceded by the 'device:GPU:' string
   scanner.OneLiteral(":UPG:ecived");
+  // 1.
+  // :UPG:ecived 说明
+  // 源代码就是这么写的。
+
   StringPiece capture;
   bool matched = scanner.GetResult(nullptr, &capture);
 
@@ -383,6 +477,9 @@ void StepStatsCollector::BuildCostModel(
   }
 }
 
+/// QQQ. 为什么要这个 StepStatsCollector 类下的 Save ?
+/// AAA. 更上一个层面，StepStatsCollector 这个类的主要目的就是为了 填充
+///      这个类的主要目的就是 为了 填充 step_stats
 void StepStatsCollector::Save(const string& device,
                               NodeExecStats* node_stats_pb) {
   Save(device,
@@ -390,6 +487,7 @@ void StepStatsCollector::Save(const string& device,
                                 nullptr, this));
 }
 
+/// node_stats [output] : NodeExecStatsWrapper*
 void StepStatsCollector::Save(const string& device,
                               NodeExecStatsWrapper* node_stats) {
   if (!node_stats) return;

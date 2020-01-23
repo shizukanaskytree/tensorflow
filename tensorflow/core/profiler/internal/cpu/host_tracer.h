@@ -56,8 +56,16 @@ class HostTracer : public ProfilerInterface {
   // True if currently recording.
   bool recording_ = false;
 
+  // -----------------------------------------------------------------------
+  // tracing::ScopedActivity 是用来 tracing CPU 的, 证据 executor.cc, Process() 内
+  // 证据 IsEnabledForActivities()
+  // 这个 TraceMeRecorder 应该是专门为 CPU profiling 设计的
+  //
+  // -----------------------------------------------------------------------
   // Container of all traced events.
+  /// using Events = std::vector<ThreadEvents>;
   TraceMeRecorder::Events events_;
+  // -----------------------------------------------------------------------
 };
 
 }  // namespace cpu

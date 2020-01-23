@@ -2732,6 +2732,50 @@ def _all_saveable_objects(scope=None):
   # TODO(andreasst): make this function public once things are settled.
   return (ops.get_collection(ops.GraphKeys.GLOBAL_VARIABLES, scope) +
           ops.get_collection(ops.GraphKeys.SAVEABLE_OBJECTS, scope))
+  # 1.
+  # get_collection 函数说明:
+  # tensorflow/python/framework/ops.py
+  #
+  # @tf_export(v1=["get_collection"])
+  # def get_collection(key, scope=None):
+  #   return get_default_graph().get_collection(key, scope)
+  #
+  # 概述:
+  # 根据 key string 查找并返回 variables
+
+  # 2.
+  # Graph::get_collection 函数说明:
+  # tensorflow/python/framework/ops.py
+  # def get_collection(self, name, scope=None):
+  #   """Returns a list of values in the collection with the given `name`.
+
+
+  # 3.
+  # scope=None
+
+  # 4.
+  # ops.GraphKeys.GLOBAL_VARIABLES 说明:
+  # tensorflow/python/framework/ops.py
+  # Key to collect Variable objects that are global (shared across machines).
+  # Default collection for all variables, except local ones.
+  # GLOBAL_VARIABLES = "variables"
+
+  # 5.
+  # ops.GraphKeys.SAVEABLE_OBJECTS 说明:
+  #
+  # Key to collect BaseSaverBuilder.SaveableObject instances for checkpointing.
+  # SAVEABLE_OBJECTS = "saveable_objects"
+
+
+  # 6.
+  # ops module 说明
+  # tensorflow/python/framework/ops.py
+
+  # 7.
+  # TRAINABLE_VARIABLES
+  # 构造 Variable 时, tensorflow/python/ops/variables.py
+  # 它同时有两个标签，一个是 "variables"，还有一个是 "trainable_variables"
+  # 这些信息只在 Python 这边存着，不是 C++ 负责的。
 
 
 @tf_export(v1=["local_variables"])

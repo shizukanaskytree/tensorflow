@@ -46,16 +46,30 @@ limitations under the License.
 #include "tensorflow/core/platform/types.h"
 #include "tensorflow/core/public/session_options.h"
 
+/** 这个文件一个是 3 个 类:
+ *  - class BaseGPUDevice
+ *  - class GPUKernelTracker
+ *  - class BaseGPUDeviceFactory
+ */
+
 namespace tensorflow {
 class GPUKernelTracker;
 
+// 类 BaseGPUDevice 是用来表示**所有的** 物理 GPU 的
+// 类 BaseGPUDevice 是用来表示**所有的** 物理 GPU 的
+// 类 BaseGPUDevice 是用来表示**所有的** 物理 GPU 的
 class BaseGPUDevice : public LocalDevice {
  public:
-  BaseGPUDevice(const SessionOptions& options, const string& name,
-                Bytes memory_limit, const DeviceLocality& locality,
-                TfGpuId tf_gpu_id, const string& physical_device_desc,
-                Allocator* gpu_allocator, Allocator* cpu_allocator,
-                bool sync_every_op, int32 max_streams);
+  BaseGPUDevice(const SessionOptions& options,
+                const string& name,
+                Bytes memory_limit,
+                const DeviceLocality& locality,
+                TfGpuId tf_gpu_id, // 重要！
+                const string& physical_device_desc,
+                Allocator* gpu_allocator,
+                Allocator* cpu_allocator,
+                bool sync_every_op,
+                int32 max_streams);
 
   ~BaseGPUDevice() override;
 
@@ -141,6 +155,10 @@ class BaseGPUDevice : public LocalDevice {
     se::Stream* device_to_host = nullptr;
     gtl::InlinedVector<se::Stream*, 4> device_to_device;
   };
+
+  // 类中类，
+  // 仅此一个 StreamGroupFactory* ，被所有的 BaseGPUDevice instance 共享
+  // 类 BaseGPUDevice 是用来表示**所有的** 物理 GPU 的
   class StreamGroupFactory;
 
   gtl::InlinedVector<StreamGroup*, 4> streams_;
@@ -149,7 +167,10 @@ class BaseGPUDevice : public LocalDevice {
   std::vector<GPUDeviceContext*> device_contexts_;
   GpuDeviceInfo* gpu_device_info_ = nullptr;
   mutex trace_mu_;
+
+  /// TensorFlow 内部对 物理GPU 的标号，从 0 到 3, int 类型。
   TfGpuId tf_gpu_id_;
+
   const bool sync_every_op_ = false;
   const int32 max_streams_;
   std::unique_ptr<EventMgr> em_;
@@ -178,6 +199,38 @@ class BaseGPUDevice : public LocalDevice {
                               const Tensor& from, Tensor* to,
                               StatusCallback done);
 };
+// 1.
+// class BaseGPUDevice 数据结构说明:
+// tensorflow/core/common_runtime/gpu/gpu_device.h
+// class BaseGPUDevice : public LocalDevice
+// - gpu_allocator_: Allocator* // not owned
+// - cpu_allocator_: Allocator* // not owned
+// - executor_: se::StreamExecutor* // not owned
+// - scoped_allocator_mgr_: std::unique_ptr<ScopedAllocatorMgr>
+// - streams_: gtl::InlinedVector<StreamGroup*, 4>
+// - scratch_init_mutex_: mutex
+// - scratch_: gtl::InlinedVector<char*, 4>
+// - device_contexts_: std::vector<GPUDeviceContext*>
+// - gpu_device_info_: GpuDeviceInfo*
+// - trace_mu_: mutex
+// - tf_gpu_id_: TfGpuId
+// - sync_every_op_: const bool, default value : false
+// - max_streams_: const int32
+// - em_: std::unique_ptr<EventMgr>
+// - thread_pool_: std::unique_ptr<thread::ThreadPool>
+// - kernel_tracker_: std::unique_ptr<GPUKernelTracker>
+// - pending_cap_: int, default value : 0
+// - timestamped_allocator_: bool, default value : 0
+
+// 1.1
+// struct GpuDeviceInfo 数据结构说明:
+// tensorflow/core/framework/device_base.h
+// - stream: stream_executor::Stream*
+// - default_context: DeviceContext*
+// - event_mgr: EventMgr*
+// - gpu_id: int , default_value : -1
+
+
 
 // A per-compute-stream utility that keeps track of kernels that have been
 // queued for execution but may not yet have terminated, and also the queued

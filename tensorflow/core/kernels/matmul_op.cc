@@ -248,10 +248,17 @@ typedef AutoTuneSingleton<MatmulAutoTuneGroup, MatmulParameters,
                           se::blas::AlgorithmConfig>
     AutoTuneMatmul;
 
+
+// =======================================================================
+// struct LaunchMatMul with cuBLAS support
+// =======================================================================
 template <typename T>
 struct LaunchMatMul<GPUDevice, T, true /* USE_CUBLAS */> {
+
   static void launch(
-      OpKernelContext* ctx, const Tensor& a, const Tensor& b,
+      OpKernelContext* ctx,
+      const Tensor& a,
+      const Tensor& b,
       const Eigen::array<Eigen::IndexPair<Eigen::DenseIndex>, 1>& dim_pair,
       std::vector<int64>* algorithms, bool use_autotune, Tensor* out) {
     using se::blas::AlgorithmConfig;
@@ -431,6 +438,7 @@ struct LaunchMatMul<GPUDevice, T, true /* USE_CUBLAS */> {
       *algorithm_set_flag = true;
     }
   }
+
 };
 
 #endif  // GOOGLE_CUDA
@@ -443,10 +451,15 @@ class MatMulOp : public OpKernel {
     OP_REQUIRES_OK(ctx, ctx->GetAttr("transpose_a", &transpose_a_));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("transpose_b", &transpose_b_));
 
+    // 跟踪一下
     LaunchMatMul<Device, T, USE_CUBLAS>::GetBlasGemmAlgorithm(
         ctx, &algorithms_, &algorithms_set_already_);
+
     use_autotune_ = MatmulAutotuneEnable();
   }
+
+
+
 
   void Compute(OpKernelContext* ctx) override {
     const Tensor& a = ctx->input(0);
@@ -557,16 +570,23 @@ struct MatMulFunctor<SYCLDevice, T> {
 
 }  // end namespace functor
 
+
+// QQQ. REGISTER_KERNEL_BUILDER 在哪里？
+// AAA. ./tensorflow/core/framework/op_kernel.h:1375:
+//      #define REGISTER_KERNEL_BUILDER(kernel_builder, ...) \
+
 #define REGISTER_CPU_EIGEN(T)                                                  \
   REGISTER_KERNEL_BUILDER(                                                     \
       Name("MatMul").Device(DEVICE_CPU).TypeConstraint<T>("T").Label("eigen"), \
       MatMulOp<CPUDevice, T, false /* cublas, ignored for CPU */>);
 
+// -----------------------------------------------------------------------
 #define REGISTER_CPU(T)                                             \
   REGISTER_KERNEL_BUILDER(                                          \
       Name("MatMul").Device(DEVICE_CPU).TypeConstraint<T>("T"),     \
       MatMulOp<CPUDevice, T, false /* cublas, ignored for CPU */>); \
   REGISTER_CPU_EIGEN(T);
+// -----------------------------------------------------------------------
 
 #define REGISTER_GPU(T)                                            \
   REGISTER_KERNEL_BUILDER(                                         \
@@ -578,7 +598,10 @@ struct MatMulFunctor<SYCLDevice, T> {
                               .Label("cublas"),                    \
                           MatMulOp<GPUDevice, T, true /* cublas */>)
 
+
+////////////////////////////////////////////////////////////////////////
 #if defined(INTEL_MKL) && defined(ENABLE_MKL)
+// mkl_matmul_op.cc
 
 // MKL supports float, double, complex64 and complex128 types for
 // matrix-multiplication, and these kernels are registered in mkl_matmul_op.cc.
@@ -611,6 +634,7 @@ TF_CALL_complex128(REGISTER_CPU_EIGEN);
 TF_CALL_double(REGISTER_CPU_EIGEN);
 #endif  // INTEL_MKL_DNN_ONLY
 
+////////////////////////////////////////////////////////////////////////
 #else   // INTEL_MKL && ENABLE_MKL
 TF_CALL_float(REGISTER_CPU);
 TF_CALL_double(REGISTER_CPU);
@@ -621,7 +645,12 @@ TF_CALL_int64(REGISTER_CPU);
 TF_CALL_complex64(REGISTER_CPU);
 TF_CALL_complex128(REGISTER_CPU);
 #endif  // INTEL_MKL && ENABLE_MKL
+////////////////////////////////////////////////////////////////////////
 
+
+// =======================================================================
+// CUDA: cuBLAS
+// =======================================================================
 #if GOOGLE_CUDA
 TF_CALL_float(REGISTER_GPU);
 TF_CALL_double(REGISTER_GPU);
@@ -629,6 +658,8 @@ TF_CALL_complex64(REGISTER_GPU);
 TF_CALL_complex128(REGISTER_GPU);
 TF_CALL_half(REGISTER_GPU);
 #endif  // GOOGLE_CUDA
+// =======================================================================
+
 
 #ifdef TENSORFLOW_USE_SYCL
 #define REGISTER_SYCL(T)                                         \

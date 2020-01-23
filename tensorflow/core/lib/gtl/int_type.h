@@ -167,6 +167,32 @@ namespace gtl {
 template <typename IntTypeName, typename _ValueType>
 class IntType;
 
+/** \brief
+ *
+ *  \details To check the functionality of TF_LIB_GTL_DEFINE_INT_TYPE.
+ *           Essentially, this macro define a new struct type called
+ *           "int_type_name"_tag_
+ *           e.g., A_tag_
+ *           Then pass A_tag_ into one typename of IntType.
+ *
+ *  \code{.cpp}
+ *  #include <iostream>
+ *
+ *  #define TF_LIB_GTL_DEFINE_INT_TYPE(int_type_name, value_type)              \
+ *    struct int_type_name##_tag_ {int c = 1;};
+ *
+ *  int main ()
+ *  {
+ *      TF_LIB_GTL_DEFINE_INT_TYPE(A, B);
+ *      A_tag_ x;
+ *      std::cout << x.c << "\n";
+ *
+ *      return 0;
+ *  }
+ *
+ *  // Output: 1
+ *  \endcode
+ */
 // Defines the IntType using value_type and typedefs it to int_type_name.
 // The struct int_type_name ## _tag_ trickery is needed to ensure that a new
 // type is created per int_type_name.

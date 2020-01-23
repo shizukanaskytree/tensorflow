@@ -140,6 +140,16 @@ class GraphDefBuilder {
     std::vector<Node*> control_inputs_;
     std::vector<std::pair<string, AttrValue>> attrs_;
   };
+  // GraphDefBuilder::Options 数据结构
+  // tensorflow/core/graph/graph_def_builder.h
+  // tensorflow/core/graph/graph_def_builder.cc
+  // GraphDefBuilder::Options::Options 构造函数
+  // - graph_: Graph* const;
+  // - status_: Status* const;
+  // - name_: string;
+  // - device_: string;
+  // - control_inputs_: std::vector<Node*>;
+  // - attrs_: std::vector<std::pair<string, AttrValue>>;
 
   // Start building a new graph.
   explicit GraphDefBuilder(
@@ -180,6 +190,12 @@ class GraphDefBuilder {
   Status status_;
   Options opts_;
 };
+// GraphDefBuilder 函数说明
+// tensorflow/core/graph/graph_def_builder.h
+// - Graph graph_;
+// - Status status_;
+// - Options opts_;
+
 
 namespace ops {
 

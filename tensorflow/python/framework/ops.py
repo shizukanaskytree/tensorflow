@@ -989,7 +989,13 @@ _tensor_conversion_func_registry = {
     0: [(Tensor, _TensorTensorConversionFunction)]
 }
 _tensor_conversion_func_cache = {}
+
+
+################################################
+# 全局变量的锁 🔐
 _tensor_conversion_func_lock = threading.Lock()
+################################################
+
 register_dense_tensor_like_type(Tensor)
 
 
@@ -1794,6 +1800,7 @@ def _create_c_op(graph, node_def, inputs, control_inputs):
   op_desc = c_api.TF_NewOperation(graph._c_graph,
                                   compat.as_str(node_def.op),
                                   compat.as_str(node_def.name))
+
   if node_def.device:
     c_api.TF_SetDevice(op_desc, compat.as_str(node_def.device))
   # Add inputs
@@ -1987,6 +1994,9 @@ class Operation(object):
     output_types = [
         c_api.TF_OperationOutputType(c_api_util.tf_output(self._c_op, i))
         for i in range(num_outputs)]
+
+    """ Comprehension list ; 把 for 循环倒过来写
+    """
     self._outputs = [
         Tensor(self, i, output_type)
         for i, output_type in enumerate(output_types)
@@ -3063,9 +3073,13 @@ class Graph(object):
     # AutomaticControlDependencies context.
     self._add_control_dependencies = False
 
+    ################################################################
+    # 这个部分是 Python 到 C++
     # TODO(skyewm): fold as much of the above as possible into the C
     # implementation
     self._scoped_c_graph = c_api_util.ScopedTFGraph()
+    ################################################################
+
     # The C API requires all ops to have shape functions. Disable this
     # requirement (many custom ops do not have shape functions, and we don't
     # want to break these existing cases).
@@ -4005,6 +4019,20 @@ class Graph(object):
     """  # pylint: disable=g-doc-exception
     with self._lock:
       collection = self._collections.get(name, None)
+      # 1.
+      # Graph::_collections 变量说明:
+      #  # Arbitrary collections of objects.
+      #  self._collections = {}
+
+      # 2.
+      # 添加 _collections 元素的函数
+      # 
+      # def add_to_collection(self, name, value):
+      #   if name not in self._collections:
+      #     self._collections[name] = [value]
+      #   else:
+      #     self._collections[name].append(value)
+
       if collection is None:
         return []
       if scope is None:

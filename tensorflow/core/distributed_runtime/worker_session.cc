@@ -18,6 +18,15 @@ namespace tensorflow {
 
 namespace {
 
+/** \class WorkerFreeListCache
+ *
+ *  \brief Take advantage of the existing WorkerCacheInterface w, and reuse w to
+ *         invoke functions in the WorkerCacheInterface.
+ *         WorkerCacheInterface provides interface for 1. list workers' names;
+ *         2. list workers' name of a job name; 3. create worker with a name;
+ *         4. destory a worker; 5. get device locality information of a device;
+ *         6. logging.
+ */
 // A private cache that wraps worker_cache and allows reuse of
 // WorkerInterface objects.
 class WorkerFreeListCache : public WorkerCacheInterface {
@@ -92,6 +101,26 @@ class WorkerFreeListCache : public WorkerCacheInterface {
 
 }  // namespace
 
+/** \brief WorkerSession constructor to create a Session on worker server.
+ *
+ *  \param session_name: const string&
+ *
+ *  \param worker_name: const string&
+ *
+ *  \param worker_cache: std::unique_ptr<WorkerCacheInterface>
+ *         WorkerCacheInterface provides interface for 1. list workers' names;
+ *         2. list workers' name of a job name; 3. create worker with a name;
+ *         4. destory a worker; 5. get device locality information of a device;
+ *         6. logging.
+ *
+ *  \param device_mgr: std::unique_ptr<DeviceMgr>
+ *         DeviceMgr manages a list of devices, including 1. names of devices,
+ *         2. attributes of devices, 3. lookup devices.
+ *
+ *  \param graph_mgr: std::unique_ptr<GraphMgr>
+ *         GraphMgr keeps track of a set of graphs that are registered with a
+ *         TensorFlow worker.
+ */
 WorkerSession::WorkerSession(const string& session_name,
                              const string& worker_name,
                              std::unique_ptr<WorkerCacheInterface> worker_cache,
@@ -106,6 +135,28 @@ WorkerSession::WorkerSession(const string& session_name,
       device_mgr_(std::move(device_mgr)),
       borrowed_device_mgr_(nullptr) {}
 
+/** \brief Indirectly call WorkerSession construct with the same parameters.
+ *
+ *  \param session_name: const string&
+ *         session handler name string.
+ *
+ *  \param worker_name: const string&
+ *         worker name. E.g., /job:mnist/replica:0/task:1.
+ *
+ *  \param worker_cache: std::unique_ptr<WorkerCacheInterface>
+ *         WorkerCacheInterface provides interface for 1. list workers' names;
+ *         2. list workers' name of a job name; 3. create worker with a name;
+ *         4. destory a worker; 5. get device locality information of a device;
+ *         6. logging.
+ *
+ *  \param borrowed_device_mgr: std::unique_ptr<DeviceMgr>
+ *         DeviceMgr manages a list of devices, including 1. names of devices,
+ *         2. attributes of devices, 3. lookup devices.
+ *
+ *  \param graph_mgr: std::unique_ptr<GraphMgr>
+ *         GraphMgr keeps track of a set of graphs that are registered with a
+ *         TensorFlow worker.
+ */
 /* static */
 std::shared_ptr<WorkerSession> WorkerSession::CreateWithBorrowedDeviceMgr(
     const string& session_name, const string& worker_name,

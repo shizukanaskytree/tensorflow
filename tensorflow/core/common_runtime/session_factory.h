@@ -28,6 +28,10 @@ namespace tensorflow {
 class Session;
 struct SessionOptions;
 
+/** \brief SessionFactory is used to create a specific session at runtime
+ *         1. "DIRECT_SESSION" <--> DirectSessionFactory.
+ *         2. "GRPC_SESSION" <--> GrpcSessionFactory.
+ */
 class SessionFactory {
  public:
   // Creates a new session and stores it in *out_session, or fails with an error

@@ -38,7 +38,14 @@ limitations under the License.
 namespace tensorflow {
 namespace tracing {
 
+
+///////////////////////////////////////////////////////////////////////
+/// 这函数决定了是否开启 ScopedRegion profiling 。
+/// 这里 已经被硬编码成了 false.
+/// 今后需要 profiling 的话，打开这里。
 inline bool EventCollector::IsEnabled() { return false; }
+///////////////////////////////////////////////////////////////////////
+
 
 }  // namespace tracing
 }  // namespace tensorflow

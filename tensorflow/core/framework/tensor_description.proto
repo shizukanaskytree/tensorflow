@@ -20,3 +20,28 @@ message TensorDescription {
   // Information about the size and allocator used for the data
   AllocationDescription allocation_description = 4;
 };
+// 1.
+// message TensorDescription 数据结构
+// tensorflow/core/framework/tensor_description.proto
+// - dtype: DataType
+//   Data type of tensor elements
+// - shape: TensorShapeProto
+//   Shape of the tensor.
+// - allocation_description: AllocationDescription
+//   Information about the size and allocator used for the data
+
+// 2.
+// message AllocationDescription 数据结构
+// tensorflow/core/framework/allocation_description.proto
+// - requested_bytes: int64
+//   Total number of bytes requested
+// - allocated_bytes: int64
+//   Total number of bytes allocated if known
+// - allocator_name: string
+//   Name of the allocator used
+// - allocation_id: int64
+//   Identifier of the allocated buffer if known
+// - has_single_reference: bool
+//   Set if this tensor only has one remaining reference
+// - ptr: uint64
+//   Address of the allocation.

@@ -55,8 +55,11 @@ Status ProcessFunctionLibraryRuntime::FunctionData::DistributedInit(
   return init_result_;
 }
 
+// [已经整理，务必看自己的]
 ProcessFunctionLibraryRuntime::ProcessFunctionLibraryRuntime(
-    const DeviceMgr* device_mgr, Env* env, int graph_def_version,
+    const DeviceMgr* device_mgr,
+    Env* env,
+    int graph_def_version,
     const FunctionLibraryDefinition* lib_def,
     const OptimizerOptions& optimizer_options,
     thread::ThreadPool* default_thread_pool,
@@ -73,10 +76,19 @@ ProcessFunctionLibraryRuntime::ProcessFunctionLibraryRuntime(
         optimizer_options, this);
     return;
   }
+
   for (Device* d : device_mgr->ListDevices()) {
+    // -----------------------------------------
     flr_map_[d] = NewFunctionLibraryRuntime(
-        device_mgr, env, d, graph_def_version, lib_def_, default_thread_pool,
-        optimizer_options, this);
+        device_mgr,
+    // -----------------------------------------
+        env,
+        d,
+        graph_def_version,
+        lib_def_,
+        default_thread_pool,
+        optimizer_options,
+        this);
   }
 }
 

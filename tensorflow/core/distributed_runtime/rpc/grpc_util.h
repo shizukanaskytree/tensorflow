@@ -80,6 +80,17 @@ inline bool IsStreamRemovedError(const ::grpc::Status& s) {
          s.error_message() == kStreamRemovedMessage;
 }
 
+/** \brief After invoking the stub of grpc, checking its return status.
+ *         It is a utility function to convert ::grpc::Status to tensorflow
+ *         Status.
+ *
+ *  \param s: ::grpc::Status&
+ *         gRPC uses a set of well defined status codes as part of the RPC API.
+ *         These statuses are defined as such:
+ *         https://grpc.github.io/grpc/cpp/md_doc_statuscodes.html
+ *
+ *  \return Status
+ */
 inline Status FromGrpcStatus(const ::grpc::Status& s) {
   if (s.ok()) {
     return Status::OK();

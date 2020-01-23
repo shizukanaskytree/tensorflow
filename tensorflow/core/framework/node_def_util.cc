@@ -301,15 +301,32 @@ bool HasNodeAttr(const NodeDef& node_def, StringPiece attr_name) {
 
 static const string& kEmptyString = *new string();
 
-const string& GetNodeAttrString(const AttrSlice& attrs, StringPiece attr_name) {
+/**
+ *  \params
+ *    attrs [in]
+ *    attr_name [in]
+ *
+ */
+const string& GetNodeAttrString(
+  const AttrSlice& attrs,  // input
+  StringPiece attr_name)   // input
+{
+  // AttrValue 数据结构
+  // tensorflow/core/framework/attr_value.proto:16:message AttrValue
+  //
+  //
   const AttrValue* attr_value = attrs.Find(attr_name);
+
   if (attr_value == nullptr) {
     return kEmptyString;
   }
+
   Status s = AttrValueHasType(*attr_value, "string");
+
   if (!s.ok()) {
     return kEmptyString;
   }
+
   return attr_value->s();
 }
 
@@ -344,9 +361,13 @@ Status GetNodeAttr(const AttrSlice& attrs, StringPiece attr_name,
 
 namespace {  // Helper for InOutTypesForNode().
 
-Status AddArgToSig(const NodeDef& node_def, const OpDef::ArgDef& arg_def,
-                   DataTypeVector* sig) {
-  const int original_size = sig->size();
+Status AddArgToSig(
+  const NodeDef& node_def,  // input
+  const OpDef::ArgDef& arg_def,  // input
+  DataTypeVector* sig) {  // output
+
+  const int original_size = sig->size();  // 起始的返回值为空，故 original_size=0
+
   if (!arg_def.number_attr().empty()) {
     // Same type repeated "repeats" times.
     int32 repeats = -1;
@@ -371,10 +392,24 @@ Status AddArgToSig(const NodeDef& node_def, const OpDef::ArgDef& arg_def,
                                      ProtoShortDebugString(arg_def));
     }
   } else if (!arg_def.type_attr().empty()) {
+
     const AttrValue* attr_value;
+
+    // step 1: AttrSlice(node_def) 调用 AttrSlice 构造函数
+    // step 2: AttrSlice::Find
+    //      p attr_name
+    //      "dtype"
+    //      $69 = {static npos = 18446744073709551615, static kMaxSize = 9223372036854775807, ptr_ = 0x5555cfc83728 "dtype", length_ = 5}
+    //      p (**attr_value).DebugString()
+    //      $72 = "type: DT_INT32\n"
+
     TF_RETURN_IF_ERROR(
-        AttrSlice(node_def).Find(arg_def.type_attr(), &attr_value));
-    sig->push_back(attr_value->type());
+        AttrSlice(node_def).Find(
+          arg_def.type_attr(), // input, StringPiece attr_name
+          &attr_value)); // output, const AttrValue** attr_value, message type
+
+    sig->push_back(attr_value->type()); // 到这里基本就收集到了，然后就返回了，去到最后看
+
   } else if (!arg_def.type_list_attr().empty()) {
     const AttrValue* attr_value;
     TF_RETURN_IF_ERROR(
@@ -388,6 +423,8 @@ Status AddArgToSig(const NodeDef& node_def, const OpDef::ArgDef& arg_def,
     return errors::InvalidArgument("No type fields in ",
                                    ProtoShortDebugString(arg_def));
   }
+
+  // 没有进入这个分支
   if (arg_def.is_ref()) {
     // For all types that were added by this function call, make them refs.
     for (size_t i = original_size; i < sig->size(); ++i) {
@@ -437,10 +474,18 @@ Status OutputTypeForNode(const NodeDef& node_def, const OpDef& op_def,
                                  node_def.name());
 }
 
-Status OutputTypesForNode(const NodeDef& node_def, const OpDef& op_def,
-                          DataTypeVector* outputs) {
+
+Status OutputTypesForNode(
+  const NodeDef& node_def, // input
+  const OpDef& op_def, // input
+  DataTypeVector* outputs) { // output
+
   for (const auto& arg : op_def.output_arg()) {
-    TF_RETURN_IF_ERROR(AddArgToSig(node_def, arg, outputs));
+    TF_RETURN_IF_ERROR(
+      AddArgToSig(
+        node_def,  // input
+        arg,  // input
+        outputs));  // output
   }
   return Status::OK();
 }
@@ -555,34 +600,169 @@ Status ValidateNodeDef(const NodeDef& node_def, const OpDef& op_def) {
 
 namespace {  // Helpers for NameRangesForNode()
 
-Status ComputeArgRange(const NodeDef& node_def, const OpDef::ArgDef& arg_def,
-                       const OpDef& op_def, int* num) {
+// 我觉得很有必要参考下 OpDef::ArgDef 数据结构
+/*
+  // For describing inputs and outputs.
+  message ArgDef {
+    // Name for the input/output.  Should match the regexp "[a-z][a-z0-9_]*".
+    string name = 1;
+
+    // Human readable description.
+    string description = 2;
+
+    // Describes the type of one or more tensors that are accepted/produced
+    // by this input/output arg.  The only legal combinations are:
+    // * For a single tensor: either the "type" field is set or the
+    //   "type_attr" field is set to the name of an attr with type "type".
+    // * For a sequence of tensors with the same type: the "number_attr"
+    //   field will be set to the name of an attr with type "int", and
+    //   either the "type" or "type_attr" field will be set as for
+    //   single tensors.
+    // * For a sequence of tensors, the "type_list_attr" field will be set
+    //   to the name of an attr with type "list(type)".
+
+    // DataType 类型说明:
+    // tensorflow/core/framework/types.proto
+    // enum DataType 类型，比如 DT_FLOAT, DT_INT32, DT_STRING 等等
+    DataType type = 3;
+
+    string type_attr = 4;    // if specified, attr must have type "type"
+    string number_attr = 5;  // if specified, attr must have type "int"
+    // If specified, attr must have type "list(type)", and none of
+    // type, type_attr, and number_attr may be specified.
+    string type_list_attr = 6;
+
+    // For inputs: if true, the inputs are required to be refs.
+    //   By default, inputs can be either refs or non-refs.
+    // For outputs: if true, outputs are refs, otherwise they are not.
+    bool is_ref = 16;
+  };
+*/
+
+Status ComputeArgRange(
+  const NodeDef& node_def,  // input
+  const OpDef::ArgDef& arg_def,  // input
+  const OpDef& op_def, // input
+  int* num) // output
+{
   if (!arg_def.number_attr().empty()) {
+    // GetNodeAttr 函数说明:
+    //
+
     // Same type repeated "num" times.
     return GetNodeAttr(node_def, arg_def.number_attr(), num);
+
   } else if (!arg_def.type_list_attr().empty()) {
+
     const AttrValue* attr_value;
+
+    // step 1: 构造 AttrSlice(node_def)
+    // step 2: AttrSlice::Find
     TF_RETURN_IF_ERROR(
         AttrSlice(node_def).Find(arg_def.type_list_attr(), &attr_value));
+
     *num = attr_value->list().type_size();
+
   } else if (!arg_def.type_attr().empty() || arg_def.type() != DT_INVALID) {
+
     *num = 1;
+
   } else {
+
     return errors::InvalidArgument(
         "Argument '", arg_def.name(),
         "' incorrectly specified in op definition: ", SummarizeOpDef(op_def));
   }
+
   return Status::OK();
 }
 
-Status NameRangesHelper(const NodeDef& node_def,
-                        const protobuf::RepeatedPtrField<OpDef::ArgDef>& args,
-                        const OpDef& op_def, NameRangeMap* result) {
+
+// 返回值的含义: result map: {arg_name : (range_start, range_end)}
+// num 的含义是 Same type repeated "num" times.
+Status NameRangesHelper(const NodeDef& node_def, // input
+                        const protobuf::RepeatedPtrField<OpDef::ArgDef>& args, // input
+                        const OpDef& op_def, // input
+                        NameRangeMap* result) { // output
+  /*
+  p op_def.DebugString()
+
+  name: "Const"
+  output_arg {  # 这个后面要用
+    name: "output"
+    type_attr: "dtype"
+  }
+  attr {
+    name: "value"
+    type: "tensor"
+  }
+  attr {
+    name: "dtype"
+    type: "type"
+  }
+
+  ===
+
+  p node_def.DebugString()
+
+  name: "y/shape"
+  op: "Const"
+  device: "/job:localhost/replica:0/task:0/device:CPU:0"
+  attr {
+    key: "dtype"
+    value {
+      type: DT_INT32
+    }
+  }
+  attr {
+    key: "value"
+    value {
+      tensor {
+        dtype: DT_INT32
+        tensor_shape {
+          dim {
+            size: 2
+          }
+        }
+        tensor_content: "\036\000\000\000\024\000\000\000"
+      }
+    }
+  }
+
+  ===
+  # op_def.input_arg()
+
+  p args.size()
+  $10 = 0
+
+  ===
+
+  # op_def.output_arg()
+
+  p args.size()
+  $12 = 1
+  */
+
   int start = 0;
   int num;
   for (const auto& arg : args) {
-    TF_RETURN_IF_ERROR(ComputeArgRange(node_def, arg, op_def, &num));
+    // ComputeArgRange 函数说明:
+    //
+    TF_RETURN_IF_ERROR(
+      ComputeArgRange(
+        node_def,  // input
+        arg, // input
+        op_def, // input
+        &num)); // output
+
+    // p arg.name()
+    // $86 = "output"
+    // start=0, num=1 from ComputeArgRange, for x/RandomStandardNormal node
+
+    // result map: {arg_name : (range_start, range_end)}
+    // num 的含义是 Same type repeated "num" times.
     (*result)[arg.name()] = std::make_pair(start, start + num);
+
     start += num;
   }
   return Status::OK();
@@ -590,14 +770,132 @@ Status NameRangesHelper(const NodeDef& node_def,
 
 }  // namespace
 
-Status NameRangesForNode(const NodeDef& node_def, const OpDef& op_def,
-                         NameRangeMap* inputs, NameRangeMap* outputs) {
+
+// 返回值的含义: result map: {arg_name : (range_start, range_end)}
+// num 的含义是 Same type repeated "num" times.
+/*
+讨论的对象是 ArgDef input_arg, output_arg
+
+message OpDef {
+  // For describing inputs and outputs.
+  message ArgDef {
+    // Name for the input/output.  Should match the regexp "[a-z][a-z0-9_]*".
+    string name = 1;
+
+    // Human readable description.
+    string description = 2;
+
+    // Describes the type of one or more tensors that are accepted/produced
+    // by this input/output arg.  The only legal combinations are:
+    // * For a single tensor: either the "type" field is set or the
+    //   "type_attr" field is set to the name of an attr with type "type".
+    // * For a sequence of tensors with the same type: the "number_attr"
+    //   field will be set to the name of an attr with type "int", and
+    //   either the "type" or "type_attr" field will be set as for
+    //   single tensors.
+    // * For a sequence of tensors, the "type_list_attr" field will be set
+    //   to the name of an attr with type "list(type)".
+
+    // DataType 类型说明:
+    // tensorflow/core/framework/types.proto
+    // enum DataType 类型，比如 DT_FLOAT, DT_INT32, DT_STRING 等等
+    // 这个要知道几个
+    DataType type = 3;
+
+    // 这个要知道几个
+    string type_attr = 4;    // if specified, attr must have type "type"
+
+    // 这个要知道几个
+    string number_attr = 5;  // if specified, attr must have type "int"
+
+    // If specified, attr must have type "list(type)", and none of
+    // type, type_attr, and number_attr may be specified.
+    // 这个要知道几个
+    string type_list_attr = 6;
+
+    // For inputs: if true, the inputs are required to be refs.
+    //   By default, inputs can be either refs or non-refs.
+    // For outputs: if true, outputs are refs, otherwise they are not.
+    bool is_ref = 16;
+  };
+
+  // Description of the input(s).
+  repeated ArgDef input_arg = 2;
+
+  // Description of the output(s).
+  repeated ArgDef output_arg = 3;
+*/
+Status NameRangesForNode(
+  const NodeDef& node_def, // input
+  const OpDef& op_def,  // input
+  NameRangeMap* inputs, // output
+  NameRangeMap* outputs) { // output
+
+  // NameRangesHelper 函数说明:
+  // tensorflow/core/framework/node_def_util.cc
+  //  Status NameRangesHelper(const NodeDef& node_def,
+  //                          const protobuf::RepeatedPtrField<OpDef::ArgDef>& args,
+  //                          const OpDef& op_def,
+  //                          NameRangeMap* result)
+
+  // op_def.input_arg(): ArgDef 数组, protobuf 类型是 repeated ArgDef, 功能是 Description of the input(s).
+  // message ArgDef 类型说明:
+  // tensorflow/core/framework/op_def.proto
+
+  /*
+  // For describing inputs and outputs.
+  message ArgDef {
+    // Name for the input/output.  Should match the regexp "[a-z][a-z0-9_]*".
+    string name = 1;
+
+    // Human readable description.
+    string description = 2;
+
+    // Describes the type of one or more tensors that are accepted/produced
+    // by this input/output arg.  The only legal combinations are:
+    // * For a single tensor: either the "type" field is set or the
+    //   "type_attr" field is set to the name of an attr with type "type".
+    // * For a sequence of tensors with the same type: the "number_attr"
+    //   field will be set to the name of an attr with type "int", and
+    //   either the "type" or "type_attr" field will be set as for
+    //   single tensors.
+    // * For a sequence of tensors, the "type_list_attr" field will be set
+    //   to the name of an attr with type "list(type)".
+
+    // DataType 类型说明:
+    // tensorflow/core/framework/types.proto
+    // enum DataType 类型，比如 DT_FLOAT, DT_INT32, DT_STRING 等等
+    DataType type = 3;
+
+    string type_attr = 4;    // if specified, attr must have type "type"
+    string number_attr = 5;  // if specified, attr must have type "int"
+
+    // If specified, attr must have type "list(type)", and none of
+    // type, type_attr, and number_attr may be specified.
+    string type_list_attr = 6;
+
+    // For inputs: if true, the inputs are required to be refs.
+    //   By default, inputs can be either refs or non-refs.
+    // For outputs: if true, outputs are refs, otherwise they are not.
+    bool is_ref = 16;
+  };
+  */
   if (inputs != nullptr) {
+    // 返回值的含义: result map: {arg_name : (range_start, range_end)}
+    // num 的含义是 Same type repeated "num" times.
     TF_RETURN_IF_ERROR(
-        NameRangesHelper(node_def, op_def.input_arg(), op_def, inputs));
+        NameRangesHelper(
+          node_def, // input
+          op_def.input_arg(), // input
+          op_def, // input
+          inputs)); // output
   }
   if (outputs != nullptr) {
-    return NameRangesHelper(node_def, op_def.output_arg(), op_def, outputs);
+    return NameRangesHelper(
+      node_def, // input
+      op_def.output_arg(), // input
+      op_def,  // input
+      outputs); // output
   }
   return Status::OK();
 }

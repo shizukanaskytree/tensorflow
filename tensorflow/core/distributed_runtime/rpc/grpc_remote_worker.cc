@@ -70,6 +70,21 @@ class GrpcRemoteWorker : public WorkerInterface {
 
   ~GrpcRemoteWorker() override {}
 
+  /** \brief GetStatusAsync mainly get the device attributes for managing remote
+   *         devices by issuing a grpc call from the client side with request
+   *         message and get the response message fromt the server side.
+   *
+   *  \param request: const GetStatusRequest* ;
+   *         message GetStatusRequest contains nothing.
+   *
+   *  \param response: GetStatusResponse* ;
+   *         message GetStatusResponse contains DeviceAttributes.
+   *
+   *  \param done: StatusCallback;
+   *         A lambda function.
+   *
+   *  \remark No return value.
+   */
   void GetStatusAsync(const GetStatusRequest* request,
                       GetStatusResponse* response,
                       StatusCallback done) override {
@@ -267,6 +282,30 @@ class GrpcRemoteWorker : public WorkerInterface {
                                     std::move(done), call_opts,
                                     callback_threadpool_, max_retries);
   }
+
+  /** \brief Indirectly start a grpc call from the client
+   *         side with request message and get the response message fromt the
+   *         server side.
+   *
+   *  \param[in] request: const protobuf::Message* ;
+   *         class of protocol message.
+   *         For example, message GetStatusRequest.
+   *
+   *  \param[out] response: TensorResponse* ;
+   *         class TensorResponse is defined in tensor_coding.h. It efficiently
+   *         decodes the incoming data into Tensor contents as well as
+   *         associated metadata.
+   *
+   *  \param[in] method: const ::grpc::string& ;
+   *
+   *  \param[in] done: StatusCallback;
+   *
+   *  \param[in] call_opts: CallOptions*, default is nullptr;
+   *
+   *  \param[in] max_retries: int, default is kMaxWorkerRpcRetries;
+   *
+   *  \remark Return no value.
+   */
   void IssueRequest(const protobuf::Message* request, TensorResponse* response,
                     const ::grpc::string& method, StatusCallback done,
                     CallOptions* call_opts = nullptr,
@@ -306,6 +345,26 @@ class GrpcRemoteWorker : public WorkerInterface {
   TF_DISALLOW_COPY_AND_ASSIGN(GrpcRemoteWorker);
 };
 
+/** \brief Create a remote worker and initialize their grpc services.
+ *
+ *  \param channel: SharedGrpcChannelPtr ;
+ *         std::shared_ptr<::grpc::Channel> ; a channel pointer to the target.
+ *
+ *  \param completion_queue: ::grpc::CompletionQueue* ;
+ *         Completion Queues enable notification of the completion of
+ *         asynchronous actions.
+ *
+ *  \param callback_threadpool: thread::ThreadPool* ;
+ *         CPU threads.
+ *
+ *  \param logger: WorkerCacheLogger ;
+ *         WorkerCacheLogger is a thread-safe utility for use by a WorkerCache
+ *         to optionally log some selected RPC activity.  A single instance
+ *         should be owned by a WorkerCache, for use by its RemoteWorker
+ *         instances.
+ *
+ *  \return WorkerInterface* ;
+ */
 WorkerInterface* NewGrpcRemoteWorker(SharedGrpcChannelPtr channel,
                                      ::grpc::CompletionQueue* completion_queue,
                                      thread::ThreadPool* callback_threadpool,

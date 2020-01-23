@@ -129,9 +129,12 @@ struct TF_Session {
   TF_Session(tensorflow::Session* s, TF_Graph* g);
 
   tensorflow::Session* session;
+
   TF_Graph* const graph;
 
   tensorflow::mutex mu ACQUIRED_AFTER(TF_Graph::mu);
+
+  /// last: 上一次的图的节点个数，不是最后一个节点id number
   int last_num_graph_nodes;
 
   // If true, TF_SessionRun and similar methods will call

@@ -228,8 +228,13 @@ PlatformUtil::GetStreamExecutors(
   std::vector<se::StreamExecutor*> stream_executors(device_count, nullptr);
   VLOG(1) << "Initializing devices";
   {
+    ////////////////////////////////////////////////////////////////////////
+    // 构造 threadpool
+    ////////////////////////////////////////////////////////////////////////
     tensorflow::thread::ThreadPool thread_pool(
         tensorflow::Env::Default(), "device_initialization", device_count);
+    ////////////////////////////////////////////////////////////////////////
+
     for (int i = 0; i < device_count; ++i) {
       // Once a stream executor is instantiated it will cause allocations on
       // the device, for example for GPUs cuda context, cudnn handles etc. will

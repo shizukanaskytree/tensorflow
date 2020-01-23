@@ -215,6 +215,9 @@ class Allocator {
   void RunCtor(T* p, size_t n) {
     static_assert(is_simple_type<T>::value, "T is not a simple type.");
   }
+  // 1.
+  // RunCtor 含义
+  // 是 Run Constructor 的含义
 
   template <typename T>
   void RunDtor(T* p, size_t n) {}
@@ -249,6 +252,39 @@ class Allocator {
   // current allocation state (total number of bytes available for
   // allocation, number of bytes free on device, etc.)
 };
+// 1.
+// class Allocator 数据结构
+// tensorflow/core/framework/allocator.h
+// - kAllocatorAlignment: static constexpr size_t, default_value:64
+//   Align to 64 byte boundary.
+// 都是接口函数
+// - string Name()
+// - void* AllocateRaw(size_t alignment, size_t num_bytes)
+// - void* AllocateRaw(size_t alignment, size_t num_bytes,
+//                     const AllocationAttributes& allocation_attr)
+// - DeallocateRaw(void* ptr)
+// - template <typename T>
+//   T* Allocate(size_t num_elements)
+// - template <typename T>
+//   T* Allocate(size_t num_elements,
+//               const AllocationAttributes& allocation_attr)
+// - template <typename T>
+//   void Deallocate(T* ptr, size_t num_elements)
+// - bool TracksAllocationSizes()
+// - bool ShouldAllocateEmptyTensors()
+// - size_t RequestedSize(const void* ptr)
+// - size_t AllocatedSize(const void* ptr)
+// - int64 AllocationId(const void* ptr)
+// - size_t AllocatedSizeSlow(const void* ptr)
+// - absl::optional<AllocatorStats> GetStats()
+// - void RunCtor(T* p, size_t n)
+// - void RunStringCtor(string* p, size_t n)
+// - void RunStringDtor(string* p, size_t n)
+// - void RunResourceCtor(ResourceHandle* p, size_t n)
+// - void RunResourceDtor(ResourceHandle* p, size_t n)
+// - void RunVariantCtor(Variant* p, size_t n)
+// - void RunVariantDtor(Variant* p, size_t n)
+
 
 // Allocator-specific constructors and destructors are used for
 // strings
@@ -357,18 +393,42 @@ class AllocatorWrapper : public Allocator {
 //  attr.set_on_host(true);
 //  Allocator* a = allocator(attr);
 struct AllocatorAttributes {
+  // set on host
   void set_on_host(bool v) { value |= (static_cast<int>(v)); }
+  // test on host?
   bool on_host() const { return value & 0x1; }
+
+  // set nic compatible
   void set_nic_compatible(bool v) { value |= (static_cast<int>(v) << 1); }
   bool nic_compatible() const { return value & (0x1 << 1); }
+  // 1.
+  // QQQ. nic 是什么?
+  // AAA.
+  // network interface card (NIC)
+  /*
+  网上的：
+  This is an implementation of GDR out-of-band transport for TensorFlow
+  distributed runtime, complementary to current gRPC transport.
+  It uses gRPC as control plane to setup rendezvous for each tensor transmission,
+  and utilizes GPU Direct RDMA whenever possible to transmit tensors in remote
+  GPU memory through network interface card (NIC), bypassing host memory and
+  CPU entirely. It gracefully falls back to ordinary RDMA or even gRPC when GDR
+  is not available.
+  */
+
+  // gpu compatible
   void set_gpu_compatible(bool v) { value |= (static_cast<int>(v) << 2); }
   bool gpu_compatible() const { return value & (0x1 << 2); }
+
   void Merge(AllocatorAttributes other) {
-    value |= other.value;
+    value |= other.value; // merge
+
     scope_id = (scope_id > 0 && other.scope_id == 0)
                    ? scope_id
                    : ((scope_id == 0) ? other.scope_id : 0);
   }
+
+
   // Returns true if the fields set in *this is a subset of or equal to
   // those set in other.
   bool IsEqualOrLessRestrictiveThan(const AllocatorAttributes& other) const {
@@ -380,10 +440,54 @@ struct AllocatorAttributes {
   // upper 8 bits in device-specific ways, and ops implemented for those
   // devices are responsible for setting those 8 bits appropriately.
   uint32 value = 0;
+  // value 是比特的方式来压缩表示
+
   // EXPERIMENTAL: If this is greater than zero, then allocation is delegated to
   // a named special-purpose allocator on the same device.
   int32 scope_id = 0;
 };
+// 1.
+// struct AllocatorAttributes 数据结构
+// tensorflow/core/framework/allocator.h
+// - uint32 value = 0;
+//   value 是比特的方
+//
+//  00000000
+//  ^^^^^^^^
+//  ||||||||
+//  |||||||+----+ on host ?
+//  ||||||+-----+ nic compatible ?
+//  |||||+------+ gpu compatible ?
+//  ||||+-------+
+//  |||+--------+
+//  ||+---------+
+//  |+----------+
+//  +-----------+
+
+// 1.1
+// 介绍:
+// A tensorflow Op may need access to different kinds of memory that
+// are not simply a function of the device to which the Op has been
+// assigned.  For example, an Op executing on a GPU may still need
+// to allocate CPU RAM for some purpose.  Internal to the tensorflow
+// runtime we may choose to allocate CPU ram from special regions
+// that have been prepared for higher performance in some use
+// contexts, e.g. doing DMA with particular devices.  For these
+// reasons, the Device interface does not expose just one memory
+// Allocator, but instead provides an accessor that takes a
+// specification of the desired memory attributes in order to select
+// an Allocator.
+//
+// Example use:
+//  // Allocator for ordinary device memory:
+//  Allocator* a = allocator(AllocatorAttributes());
+// ...
+//  // Allocator for CPU RAM, regardless of where Op is executing:
+//  AllocatorAttributes attr;
+//  attr.set_on_host(true);
+//  Allocator* a = allocator(attr);
+
+
 
 // Returns a trivial implementation of Allocator, which is a process singleton.
 // Access through this function is only intended for use by restricted parts

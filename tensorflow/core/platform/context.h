@@ -24,6 +24,14 @@ enum class ContextKind {
   // Initial state inherited from the creating or scheduling thread.
   kThread,
 };
+// 1.
+// enum class ContextKind 数据结构
+// core/platform/context.h
+// - kDefault
+//   Initial state with default (empty) values.
+// - kThread
+//   Initial state inherited from the creating or scheduling thread.
+
 
 // Context is a container for request-specific information that should be passed
 // to threads that perform related work. The default constructor should capture

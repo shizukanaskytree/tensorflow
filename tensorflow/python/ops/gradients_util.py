@@ -1048,6 +1048,17 @@ def _AggregatedGrads(grads,
           out_grads[i] = _MultiDeviceAddN(out_grad, gradient_uid)
         logging.vlog(2, "  _AggregatedGrads %d x %s using %s", len(out_grad),
                      tensor_shape, used)
+        # 1.
+        # logging.vlog 日志开启条件:
+        # tf.logging.set_verbosity(v=2)
+        # 评价: 这个应该是控制的是 python 程序里面的 logging
+        # Control python code logging level, not cpp code logging.
+
+        # 2.
+        # 对比 model.fit(...verbose=2)
+        # verbose: Integer. 0, 1, or 2. Verbosity mode.
+        # 0 = silent, 1 = progress bar, 2 = one line per epoch.
+
       else:
         out_grads[i] = _AggregateIndexedSlicesGradients(out_grad)
     else:  # not out_grad

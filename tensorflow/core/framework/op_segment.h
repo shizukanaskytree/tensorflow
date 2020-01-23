@@ -39,6 +39,37 @@ namespace tensorflow {
 // AddHold to obtain a reference on all kernels of a session and
 // ensure these kernels are alive until a corresponding RemoveHold is
 // called on the same session.
+
+/*
++--------------------------------------------------------------+
+|                      +-------------+                         |
+| session handle+-------->  Item     |                         |
+|                      |-------------|                         |
+|                      |             |   +-------------------+ |
+|                      | name_kernel+--->|op name+-->OpKernel| |
+|                      |             |   +-------------------+ |
+|                      |             |   +-------------------+ |
+|                      +-------------+   |op name+-->OpKernel| |
+|                                        +-------------------+ |
+|                                        +-------------------+ |
+|                                        |op name+-->OpKernel| |
+|                                        +-------------------+ |
+|                                                              |
+|                                                              |
+|                                                              |
+|                      +-------------+                         |
+| session handle+-------->  Item     |                         |
+|                      |-------------|                         |
+|                      |             |   +-------------------+ |
+|                      | name_kernel+--->|op name+-->OpKernel| |
+|                      |             |   +-------------------+ |
+|                      |             |   +-------------------+ |
+|                      +-------------+   |op name+-->OpKernel  |
+|                                        +-------------------  |
+|                                        +-------------------  |
+|                                        |op name+-->OpKernel  |
+|                                        +-------------------  |
+*/
 class OpSegment {
  public:
   OpSegment();
@@ -65,8 +96,13 @@ class OpSegment {
                               const string& node_op);
 
  private:
+
+  // -----------------------------------------------------------------------
+  // 看着挺重要的
   // op name -> OpKernel
   typedef std::unordered_map<string, OpKernel*> KernelMap;
+  // -----------------------------------------------------------------------
+
   struct Item {
     int num_holds = 1;      // Num of holds put on the session.
     KernelMap name_kernel;  // op name -> kernel.

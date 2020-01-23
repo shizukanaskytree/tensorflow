@@ -58,14 +58,23 @@ namespace tensorflow {
 // directly or via `MaybeLockVariableInputMutexesInOrder` on all variables being
 // modified and then call `PrepareToUpdateVariable` on them in any order.
 class Var : public ResourceBase {
+  // 1.
+  // class Var 的前辈 class LegacyVar
+  // tensorflow/core/framework/resource_var.h
+
  public:
   explicit Var(DataType dtype) : tensor_(dtype) {}
+  // 1.
+  // tensor_ 构造函数:
 
   // When locking multiple variables, the locks must be acquired in order of
   // increasing mu() address.
   // TODO(ebrevdo): Use LockSet instead of exposing mu.
   mutex* mu() { return &mu_; }
+
   Tensor* tensor() { return &tensor_; }
+  // 1.
+  // accessor of tensor
 
   string DebugString() const override {
     return strings::StrCat(DataTypeString(tensor_.dtype()), "/",
@@ -89,11 +98,28 @@ class Var : public ResourceBase {
 
  private:
   mutex mu_;
+  // -----------------------------------------------------------------------
   Tensor tensor_;
+  // -----------------------------------------------------------------------
 
   ~Var() override {}
   TF_DISALLOW_COPY_AND_ASSIGN(Var);
 };
+// 1.
+// class Var 数据结构
+// class Var : public ResourceBase
+// tensorflow/core/framework/resource_var.h
+// - tensor_: Tensor
+// - is_initialized: bool, default_value: false
+// - copy_on_read_mode: std::atomic<bool>, default_value: false
+
+// 2.
+// class LegacyVar 数据结构
+// class LegacyVar : public ResourceBase
+// tensorflow/core/kernels/variable_ops.cc
+// - tensor_: Tensor
+// - mu_: mutex
+
 
 // Does unlock and unref automatically when going out of scope, and also
 // supports early manual release.

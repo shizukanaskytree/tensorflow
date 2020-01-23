@@ -173,14 +173,47 @@ bool PointerIsValid(const PtrT ptr) {
   // cudaPointerGetAttributes should not fail, and return a memoryType of
   // cudaMemoryTypeDevice.
 
+  // is_host_ptr
+  // CPU memory :  true
+  // GPU memory :  false
   bool is_host_ptr = !std::is_same<PtrT, CUdeviceptr>::value;
+
+  //
   cudaPointerAttributes attributes;
   cudaError_t err =
       cudaPointerGetAttributes(&attributes, reinterpret_cast<const void*>(ptr));
+  // 1.
+  // cudaPointerGetAttributes 函数说明:
+  // __host__​cudaError_t cudaPointerGetAttributes ( cudaPointerAttributes* attributes, const void* ptr )
+  // Returns attributes about a specified pointer.
+  //
+  // Parameters
+  //   attributes
+  //   - Attributes for the specified pointer
+  //   ptr
+  //   - Pointer to get attributes for
+  // Returns
+  //   cudaSuccess, cudaErrorInvalidDevice, cudaErrorInvalidValue
+
+  // 2.
+  // cudaPointerAttributes 数据结构
+  //‎ struct cudaPointerAttributes {
+  //           enum cudaMemoryType
+  //               memoryType;
+  //           enum cudaMemoryType
+  //               type;
+  //           int device;
+  //           void *devicePointer;
+  //           void *hostPointer;
+  //           int isManaged;
+  //       }
+
   // If we failed, reset cuda error status to avoid poisoning cuda streams.
   if (err != cudaSuccess) cudaGetLastError();
+
   bool points_to_host_memory = (err == cudaErrorInvalidValue ||
                                 attributes.memoryType != cudaMemoryTypeDevice);
+
   return (is_host_ptr == points_to_host_memory);
 }
 
@@ -1023,7 +1056,22 @@ GpuDriver::ContextGetSharedMemConfig(GpuContext* context) {
 /* static */ bool GpuDriver::WaitStreamOnEvent(GpuContext* context,
                                                CUstream stream, CUevent event) {
   ScopedActivateContext activation(context);
+
   CUresult res = cuStreamWaitEvent(stream, event, 0 /* = flags */);
+  // cuStreamWaitEvent 函数说明
+  // Make a compute stream wait on an event.
+  //
+  // CUresult cuStreamWaitEvent ( CUstream hStream, CUevent hEvent, unsigned int  Flags )
+  // hStream - Stream to wait
+  // hEvent - Event to wait on (may not be NULL)
+  // Flags - Parameters for the operation (must be 0)
+  //
+  // Makes all future work submitted to hStream wait for all work captured in
+  // hEvent. See cuEventRecord() for details on what is captured by an event.
+  // The synchronization will be performed efficiently on the device when
+  // applicable. hEvent may be from a different context or device than hStream.
+
+
   if (res != CUDA_SUCCESS) {
     LOG(ERROR) << "could not wait stream on event: " << ToString(res);
     return false;
@@ -1178,13 +1226,51 @@ GpuDriver::ContextGetSharedMemConfig(GpuContext* context) {
                                                    uint64 size,
                                                    CUstream stream) {
   ScopedActivateContext activation(context);
+
   if (size > 0) {
+
     CHECK(PointerIsValid(host_src))
         << "Source pointer is not actually on CPU: " << host_src;
+    // PointerIsValid 函数说明
+    // tensorflow/stream_executor/cuda/cuda_driver.cc
+    // bool PointerIsValid(const PtrT ptr)
+
     CHECK(PointerIsValid(gpu_dst))
         << "Destination pointer is not actually on GPU: " << gpu_dst;
   }
+
+  // 重要 ！！！
+  // -----------------------------------------------------------------------
   CUresult res = cuMemcpyHtoDAsync(gpu_dst, host_src, size, stream);
+  // -----------------------------------------------------------------------
+  // cuMemcpyHtoDAsync函数说明
+  // https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__MEM.html#group__CUDA__MEM_1g1572263fe2597d7ba4f6964597a354a3
+  //
+  // CUresult cuMemcpyHtoDAsync (
+  //            CUdeviceptr dstDevice,
+  //            const void* srcHost,
+  //            size_t ByteCount,
+  //            CUstream hStream )
+  //
+  // Copies memory from Host to Device.
+  // Parameters
+  //   dstDevice
+  //   - Destination device pointer
+  //   srcHost
+  //   - Source host pointer
+  //   ByteCount
+  //   - Size of memory copy in bytes
+  //   hStream
+  //   - Stream identifier
+
+  // Copies from host memory to device memory.
+  // dstDevice and srcHost are the base addresses of the destination and source, respectively.
+  // ByteCount specifies the number of bytes to copy.
+
+
+
+
+
   if (res != CUDA_SUCCESS) {
     LOG(ERROR) << port::Printf(
         "failed to enqueue async memcpy from host to device: %s; GPU dst: %p; "
@@ -1195,6 +1281,7 @@ GpuDriver::ContextGetSharedMemConfig(GpuContext* context) {
   }
   VLOG(2) << "successfully enqueued async memcpy h2d of " << size << " bytes"
           << " on stream " << stream;
+
   return true;
 }
 

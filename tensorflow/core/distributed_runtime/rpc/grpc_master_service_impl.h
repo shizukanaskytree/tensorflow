@@ -12,7 +12,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
-
+/** \file grpc_master_service_impl.h
+ *
+ *  \brief This file serves grpc_remote_master.h or .cc
+ *         grpc_remote_master.cc wrap or template the calls in this file, i.e.,
+ *         those grpc stubs called by clients.
+ */
 #ifndef TENSORFLOW_CORE_DISTRIBUTED_RUNTIME_RPC_GRPC_MASTER_SERVICE_IMPL_H_
 #define TENSORFLOW_CORE_DISTRIBUTED_RUNTIME_RPC_GRPC_MASTER_SERVICE_IMPL_H_
 
@@ -31,12 +36,25 @@ namespace tensorflow {
 
 namespace grpc {
 
+/** \class MasterService
+ *
+ *  \brief MasterService defines stub of grpc for client to call.
+ *
+ *  \details
+ *   MasterService class is a subset of protobuf compiler auto-generated code.
+ *   The example is from grpc tutorial:
+ *   https://github.com/grpc/grpc/blob/v1.21.0/examples/protos/route_guide.proto
+ *   https://gist.github.com/shizukanaskytree/a057861909d682dbd897f3bd7a86f091
+ *   "service" in proto ==> class name
+ */
 // Implementation of `tensorflow.MasterService`, based on the
 // definition in "//tensorflow/core/protobuf/master_service.proto",
 // and the gRPC generated stub and service classes.
 // See that file for the definition of methods and messages.
 class MasterService final {
  public:
+  /// MasterService::StubInterface
+  /// \todo Why do we need to write this Interface?
   class StubInterface {
    public:
     virtual ~StubInterface() {}
@@ -71,6 +89,7 @@ class MasterService final {
         ::grpc::ClientContext* context, const ReleaseCallableRequest& request,
         ReleaseCallableResponse* response) = 0;
   };
+  /// MasterService::Stub
   class Stub final : public StubInterface {
    public:
     Stub(const std::shared_ptr< ::grpc::ChannelInterface>& channel);
@@ -118,14 +137,22 @@ class MasterService final {
     const ::grpc::internal::RpcMethod rpcmethod_RunCallable_;
     const ::grpc::internal::RpcMethod rpcmethod_ReleaseCallable_;
   };
+
+  /**
+   *
+   */
   static std::unique_ptr<Stub> NewStub(
       const std::shared_ptr< ::grpc::ChannelInterface>& channel,
       const ::grpc::StubOptions& options = ::grpc::StubOptions());
 
+  /// MasterService::AsyncService
   class AsyncService : public ::grpc::Service {
    public:
     AsyncService();
     virtual ~AsyncService();
+    /**
+     *
+     */
     void RequestCreateSession(
         ::grpc::ServerContext* context, CreateSessionRequest* request,
         ::grpc::ServerAsyncResponseWriter<CreateSessionResponse>* response,

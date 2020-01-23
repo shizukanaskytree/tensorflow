@@ -39,10 +39,12 @@ class ScopedTFStatus(object):
       c_api.TF_DeleteStatus(self.status)
 
 
+################################################################
 class ScopedTFGraph(object):
   """Wrapper around TF_Graph that handles deletion."""
 
   def __init__(self):
+    # Python 调用 C++ 内的函数 TF_NewGraph() 构建一个 struct TF_Graph 变量
     self.graph = c_api.TF_NewGraph()
 
   def __del__(self):
@@ -50,6 +52,7 @@ class ScopedTFGraph(object):
     # terminating) we can have already deleted other modules.
     if c_api is not None and c_api.TF_DeleteGraph is not None:
       c_api.TF_DeleteGraph(self.graph)
+################################################################
 
 
 class ScopedTFImportGraphDefOptions(object):

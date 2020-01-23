@@ -1422,8 +1422,12 @@ class BaseSession(SessionInterface):
           compat.as_bytes(callable_options.SerializeToString()))
       try:
         with errors.raise_exception_on_not_ok_status() as status:
+          #######################################################################
           self._handle = tf_session.TF_SessionMakeCallable(
-              session._session, options_ptr, status)
+                                      session._session,
+                                      options_ptr,
+                                      status)
+          #######################################################################
       finally:
         tf_session.TF_DeleteBuffer(options_ptr)
 
@@ -1433,11 +1437,18 @@ class BaseSession(SessionInterface):
       run_metadata = kwargs.get('run_metadata', None)
       try:
         run_metadata_ptr = tf_session.TF_NewBuffer() if run_metadata else None
+
         # TODO(mrry): Switch to raising an exception from the SWIG wrapper.
         with errors.raise_exception_on_not_ok_status() as status:
+          ################################################
           ret = tf_session.TF_SessionRunCallable(
-              self._session._session, self._handle, args, status,
+              self._session._session,
+              self._handle,
+              args,
+              status,
               run_metadata_ptr)
+          ################################################
+
         if run_metadata:
           proto_data = tf_session.TF_GetBuffer(run_metadata_ptr)
           run_metadata.ParseFromString(compat.as_bytes(proto_data))

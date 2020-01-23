@@ -24,6 +24,10 @@ namespace tensorflow {
 
 class Env;
 
+/** \brief SessionOptions is used to provide 1. environment to use; 2. target
+ *         used to perform all computations according to host:port. 3. A bunch
+ *         of Session configuration parameters.
+ */
 /// Configuration information for a Session.
 struct SessionOptions {
   /// The environment to use.
@@ -34,6 +38,7 @@ struct SessionOptions {
   /// If 'target' is empty or unspecified, the local TensorFlow runtime
   /// implementation will be used.  Otherwise, the TensorFlow engine
   /// defined by 'target' will be used to perform all computations.
+  /// \note 'target' will be used to perform all computations.
   ///
   /// "target" can be either a single entry or a comma separated list
   /// of entries. Each entry is a resolvable address of the
@@ -54,11 +59,25 @@ struct SessionOptions {
   /// lifetime, session calls may fail immediately.
   string target;
 
-  /// Configuration options.
+  // 最核心
+  // Configuration options.
   ConfigProto config;
+  // ConfigProto 数据结构
+  // tensorflow/core/protobuf/config.proto:315:message ConfigProto
+  // python 那里是用在每次 sess.run 里面的 tf.ConfigProto
+  // 比如 log_device_placement, inter_op_parallelism_threads
+
 
   SessionOptions();
 };
+// 1.
+// SessionOptions 数据结构
+// tensorflow/core/public/session_options.h:28:struct SessionOptions
+// - config: ConfigProto
+//   sess.run Configuration options.
+// - target: string
+// - env: Env*
+
 
 }  // end namespace tensorflow
 

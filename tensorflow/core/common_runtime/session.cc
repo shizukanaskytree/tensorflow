@@ -52,14 +52,18 @@ Status Session::PRun(const string& handle,
 }
 
 Session* NewSession(const SessionOptions& options) {
+
   SessionFactory* factory;
   Status s = SessionFactory::GetFactory(options, &factory);
+
   if (!s.ok()) {
     LOG(ERROR) << s;
     return nullptr;
   }
+  
   Session* out_session;
   s = NewSession(options, &out_session);
+
   if (!s.ok()) {
     LOG(ERROR) << "Failed to create session: " << s;
     return nullptr;
@@ -67,6 +71,32 @@ Session* NewSession(const SessionOptions& options) {
   return out_session;
 }
 
+/** \brief Create a new Session subject to Session options.
+ *
+ *  \param[in] options: SessionOptions& ;
+ *         SessionOptions is used to provide 1. environment used; 2. target
+ *         used to perform all computations according to host:port. 3. A bunch
+ *         of Session configuration parameters.
+ *
+ *  \param[out] out_session: Session* ;
+ *         A Session instance lets a caller drive a TensorFlow graph computation
+ *
+ *  \return Status
+ *
+ *  \details
+ *          When a Session is created with a given target, a new Session object
+ *          is bound to the universe of resources specified by that target.
+ *          Those resources are available to this session to perform
+ *          computation described in the GraphDef.  After extending the session
+ *          with a graph, the caller uses the Run() API to perform the
+ *          computation and potentially fetch outputs as Tensors.
+ *
+ *  \note The more higher the API is, the more easy and clear to use it.
+ *        In this case, input the `options`, the output is a session.
+ *        Whoever calls it, who will get the desired output result.
+ *        And I don't need to care about the implementation when I only review
+ *        it. I only need to know when and who calls it, what I will get.
+ */
 Status NewSession(const SessionOptions& options, Session** out_session) {
   SessionFactory* factory;
   Status s = SessionFactory::GetFactory(options, &factory);

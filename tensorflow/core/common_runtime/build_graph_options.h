@@ -24,6 +24,21 @@ limitations under the License.
 
 namespace tensorflow {
 
+/** \struct BuildGraphOptions
+ *
+ *  \brief Build a sub-graph of the full graph as induced by BuildGraphOptions.
+ *
+ *  \note
+ *  - callable_options: CallableOptions, protobuf message.
+ *    callable is a subset of graph object GraphDef with its feed and fetch. It
+ *    also specifie the target and device to run.
+ *
+ *  - collective_order: GraphCollectiveOrder
+ *    Introduces a deterministic execution order between potentially concurrent
+ *    CollectiveOps.  This may be used to execute collectives in the same order
+ *    across all workers in a distributed execution,if all workers are executing
+ *    the same graph.
+ */
 struct BuildGraphOptions {
   CallableOptions callable_options;
 
@@ -33,6 +48,7 @@ struct BuildGraphOptions {
   bool use_function_convention = false;
 
   static const int64 kNoCollectiveGraphKey = 0;
+
   int64 collective_graph_key = kNoCollectiveGraphKey;
 
   // If not `kNone`, order all CollectiveReduce operations statically and
@@ -42,6 +58,41 @@ struct BuildGraphOptions {
 
   string DebugString() const;
 };
+// 1.
+// struct BuildGraphOptions 数据结构
+// tensorflow/core/common_runtime/build_graph_options.h
+// - callable_options: CallableOptions
+// - use_function_convention: bool, default: false
+// - kNoCollectiveGraphKey: static const int64, default: 0
+// - collective_graph_key: int64, default: kNoCollectiveGraphKey
+// - collective_order: GraphCollectiveOrder
+
+// 2.
+// message CallableOptions 数据结构
+// tensorflow/core/protobuf/config.proto:559
+//
+// 功能和目的:
+// Defines a subgraph in another `GraphDef` as a set of feed points and nodes
+// to be fetched or executed.
+//
+// - feed: repeated string
+//    - Tensors to be fed in the callable. Each feed is the name of a tensor.
+// - fetch: repeated string
+//    - Fetches. A list of tensor names. The caller of the callable expects a
+//      tensor to be returned for each fetch[i] (see RunStepResponse.tensor). The
+//      order of specified fetches does not change the execution order.
+// - target: repeated string
+//    - Target Nodes. A list of node names. The named nodes will be run by the
+//      callable but their outputs will not be returned.
+// - run_options: RunOptions
+//    - Options that will be applied to each run.
+// - tensor_connection: repeated TensorConnection
+//    - Tensors to be connected in the callable. Each TensorConnection denotes
+//      a pair of tensors in the graph, between which an edge will be created
+//      in the callable.
+// - feed_devices: map<string, string>
+// - fetch_devices: map<string, string>
+// - fetch_skip_sync: bool
 
 }  // namespace tensorflow
 

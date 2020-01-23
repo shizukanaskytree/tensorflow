@@ -77,6 +77,8 @@ class ProcessFunctionLibraryRuntime {
 
   static const char kDefaultFLRDevice[];
   // Returns the FunctionLibraryRuntime for the corresponding device_name.
+  // tensorflow/core/framework/function.h:503:
+  // class FunctionLibraryRuntime
   FunctionLibraryRuntime* GetFLR(const string& device_name) const;
 
   // Returns the device incarnation for the given device_name.
@@ -310,6 +312,46 @@ class ProcessFunctionLibraryRuntime {
   int next_handle_ GUARDED_BY(mu_);
   DistributedFunctionLibraryRuntime* const parent_;
 };
+// 1.
+// class ProcessFunctionLibraryRuntime 数据结构
+// tensorflow/core/common_runtime/process_function_library_runtime.h
+//
+// 概述:
+// A class that stores all the FunctionLibraryRuntime objects, one per device.
+//
+// - struct ComponentFunctionData
+//    - handle_: FunctionLibraryRuntime::Handle
+//    - arg_indices_: std::vector<int>
+//    - ret_indices_: std::vector<int>
+//    - arg_alloc_attrs_: std::vector<AllocatorAttributes>
+//    - ret_alloc_attrs_: std::vector<AllocatorAttributes>
+// - struct MultiDeviceFunctionData
+//    - num_outputs_: const int
+//    - instantiation_counter_: uint64
+//    - function_name_: const string
+//    - function_key_: const string
+//    - overlay_lib_: FunctionLibraryDefinition
+//    - glue_: std::unordered_map<string, ComponentFunctionData>
+// - class FunctionData
+//    - target_device_: const string
+//    - local_handle_: FunctionLibraryRuntime::LocalHandle
+//    - function_key_: const string
+//    - init_started_: bool
+//    - init_result_: Status
+//    - init_done_: Notification
+// - env_ : Env* const
+// - device_mgr_: const DeviceMgr* const
+// - lib_def_: const FunctionLibraryDefinition*
+// - default_thread_pool_: thread::ThreadPool*
+// - table_: std::unordered_map<string, FunctionLibraryRuntime::Handle>
+// - function_data_: std::unordered_map<FunctionLibraryRuntime::Handle, std::unique_ptr<FunctionData>>
+// - mdevice_data_: std::unordered_map<FunctionLibraryRuntime::Handle,std::unique_ptr<MultiDeviceFunctionData>>
+//     Function data for instantiated multi-device functions.
+// - flr_map_: std::unordered_map<Device*, std::unique_ptr<FunctionLibraryRuntime>>
+// - next_handle_: int
+// - parent_: DistributedFunctionLibraryRuntime* const
+
+
 
 }  // namespace tensorflow
 

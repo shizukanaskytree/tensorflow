@@ -94,7 +94,11 @@ class SaveV2 : public OpKernel {
 
   void Compute(OpKernelContext* context) override {
     const Tensor& prefix = context->input(0);
+
     const Tensor& tensor_names = context->input(1);
+    // context->input(1); 变量说明
+    // 这个信息来自 Python 端
+
     const Tensor& shape_and_slices = context->input(2);
     ValidateInputs(true /* is save op */, context, prefix, tensor_names,
                    shape_and_slices);
@@ -106,12 +110,19 @@ class SaveV2 : public OpKernel {
     const auto& shape_and_slices_flat = shape_and_slices.flat<string>();
 
     BundleWriter writer(Env::Default(), prefix_string);
+    // BundleWriter 数据结构
+    // tensorflow/core/util/tensor_bundle/tensor_bundle.h:108:class BundleWriter
+    //
+
     OP_REQUIRES_OK(context, writer.status());
     VLOG(1) << "BundleWriter, prefix_string: " << prefix_string;
 
     for (int i = 0; i < num_tensors; ++i) {
       const string& tensor_name = tensor_names_flat(i);
       const Tensor& tensor = context->input(i + kFixedInputs);
+      // kFixedInputs 变量说明
+      // const int kFixedInputs = 3;  // Prefix, tensor names, shape_and_slices.
+      // tensorflow/core/kernels/save_restore_v2_ops.cc
 
       if (!shape_and_slices_flat(i).empty()) {
         const string& shape_spec = shape_and_slices_flat(i);
@@ -130,13 +141,34 @@ class SaveV2 : public OpKernel {
 
         OP_REQUIRES_OK(context,
                        writer.AddSlice(tensor_name, shape, slice, tensor));
+        // writer.AddSlice 函数说明:
+        // Partitioned variables support.
+        // A slice of a full tensor is stored in two entries in the metadata table:
+        //
+        //   full_tensor_key   -> BundleEntryProto, describing all stored slices
+        //                        of this full tensor.  Does not append to the data
+        //                        file.
+        //   encoded slice key -> BundleEntryProto, describing one particular slice.
+        //                        Appends values of this slice to the data file.
+        //
+        // Slices of a full tensor can be added in any order.
+        //
+        // If a full tensor has slices placed on N devices and N BundleWriter's are
+        // concurrently used, the caller must use MergeBundles() to ensure that a
+        // consistent entry for "full_tensor_key" is produced.
+        //
+        // Returns an error if the same slice is added the second time.
       } else {
         OP_REQUIRES_OK(context, writer.Add(tensor_name, tensor));
+        // writer.Add 函数说明:
+        // Adds the tensor "val" under key "key".
+        // Across calls "key" must be unique but can be added in any order.
       }
     }
     OP_REQUIRES_OK(context, writer.Finish());
   }
 };
+
 REGISTER_KERNEL_BUILDER(Name("SaveV2").Device(DEVICE_CPU), SaveV2);
 
 // Restores a list of named tensors from a tensor bundle (V2 checkpoint format).

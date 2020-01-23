@@ -45,8 +45,14 @@ namespace tensorflow {
 //    PendingCounts counts(layout);
 //    ...
 //    counts.decrement_pending(h[id], 1);
+
+// 该数据结构以内存紧凑的方式维护 frame 中的每一个node的初始pending count（该节点的输入个数及依赖边的个数）
+// from : https://blog.csdn.net/zhenhailiu/article/details/81202064
+
 class PendingCounts {
+
  public:
+
   // The state machine for a node's execution.
   enum NodeState {
     // The pending count for the node > 0.
@@ -63,6 +69,7 @@ class PendingCounts {
   // An opaque handle indicating where in the PendingCounts data structure
   // the appropriate count information can be found.
   class Handle;
+
   // Given a node that needs to represent counts no larger than the
   // specified "max_pending_count" and "max_dead_count", create a
   // handle that can be passed to various PendingCounts routines
@@ -113,6 +120,8 @@ class PendingCounts {
       return NodeStateForStruct(Packed(h));
     }
   }
+
+
   void mark_started(Handle h) {
     DCHECK_EQ(pending(h), 0);
     if (h.is_large_) {
@@ -125,6 +134,8 @@ class PendingCounts {
       c->has_started = 1;
     }
   }
+
+
   void mark_completed(Handle h) {
     if (h.is_large_) {
       LargeCounts* c = Large(h);
@@ -136,6 +147,8 @@ class PendingCounts {
       c->pending = 1;
     }
   }
+
+
   int pending(Handle h) {
     if (h.is_large_) {
       LargeCounts* c = Large(h);
@@ -157,6 +170,8 @@ class PendingCounts {
       }
     }
   }
+
+
   int decrement_pending(Handle h, int v) {
     DCHECK_GE(pending(h), v);
     if (h.is_large_) {
@@ -169,6 +184,8 @@ class PendingCounts {
       return c->pending;
     }
   }
+
+
   // Mark a merge node as live
   // REQUIRES: Node corresponding to "h" is a merge node
   void mark_live(Handle h) {
@@ -189,10 +206,13 @@ class PendingCounts {
     }
   }
 
+
   int dead_count(Handle h) {
     int r = h.is_large_ ? Large(h)->dead_count : Packed(h)->dead_count;
     return r;
   }
+
+
   void increment_dead_count(Handle h) {
     if (h.is_large_) {
       LargeCounts* c = Large(h);
@@ -207,6 +227,7 @@ class PendingCounts {
       }
     }
   }
+
 
   // A streamlined routine that does several pieces of bookkeeping at
   // once.  Equivalent to:
@@ -226,15 +247,18 @@ class PendingCounts {
     }
   }
 
+
   class Handle {
    public:
     Handle() : byte_offset_(0), is_large_(0) {}
 
    private:
     friend class PendingCounts;
+
     int byte_offset_ : 31;  // Byte offset of the rep in PendingCounts object
     bool is_large_ : 1;  // If true, rep is LargeCounts; otherwise PackedCounts
   };
+
 
  private:
   template <typename T>
@@ -261,8 +285,10 @@ class PendingCounts {
   // to handle the rare node ids that need larger counts than this.
   // Each frame in this subgraph has its own PendingCounts.
 
+
   // We use 3 bits each for dead_count and pending.
   static const int kMaxCountForPackedCounts = 7;
+
 
   // Most counts are small, so we pack a pending count and a dead
   // count into 3 bits each, use 1 bit to indicate that the node has
@@ -273,11 +299,13 @@ class PendingCounts {
     uint8 has_started : 1;
   };
 
+
   struct LargeCounts {
     uint32 pending;
     uint32 dead_count : 31;
     uint8 has_started : 1;
   };
+
 
   template <typename T>
   NodeState NodeStateForStruct(T* c) const {
@@ -287,12 +315,14 @@ class PendingCounts {
       return (c->pending == 0) ? PENDING_READY : PENDING_NOTREADY;
     }
   }
+
   inline LargeCounts* Large(Handle h) {
     DCHECK(h.is_large_);
     DCHECK_LE(h.byte_offset_ + sizeof(LargeCounts), num_bytes_);
     DCHECK_EQ(h.byte_offset_ % alignof(LargeCounts), 0);
     return reinterpret_cast<LargeCounts*>(bytes_ + h.byte_offset_);
   }
+
   inline PackedCounts* Packed(Handle h) {
     DCHECK(!h.is_large_);
     DCHECK_LE(h.byte_offset_ + sizeof(PackedCounts), num_bytes_);
@@ -303,13 +333,18 @@ class PendingCounts {
   char* bytes_;          // Array of num_bytes_ bytes
 
   void operator=(const PendingCounts&) = delete;
+
 };
+
 
 inline PendingCounts::Handle PendingCounts::Layout::CreateHandle(
     size_t max_pending_count, size_t max_dead_count) {
+
   Handle result;
+
   if ((max_pending_count > kMaxCountForPackedCounts) ||
       (max_dead_count > kMaxCountForPackedCounts)) {
+
     int B = sizeof(LargeCounts);
     // Round byte offset to proper alignment
     DCHECK_GE(sizeof(LargeCounts), alignof(LargeCounts));
@@ -317,13 +352,18 @@ inline PendingCounts::Handle PendingCounts::Layout::CreateHandle(
     result.byte_offset_ = offset;
     result.is_large_ = true;
     next_offset_ = result.byte_offset_ + B;
+
   } else {
+
     result.byte_offset_ = next_offset_;
     result.is_large_ = false;
     DCHECK_EQ(sizeof(PackedCounts), 1);
     next_offset_ += sizeof(PackedCounts);
+
   }
+
   return result;
+
 }
 
 }  // end namespace tensorflow

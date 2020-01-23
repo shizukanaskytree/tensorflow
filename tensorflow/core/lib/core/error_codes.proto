@@ -147,3 +147,17 @@ enum Code {
   // may change in the future.
   DO_NOT_USE_RESERVED_FOR_FUTURE_EXPANSION_USE_DEFAULT_IN_SWITCH_INSTEAD_ = 20;
 }
+// 1.
+// C++ 中的使用:
+// 类型: tensorflow::error::Code
+// 取值
+// - tensorflow::error::OK
+// - tensorflow::error::UNKNOWN
+// 等等
+// tensorflow/core/lib/core/status.h
+// tensorflow/core/lib/core/status.cc
+// tensorflow/core/lib/core/status_test.cc
+
+// 2.
+// include 规则
+// #include "tensorflow/core/lib/core/error_codes.pb.h"

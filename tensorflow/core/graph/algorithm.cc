@@ -199,6 +199,18 @@ void GetPostOrder(const Graph& g, std::vector<Node*>* order,
       edge_filter);
 }
 
+/** \brief Get the order sequence from source node to sink node of a graph.
+ *   Post order: after visiting all outgoing nodes, visit itself.
+ *   Reverse post order: itself first, then others. So, it is right order.
+ *
+ *  \param g: const Graph&;
+ *
+ *  \param order: std::vector<Node*>*;
+ *
+ *  \param stable_comparator: const NodeComparator&;
+ *
+ *  \param edge_filter: EdgeFilter&;
+ */
 void GetReversePostOrder(const Graph& g, std::vector<Node*>* order,
                          const NodeComparator& stable_comparator,
                          const EdgeFilter& edge_filter) {
@@ -206,16 +218,20 @@ void GetReversePostOrder(const Graph& g, std::vector<Node*>* order,
   std::reverse(order->begin(), order->end());
 }
 
-bool PruneForReverseReachability(Graph* g,
-                                 std::unordered_set<const Node*> visited) {
+bool PruneForReverseReachability(
+  Graph* g, // input
+  std::unordered_set<const Node*> visited) // input and output
+{
   // Compute set of nodes that we need to traverse in order to reach
   // the nodes in "nodes" by performing a breadth-first search from those
   // nodes, and accumulating the visited nodes.
   std::deque<const Node*> queue;
   for (const Node* n : visited) {
     VLOG(2) << "Reverse reach init: " << n->name();
+    // Reverse reach init: _retval_out_0_0
     queue.push_back(n);
   }
+
   while (!queue.empty()) {
     const Node* n = queue.front();
     queue.pop_front();
@@ -223,11 +239,30 @@ bool PruneForReverseReachability(Graph* g,
       if (visited.insert(in).second) {
         queue.push_back(in);
         VLOG(2) << "Reverse reach : " << n->name() << " from " << in->name();
+        /*
+        结构图:
+        https://docs.google.com/document/d/1tUPyuaG6wlW76FGTPrEFXRMczFVXMZGL_DoH9xt6uQU/edit#heading=h.gx7euao7hus8
+
+        Reverse reach : _retval_out_0_0 from out
+        Reverse reach : out from c
+        Reverse reach : out from z
+        Reverse reach : c from a/RandomStandardNormal
+        Reverse reach : c from b/RandomStandardNormal
+        Reverse reach : z from x/RandomStandardNormal
+        Reverse reach : z from y/RandomStandardNormal
+        Reverse reach : a/RandomStandardNormal from a/shape
+        Reverse reach : b/RandomStandardNormal from b/shape
+        Reverse reach : x/RandomStandardNormal from x/shape
+        Reverse reach : y/RandomStandardNormal from y/shape
+        Reverse reach : a/shape from _SOURCE
+        */
       }
     }
   }
 
   // Make a pass over the graph to remove nodes not in "visited"
+  // - pass: 指遍历一遍图的术语
+  // - 去掉不在 visited 集合里面的节点
   std::vector<Node*> all_nodes;
   all_nodes.reserve(g->num_nodes());
   for (Node* n : g->nodes()) {
@@ -243,7 +278,9 @@ bool PruneForReverseReachability(Graph* g,
   }
 
   return any_removed;
+  // 我的例子 p any_removed, $17 = false
 }
+
 
 bool FixupSourceAndSinkEdges(Graph* g) {
   // Connect all nodes with no incoming edges to source.
@@ -261,6 +298,7 @@ bool FixupSourceAndSinkEdges(Graph* g) {
     }
   }
   return changed;
+  // 我的例子里面: p changed, $19 = false
 }
 
 }  // namespace tensorflow

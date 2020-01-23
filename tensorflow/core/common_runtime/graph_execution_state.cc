@@ -57,7 +57,9 @@ limitations under the License.
 namespace tensorflow {
 
 GraphExecutionState::GraphExecutionState(
-    GraphDef* graph_def, const GraphExecutionStateOptions& options)
+    GraphDef* graph_def,
+    const GraphExecutionStateOptions& options)
+
     : stateful_placements_(options.stateful_placements),
       device_set_(options.device_set),
       session_options_(options.session_options),
@@ -65,10 +67,72 @@ GraphExecutionState::GraphExecutionState(
       flib_def_(new FunctionLibraryDefinition(OpRegistry::Global(),
                                               graph_def->library())),
       graph_(nullptr) {
+
   // NOTE(mrry): GraphDef does not have a move constructor, so we pass
   // a non-const pointer and use `Swap()` to transfer the contents
   // without copying.
   original_graph_def_.Swap(graph_def);
+  // 1.
+  // 提醒: graph_def 是来自于 TF_Session 内的 Graph 转换成 GraphDef 的原图
+
+  // 2.
+  // GraphDef original_graph_def_;
+  // 居然 GraphExecutionState 内是一个独立完整的 GraphDef 啊
+
+  // 3.
+  // QQQ. class GraphExecutionState 有哪些成员变量？
+  // AAA.
+  // class GraphExecutionState 数据结构整理:
+  // - graph_: Graph*
+  //    - The dataflow graph owned by this object.
+  // - rewrite_metadata_: std::unique_ptr<subgraph::RewriteGraphMetadata>
+  //    - `rewrite_metadata_` is only set for GraphExecutionState objects created by `MakeForPrunedGraph()`.
+  // - flib_def_: std::unique_ptr<FunctionLibraryDefinition>
+  //    - 'flib_def_' is initialized from the initial graph def's library, and may be updated by a graph optimization pass.
+  // - node_name_to_cost_id_map_: NodeNameToCostIdMap
+  //    - Map from name to Node for the full graph in placed_.
+  // - session_handle_: string
+  //    -  Unique session identifier. Can be empty.
+  // - session_options_: const SessionOptions*
+  // - device_set_: const DeviceSet*
+  // - original_graph_def_: GraphDef
+  // - stateful_placements_: std::unordered_map<string, string>
+  //    - Map of placed stateful nodes, i.e. nodes for which is_stateful()
+  //    - is true, such as "params" and "queue" nodes.  Once placed these
+  //    - nodes can not be moved to a different device.  Maps node names to
+  //    - device names.
+  //
+  // 数据结构说明
+  // GraphExecutionState is responsible for generating an
+  // executable ClientGraph from the original GraphDef that specifies
+  // the complete graph and from BuildGraphOptions which specifies
+  // input/output nodes.
+  //
+  // An executable Graph differs from a GraphDef by being Placed,
+  // meaning that each Node is assigned to a single Device in the
+  // available set.
+  //
+  // When GraphExecutionState is first constructed it instantiates
+  // a full Graph from the provided GraphDef, and places it, using only
+  // the static device assignments from the GraphDef.  Nodes without are
+  // currently placed in a very naive way.  Since stateful Nodes cannot
+  // be moved after initial placement, it is important that stateful
+  // Nodes get sensible initial device assignments in the graph
+  // definition.
+  //
+  // Subsequently, GraphExecutionState generates a SimpleClientGraph on
+  // demand, which is a sub-graph of the latest placement of the full
+  // Graph.  MasterSession uses such a ClientGraph to execute one or
+  // more similar client requests.
+
+  // 3.
+  // Swap 函数说明
+  // 使用 Swap 的意图:
+  // Swap 的目的是因为传入的参数 graph_def 复制后就没有利用价值了，所以就还不如 Swap 正好变成了一个全部为空的变量。
+  // 理由: 在 DirectSession::MaybeInitializeExecutionState 内
+  // 传给 GraphExecutionState::MakeForBaseGraph 的一个参数是 temp, GraphDef temp(graph)
+  // 所以，那时就准备让这个 temp Swap 变成 一个空白变量了。
+
   // TODO(mrry): Publish placement visualizations or handle the log
   // placement option.
 }
@@ -78,34 +142,249 @@ GraphExecutionState::~GraphExecutionState() {
   delete graph_;
 }
 
+// ==========================================================================
+
+// 我看这个函数的目的是:
+// 我想弄明白 DirectSession::execution_state_ 是怎么被初始化的，里面的图是哪来的
+// 我这下子明白了，其实是把 TF_Session 内的 Graph 转换成 GraphDef (仅仅因为函数接口需要吧)
+// 然后接着 GraphDef 内的信息把 DirectSession::execution_state_ 给初始化了。
 /* static */ Status GraphExecutionState::MakeForBaseGraph(
-    GraphDef* graph_def, const GraphExecutionStateOptions& options,
-    std::unique_ptr<GraphExecutionState>* out_state) {
+    GraphDef* graph_def, // input, temp GraphDef var
+    const GraphExecutionStateOptions& options, // input
+    std::unique_ptr<GraphExecutionState>* out_state) { // output, 实际过程中 out_state 是 DirectSession::execution_state_
+
 #ifndef __ANDROID__
   VLOG(4) << "Graph proto is \n" << graph_def->DebugString();
 #endif  // __ANDROID__
 
   std::unique_ptr<GraphExecutionState> ret(
       new GraphExecutionState(graph_def, options));
+  // 1.
+  // graph_def 变量说明:
+  // 这是一个 temp GraphDef var
+
+  // 2.
+  // GraphDef 数据结构
+  // - node: repeated NodeDef
+  // - versions: VersionDef
+  // - library: FunctionDefLibrary # EXPERIMENTAL. DO NOT USE OR DEPEND ON THIS YET.
+  //   注意: 这一项通常都为空
+
+  // 3.
+  // struct GraphExecutionStateOptions 数据结构说明:
+  // tensorflow/core/common_runtime/graph_execution_state.h
+  //
+  // - device_set: const DeviceSet*
+  // - session_options: const SessionOptions*
+  // - session_handle: string
+  //   Unique session identifier. Can be empty.
+  // - stateful_placements
+  //   A map from node name to device name, representing the unchangeable
+  //   placement of stateful nodes.
+
+  // 3.1
+  // class DeviceSet 数据结构
+  // 概述:
+  // DeviceSet is a container class for managing the various types of
+  // devices used by a model.
+  //
+  // tensorflow/core/common_runtime/device_set.h
+  //
+  // - devices_: td::vector<Device*> , not owned
+  // - device_by_name_: std::unordered_map<string, Device*>
+  //   Fullname -> device* for device in devices_.
+  // - client_device_: Device*
+  //   client_device 指的是 host CPU , 下面打印部分印证。
+  //   The device designated as the "client".
+  //   client_device_ points to an element of devices_ that we consider
+  //   to be the client device (in this local process).
+
+  // 3.2
+  // 打印
+  // 2.1
+  // 只有 CPU , 没有 GPU 的情况:
+  /*
+  $2 = {
+    devices_ = std::vector of length 2,
+    capacity 2 = {
+      0x5573b1bf6300,
+      0x5573b37f6570
+    },
+    device_by_name_ = std::unordered_map with 4 elements = {
+      ["/job:localhost/replica:0/task:0/xla_cpu:0"] = 0x5573b37f6570,
+      ["/job:localhost/replica:0/task:0/device:XLA_CPU:0"] = 0x5573b37f6570,
+      ["/job:localhost/replica:0/task:0/device:CPU:0"] = 0x5573b1bf6300,
+      ["/job:localhost/replica:0/task:0/cpu:0"] = 0x5573b1bf6300
+    },
+    client_device_ = 0x5573b1bf6300
+  }
+  */
+
+  // 3.3
+  // 4 个 GPU 都可见
+  /*
+  $2 = {
+    devices_ = std::vector of length 10,
+    capacity 16 = {
+      0x5600134775d0,
+      0x560015081440,
+      0x5600152d7ca0,
+      0x5600152e07c0,
+      0x5600152e8a90,
+      0x5600152f1a80,
+      0x5600153086d0,
+      0x560015319fc0,
+      0x5600153277f0,
+      0x5600153350f0
+    },
+    device_by_name_ = std::unordered_map with 20 elements = {
+      ["/job:localhost/replica:0/task:0/gpu:3"] = 0x5600153350f0,
+      ["/job:localhost/replica:0/task:0/device:GPU:3"] = 0x5600153350f0,
+      ["/job:localhost/replica:0/task:0/device:GPU:2"] = 0x5600153277f0,
+      ["/job:localhost/replica:0/task:0/device:XLA_GPU:0"] = 0x5600152d7ca0,
+      ["/job:localhost/replica:0/task:0/xla_cpu:0"] = 0x560015081440,
+      ["/job:localhost/replica:0/task:0/device:XLA_GPU:3"] = 0x5600152f1a80,
+      ["/job:localhost/replica:0/task:0/device:XLA_CPU:0"] = 0x560015081440,
+      ["/job:localhost/replica:0/task:0/device:CPU:0"] = 0x5600134775d0,
+      ["/job:localhost/replica:0/task:0/cpu:0"] = 0x5600134775d0,
+      ["/job:localhost/replica:0/task:0/gpu:2"] = 0x5600153277f0,
+      ["/job:localhost/replica:0/task:0/xla_gpu:3"] = 0x5600152f1a80,
+      ["/job:localhost/replica:0/task:0/xla_gpu:0"] = 0x5600152d7ca0,
+      ["/job:localhost/replica:0/task:0/xla_gpu:1"] = 0x5600152e07c0,
+      ["/job:localhost/replica:0/task:0/device:XLA_GPU:1"] = 0x5600152e07c0,
+      ["/job:localhost/replica:0/task:0/gpu:1"] = 0x560015319fc0,
+      ["/job:localhost/replica:0/task:0/gpu:0"] = 0x5600153086d0,
+      ["/job:localhost/replica:0/task:0/device:XLA_GPU:2"] = 0x5600152e8a90,
+      ["/job:localhost/replica:0/task:0/xla_gpu:2"] = 0x5600152e8a90,
+      ["/job:localhost/replica:0/task:0/device:GPU:1"] = 0x560015319fc0,
+      ["/job:localhost/replica:0/task:0/device:GPU:0"] = 0x5600153086d0
+    },
+    client_device_ = 0x5600134775d0
+  }
+  */
+
+  // 3.4
+  // TODO 提示:
+  // Device* client_device() const { return client_device_; }
+  // 我改写的只需要 client_device 就行了。
+  /*
+  p device_set_.client_device()
+  $3 = (tensorflow::GPUCompatibleCPUDevice *) 0x5600134775d0
+
+  p device_set_.client_device()->name()
+  $4 = "/job:localhost/replica:0/task:0/device:CPU:0"
+  */
+
+  // 4.
+  // Device 数据结构
+  // class Device : public DeviceBase
+  // tensorflow/core/common_runtime/device.h
+  // 重要接口:
+  // - Compute
+  // - ComputeAsync
+  // - FillContextMap
+  // - resource_manager
+  // 成员变量:
+  // - device_mgr_: DeviceMgr*
+  // - device_attributes_: const DeviceAttributes
+  // - parsed_name_: DeviceNameUtils::ParsedName
+  // - op_seg_: OpSegment
+  // - rmgr_: ResourceMgr*
+  // friend class:
+  // friend class DeviceMgr;
+
+  // 4.1
+  // message DeviceAttributes 数据结构说明:
+  // tensorflow/core/framework/device_attributes.proto
+  // - name: string
+  // - device_type: string
+  // - memory_limit: int64
+  // - locality: DeviceLocality
+  // - incarnation: fixed64
+  // - physical_device_desc: string
+
 
   TF_RETURN_IF_ERROR(
-      AddDefaultAttrsToGraphDef(&ret->original_graph_def_, *ret->flib_def_, 0));
+      AddDefaultAttrsToGraphDef(
+        &ret->original_graph_def_,  // input and output
+        *ret->flib_def_, // output
+        0)); // input
+      // 1.
+      // AddDefaultAttrsToGraphDef 函数说明
+      // tensorflow/core/framework/graph_def_util.cc
+      // Status AddDefaultAttrsToGraphDef(
+      //   GraphDef* graph_def,
+      //   const OpRegistryInterface& op_registry,
+      //   int node_offset)
+
+
   // TODO(mrry): Refactor InitBaseGraph() so that we don't have to
   // pass an empty BuildGraphOptions (that isn't going to be used when
   // place_pruned_graph is false).
   if (!ret->session_options_->config.graph_options().place_pruned_graph()) {
-    TF_RETURN_IF_ERROR(ret->InitBaseGraph(BuildGraphOptions()));
+    TF_RETURN_IF_ERROR(
+
+      // -----------------------------------------------------------------------
+      ret->InitBaseGraph(BuildGraphOptions()));
+      // -----------------------------------------------------------------------
+      // 1.
+      // InitBaseGraph 函数说明
+      // GraphExecutionState::InitBaseGraph(const BuildGraphOptions& options)
+      // tensorflow/core/common_runtime/graph_execution_state.cc
+
+      // 2.
+      // struct BuildGraphOptions 数据结构
+      // tensorflow/core/common_runtime/build_graph_options.h
+      // - callable_options: CallableOptions
+      // - use_function_convention: bool, default: false
+      // - kNoCollectiveGraphKey: static const int64, default: 0
+      // - collective_graph_key: int64, default: kNoCollectiveGraphKey
+      // - collective_order: GraphCollectiveOrder
+
+      // 3.
+      // message CallableOptions 数据结构
+      // tensorflow/core/protobuf/config.proto:559
+      //
+      // 功能和目的:
+      // Defines a subgraph in another `GraphDef` as a set of feed points and nodes
+      // to be fetched or executed.
+      //
+      // - feed: repeated string
+      //    - Tensors to be fed in the callable. Each feed is the name of a tensor.
+      // - fetch: repeated string
+      //    - Fetches. A list of tensor names. The caller of the callable expects a
+      //      tensor to be returned for each fetch[i] (see RunStepResponse.tensor). The
+      //      order of specified fetches does not change the execution order.
+      // - target: repeated string
+      //    - Target Nodes. A list of node names. The named nodes will be run by the
+      //      callable but their outputs will not be returned.
+      // - run_options: RunOptions
+      //    - Options that will be applied to each run.
+      // - tensor_connection: repeated TensorConnection
+      //    - Tensors to be connected in the callable. Each TensorConnection denotes
+      //      a pair of tensors in the graph, between which an edge will be created
+      //      in the callable.
+      // - feed_devices: map<string, string>
+      // - fetch_devices: map<string, string>
+      // - fetch_skip_sync: bool
+
   }
+
   *out_state = std::move(ret);
   return Status::OK();
 }
 
+
+
+
 /* static */ Status GraphExecutionState::MakeForPrunedGraph(
-    const FunctionDefLibrary& func_def_lib,
-    const GraphExecutionStateOptions& options, const GraphDef& graph_def,
-    const BuildGraphOptions& subgraph_options,
-    std::unique_ptr<GraphExecutionState>* out_state,
-    std::unique_ptr<ClientGraph>* out_client_graph) {
+    const FunctionDefLibrary& func_def_lib, // input
+    const GraphExecutionStateOptions& options, // input
+    const GraphDef& graph_def, // input
+    const BuildGraphOptions& subgraph_options, // input
+    std::unique_ptr<GraphExecutionState>* out_state, // output
+    std::unique_ptr<ClientGraph>* out_client_graph) { // output
+
   DCHECK(options.session_options->config.graph_options().place_pruned_graph());
   // NOTE(mrry): This makes a copy of `graph_def`, which is
   // regrettable. We could make `GraphDef` objects sharable between
@@ -115,19 +394,27 @@ GraphExecutionState::~GraphExecutionState() {
   // also that the previous version used `Extend()`, which is strictly
   // more expensive than copying a `GraphDef`.)
   GraphDef temp(graph_def);
+
   std::unique_ptr<GraphExecutionState> ret(
       new GraphExecutionState(&temp, options));
+
   TF_RETURN_IF_ERROR(
       AddDefaultAttrsToGraphDef(&ret->original_graph_def_, *ret->flib_def_, 0));
+
   TF_RETURN_IF_ERROR(ret->InitBaseGraph(subgraph_options));
+
   TF_RETURN_IF_ERROR(ret->BuildGraph(subgraph_options, out_client_graph));
+
   *out_state = std::move(ret);
+
   return Status::OK();
 }
 
+
 Status GraphExecutionState::Extend(
-    const GraphDef& extension_def,
-    std::unique_ptr<GraphExecutionState>* out) const {
+    const GraphDef& extension_def,  // input
+    std::unique_ptr<GraphExecutionState>* out) const {  // output
+
   GraphDef gdef;
 
   // 1. Copy the function library.
@@ -225,11 +512,41 @@ Status GraphExecutionState::Extend(
   return Status::OK();
 }
 
+
 void GraphExecutionState::SaveStatefulNodes(Graph* graph) {
   for (Node* n : graph->nodes()) {
     if (n->op_def().is_stateful()) {
+      // 1.
+      // is_stateful() 说明:
+      // As others have mentioned, stateful objects are those holding a state. Now, a state, in TensorFlow terms, is some value or data that is saved between different calls to tf.Session.run .
+      // Indeed, even if your graph consists only on operations with constant values, tensor operations will be evaluated every time you call run, even though the result will always be the same. When you assign a value to a variable, however, it will "stick" (and, by the way, take the corresponding memory and, if you choose so, be serialized on checkpoints).
+      // https://stackoverflow.com/questions/52636943/what-is-a-stateful-object-in-tensorflow
+
+      // 2.
+      // https://www.tensorflow.org/api_docs/python/tf/Graph
+
+      // 3.
+      // 目的: 因为我想深度复制 state , 所以我想知道 state 在哪里
       VLOG(2) << "Saving " << n->DebugString();
       stateful_placements_[n->name()] = n->assigned_device_name();
+
+      // stateful_placements_ 变量说明
+      // tensorflow/core/common_runtime/direct_session.h:395:
+      // std::unordered_map<string, string> stateful_placements_
+      //
+      // QQQ. 在哪里被使用的?
+      // AAA.
+      // tensorflow/core/common_runtime/graph_execution_state.cc
+      // void GraphExecutionState::RestoreStatefulNodes(Graph* graph) {
+      //   ...
+      //
+
+      // 4.
+      // https://stackoverflow.com/questions/42783909/internals-of-variable-in-tensorflow
+
+      // 5.
+      // https://stackoverflow.com/questions/52636943/what-is-a-stateful-object-in-tensorflow
+
     }
   }
 }
@@ -289,25 +606,53 @@ class TensorConnectionPruneRewrite : public subgraph::PruneRewrite {
 };
 
 template <class Map>
-Status LookupDevice(const DeviceSet& device_set, const string& tensor_name,
-                    const Map& tensor2device,
-                    const tensorflow::DeviceAttributes** out_device_attrs) {
+Status LookupDevice(
+  const DeviceSet& device_set, // input
+  const string& tensor_name, // input
+  const Map& tensor2device, // input
+  const tensorflow::DeviceAttributes** out_device_attrs) { //output
+
   *out_device_attrs = nullptr;
+
   if (tensor2device.empty()) {
+    // device_set: class DeviceSet
+    // tensorflow/core/common_runtime/device_set.h:32:class DeviceSet {
+    // - client_device_: Device*
+    //    * client_device_ points to an element of devices_ that we consider
+    //    * to be the client device (in this local process).
+    // - device_by_name_: std::unordered_map<string, Device*>
+    //    * Fullname -> device* for device in devices_.
+    // - devices_: std::vector<Device*>
+
+    // &device_set.client_device(): Device*
+
+    // &device_set.client_device()->attributes() : tensorflow::DeviceAttributes**
+    // DeviceAttributes 数据结构
+    // tensorflow/core/framework/device_attributes.proto:32:
+    // message DeviceAttributes
+    // - name : string
+    // - device_type: string
+    // - memory_limit: int64
+    // - locality : DeviceLocality
+    // - incarnation : fixed64
+    // - physical_device_desc: string
     *out_device_attrs = &device_set.client_device()->attributes();
     return Status::OK();
   }
+
   const auto it = tensor2device.find(tensor_name);
   if (it == tensor2device.end()) {
     *out_device_attrs = &device_set.client_device()->attributes();
     return Status::OK();
   }
+
   DeviceNameUtils::ParsedName parsed_name;
   if (!DeviceNameUtils::ParseFullName(it->second, &parsed_name)) {
     return errors::InvalidArgument("Invalid device name ('", it->second,
                                    "') provided for the tensor '", tensor_name,
                                    "' in CallableOptions");
   }
+
   Device* device = device_set.FindDeviceByName(
       DeviceNameUtils::ParsedNameToString(parsed_name));
   if (device == nullptr) {
@@ -315,16 +660,43 @@ Status LookupDevice(const DeviceSet& device_set, const string& tensor_name,
                                    "' specified for tensor '", tensor_name,
                                    "' in CallableOptions does not exist");
   }
+
   *out_device_attrs = &device->attributes();
+
   return Status::OK();
 }
 
 struct TensorAndDevice {
   // WARNING: backing memory for the 'tensor' field is NOT owend.
   const TensorId tensor;
+  // 1.
+  // struct TensorId  数据结构
+  // tensorflow/core/graph/tensor_id.h
+  //   : public std::pair<StringPiece, int>
+  // 含义是 first == operation_name, second == output_index
+
   // WARNING: device pointer is not owned, so must outlive TensorAndDevice.
   const DeviceAttributes* device;
 };
+// 1.
+// struct TensorAndDevice 数据结构
+// tensorflow/core/common_runtime/graph_execution_state.cc
+// - tensor: const TensorId
+//    * Base: typedef std::pair<StringPiece, int> Base
+//    * first == operation_name, second == output_index
+//      打印: strings::StrCat(first, ":", second);
+// - device: const DeviceAttributes*
+
+// 2.
+// message DeviceAttributes 数据结构
+// tensorflow/core/framework/device_attributes.proto
+// - name: string
+// - device_type: string
+// - memory_limit: int64
+// - locality: DeviceLocality
+// - incarnation: fixed64
+// - physical_device_desc: string
+
 
 // Tensors of some DataTypes cannot placed in device memory as feeds or
 // fetches. Validate against a whitelist of those known to work.
@@ -366,8 +738,29 @@ bool IsFeedAndFetchSupported(DataType dtype, const string& device_type) {
 Status ValidateFeedAndFetchDevices(
     const Graph& graph,
     const std::vector<TensorAndDevice>& tensors_and_devices) {
+  // 1.
+  // struct TensorAndDevice 数据结构
+  // tensorflow/core/common_runtime/graph_execution_state.cc
+  // - tensor: const TensorId
+  //    * Base: typedef std::pair<StringPiece, int> Base
+  //    * first == operation_name, second == output_index
+  //      打印: strings::StrCat(first, ":", second);
+  // - device: const DeviceAttributes*
+
+  // 2.
+  // message DeviceAttributes 数据结构
+  // tensorflow/core/framework/device_attributes.proto
+  // - name: string
+  // - device_type: string
+  // - memory_limit: int64
+  // - locality: DeviceLocality
+  // - incarnation: fixed64
+  // - physical_device_desc: string
+
   if (tensors_and_devices.empty()) return Status::OK();
+
   std::vector<bool> found(tensors_and_devices.size(), false);
+
   for (const Node* node : graph.nodes()) {
     // Linearly looping through all nodes and then all feed+fetch tensors isn't
     // quite efficient. At the time of this writing, the expectation was that
@@ -378,7 +771,12 @@ Status ValidateFeedAndFetchDevices(
     for (int i = 0; i < tensors_and_devices.size(); ++i) {
       const TensorAndDevice& td = tensors_and_devices[i];
       if (td.tensor.first != node->name()) continue;
+      // 1.
+      // td.tensor.first 变量说明:
+      // 是 operation_name
+
       found[i] = true;
+
       TF_RETURN_IF_ERROR(graph.IsValidOutputTensor(node, td.tensor.second));
       const DataType dtype = node->output_type(td.tensor.second);
       if (!IsFeedAndFetchSupported(dtype, td.device->device_type())) {
@@ -390,6 +788,7 @@ Status ValidateFeedAndFetchDevices(
       }
     }
   }
+
   for (int i = 0; i < found.size(); ++i) {
     if (!found[i]) {
       return errors::InvalidArgument(
@@ -438,27 +837,76 @@ Status GetFeedShapeAndTypeFromAttribute(const NodeDef& node,
 
 }  // namespace
 
+
 Status GraphExecutionState::PruneGraph(
-    const BuildGraphOptions& options, Graph* graph,
-    subgraph::RewriteGraphMetadata* out_rewrite_metadata) {
+    const BuildGraphOptions& options, // input
+    Graph* graph, // input
+    subgraph::RewriteGraphMetadata* out_rewrite_metadata) // output
+{
   std::vector<std::unique_ptr<subgraph::PruneRewrite>> feed_rewrites;
+  // 1.
+  // 我的例子没有 feed
+
+  // 2.
+  // class PruneRewrite 数据结构
+  // tensorflow/core/graph/subgraph.h
+  // - endpoint_name_: const string* const
+  // - device_info_: const DeviceAttributes* const
+
+  // 3.
+  // PruneRewrite 虚函数，继承的函数是
+  // - class ArgFeedRewrite
+  // - class RecvFeedRewrite
+  // - class RetvalFetchRewrite
+  // - class SendFetchRewrite
+  // - class TensorConnectionPruneRewrite
+
+  // 4.
+  // options 变量说明:
+  // options: const BuildGraphOptions&
+  // 打印:
+  // BuildGraphOptions options 打印:
+  //
+  // Feed endpoints:
+  // Fetch endpoints: out:0,
+  // Target nodes:
+  // collective_order: none
+
+
   feed_rewrites.reserve(options.callable_options.feed_size());
+
+  // 我的例子有 fetch
   std::vector<std::unique_ptr<subgraph::PruneRewrite>> fetch_rewrites;
   fetch_rewrites.reserve(options.callable_options.fetch_size());
+
+
+  // 有进入这个分支
   if (options.use_function_convention) {
     std::vector<TensorAndDevice> tensors_and_devices;
+    // 1.
+    // tensorflow/core/common_runtime/graph_execution_state.cc:322:
+    // struct TensorAndDevice
+    //  - tensor: const TensorId
+    //  - device: const DeviceAttributes*
+
+    // === feed ===
     for (int i = 0; i < options.callable_options.feed_size(); ++i) {
       // WARNING: feed MUST be a reference, since ArgFeedRewrite and
       // tensors_and_devices holds on to its address.
       const string& feed = options.callable_options.feed(i);
       const DeviceAttributes* device_info;
-      TF_RETURN_IF_ERROR(LookupDevice(*device_set_, feed,
-                                      options.callable_options.feed_devices(),
-                                      &device_info));
+      TF_RETURN_IF_ERROR(
+        LookupDevice(*device_set_,
+                     feed,
+                     options.callable_options.feed_devices(),
+                     &device_info));
+      // LookupDevice 函数说明:
+      //
       feed_rewrites.emplace_back(
           new subgraph::ArgFeedRewrite(&feed, device_info, i));
       tensors_and_devices.push_back({ParseTensorName(feed), device_info});
     }
+
     if (!options.callable_options.fetch_devices().empty() &&
         !options.callable_options.fetch_skip_sync()) {
       return errors::Unimplemented(
@@ -467,20 +915,147 @@ Status GraphExecutionState::PruneGraph(
           "invoked on the Device corresponding to the fetched tensor before "
           "dereferencing the Tensor's memory.");
     }
+
+    // === fetch ===
     for (int i = 0; i < options.callable_options.fetch_size(); ++i) {
       // WARNING: fetch MUST be a reference, since RetvalFetchRewrite and
       // tensors_and_devices holds on to its address.
       const string& fetch = options.callable_options.fetch(i);
       const DeviceAttributes* device_info;
-      TF_RETURN_IF_ERROR(LookupDevice(*device_set_, fetch,
-                                      options.callable_options.fetch_devices(),
-                                      &device_info));
+      // DeviceAttributes 数据结构
+      // tensorflow/core/framework/device_attributes.proto:32:
+      // message DeviceAttributes
+      // - name : string
+      // - device_type: string
+      // - memory_limit: int64
+      // - locality : DeviceLocality
+      // - incarnation : fixed64
+      // - physical_device_desc: string
+
+      TF_RETURN_IF_ERROR(
+        // LookupDevice 接口说明
+        // tensorflow/core/common_runtime/graph_execution_state.cc:292:
+        // Status LookupDevice(
+        //   const DeviceSet& device_set,
+        //   const string& tensor_name,
+        //   const Map& tensor2device,
+        //   const tensorflow::DeviceAttributes** out_device_attrs)
+        LookupDevice(
+          *device_set_, // input
+          fetch, // input, string, e.g. p fetch, "out:0"
+          options.callable_options.fetch_devices(), // input
+          &device_info)); // output
+
+        /**
+        // 1.
+        p *device_set_
+        $4= {
+          devices_=std::vector of length 10,
+          capacity 16= {
+            0x560996a06610,
+            0x560998615a60,
+            0x56099886c990,
+            0x5609988754b0,
+            0x56099887d780,
+            0x560998886730,
+            0x56099889d370,
+            0x5609988aec80,
+            0x5609988bc4b0,
+            0x5609988c9e30
+          },
+          device_by_name_=std::unordered_map with 20 elements= {
+            ["/job:localhost/replica:0/task:0/gpu:3"]=0x5609988c9e30,
+            ["/job:localhost/replica:0/task:0/device:GPU:3"]=0x5609988c9e30,
+            ["/job:localhost/replica:0/task:0/device:GPU:2"]=0x5609988bc4b0,
+            ["/job:localhost/replica:0/task:0/device:XLA_GPU:0"]=0x56099886c990,
+            ["/job:localhost/replica:0/task:0/xla_cpu:0"]=0x560998615a60,
+            ["/job:localhost/replica:0/task:0/device:XLA_GPU:3"]=0x560998886730,
+            ["/job:localhost/replica:0/task:0/device:XLA_CPU:0"]=0x560998615a60,
+            ["/job:localhost/replica:0/task:0/device:CPU:0"]=0x560996a06610,
+            ["/job:localhost/replica:0/task:0/cpu:0"]=0x560996a06610,
+            ["/job:localhost/replica:0/task:0/gpu:2"]=0x5609988bc4b0,
+            ["/job:localhost/replica:0/task:0/xla_gpu:3"]=0x560998886730,
+            ["/job:localhost/replica:0/task:0/xla_gpu:0"]=0x56099886c990,
+            ["/job:localhost/replica:0/task:0/xla_gpu:1"]=0x5609988754b0,
+            ["/job:localhost/replica:0/task:0/device:XLA_GPU:1"]=0x5609988754b0,
+            ["/job:localhost/replica:0/task:0/gpu:1"]=0x5609988aec80,
+            ["/job:localhost/replica:0/task:0/gpu:0"]=0x56099889d370,
+            ["/job:localhost/replica:0/task:0/device:XLA_GPU:2"]=0x56099887d780,
+            ["/job:localhost/replica:0/task:0/xla_gpu:2"]=0x56099887d780,
+            ["/job:localhost/replica:0/task:0/device:GPU:1"]=0x5609988aec80,
+            ["/job:localhost/replica:0/task:0/device:GPU:0"]=0x56099889d370
+          },
+          client_device_=0x560996a06610
+        }
+
+        // 2.
+
+        p fetch
+        $5 = "out:0"
+
+        // 3.
+
+        message CallableOptions, tensorflow/core/protobuf/config.proto
+
+        map<string, string> feed_devices = 6;
+        ---
+        map<string, string> fetch_devices = 7;
+        ---
+
+        p options.callable_options.DebugString()
+        fetch: "out:0"
+        run_options {
+          debug_options {
+          }
+          experimental {
+          }
+        }
+
+        这里面没有提前写 device
+
+        // 4.
+
+        p device_info->DebugString()
+
+        name: "/job:localhost/replica:0/task:0/device:CPU:0"
+        device_type: "CPU"
+        memory_limit: 268435456
+        locality {
+        }
+        incarnation: 6778765248398393778
+
+        */
+        // 5.
+        // class RetvalFetchRewrite 数据结构:
+        // tensorflow/core/graph/subgraph.h
+
       fetch_rewrites.emplace_back(
-          new subgraph::RetvalFetchRewrite(&fetch, device_info, i));
-      tensors_and_devices.push_back({ParseTensorName(fetch), device_info});
-    }
+        new subgraph::RetvalFetchRewrite(
+          &fetch, // input, "out:0"
+          device_info, // input, 见上面
+          i) // input
+      );
+      // 1.
+      // fetch_rewrites 变量说明
+      // fetch_rewrites: std::vector<std::unique_ptr<subgraph::PruneRewrite>>
+
+      tensors_and_devices.push_back(
+        {
+          ParseTensorName(fetch),
+          device_info
+        }
+      );
+      // 1.
+      // tensors_and_devices 数据结构
+      // tensors_and_devices: struct TensorAndDevice
+
+    } // fetch part done!
+
     TF_RETURN_IF_ERROR(
         ValidateFeedAndFetchDevices(*graph, tensors_and_devices));
+
+  // -----------------------------------------------------------------------
+  // another branch of if statement
   } else {
     if (!options.callable_options.feed_devices().empty() ||
         !options.callable_options.fetch_devices().empty()) {
@@ -491,16 +1066,20 @@ Status GraphExecutionState::PruneGraph(
     }
     const DeviceAttributes* device_info =
         &device_set_->client_device()->attributes();
+
     for (const string& feed : options.callable_options.feed()) {
       feed_rewrites.emplace_back(
           new subgraph::RecvFeedRewrite(&feed, device_info));
     }
+
     for (const string& fetch : options.callable_options.fetch()) {
       fetch_rewrites.emplace_back(
           new subgraph::SendFetchRewrite(&fetch, device_info));
     }
   }
+  // if end
 
+  // 我的例子没有进入这个
   for (const TensorConnection& tensor_connection :
        options.callable_options.tensor_connection()) {
     Node* from_node = nullptr;
@@ -512,11 +1091,13 @@ Status GraphExecutionState::PruneGraph(
         break;
       }
     }
+
     if (from_node == nullptr) {
       return errors::InvalidArgument(
           "Requested tensor connection from unknown node: \"",
           tensor_connection.to_tensor(), "\".");
     }
+
     if (from_id.second >= from_node->num_outputs()) {
       return errors::InvalidArgument(
           "Requested tensor connection from unknown edge: \"",
@@ -531,25 +1112,82 @@ Status GraphExecutionState::PruneGraph(
   std::vector<string> target_node_names(
       options.callable_options.target().begin(),
       options.callable_options.target().end());
-  TF_RETURN_IF_ERROR(subgraph::RewriteGraphForExecution(
-      graph, feed_rewrites, fetch_rewrites, target_node_names,
-      out_rewrite_metadata));
 
-  CHECK_EQ(out_rewrite_metadata->feed_types.size(),
-           options.callable_options.feed_size() +
-               options.callable_options.tensor_connection_size());
+
+  // -----------------------------------------------------------------------
+  TF_RETURN_IF_ERROR(
+    subgraph::RewriteGraphForExecution(
+      graph, // input
+      feed_rewrites, // input
+      fetch_rewrites, // input
+      target_node_names, // input
+      out_rewrite_metadata)); // output
+  // -----------------------------------------------------------------------
+
+  CHECK_EQ(
+    out_rewrite_metadata->feed_types.size(),
+    options.callable_options.feed_size() +
+    options.callable_options.tensor_connection_size());
+
+
   for (int i = 0; i < options.callable_options.tensor_connection_size(); ++i) {
     out_rewrite_metadata->feed_types.pop_back();
   }
+
   return Status::OK();
 }
 
+// 1.
+// QQQ. 如果我要构造两个 Executor, 我需要构造两个 GraphExecutionState::GraphExecutionState 吗？
+//      我需要构造两个所谓的  Base Graph 吗?
+// AAA. 需要
 Status GraphExecutionState::InitBaseGraph(const BuildGraphOptions& options) {
+
   const GraphDef* graph_def = &original_graph_def_;
+  // 1.
+  // graph_def 变量说明
+  // graph_def 代理 GraphExecutionState::original_graph_def_, 使用指针，为了避免复制。
+
+  // 2.
+  // original_graph_def_ 变量说明:
+  // GraphExecutionState::original_graph_def_: GraphDef original_graph_def_;
+
+  // 3.
+  // QQQ. GraphExecutionState::original_graph_def_ 什么时候初始化的?
+  // AAA.
+  // 在 GraphExecutionState::GraphExecutionState() 构造函数内被初始化
+  // tensorflow/core/common_runtime/graph_execution_state.cc
+  //
+  // tensorflow/core/common_runtime/graph_execution_state.cc:92:
+  // Status GraphExecutionState::MakeForBaseGraph 内
+  // AddDefaultAttrsToGraphDef(&ret->original_graph_def_, *ret->flib_def_, 0));
 
   std::unique_ptr<Graph> new_graph(new Graph(OpRegistry::Global()));
+
   GraphConstructorOptions opts;
-  TF_RETURN_IF_ERROR(ConvertGraphDefToGraph(opts, *graph_def, new_graph.get()));
+  // 1.
+  // struct GraphConstructorOptions 数据结构
+  // tensorflow/core/graph/graph_constructor.h
+  // - allow_internal_ops: bool , default : false
+  //     If true, allows internal ops in the GraphDef.
+  // - expect_device_spec: bool, default : false
+  //     If true, the graph def is expected to have fully specified
+  //     devices for all nodes. A node in the resulting graph "g" has the
+  //     device name set accordingly.
+  //
+  // 概述:
+  // Construct a Graph *g out of a GraphDef gdef. Returns non-OK on
+  // error, in which case *g is left in an incomplete state.
+  //
+  // *g is expected to be an empty graph (with no more than a source and sink
+  // nodes) when provided to ConvertGraphDefToGraph. To enhance an existing Graph,
+  // see ImportGraphDef.
+
+  TF_RETURN_IF_ERROR(
+    ConvertGraphDefToGraph(opts, // input
+                           *graph_def, // input
+                           new_graph.get())); // output
+
   if (session_options_ &&
       session_options_->config.graph_options().place_pruned_graph()) {
     // Rewrite the graph before placement.
@@ -560,6 +1198,7 @@ Status GraphExecutionState::InitBaseGraph(const BuildGraphOptions& options) {
 
   // Save stateful placements before placing.
   RestoreStatefulNodes(new_graph.get());
+  // 因为下面马上要执行 Placer 了
 
   GraphOptimizationPassOptions optimization_options;
   optimization_options.session_handle = session_handle_;
@@ -571,13 +1210,27 @@ Status GraphExecutionState::InitBaseGraph(const BuildGraphOptions& options) {
   TF_RETURN_IF_ERROR(OptimizationPassRegistry::Global()->RunGrouping(
       OptimizationPassRegistry::PRE_PLACEMENT, optimization_options));
 
-  Placer placer(new_graph.get(), device_set_, /* default_device= */ nullptr,
-                session_options_ == nullptr ||
-                    session_options_->config.allow_soft_placement(),
-                session_options_ != nullptr &&
-                    session_options_->config.log_device_placement());
+  Placer placer(
+    new_graph.get(),
+    device_set_,
+    /* default_device= */ nullptr,
+    /*allow_soft_placement=*/session_options_ == nullptr || session_options_->config.allow_soft_placement(),
+    /*log_device_placement=*/session_options_ != nullptr && session_options_->config.log_device_placement());
+  // 1.
+  // QQQ. 这里会怎么样? 我感觉不应该进展
+
+  // 2.
+  // Placer 构造函数:
+  // Placer::Placer(Graph* graph,
+  //                const DeviceSet* devices,
+  //                const Device* default_device,
+  //                bool allow_soft_placement,
+  //                bool log_device_placement)
+
   // TODO(mrry): Consider making the Placer cancelable.
+  // -----------------------------------------------------------------------
   TF_RETURN_IF_ERROR(placer.Run());
+  // -----------------------------------------------------------------------
 
   TF_RETURN_IF_ERROR(OptimizationPassRegistry::Global()->RunGrouping(
       OptimizationPassRegistry::POST_PLACEMENT, optimization_options));
@@ -588,13 +1241,27 @@ Status GraphExecutionState::InitBaseGraph(const BuildGraphOptions& options) {
   }
 
   SaveStatefulNodes(new_graph.get());
+
+  // ---------------------------
   graph_ = new_graph.release();
+  // ---------------------------
+  // 1.
+  // graph_ 变量说明:
+  // 最终初始化了 GraphExecutionState::graph_ : Graph*
+
   return Status::OK();
 }
 
+
+////////////////////////////////////////////////////////////////////////////
+
+
 Status GraphExecutionState::OptimizeGraph(
-    const BuildGraphOptions& options, std::unique_ptr<Graph>* optimized_graph,
-    std::unique_ptr<FunctionLibraryDefinition>* optimized_flib) {
+    const BuildGraphOptions& options, // input
+    std::unique_ptr<Graph>* optimized_graph, // output
+    std::unique_ptr<FunctionLibraryDefinition>* optimized_flib) // output
+{
+
 #ifndef IS_MOBILE_PLATFORM
   if (session_options_->config.graph_options().place_pruned_graph()) {
     return errors::InvalidArgument("Can't optimize a pruned graph");
@@ -688,35 +1355,53 @@ Status GraphExecutionState::OptimizeGraph(
         cpu_device = device;
       }
     }
-    grappler::VirtualCluster cluster(device_set_);
-    GraphDef new_graph;
-    TF_RETURN_IF_ERROR(grappler::RunMetaOptimizer(
-        item, session_options_->config, cpu_device, &cluster, &new_graph));
 
+    grappler::VirtualCluster cluster(device_set_);
+
+    GraphDef new_graph;
+
+    TF_RETURN_IF_ERROR(grappler::RunMetaOptimizer(
+        item,
+        session_options_->config,
+        cpu_device,
+        &cluster,
+        &new_graph));
+
+    //////////////////////////////////////////////////////////////////
     // Merge optimized graph function library with an original library.
     // Optimized graph might have new functions specialized for it's
     // instantiation context (see Grappler function optimizer), and modified
     // function body for the existing functions.
     optimized_flib->reset(new FunctionLibraryDefinition(*flib_def_));
 
+    // 如果还有更好的 function kernel，替换到更好的。
     for (const FunctionDef& fdef : new_graph.library().function()) {
       const string& func_name = fdef.signature().name();
 
       if ((*optimized_flib)->Contains(func_name)) {
         VLOG(3) << "Replace function: name=" << func_name;
+        // ReplaceFunction 函数说明
+        // tensorflow/core/framework/function.cc:1220:
+        // Status FunctionLibraryDefinition::ReplaceFunction(const string& func, const FunctionDef& fdef)
+        //
         TF_RETURN_IF_ERROR((*optimized_flib)->ReplaceFunction(func_name, fdef));
       } else {
         VLOG(3) << "Add new function: name=" << func_name;
         TF_RETURN_IF_ERROR((*optimized_flib)->AddFunctionDef(fdef));
       }
     }
+    //////////////////////////////////////////////////////////////////
 
+    // -----------------------------------------------------------------------
+    // 处理优化的图
     optimized_graph->reset(new Graph(OpRegistry::Global()));
 
     GraphConstructorOptions opts;
     opts.allow_internal_ops = true;
+
     TF_RETURN_IF_ERROR(
         ConvertGraphDefToGraph(opts, new_graph, optimized_graph->get()));
+
     // The graph conversion sets the requested device names but not the
     // assigned device names. However, since at this point the graph is placed
     // TF expects an assigned device name for every node. Therefore we copy
@@ -724,19 +1409,65 @@ Status GraphExecutionState::OptimizeGraph(
     for (Node* node : optimized_graph->get()->nodes()) {
       node->set_assigned_device_name(node->requested_device());
     }
+
     return Status::OK();
+
   } else {
+
     return errors::InvalidArgument("Meta Optimizer disabled");
+
   }
+
 #else
   return errors::InvalidArgument("Mobile platforms not supported");
 #endif  // IS_MOBILE_PLATFORM
 }
 
-Status GraphExecutionState::BuildGraph(const BuildGraphOptions& options,
-                                       std::unique_ptr<ClientGraph>* out) {
+
+////////////////////////////////////////////////////////////////////////////
+
+
+/** \brief Build a sub-graph of the full graph as induced by BuildGraphOptions.
+ *
+ *  \param options: const BuildGraphOptions&
+ *
+ *  \param out: [out] std::unique_ptr<ClientGraph>*
+ *         ClientGraph is simply a sub-graph of the full graph as induced by
+ *         BuildGraphOptions.
+ */
+Status GraphExecutionState::BuildGraph(
+  const BuildGraphOptions& options, // input
+  std::unique_ptr<ClientGraph>* out) { // output
+  // 1.
+  // options 变量说明:
+  /**
+  BuildGraphOptions& options 打印:
+
+  Feed endpoints:
+  Fetch endpoints: out:0,
+  Target nodes:
+  collective_order: none
+  */
+
+  // 2.
+  // ClientGraph 数据结构
+  // A ClientGraph is simply a sub-graph of the full graph as induced by
+  // BuildGraphOptions.
+  // tensorflow/core/common_runtime/graph_execution_state.h
+  //
+  // struct ClientGraph
+  // - flib_def : std::unique_ptr<FunctionLibraryDefinition>
+  //     Each client-graph gets its own function library since optimization passes
+  //     post rewrite for execution might want to introduce new functions.
+  // - graph: Graph
+  // - feed_types: DataTypeVector
+  // - fetch_types: DataTypeVector
+  // - collective_graph_key: int64
+
   VLOG(1) << "BuildGraph";
+
   const uint64 start_time_usecs = Env::Default()->NowMicros();
+
   if (!graph_) {
     // It is only valid to call this method directly when the original graph
     // was created with the option `place_pruned_graph == false`.
@@ -747,9 +1478,26 @@ Status GraphExecutionState::BuildGraph(const BuildGraphOptions& options,
   // Grappler optimization might change the structure of a graph itself, and
   // also it can add/prune functions to/from the library.
   std::unique_ptr<Graph> optimized_graph;
+
+  // FunctionLibraryDefinition 数据结构
+  // ./tensorflow/core/framework/function.h:313:
+  // class FunctionLibraryDefinition : public OpRegistryInterface
+  // - default_registry_ : const OpRegistryInterface* const
+  // - function_defs_ : gtl::FlatMap<string, std::unique_ptr<FunctionDefAndOpRegistration>>
+  //  * FunctionDefAndOpRegistration
+  //    + fdef: FunctionDef
+  //    + op_registration_data: OpRegistrationData
+  // - func_grad_ : gtl::FlatMap<string, string>
   std::unique_ptr<FunctionLibraryDefinition> optimized_flib;
 
-  Status s = OptimizeGraph(options, &optimized_graph, &optimized_flib);
+  // -----------------------------------------------------------------------
+  /// OptimizeGraph has a lot to do.
+  Status s = OptimizeGraph(options, // input  打印见上面
+                           &optimized_graph, // output
+                           &optimized_flib); // output
+  // -----------------------------------------------------------------------
+
+
   if (!s.ok()) {
     VLOG(2) << "Grappler optimization failed. Error: " << s.error_message();
     // Simply copy the original graph and the function library if we couldn't
@@ -760,11 +1508,27 @@ Status GraphExecutionState::BuildGraph(const BuildGraphOptions& options,
   }
 
   subgraph::RewriteGraphMetadata rewrite_metadata;
+  // 1.
+  // RewriteGraphMetadata 数据结构
+  // tensorflow/core/graph/subgraph.h:32: struct RewriteGraphMetadata
+  // - feed_types: DataTypeVector
+  //               The element type of each tensor fed to this subgraph.
+  // - fetch_types: DataTypeVector
+
   if (session_options_ == nullptr ||
       !session_options_->config.graph_options().place_pruned_graph()) {
+    // -----------------------------------------------------------------------
+    // PruneGraph for fetch subgraph
+    // -----------------------------------------------------------------------
     TF_RETURN_IF_ERROR(
-        PruneGraph(options, optimized_graph.get(), &rewrite_metadata));
+        PruneGraph(
+          options, // input
+          optimized_graph.get(), // input
+          &rewrite_metadata)); // output
+    // -----------------------------------------------------------------------
+
   } else {
+
     // This GraphExecutionState represents a graph that was
     // pruned when this was constructed, so we copy the metadata from
     // a member variable.
@@ -777,6 +1541,7 @@ Status GraphExecutionState::BuildGraph(const BuildGraphOptions& options,
   CHECK_EQ(options.callable_options.fetch_size(),
            rewrite_metadata.fetch_types.size());
 
+
   // TODO(andydavis): Clarify optimization pass requirements around CostModel.
   GraphOptimizationPassOptions optimization_options;
   optimization_options.session_options = session_options_;
@@ -784,16 +1549,22 @@ Status GraphExecutionState::BuildGraph(const BuildGraphOptions& options,
   optimization_options.flib_def = optimized_flib.get();
   optimization_options.device_set = device_set_;
 
-  TF_RETURN_IF_ERROR(OptimizationPassRegistry::Global()->RunGrouping(
-      OptimizationPassRegistry::POST_REWRITE_FOR_EXEC, optimization_options));
+  TF_RETURN_IF_ERROR(
+    OptimizationPassRegistry::Global()->RunGrouping(
+      OptimizationPassRegistry::POST_REWRITE_FOR_EXEC,
+      optimization_options)
+  );
+
 
   int64 collective_graph_key = options.collective_graph_key;
+  // 我的例子有进入如下的分支
   if (collective_graph_key == BuildGraphOptions::kNoCollectiveGraphKey) {
     // BuildGraphOptions does not specify a collective_graph_key.  Check all
     // nodes in the Graph and FunctionLibraryDefinition for collective ops and
     // if found, initialize a collective_graph_key as a hash of the ordered set
     // of instance keys.
     std::set<int32> instance_key_set;
+
     for (Node* node : optimized_graph->nodes()) {
       if (node->IsCollective()) {
         int32 instance_key;
@@ -801,7 +1572,10 @@ Status GraphExecutionState::BuildGraph(const BuildGraphOptions& options,
             GetNodeAttr(node->attrs(), "instance_key", &instance_key));
         instance_key_set.emplace(instance_key);
       } else {
+        // 进入这个分支
+        // 但是，没有那个 node 的 fdef 是存在的，目前都是 空指针
         const FunctionDef* fdef = optimized_flib->Find(node->def().op());
+
         if (fdef != nullptr) {
           for (const NodeDef& ndef : fdef->node_def()) {
             if (ndef.op() == "CollectiveReduce" ||
@@ -814,8 +1588,10 @@ Status GraphExecutionState::BuildGraph(const BuildGraphOptions& options,
             }
           }
         }
+
       }
     }
+
     if (!instance_key_set.empty()) {
       uint64 hash = 0x8774aa605c729c72ULL;
       for (int32 instance_key : instance_key_set) {
@@ -826,22 +1602,52 @@ Status GraphExecutionState::BuildGraph(const BuildGraphOptions& options,
   }
 
   // Make collective execution order deterministic if needed.
+  // 没有进入这个分支
   if (options.collective_order != GraphCollectiveOrder::kNone) {
     TF_RETURN_IF_ERROR(
         OrderCollectives(optimized_graph.get(), options.collective_order));
   }
 
+  // 构造输出的 ClientGraph.
   // Copy the extracted graph in order to make its node ids dense,
   // since the local CostModel used to record its stats is sized by
   // the largest node id.
   std::unique_ptr<ClientGraph> dense_copy(
-      new ClientGraph(std::move(optimized_flib), rewrite_metadata.feed_types,
-                      rewrite_metadata.fetch_types, collective_graph_key));
+      new ClientGraph(
+        std::move(optimized_flib),
+        rewrite_metadata.feed_types,
+        rewrite_metadata.fetch_types,
+        collective_graph_key));
+
+  // optimized_flib: std::unique_ptr<FunctionLibraryDefinition>
+
+  /**
+  // FunctionLibraryDefinition 数据结构
+  // ./tensorflow/core/framework/function.h:313:
+  // class FunctionLibraryDefinition : public OpRegistryInterface
+  // - default_registry_ : const OpRegistryInterface* const
+  // - function_defs_ : gtl::FlatMap<string, std::unique_ptr<FunctionDefAndOpRegistration>>
+  //  * FunctionDefAndOpRegistration
+  //    + fdef: FunctionDef
+  //    + op_registration_data: OpRegistrationData
+  // - func_grad_ : gtl::FlatMap<string, string>
+
+  ===
+
+  int64 collective_graph_key = options.collective_graph_key;
+
+  p collective_graph_key
+  $33 = 0
+  */
+
   CopyGraph(*optimized_graph, &dense_copy->graph);
 
   // TODO(vrv): We should check invariants of the graph here.
-  metrics::UpdateGraphBuildTime(Env::Default()->NowMicros() - start_time_usecs);
+  metrics::UpdateGraphBuildTime(
+    Env::Default()->NowMicros() - start_time_usecs);
+
   *out = std::move(dense_copy);
+
   return Status::OK();
 }
 

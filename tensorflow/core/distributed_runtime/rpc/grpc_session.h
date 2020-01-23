@@ -40,6 +40,18 @@ namespace tensorflow {
 
 class MasterInterface;
 
+/** \class GrpcSession
+ *
+ *  \brief The main purpose of this class is to create
+ *         master_: std::unique_ptr<MasterInterface> to provide grpc stub.
+ *
+ *  \details
+ *  1. Stubs of grpc from a client side view.
+ *  GrpcSession has stub called by a client, which is handled by
+ *  std::unique_ptr<MasterInterface> master_;
+ *
+ *  2. Implementation of grpc stubs from a server side view.
+ */
 // A Session instance lets the caller drive a TensorFlow graph
 // computation on potentially remote sets of devices. This is a thin
 // wrapper around tensorflow::grpc::MasterService.
@@ -112,10 +124,17 @@ class GrpcSession : public Session {
 
  private:
   const SessionOptions options_;
+
+  /// master_: std::unique_ptr<MasterInterface>
+  /// \note master_ real type is class GrpcRemoteMaster, a derived class
+  ///       implements MasterInterface.
+  /// grpc session use this master interface/stub to invoke session related
+  /// functions, like create a session, extend a session, run a step.
   std::unique_ptr<MasterInterface> master_;
   mutex mu_;
 
   // handle_ returned by the master to identify this session.
+  /// handle_ returned by the master to identify this session.
   string handle_ GUARDED_BY(mu_);
 
   // The current version of the graph.

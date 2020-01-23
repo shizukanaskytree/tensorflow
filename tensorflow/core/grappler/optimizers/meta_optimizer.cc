@@ -320,6 +320,9 @@ void MetaOptimizer::InitializeVerifiers(
     }                                                                          \
   }
 
+/** \brief 
+ *
+ */
 Status MetaOptimizer::OptimizeGraph(Cluster* cluster, const GrapplerItem& item,
                                     GraphDef* optimized_graph) {
   int min_graph_nodes = cfg_.min_graph_nodes() == 0 ? kDefaultMinGraphNodes

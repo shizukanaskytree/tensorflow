@@ -27,6 +27,7 @@ namespace tensorflow {
 class RecvTensorResponse;
 class TensorProto;
 
+// 这个类内都是  static , 这个 class 名等价于 namespace 
 class GPUUtil {
  public:
   // "tensor" is GPU-local.  "dev" is the hosting GPU.

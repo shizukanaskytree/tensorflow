@@ -37,6 +37,22 @@ void CollectiveParamResolverLocal::InstanceRec::WaitForOutMu(mutex_lock& lock) {
   while (!out_mu_available) out_cv.wait(lock);
 }
 
+/** \brief CollectiveParamResolverLocal Constructor
+ *
+ *  \param config: ConfigProto&
+ *         Session configuration parameters.
+ *
+ *  \param dev_mgr: DeviceMgr*
+ *         Manage a list of devices, including lookup devices, their attributes.
+ *
+ *  \param dev_resolver: DeviceResolverInterface* ;
+ *         An interface for 1. showing the device localities;
+ *         2. clear the cache of all device data belonging to the speified task.
+ *
+ *  \param task_name: const string&
+ *         e.g., "/job:localhost/replica:0/task:0"
+ *
+ */
 CollectiveParamResolverLocal::CollectiveParamResolverLocal(
     const ConfigProto& config, const DeviceMgr* dev_mgr,
     DeviceResolverInterface* dev_resolver, const string& task_name)
@@ -54,6 +70,26 @@ void CollectiveParamResolverLocal::CompleteGroupAsync(
                        "intended only for non-distributed deployment."));
 }
 
+/** \brief First, populate the GroupRec; Then, call the done callback function.
+ *
+ *  \param device: const string&
+ *
+ *  \param cp: CollectiveParams* ;
+ *         CollectiveParams to serve a single CollectiveOp node.
+ *         Related to all-reduce.
+ *         - NCCL https://developer.nvidia.com/nccl .
+ *         - Post: Collective Communication.
+ *           Figure 1: Illustration of the All-Reduce collective.
+ *           https://devblogs.nvidia.com/fast-multi-gpu-collectives-nccl/ .
+ *         - Slides: https://images.nvidia.com/events/sc15/pdfs/NCCL-Woolley.pdf
+ *
+ *  \param done: GroupRecCallback&
+ *         A lambda function signature with inputs: 1. Status& s; 2. GroupRec*
+ *         to serve as a callback function.
+ *
+ *  \remark No return;
+ *
+ */
 void CollectiveParamResolverLocal::CompleteGroupLocal(
     const string& device, CollectiveParams* cp, const GroupRecCallback& done) {
   VLOG(1) << "CompleteGroupLocal device=" << device << " cp: " << cp << ": "

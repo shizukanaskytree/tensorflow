@@ -1918,6 +1918,14 @@ class Stream {
   // Returns the (opaque) platform-specific backing object. Ownership is not
   // transferred to the caller.
   internal::StreamInterface *implementation() { return implementation_.get(); }
+  // implementation_ 变量说明
+  // The platform-dependent implementation that the StreamExecutor interface
+  // delegates to.
+  // std::unique_ptr<internal::StreamInterface> implementation_;
+  /*
+  p implementation_.get()
+  $29 = (stream_executor::gpu::GpuStream *) 0x5621bddf9ed0
+  */
 
   // Entrains onto the stream a callback to the host (from the device).
   // Behaves as ThenDoHostCallbackWithStatus below, but the callback should

@@ -41,10 +41,33 @@ struct GraphConstructorOptions {
   // device name set accordingly.
   //
   // TODO(zhifengc): if possible, consider removing this option.
+  // 注释
+  // NodeDef 里面有 string device
+  // 但是，GraphDef 里面没有 device 相关的
   bool expect_device_spec = false;
 };
-extern Status ConvertGraphDefToGraph(const GraphConstructorOptions& opts,
-                                     const GraphDef& gdef, Graph* g);
+// 1.
+// struct GraphConstructorOptions 数据结构
+// tensorflow/core/graph/graph_constructor.h
+// - allow_internal_ops: bool , default : false
+//     If true, allows internal ops in the GraphDef.
+// - expect_device_spec: bool, default : false
+//     If true, the graph def is expected to have fully specified
+//     devices for all nodes. A node in the resulting graph "g" has the
+//     device name set accordingly.
+//
+// 概述:
+// Construct a Graph *g out of a GraphDef gdef. Returns non-OK on
+// error, in which case *g is left in an incomplete state.
+//
+// *g is expected to be an empty graph (with no more than a source and sink
+// nodes) when provided to ConvertGraphDefToGraph. To enhance an existing Graph,
+// see ImportGraphDef.
+
+
+extern Status ConvertGraphDefToGraph(const GraphConstructorOptions& opts, // input
+                                     const GraphDef& gdef, // input
+                                     Graph* g); // output 
 
 // Same as ConvertGraphDefToGraph, but takes just nodes.  Used by function
 // instantiation.

@@ -49,6 +49,8 @@ message MemoryStats {
   repeated int64 device_persistent_tensor_alloc_ids = 6 [deprecated = true];
 }
 
+// 采集自 ScopedActivity(CPU) ScopedAnnotation(GPU)
+//
 // Time/size stats recorded for a single execution of a graph node.
 message NodeExecStats {
   // TODO(tucker): Use some more compact form of node identity than
@@ -56,10 +58,10 @@ message NodeExecStats {
   // global id (cost_id?) for each node, or we should use a hash of
   // the name.
   string node_name = 1;
-  int64 all_start_micros = 2;
+  int64 all_start_micros = 2; // profiling info
   int64 op_start_rel_micros = 3;
   int64 op_end_rel_micros = 4;
-  int64 all_end_rel_micros = 5;
+  int64 all_end_rel_micros = 5; // profiling info
   repeated AllocatorMemoryUsed memory = 6;
   repeated NodeOutput output = 7;
   string timeline_label = 8;

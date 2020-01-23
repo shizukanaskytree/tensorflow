@@ -90,17 +90,38 @@ DeviceFactory* DeviceFactory::GetFactory(const string& device_type) {
   return it->second.factory.get();
 }
 
+/** \brief Create CPU and GPU devices
+ *
+ *  \param options
+ *
+ *  \param name_prefix
+ *
+ *  \param devices
+ *
+ *  \return Status
+ *
+ */
 Status DeviceFactory::AddDevices(
-    const SessionOptions& options, const string& name_prefix,
-    std::vector<std::unique_ptr<Device>>* devices) {
+    const SessionOptions& options, // input
+    const string& name_prefix, // input
+    std::vector<std::unique_ptr<Device>>* devices) { // output
+  // 1.
+  // name_prefix 变量说明
+  // 在 DirectSessionFactory::NewSession
+  // tensorflow/core/common_runtime/direct_session.cc
+  // 这个变量被 hardcode 成了 "/job:localhost/replica:0/task:0"
+
   // CPU first. A CPU device is required.
   auto cpu_factory = GetFactory("CPU");
   if (!cpu_factory) {
     return errors::NotFound(
         "CPU Factory not registered.  Did you link in threadpool_device?");
   }
+
   size_t init_size = devices->size();
+
   TF_RETURN_IF_ERROR(cpu_factory->CreateDevices(options, name_prefix, devices));
+
   if (devices->size() == init_size) {
     return errors::NotFound("No CPU devices are available in this process");
   }
@@ -108,9 +129,17 @@ Status DeviceFactory::AddDevices(
   // Then the rest (including GPU).
   mutex_lock l(*get_device_factory_lock());
   for (auto& p : device_factories()) {
+    // 1.
+    // device_factories 函数说明
+
     auto factory = p.second.factory.get();
     if (factory != cpu_factory) {
       TF_RETURN_IF_ERROR(factory->CreateDevices(options, name_prefix, devices));
+      // 1.
+      // device_factories 函数说明
+      // tensorflow/core/common_runtime/gpu/gpu_device.cc
+      // Status BaseGPUDeviceFactory::CreateDevices(
+
     }
   }
 

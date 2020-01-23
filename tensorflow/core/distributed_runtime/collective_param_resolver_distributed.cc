@@ -78,6 +78,30 @@ class CompleteInstanceCall : public CancellableCall {
 
 }  // namespace
 
+/** \brief
+ *
+ *  \details
+ *
+ *  \param config: ConfigProto&
+ *         Session configuration parameters.
+ *
+ *  \param dev_mgr: DeviceMgr*
+ *         Manage a list of devices, including lookup devices, their attributes.
+ *
+ *  \param dev_resolver: DeviceResolverDistributed*
+ *         DeviceResolverDistributed helps 1. get device locality information.
+ *         2. clear all devices' attributes belonging to that target name.
+ *
+ *  \param worker_cache: WorkerCacheInterface*
+ *         WorkerCacheInterface provides interface for 1. list workers' names;
+ *         2. list workers' name of a job name; 3. create worker with a name;
+ *         4. destory a worker; 5. get device locality information of a device;
+ *         6. logging.
+ *
+ *  \param task_name: const string&
+ *         e.g., "/job:localhost/replica:0/task:0"
+ *
+ */
 CollectiveParamResolverDistributed::CollectiveParamResolverDistributed(
     const ConfigProto& config, const DeviceMgr* dev_mgr,
     DeviceResolverDistributed* dev_resolver, WorkerCacheInterface* worker_cache,

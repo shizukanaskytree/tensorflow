@@ -98,10 +98,13 @@ GraphRunner::GraphRunner(Device* device) : device_(device) {}
 
 GraphRunner::~GraphRunner() {}
 
-Status GraphRunner::Run(Graph* graph, FunctionLibraryRuntime* function_library,
-                        const NamedTensorList& inputs,
-                        const std::vector<string>& output_names,
-                        std::vector<Tensor>* outputs) {
+Status GraphRunner::Run(
+  Graph* graph,
+  FunctionLibraryRuntime* function_library,
+  const NamedTensorList& inputs,
+  const std::vector<string>& output_names,
+  std::vector<Tensor>* outputs) {
+
   if (device_ == nullptr) {
     return errors::NotFound("Cannot find a device for GraphRunner.");
   }

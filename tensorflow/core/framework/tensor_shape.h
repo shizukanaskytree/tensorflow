@@ -157,6 +157,14 @@ class TensorShapeRep {
   } u_;
   int64 num_elements_;
 };
+// 1.
+// class TensorShapeRep 数据结构
+// tensorflow/core/framework/tensor_shape.h
+// - num_elements_: int64
+// - u_: union
+//   * buf[16] : uint8
+//   * unused_aligner: Rep64*
+
 
 /// Base class for TensorShape and PartialTensorShape.
 /// The class is templatized by either TensorShape or PartialTensorShape to
@@ -271,8 +279,22 @@ class TensorShapeBase : public TensorShapeRep {
   template <class T, class S>
   friend Status MakeShapeHelper(const T*, int64, S*);
 };
+// 1.
+// class TensorShapeBase 数据结构
+// tensorflow/core/framework/tensor_shape.h
+// class TensorShapeBase : public TensorShapeRep
+// - 没有成员变量，只有成员函数
 
-/// Outputs `TensorShapeBase` to `std::ostream`.
+// 2.
+// class TensorShapeRep 数据结构
+// tensorflow/core/framework/tensor_shape.h
+// - num_elements_: int64
+// - u_: union
+//   * buf[16] : uint8
+//   * unused_aligner: Rep64*
+
+
+// Outputs `TensorShapeBase` to `std::ostream`.
 template <typename Shape>
 std::ostream& operator<<(std::ostream& os, const TensorShapeBase<Shape>& tsb) {
   return os << tsb.DebugString();
@@ -320,26 +342,62 @@ class TensorShape : public TensorShapeBase<TensorShape> {
   // REQUIRES: dims() >= NDIMS
   void CheckDimsAtLeast(int NDIMS) const;
 };
+// 1.
+// class TensorShape 数据结构
+// tensorflow/core/framework/tensor_shape.h
+//
+// 简述
+// Represents the shape of a Tensor.
+//
+// A tensor's shape is denoted by its number of dimensions and a size for each
+// dimension.  For example, a Tensor represented by a 3 x 4 matrix would have
+// a shape of 2-D, [3,4].
+//
+// If you know the exact shape of your Tensor when you create the TensorShape
+// object, you can specify it then, or you can create a TensorShape with
+// zero dimensions and one element, and call AddDim() to add dimensions later.
+//
+// class TensorShape : public TensorShapeBase<TensorShape>
+// - 没有成员变量，只有成员函数
 
-/// Represents the value of one dimension in a TensorShape.
+// 2.
+// class TensorShapeBase 数据结构
+// tensorflow/core/framework/tensor_shape.h
+// class TensorShapeBase : public TensorShapeRep
+// - 没有成员变量，只有成员函数
+
+// 3.
+// class TensorShapeRep 数据结构
+// tensorflow/core/framework/tensor_shape.h
+// - num_elements_: int64
+// - u_: union
+//   * buf[16] : uint8
+//   * unused_aligner: Rep64*
+
+
+// Represents the value of one dimension in a TensorShape.
 struct TensorShapeDim {
   explicit TensorShapeDim(int64 s) : size(s) {}
   int64 size;
 };
+
 
 // START_SKIP_DOXYGEN
 template <class Shape>
 class TensorShapeIter {
  public:
   TensorShapeIter(const Shape* shape, int d) : shape_(shape), d_(d) {}
+
   bool operator==(const TensorShapeIter& rhs) {
     DCHECK(shape_ == rhs.shape_);
     return d_ == rhs.d_;
   }
+
   bool operator!=(const TensorShapeIter& rhs) {
     DCHECK(shape_ == rhs.shape_);
     return d_ != rhs.d_;
   }
+
   void operator++() { ++d_; }
   TensorShapeDim operator*() { return TensorShapeDim(shape_->dim_size(d_)); }
 

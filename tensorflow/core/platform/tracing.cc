@@ -29,6 +29,7 @@ namespace tensorflow {
 namespace tracing {
 namespace {
 std::atomic<uint64> unique_arg{1};
+/// 全局只有一个 trace_collector
 std::atomic<const TraceCollector*> trace_collector;
 }  // namespace
 

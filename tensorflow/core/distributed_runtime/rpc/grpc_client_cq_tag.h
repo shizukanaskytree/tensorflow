@@ -24,6 +24,12 @@ limitations under the License.
 
 namespace tensorflow {
 
+/** \class GrpcClientCQTag
+ *
+ *  \brief A interface definition of a grpc client completion queue.
+ *         The only interface function is OnCompleted, which is called when grpc
+ *         has finished.
+ */
 // Represents a pending asynchronous client call as a tag that can be
 // stored in a `grpc::CompletionQueue`.
 class GrpcClientCQTag {

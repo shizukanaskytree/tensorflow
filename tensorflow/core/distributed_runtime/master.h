@@ -33,6 +33,13 @@ limitations under the License.
 
 namespace tensorflow {
 
+/** \class Master
+ *
+ *  \brief class Master have the same interface as class Session. It is
+ *         responsible for grpc service functions:  
+ *         1. Create a session; 2. extend a session; 3. close a session;
+ *         4. run a step of the graph; 5. list devices;
+ */
 class Master {
  public:
   explicit Master(MasterEnv* env, double session_gc_seconds);

@@ -310,6 +310,7 @@ message RPCOptions {
   int32 compression_level = 3;
 };
 
+
 // Session configuration parameters.
 // The system picks appropriate values for fields that are not set.
 message ConfigProto {
@@ -641,3 +642,29 @@ message CallableOptions {
 
   // Next: 9
 }
+
+// message CallableOptions 数据结构
+// tensorflow/core/protobuf/config.proto:559
+//
+// 功能和目的:
+// Defines a subgraph in another `GraphDef` as a set of feed points and nodes
+// to be fetched or executed.
+//
+// - feed: repeated string
+//    - Tensors to be fed in the callable. Each feed is the name of a tensor.
+// - fetch: repeated string
+//    - Fetches. A list of tensor names. The caller of the callable expects a
+//      tensor to be returned for each fetch[i] (see RunStepResponse.tensor). The
+//      order of specified fetches does not change the execution order.
+// - target: repeated string
+//    - Target Nodes. A list of node names. The named nodes will be run by the
+//      callable but their outputs will not be returned.
+// - run_options: RunOptions
+//    - Options that will be applied to each run.
+// - tensor_connection: repeated TensorConnection
+//    - Tensors to be connected in the callable. Each TensorConnection denotes
+//      a pair of tensors in the graph, between which an edge will be created
+//      in the callable.
+// - feed_devices: map<string, string>
+// - fetch_devices: map<string, string>
+// - fetch_skip_sync: bool

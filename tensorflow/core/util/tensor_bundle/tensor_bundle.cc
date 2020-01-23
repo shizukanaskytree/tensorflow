@@ -413,11 +413,13 @@ Status BundleWriter::Add(StringPiece key, const Tensor& val) {
   if (!status_.ok()) return status_;
   CHECK_NE(key, kHeaderEntryKey);
   const string key_string(key);
+  // 异常检测
   if (entries_.find(key_string) != entries_.end()) {
     status_ = errors::InvalidArgument("Adding duplicate key: ", key);
     return status_;
   }
 
+  // 正常处理
   BundleEntryProto* entry = &entries_[key_string];
   entry->set_dtype(val.dtype());
   val.shape().AsProto(entry->mutable_shape());
@@ -428,12 +430,19 @@ Status BundleWriter::Add(StringPiece key, const Tensor& val) {
   size_t data_bytes_written = 0;
   uint32 crc32c = 0;
   out_->clear_crc32c();
+
   if (val.dtype() == DT_STRING) {
+
     status_ = WriteStringTensor(val, out_.get(), &data_bytes_written, &crc32c);
+
   } else if (val.dtype() == DT_VARIANT) {
+
     status_ = WriteVariantTensor(val, out_.get(), &data_bytes_written, &crc32c);
+
   } else {
+
     status_ = WriteTensor(val, out_.get(), &data_bytes_written);
+
     crc32c = out_->crc32c();
   }
 

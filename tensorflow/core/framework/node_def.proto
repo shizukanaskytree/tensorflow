@@ -8,6 +8,13 @@ option java_package = "org.tensorflow.framework";
 option go_package = "github.com/tensorflow/tensorflow/tensorflow/go/core/framework";
 import "tensorflow/core/framework/attr_value.proto";
 
+/// proto API
+///
+/// NodeDef def;
+/// def.set_name("_SOURCE");
+/// def.set_op("NoOp");
+/// Node* source = AddNode(def, &status);
+///
 message NodeDef {
   // The name given to this operator. Used for naming inputs,
   // logging, visualization, etc.  Unique within a single GraphDef.
@@ -16,6 +23,7 @@ message NodeDef {
 
   // The operation name.  There may be custom parameters in attrs.
   // Op names starting with an underscore are reserved for internal use.
+  /// For example, op can be "Const"
   string op = 2;
 
   // Each input is "node:src_output" with "node" being a string name and
@@ -23,7 +31,25 @@ message NodeDef {
   // "src_output" is 0 the ":0" suffix can be omitted.  Regular inputs
   // may optionally be followed by control inputs that have the format
   // "^node".
+  // 所以，control edge 都是 带 "^" 的。
   repeated string input = 3;
+  /*
+  对应的代码是
+  NodeDefBuilder::AddInput, framework/node_def_builder.cc
+
+  void NodeDefBuilder::AddInput(StringPiece src_node, int src_index) {
+    if (src_node.empty()) {
+      errors_.push_back("Empty input node name");
+    } else if (src_node[0] == '^') {
+      errors_.push_back(
+          strings::StrCat("Non-control input starting with ^: ", src_node));
+    } else if (src_index > 0) {
+      node_def_.add_input(strings::StrCat(src_node, ":", src_index));
+    } else {
+      node_def_.add_input(string(src_node));
+    }
+  }
+  */
 
   // A (possibly partial) specification for the device on which this
   // node should be placed.
@@ -59,6 +85,9 @@ message NodeDef {
   // The values must have a type matching the corresponding OpDef
   // attr's type field.
   // TODO(josh11b): Add some examples here showing best practices.
+  /// For example, string part of attr can be "value"
+  //
+  // AttrValue: tensorflow/core/framework/attr_value.proto:16:message AttrValue
   map<string, AttrValue> attr = 5;
 
   message ExperimentalDebugInfo {

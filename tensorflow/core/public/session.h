@@ -90,6 +90,10 @@ class Session {
   /// Returns an error if this session has already been created with a
   /// graph. To re-use the session with a different graph, the caller
   /// must Close() the session first.
+  ///
+  /// \param[in] graph: const GraphDef& ;
+  ///
+  ///
   virtual Status Create(const GraphDef& graph) = 0;
 
   /// \brief Adds operations to the graph that is already registered with the
@@ -231,6 +235,32 @@ class Session {
         "ReleaseCallable is not supported for this session.");
   }
 };
+// 1.
+// class Session 数据结构
+// tensorflow/core/public/session.h
+// 纯虚函数, 接口包括:
+// - Status Create(const GraphDef& graph)
+//   Create the graph to be used for the session.
+// - Status Extend(const GraphDef& graph)
+//   Adds operations to the graph that is already registered with the Session.
+// - Status Run(const std::vector<std::pair<string, Tensor> >& inputs,const std::vector<string>& output_tensor_names, const std::vector<string>& target_node_names, std::vector<Tensor>* outputs)
+//   Runs the graph with the provided input tensors and fills `outputs` for the endpoints specified in `output_tensor_names`.
+// - Status Create(const RunOptions& run_options, const GraphDef& graph)
+//   Implementations which support `RunOptions`.
+// - Status Extend(const RunOptions& run_options, const GraphDef& graph)
+// - Status Close(const RunOptions& run_options)
+// - Status Run(const RunOptions& run_options, const std::vector<std::pair<string, Tensor> >& inputs, const std::vector<string>& output_tensor_names,const std::vector<string>& target_node_names,std::vector<Tensor>* outputs, RunMetadata* run_metadata)
+//   Like `Run`, but allows users to pass in a `RunOptions` proto and to retrieve non-Tensor metadata output via a `RunMetadata` proto for this step.  `run_metadata` may be nullptr, in which case any metadata output is discarded.
+// - PRunSetup
+// - PRun
+// - ListDevices
+// - Close
+// - LocalDeviceManager
+// - MakeCallable
+// - RunCallable
+// - ReleaseCallable
+
+
 
 /// \brief Create a new session with the given options.
 ///

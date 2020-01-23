@@ -593,7 +593,11 @@ class Tensor {
   void CheckType(DataType expected_dtype) const;
   void CheckTypeAndIsAligned(DataType expected_dtype) const;
   void CheckIsAlignedAndSingleElement() const;
+
   void set_dtype(DataType t) { shape_.set_data_type(t); }
+  // 1.
+  // 评价:
+  // 还是蛮神奇的，居然把 Tensor 的 DataType 存在了 shape_ object 里面
 
   // TensorShape's InlineVector.
   static gtl::InlinedVector<int64, 4> ComputeFlatInnerDims(
@@ -668,6 +672,109 @@ class Tensor {
       gtl::ArraySlice<int64> new_sizes,
       Eigen::array<Eigen::DenseIndex, NDIMS>* dims) const;
 };
+// 1.
+// class Tensor 数据结构
+// tensorflow/core/framework/tensor.h
+// - shape_: TensorShape
+// - buf_: TensorBuffer*
+//   buf_ points to the raw ref-counted data buffer.
+
+// 1.1
+// 函数接口(可以用于 Debug 的)
+// - bool IsInitialized() const;
+// - size_t TotalBytes() const;
+// - int dims() const { return shape().dims(); }
+//
+// A human-readable summary of the tensor suitable for debugging.
+// `num_values` is the number of actual data values in the tensor
+// included in the message. If the tensor might be resident in
+// GPU/TPU memory use DeviceSafeDebugString instead.
+// - string DebugString(int num_values) const;
+// - string DebugString() const { return DebugString(3); }
+//
+// Variant of DebugString() that should be used for possibly non-CPU tensors.
+// If the tensor is not resident on CPU, we can't read its values as
+// DebugString() does.
+// - string DeviceSafeDebugString() const;
+
+// 1.2
+// Tensor 接口函数
+// - Tensor()
+// - Tensor(DataType type, const TensorShape& shape);
+// - Tensor(Allocator* a, DataType type, const TensorShape& shape);
+// - ... 等构造函数
+// - const TensorShape& shape() const { return shape_; }
+// - DataType dtype() const { return shape_.data_type(); }
+// - int dims() const { return shape().dims(); }
+// - int64 dim_size(int d) const { return shape().dim_size(d); }
+// - int64 NumElements() const { return shape().num_elements(); }
+// - bool IsSameSize(const Tensor& b)
+// - bool SharesBufferWith(const Tensor& b)
+// - bool IsInitialized()
+// - size_t TotalBytes()
+// - size_t AllocatedBytes()
+// - bool IsAligned()
+// - bool CopyFrom(const Tensor& other,
+//                 const TensorShape& shape)
+// - Tensor Slice(int64 dim0_start, int64 dim0_limit)
+// - Tensor SubSlice(int64 index)
+// - bool FromProto(const TensorProto& other)
+// - bool FromProto(Allocator* a, const TensorProto& other)
+// - void AsProtoField(TensorProto* proto)
+// - void AsProtoTensorContent(TensorProto* proto)
+// - ...
+// - string SummarizeValue(int64 max_entries, bool print_v2 = false)
+// - string DebugString(int num_values) const;
+// - string DebugString() const { return DebugString(3); }
+// - string DeviceSafeDebugString()
+// - ...
+
+// 2.
+// class TensorBuffer 数据结构
+// class TensorBuffer : public core::RefCounted
+// tensorflow/core/framework/tensor.h
+// - 简述
+// - Interface to access the raw ref-counted data buffer.
+//
+// - data_: void* const
+//   data_ points to a memory region of size() bytes.
+
+// 3.
+// class TensorShape 数据结构
+// tensorflow/core/framework/tensor_shape.h
+//
+// 简述
+// Represents the shape of a Tensor.
+//
+// A tensor's shape is denoted by its number of dimensions and a size for each
+// dimension.  For example, a Tensor represented by a 3 x 4 matrix would have
+// a shape of 2-D, [3,4].
+//
+// If you know the exact shape of your Tensor when you create the TensorShape
+// object, you can specify it then, or you can create a TensorShape with
+// zero dimensions and one element, and call AddDim() to add dimensions later.
+//
+// class TensorShape : public TensorShapeBase<TensorShape>
+// - 没有成员变量，只有成员函数
+
+// 4.
+// class TensorShapeBase 数据结构
+// tensorflow/core/framework/tensor_shape.h
+// class TensorShapeBase : public TensorShapeRep
+// - 没有成员变量，只有成员函数
+
+// 5.
+// class TensorShapeRep 数据结构
+// tensorflow/core/framework/tensor_shape.h
+// - num_elements_: int64
+// - u_: union
+//   * buf[16] : uint8
+//   * unused_aligner: Rep64*
+
+
+
+//////////////////////////////////////////////////////////////////
+
 
 // Implementation details
 
@@ -706,6 +813,32 @@ class TensorBuffer : public core::RefCounted {
  private:
   void* const data_;
 };
+// 1.
+// class TensorBuffer
+// tensorflow/core/framework/tensor.h
+// - 简述
+// - Interface to access the raw ref-counted data buffer.
+//
+// - class TensorBuffer : public core::RefCounted
+// - data_: void* const
+//   data_ points to a memory region of size() bytes.
+
+// 2.
+// class TensorBuffer 继承类
+// - class BufferBase : public TensorBuffer
+//   tensorflow/core/framework/tensor.cc
+// - class Tensor::HostScalarTensorBufferBase
+//   tensorflow/core/framework/tensor.cc
+
+// 3.
+// class BufferBase 继承类
+// - class Buffer : public BufferBase
+//   tensorflow/core/framework/tensor.cc
+
+
+
+//分割线//////////////////////////////////////////////////////////////////////
+
 
 template <typename T>
 T* Tensor::base() const {
@@ -912,6 +1045,22 @@ typename TTypes<T, NDIMS>::ConstTensor Tensor::flat_inner_outer_dims(
 
 inline Tensor::Tensor(const Tensor& other)
     : shape_(other.shape()), buf_(other.buf_) {
+  // 1.
+  // buf_ 变量说明:
+  // buf_: TensorBuffer*
+
+  // 2.
+  // class TensorBuffer 数据结构
+  // class TensorBuffer : public core::RefCounted
+  // tensorflow/core/framework/tensor.h
+  // - 简述
+  // - Interface to access the raw ref-counted data buffer.
+  //
+  // - data_: void* const
+  //   data_ points to a memory region of size() bytes.
+
+
+
   if (buf_) buf_->Ref();
 }
 

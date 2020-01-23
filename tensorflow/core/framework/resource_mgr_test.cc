@@ -29,6 +29,7 @@ namespace tensorflow {
 
 class Resource : public ResourceBase {
  public:
+  // 构造函数只需输入 一个 label: string
   explicit Resource(const string& label) : label_(label) {}
   ~Resource() override {}
 
@@ -37,6 +38,19 @@ class Resource : public ResourceBase {
  private:
   string label_;
 };
+// 1.
+// class Resource 数据结构
+// - label_: string
+
+// 2.
+// class ResourceBase 数据结构
+// tensorflow/core/framework/resource_mgr.h
+// class ResourceBase : public core::RefCounted
+// 只有两个接口
+// - DebugString()
+//   Returns a debug string for *this.
+// - MemoryUsed()
+//   Returns memory used by this resource.
 
 class Other : public ResourceBase {
  public:
@@ -49,26 +63,48 @@ class Other : public ResourceBase {
   string label_;
 };
 
+// 概述: 根据输入的 rm, container, name, 找到对应类型为 T 的 resource 的 DebugString()
 template <typename T>
-string Find(const ResourceMgr& rm, const string& container,
-            const string& name) {
+string Find(const ResourceMgr& rm,   // input
+            const string& container, // input
+            const string& name) {    // output
   T* r;
-  TF_CHECK_OK(rm.Lookup(container, name, &r));
+  TF_CHECK_OK(
+    rm.Lookup(container, // input
+              name, // input
+              &r)); // output
+
   const string ret = r->DebugString();
+
   r->Unref();
+
   return ret;
 }
 
+// 概述: 根据输入的 rm, container, name, 找到对应类型为 T 的 resource 的 DebugString()，
+//      如果找不到，就按照规定的构造函数去构造了返回给我。
 template <typename T>
-string LookupOrCreate(ResourceMgr* rm, const string& container,
-                      const string& name, const string& label) {
-  T* r;
-  TF_CHECK_OK(rm->LookupOrCreate<T>(container, name, &r, [&label](T** ret) {
-    *ret = new T(label);
-    return Status::OK();
-  }));
+string LookupOrCreate(ResourceMgr* rm,          // input
+                      const string& container,  // input
+                      const string& name,       // input
+                      const string& label) {    // output
+  T* r; // output
+
+  TF_CHECK_OK(
+    rm->LookupOrCreate<T>(
+      container, // input
+      name,      // input
+      &r,        // output
+      [&label](T** ret) { // input, tell it how to "create" if it cannot find.
+        *ret = new T(label);
+        return Status::OK();
+      }
+    )
+  );
+
   const string ret = r->DebugString();
   r->Unref();
+
   return ret;
 }
 
@@ -89,6 +125,48 @@ Status FindErr(const ResourceMgr& rm, const string& container,
 TEST(ResourceMgrTest, Basic) {
   ResourceMgr rm;
   TF_CHECK_OK(rm.Create("foo", "bar", new Resource("cat")));
+  // 1.
+  // ResourceMgr::Create 函数说明:
+  // Status ResourceMgr::Create(
+  //                       const string& container,
+  //                       const string& name,
+  //                       T* resource)
+  //
+
+  // 2.
+  // +------------------------------------------------------------------------------------+
+  // |                                   containers_                                      |
+  // |------------------------------------------------------------------------------------|
+  // |                                                                                    |
+  // |                   +-----------------------------------------------------------+    |
+  // | container +------>|Container                                                  |    |
+  // | (string)          |-----------------------------------------------------------|    |
+  // |                   |      +--------------------------------------------+       |    |
+  // |                   |      |(type.hash_code(), var_name) : ResourceBase*|       |    |
+  // |                   |      |   (unit64)        (string)                 |       |    |
+  // |                   |      +--------------------------------------------+       |    |
+  // |                   |                                                           |    |
+  // |                   |      +--------------------------------------------+       |    |
+  // |                   |      |(type.hash_code(), var_name) : ResourceBase*|       |    |
+  // |                   |      |   (unit64)        (string)                 |       |    |
+  // |                   |      +--------------------------------------------+       |    |
+  // |                   |                                                           |    |
+  // |                   |      +--------------------------------------------+       |    |
+  // |                   |      |(type.hash_code(), var_name) : ResourceBase*|       |    |
+  // |                   |      |   (unit64)        (string)                 |       |    |
+  // |                   |      +--------------------------------------------+       |    |
+  // |                   |                                                           |    |
+  // |                   +-----------------------------------------------------------+    |
+  // |                                                                                    |
+  // |                   +-----------------------------------------------------------+    |
+  // | container +------>|Container                                                  |    |
+  // | (string)          |-----------------------------------------------------------|    |
+  // |                   |                                                           |    |
+  // |                   |                                                           |    |
+  // |                   |                                                           |    |
+  // |                   |                                                           |    |
+
+
   TF_CHECK_OK(rm.Create("foo", "baz", new Resource("dog")));
   TF_CHECK_OK(rm.Create("foo", "bar", new Other("tiger")));
 

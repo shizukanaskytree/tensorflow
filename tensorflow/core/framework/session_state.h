@@ -57,6 +57,7 @@ class SessionState {
 // current run call. It is available to every op kernel.
 class TensorStore {
  public:
+
   struct TensorAndKey {
     Tensor tensor;
     int64 id;
@@ -87,6 +88,22 @@ class TensorStore {
   // A map from tensor string name to tensor.
   std::unordered_map<string, TensorAndKey> tensors_ GUARDED_BY(lock_);
 };
+// 1.
+// class TensorStore
+// core/framework/session_state.h:58
+//
+// 概述:
+// The tensor store remembers the tensors we choose to keep for the
+// current run call. It is available to every op kernel.
+//
+// * struct TensorAndKey
+//   - tensor: Tensor
+//   - id: int64
+//   - device_name: string
+// - lock_: mutex
+// - tensors_: std::unordered_map<string, TensorAndKey>
+//   The tensors that will be saved to session state when this run completes.
+//   A map from tensor string name to tensor.
 
 }  // namespace tensorflow
 

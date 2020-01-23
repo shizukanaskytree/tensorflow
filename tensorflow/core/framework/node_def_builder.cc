@@ -270,6 +270,13 @@ NodeDefBuilder& NodeDefBuilder::Attr(StringPiece name, const AttrValue& value) {
   return *this;
 }
 
+// 被调用的例子: AddSend(), SetSendRecvAttrs()
+// AttrValue 数据结构
+// tensorflow/core/framework/attr_value.proto
+
+// SetAttrValue
+// core/framework/attr_value_util.cc
+
 #define ATTR(T)                                                     \
   NodeDefBuilder& NodeDefBuilder::Attr(StringPiece name, T value) { \
     AttrValue attr_value;                                           \

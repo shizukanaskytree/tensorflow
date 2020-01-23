@@ -1,3 +1,7 @@
+/** \details Example usage:
+ *  It is used in message OpDef.attr in core/framework/op_def.proto
+ *
+ */
 syntax = "proto3";
 
 package tensorflow;
@@ -10,12 +14,31 @@ import "tensorflow/core/framework/tensor.proto";
 import "tensorflow/core/framework/tensor_shape.proto";
 import "tensorflow/core/framework/types.proto";
 
+// 举例来说
+// 被调用的例子: AddSend(), SetSendRecvAttrs()
+/*
+graph/graph_partition.cc --> tensorflow/core/framework/node_def_builder.cc
+
+void SetSendRecvAttrs(const PartitionOptions& opts, const Edge* edge,
+                      NodeDefBuilder* builder) {
+  builder->Attr("tensor_name",
+                strings::StrCat("edge_", edge->id(), "_", edge->src()->name()));
+  builder->Attr("send_device", edge->src()->assigned_device_name());
+  builder->Attr("send_device_incarnation",
+                static_cast<int64>(
+                    opts.get_incarnation(edge->src()->assigned_device_name())));
+  builder->Attr("recv_device", edge->dst()->assigned_device_name());
+  builder->Attr("client_terminated", false);
+}
+*/
+
 // Protocol buffer representing the value for an attr used to configure an Op.
 // Comment indicates the corresponding attr type.  Only the field matching the
 // attr type may be filled.
 message AttrValue {
   // LINT.IfChange
   message ListValue {
+    /// repeated is an alias of list
     repeated bytes s = 2;                        // "list(string)"
     repeated int64 i = 3 [packed = true];        // "list(int)"
     repeated float f = 4 [packed = true];        // "list(float)"
@@ -27,6 +50,11 @@ message AttrValue {
   }
   // LINT.ThenChange(https://www.tensorflow.org/code/tensorflow/c/c_api.cc)
 
+  /// Oneof fields are like optional fields except all the fields in a oneof
+  /// share memory, and at most one field can be set at the same time. Setting
+  /// any member of the oneof automatically clears all the other members.
+  /// You can check which value in a oneof is set (if any) using a special
+  /// case() or WhichOneof() method, depending on your chosen language.
   oneof value {
     bytes s = 2;                 // "string"
     int64 i = 3;                 // "int"

@@ -50,11 +50,21 @@ bool GpuStream::IsIdle() const {
 GpuStream* AsGpuStream(Stream* stream) {
   DCHECK(stream != nullptr);
   return static_cast<GpuStream*>(stream->implementation());
+  // 1.
+  // implementation 函数说明
+  // tensorflow/stream_executor/stream.h
+  // Within class Stream
+  // Returns the (opaque) platform-specific backing object. Ownership is not
+  // transferred to the caller.
+  // internal::StreamInterface *implementation() { return implementation_.get(); }
+  // LINE: 1920
 }
 
 GpuStreamHandle AsGpuStreamValue(Stream* stream) {
   DCHECK(stream != nullptr);
   return AsGpuStream(stream)->gpu_stream();
+  // AsGpuStream 函数说明
+  // 这个文件上面的那个 GpuStream* AsGpuStream(Stream* stream) 函数
 }
 
 }  // namespace gpu

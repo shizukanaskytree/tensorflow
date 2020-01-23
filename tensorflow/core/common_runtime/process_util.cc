@@ -43,6 +43,9 @@ int32 DefaultNumInterOpThreads() {
 
   // Default to using the number of cores available in the process.
   return port::NumSchedulableCPUs();
+  // 1.
+  // NumSchedulableCPUs 函数说明:
+  // core/platform/posix/port.cc
 }
 
 static thread::ThreadPool* InitComputePool(const SessionOptions& options) {

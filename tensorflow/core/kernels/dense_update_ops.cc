@@ -23,7 +23,7 @@ limitations under the License.
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/register_types.h"
 #include "tensorflow/core/kernels/assign_op.h"
-#include "tensorflow/core/kernels/dense_update_functor.h"
+#include "tensorflow/core/kernels/dense_update_functor.h" // 看这个
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/platform/mutex.h"
 #include "tensorflow/core/platform/types.h"

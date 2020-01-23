@@ -120,7 +120,9 @@ class ThreadPool {
   // thread in the pool. Returns -1 otherwise.
   int CurrentThreadId() const;
 
+  // -----------------------------------------------------------------------
   struct Impl;
+  // -----------------------------------------------------------------------
 
  private:
   std::unique_ptr<Impl> impl_;

@@ -27,8 +27,11 @@ namespace tensorflow {
 
 DeviceMgr::DeviceMgr(std::vector<std::unique_ptr<Device>> devices)
     : devices_(std::move(devices)), name_backing_store_(128) {
+
   for (auto& d : devices_) {
+
     CHECK(d->device_mgr_ == nullptr);
+
     d->device_mgr_ = this;
 
     // Register under the (1) full name and (2) canonical name.
@@ -109,6 +112,11 @@ Status DeviceMgr::LookupDevice(StringPiece name, Device** device) const {
   return Status::OK();
 }
 
+/** \brief
+ *
+ *  \param containers: gtl::ArraySlice<string>
+ *
+ */
 void DeviceMgr::ClearContainers(gtl::ArraySlice<string> containers) const {
   Status s;
   for (const auto& dev : devices_) {

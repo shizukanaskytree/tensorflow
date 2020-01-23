@@ -73,6 +73,7 @@ class BufferBase : public TensorBuffer {
       : TensorBuffer(data_ptr), alloc_(alloc) {}
 
   TensorBuffer* root_buffer() override { return this; }
+
   void FillAllocationDescription(AllocationDescription* proto) const override {
     void* data_ptr = data();
     int64 rb = size();
@@ -100,6 +101,33 @@ class BufferBase : public TensorBuffer {
 
   Allocator* const alloc_;
 };
+// 1.
+// class BufferBase 数据结构
+// - alloc_: Allocator* const
+
+// 扩展:
+// 1.
+// class TensorBuffer
+// tensorflow/core/framework/tensor.h
+// - 简述
+// - Interface to access the raw ref-counted data buffer.
+//
+// - class TensorBuffer : public core::RefCounted
+// - data_: void* const
+//   data_ points to a memory region of size() bytes.
+
+// 2.
+// class TensorBuffer 继承类
+// - class BufferBase : public TensorBuffer
+//   tensorflow/core/framework/tensor.cc
+// - class Tensor::HostScalarTensorBufferBase
+//   tensorflow/core/framework/tensor.cc
+
+// 3.
+// class BufferBase 继承类
+// - class Buffer : public BufferBase
+//   tensorflow/core/framework/tensor.cc
+
 
 // Typed ref-counted buffer: T[n].
 template <typename T>
@@ -118,6 +146,39 @@ class Buffer : public BufferBase {
 
   TF_DISALLOW_COPY_AND_ASSIGN(Buffer);
 };
+// 1.
+// class Buffer 数据结构
+// class Buffer : public BufferBase
+// tensorflow/core/framework/tensor.cc
+// - data_: T*;
+// - elem_: int64
+// 构造函数:
+// - Buffer(Allocator* a, int64 n)
+// - Buffer(Allocator* a, int64 n, const AllocationAttributes& allocation_attr);
+
+// 扩展:
+// 1.
+// class TensorBuffer
+// tensorflow/core/framework/tensor.h
+// - 简述
+// - Interface to access the raw ref-counted data buffer.
+//
+// - class TensorBuffer : public core::RefCounted
+// - data_: void* const
+//   data_ points to a memory region of size() bytes.
+
+// 2.
+// class TensorBuffer 继承类
+// - class BufferBase : public TensorBuffer
+//   tensorflow/core/framework/tensor.cc
+// - class Tensor::HostScalarTensorBufferBase
+//   tensorflow/core/framework/tensor.cc
+
+// 3.
+// class BufferBase 继承类
+// - class Buffer : public BufferBase
+//   tensorflow/core/framework/tensor.cc
+
 
 void LogUnexpectedSize(int64 actual, int64 expected) {
   LOG(ERROR) << "Input size was " << actual << " and expected " << expected;
@@ -615,6 +676,11 @@ Tensor::Tensor(DataType type, const TensorShape& shape, TensorBuffer* buf)
 bool Tensor::IsInitialized() const {
   return (buf_ != nullptr && buf_->data() != nullptr) ||
          shape_.num_elements() == 0;
+  // 1.
+  // shape_.num_elements() 函数说明:
+  // tensorflow/core/framework/tensor_shape.h
+  // - void set_num_elements(int64 n) { num_elements_ = n; }
+  // - num_elements_: int64
 }
 
 void Tensor::CheckType(DataType expected_dtype) const {
@@ -636,6 +702,12 @@ void Tensor::CheckIsAlignedAndSingleElement() const {
 }
 
 Tensor::~Tensor() { UnrefIfNonNull(buf_); }
+// 1.
+// UnrefIfNonNull 函数说明:
+// static void UnrefIfNonNull(::tensorflow::TensorBuffer* buf)
+// tensorflow/c/c_api.cc
+//
+
 
 void Tensor::CopyFromInternal(const Tensor& other, const TensorShape& shape) {
   CHECK_EQ(shape.num_elements(), other.NumElements());
@@ -730,17 +802,147 @@ bool Tensor::RefCountIsOne() const {
   CASES_WITH_DEFAULT(TYPE_ENUM, STMTS, LOG(FATAL) << "Type not set"; \
                      , LOG(FATAL) << "Unexpected type: " << TYPE_ENUM;)
 
-Tensor::Tensor(Allocator* a, DataType type, const TensorShape& shape)
+
+Tensor::Tensor(Allocator* a,
+               DataType type,
+               const TensorShape& shape)
     : shape_(shape), buf_(nullptr) {
+
   set_dtype(type);
+
   CHECK_NOTNULL(a);
+
   if (shape_.num_elements() > 0 || a->ShouldAllocateEmptyTensors()) {
     CASES(type, buf_ = new Buffer<T>(a, shape.num_elements()));
+    // 1.
+    // class Buffer 数据结构
+    // class Buffer : public BufferBase
+    // tensorflow/core/framework/tensor.cc
+    // - data_: T*;
+    // - elem_: int64
+    // 构造函数:
+    // - Buffer(Allocator* a, int64 n)
+    // - Buffer(Allocator* a, int64 n, const AllocationAttributes& allocation_attr);
+
+
   }
+
   if (buf_ != nullptr && buf_->data() != nullptr && LogMemory::IsEnabled()) {
+    // 1.
+    // buf_ 变量说明:
+    // class Tensor::buf_ : TensorBuffer*
+    // 说明:
+    // buf_ points to the raw ref-counted data buffer.
+
+    // 2.
+    // buf_->data() 变量说明:
+    // class TensorBuffer::data_: void* const
+    // 说明:
+    // data_ points to a memory region of size() bytes.
+
+    // 3. 大合集
+    // 1.
+    // class Tensor 数据结构
+    // tensorflow/core/framework/tensor.h
+    // - shape_: TensorShape
+    // - buf_: TensorBuffer*
+
+    // 1.1
+    // 函数接口(可以用于 Debug 的)
+    // - bool IsInitialized() const;
+    // - size_t TotalBytes() const;
+    // - int dims() const { return shape().dims(); }
+    //
+    // A human-readable summary of the tensor suitable for debugging.
+    // `num_values` is the number of actual data values in the tensor
+    // included in the message. If the tensor might be resident in
+    // GPU/TPU memory use DeviceSafeDebugString instead.
+    // - string DebugString(int num_values) const;
+    // - string DebugString() const { return DebugString(3); }
+    //
+    // Variant of DebugString() that should be used for possibly non-CPU tensors.
+    // If the tensor is not resident on CPU, we can't read its values as
+    // DebugString() does.
+    // - string DeviceSafeDebugString() const;
+
+    // 1.2
+    // Tensor 接口函数
+    // - Tensor()
+    // - Tensor(DataType type, const TensorShape& shape);
+    // - Tensor(Allocator* a, DataType type, const TensorShape& shape);
+    // - ... 等构造函数
+    // - const TensorShape& shape() const { return shape_; }
+    // - DataType dtype() const { return shape_.data_type(); }
+    // - int dims() const { return shape().dims(); }
+    // - int64 dim_size(int d) const { return shape().dim_size(d); }
+    // - int64 NumElements() const { return shape().num_elements(); }
+    // - bool IsSameSize(const Tensor& b)
+    // - bool SharesBufferWith(const Tensor& b)
+    // - bool IsInitialized()
+    // - size_t TotalBytes()
+    // - size_t AllocatedBytes()
+    // - bool IsAligned()
+    // - bool CopyFrom(const Tensor& other,
+    //                 const TensorShape& shape)
+    // - Tensor Slice(int64 dim0_start, int64 dim0_limit)
+    // - Tensor SubSlice(int64 index)
+    // - bool FromProto(const TensorProto& other)
+    // - bool FromProto(Allocator* a, const TensorProto& other)
+    // - void AsProtoField(TensorProto* proto)
+    // - void AsProtoTensorContent(TensorProto* proto)
+    // - ...
+    // - string SummarizeValue(int64 max_entries, bool print_v2 = false)
+    // - string DebugString(int num_values) const;
+    // - string DebugString() const { return DebugString(3); }
+    // - string DeviceSafeDebugString()
+    // - ...
+
+    // 2.
+    // class TensorBuffer 数据结构
+    // class TensorBuffer : public core::RefCounted
+    // tensorflow/core/framework/tensor.h
+    // - 简述
+    // - Interface to access the raw ref-counted data buffer.
+    //
+    // - data_: void* const
+    //   data_ points to a memory region of size() bytes.
+
+    // 3.
+    // class TensorShape 数据结构
+    // tensorflow/core/framework/tensor_shape.h
+    //
+    // 简述
+    // Represents the shape of a Tensor.
+    //
+    // A tensor's shape is denoted by its number of dimensions and a size for each
+    // dimension.  For example, a Tensor represented by a 3 x 4 matrix would have
+    // a shape of 2-D, [3,4].
+    //
+    // If you know the exact shape of your Tensor when you create the TensorShape
+    // object, you can specify it then, or you can create a TensorShape with
+    // zero dimensions and one element, and call AddDim() to add dimensions later.
+    //
+    // class TensorShape : public TensorShapeBase<TensorShape>
+    // - 没有成员变量，只有成员函数
+
+    // 4.
+    // class TensorShapeBase 数据结构
+    // tensorflow/core/framework/tensor_shape.h
+    // class TensorShapeBase : public TensorShapeRep
+    // - 没有成员变量，只有成员函数
+
+    // 5.
+    // class TensorShapeRep 数据结构
+    // tensorflow/core/framework/tensor_shape.h
+    // - num_elements_: int64
+    // - u_: union
+    //   * buf[16] : uint8
+    //   * unused_aligner: Rep64*
+
     LogMemory::RecordTensorAllocation("Unknown", LogMemory::UNKNOWN_STEP_ID,
                                       *this);
   }
+
 }
 
 Tensor::Tensor(Allocator* a, DataType type, const TensorShape& shape,

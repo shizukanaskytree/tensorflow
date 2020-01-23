@@ -40,14 +40,21 @@ Status Tracer::Stop() {
   return device_tracer_->Stop();
 }
 
+////////////////////////////////////////////////////////////////////////
+// 收集数据
+////////////////////////////////////////////////////////////////////////
 Status Tracer::CollectData(RunMetadata* run_metadata) {
+////////////////////////////////////////////////////////////////////////
   if (!device_tracer_) {
     return Status(tensorflow::error::Code::FAILED_PRECONDITION,
                   "No running device tracer.");
   }
   auto step_stats_collector =
       absl::make_unique<StepStatsCollector>(run_metadata->mutable_step_stats());
+
+  // CudaEventCollector::Collect
   Status s = device_tracer_->Collect(step_stats_collector.get());
+
   step_stats_collector->Finalize();
   return s;
 }

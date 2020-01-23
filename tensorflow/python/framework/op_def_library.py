@@ -678,6 +678,8 @@ class OpDefLibrary(object):
           raise TypeError("No argument for attr " + attr.name)
 
       # Convert attr values to AttrValue protos.
+      """attr_protos 是集合了所有的 op_def 内的 attr 传给下面的函数创建 op
+      """
       attr_protos = {}
       for attr_def in op_def.attr:
         key = attr_def.name

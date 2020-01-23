@@ -24,6 +24,12 @@ namespace tensorflow {
 
 class Master;
 
+/** \class LocalMaster
+ *
+ *  \brief As a contrast to Remote Master, Remote Master is in a process, client
+ *         is in another process. LocalMaster enables direct intraprocess
+ *         communication between the client and master implementation.
+ */
 // An implementation of the TensorFlow master interface that enables direct
 // intraprocess communication between the client and the master implementation.
 //

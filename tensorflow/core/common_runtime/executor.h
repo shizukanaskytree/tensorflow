@@ -52,6 +52,11 @@ class Executor {
   // graph computation completes. If any error happens during the
   // computation, "done" is run and the error is passed to "done".
   //
+  ///
+  /// struct Args 有很多，我需要都把他们搞到清楚
+  ///   GraphMgr::StartParallelExecutors, graph_mgr.cc 里面赋值了 Args
+  ///   我想到，那些赋值的变量可以向上追溯，一路追啊追的，就能看到他们的本质了。
+  ///
   // RunAsync() is given a few arguments in Args. The caller must
   // ensure objects passed in Args (rendezvous, stats_collector, etc.)
   // are alive at least until done is invoked. All pointers to the
@@ -88,6 +93,7 @@ class Executor {
     CallFrameInterface* call_frame = nullptr;
     CancellationManager* cancellation_manager = nullptr;
     SessionState* session_state = nullptr;
+
     // Unique session identifier. Can be empty.
     string session_handle;
     TensorStore* tensor_store = nullptr;
@@ -101,13 +107,18 @@ class Executor {
     typedef std::function<void(Closure)> Runner;
     Runner runner = nullptr;
   };
+
   typedef std::function<void(const Status&)> DoneCallback;
+
+  /// 由于这里是接口定义，必然是被 ExecutorImpl::RunAsync override
+  /// 必然是去调用 ExecutorImpl::RunAsync 的定义
   virtual void RunAsync(const Args& args, DoneCallback done) = 0;
 
   // Synchronous wrapper for RunAsync().
   Status Run(const Args& args) {
     Status ret;
     Notification n;
+    /// 必然是去调用 ExecutorImpl::RunAsync 的定义
     RunAsync(args, [&ret, &n](const Status& s) {
       ret = s;
       n.Notify();
@@ -115,13 +126,12 @@ class Executor {
     n.WaitForNotification();
     return ret;
   }
+
 };
 
 // Creates an Executor that computes the given "graph".
-//
 // If successful, returns the constructed executor in "*executor". Otherwise,
 // returns an error status.
-//
 // "params" provides a set of context for the executor. We expect that
 // different context would provide different implementations.
 struct LocalExecutorParams {
@@ -136,6 +146,7 @@ struct LocalExecutorParams {
   std::function<Status(const NodeDef&, OpKernel**)> create_kernel;
   std::function<void(OpKernel*)> delete_kernel;
 };
+
 ::tensorflow::Status NewLocalExecutor(const LocalExecutorParams& params,
                                       std::unique_ptr<const Graph> graph,
                                       Executor** executor);
@@ -193,6 +204,7 @@ class ExecutorBarrier {
 
       status_group_.Update(s);
 
+      // =======================================================================
       // If this is the last call to WhenDone, call the final callback
       // below.
       if (--pending_ == 0) {
@@ -200,6 +212,20 @@ class ExecutorBarrier {
         std::swap(done, done_cb_);
         status = status_group_.as_status();
       }
+      // =======================================================================
+      // 1.
+      // pending_ 变量说明
+      // 如果有 2 个 executors, 则 pending_ 为 2, 所以我苦苦未能找到的答案，为什么不能 call 这个
+      // done_cb_ 也就是 tensorflow/core/common_runtime/direct_session.cc 里面的原因就在这里。
+      // [&run_state](const Status& ret) {
+      //   {
+      //     mutex_lock l(run_state.mu_);
+      //     run_state.status.Update(ret);
+      //   }
+      //   run_state.executors_done.Notify(); // 核心 notify 去唤醒 sleep 的 main 函数
+      // }
+      //
+
     }
 
     if (error_rendez != nullptr) {
@@ -213,9 +239,38 @@ class ExecutorBarrier {
       done(status);
     }
   }
+  // 1.
+  // ExecutorBarrier::WhenDone 函数说明:
+  // tensorflow/core/common_runtime/executor.h
+  // 概述:
+  // 更新 Status, 然后如果 !s.ok() 就 StartAbort 否则 就 执行 callback done 函数
+
+
 
   TF_DISALLOW_COPY_AND_ASSIGN(ExecutorBarrier);
 };
+// 1.
+// class ExecutorBarrier 数据结构
+// tensorflow/core/common_runtime/executor.h
+//
+// 概述:
+// A class to help run multiple executors in parallel and wait until
+// all of them are complete.
+//
+// ExecutorBarrier deletes itself after the function returned by Get()
+// is called.
+//
+// - rendez_: Rendezvous* , default value : nullptr
+// - done_cb_: StatusCallback, default value : nullptr
+// - mu_: mutable mutex
+// - pending_: int
+// - status_group_: StatusGroup
+//
+// 重要接口:
+// - WhenDone(const Status& s)
+// - StatusCallback Get()
+
+
 
 // A few helpers to facilitate create/delete kernels.
 

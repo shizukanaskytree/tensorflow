@@ -45,6 +45,7 @@ namespace tensorflow {
 // Tensor as soon as it is available.  A producer never blocks.
 class Rendezvous : public core::RefCounted {
  public:
+
   struct Args {
     DeviceContext* device_context = nullptr;
     AllocatorAttributes alloc_attrs;
@@ -79,6 +80,7 @@ class Rendezvous : public core::RefCounted {
     friend class RecvOp;
     string buf_;
   };
+
   static Status ParseKey(StringPiece key, ParsedKey* out);
 
   // The caller is a tensor producer and it sends a message (a tensor
@@ -101,9 +103,17 @@ class Rendezvous : public core::RefCounted {
   // two Rendezvous::Args, one provided by the sender, the other by the
   // receiver, which may be needed when a non-CPU device is in use
   // by either side.
-  typedef std::function<void(const Status&, const Args&, const Args&,
-                             const Tensor&, const bool)>
-      DoneCallback;
+  typedef std::function<void(
+                          const Status&,
+                          const Args&, // provided by the sender
+                          const Args&, // provided by receiver
+                          const Tensor&,
+                          const bool)>
+          DoneCallback;
+  // DoneCallback 数据结构的使用是在:
+  // tensorflow/core/kernels/sendrecv_ops.cc
+  // make_recv_callback 函数的返回值
+
 
   virtual void RecvAsync(const ParsedKey& key, const Args& args,
                          DoneCallback done) = 0;

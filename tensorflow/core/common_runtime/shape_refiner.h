@@ -300,6 +300,31 @@ class ShapeRefiner {
 
   TF_DISALLOW_COPY_AND_ASSIGN(ShapeRefiner);
 };
+// 1.
+// class ShapeRefiner 数据结构
+// tensorflow/core/common_runtime/shape_refiner.h
+//
+// 概述:
+// ShapeRefiner performs shape inference for TensorFlow Graphs.  It is
+// responsible for instantiating InferenceContext objects for each
+// Node in the Graph, and providing/storing the 'input_tensor' Tensors
+// used by Shape Inference functions, when available at graph
+// construction time.
+//
+// - graph_def_version_: int32
+// - ops_registry_: const OpRegistryInterface* const
+// - graph_runner_: GraphRunner
+// - node_to_context_: std::unordered_map<const Node*, std::unique_ptr<ExtendedInferenceContext>>
+// - const_tensor_map_: std::unordered_map<string, Tensor>
+// - require_shape_inference_fns_: bool
+// - disable_constant_propagation_: bool
+// - function_library_: const tensorflow::FunctionLibraryDefinition*
+// - keep_nested_shape_inferences_: bool
+// - functions_: std::unordered_map<const FunctionDef*, std::unique_ptr<const Graph>>
+
+// 2.
+// GraphRunner 数据结构
+// 
 
 }  // namespace tensorflow
 

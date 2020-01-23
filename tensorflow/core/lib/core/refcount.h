@@ -24,6 +24,11 @@ limitations under the License.
 namespace tensorflow {
 namespace core {
 
+/** \class RefCounted
+ *
+ *  \brief Reference counting is used to collect memory as soon as they can no
+ *         longer be referenced. In a memory limited system, it is advantagous.
+ */
 class RefCounted {
  public:
   // Initial reference count is one.
@@ -59,6 +64,9 @@ class RefCounted {
   RefCounted(const RefCounted&) = delete;
   void operator=(const RefCounted&) = delete;
 };
+// class RefCounted 数据结构
+// - ref_: mutable std::atomic_int_fast32_t
+// -
 
 // A deleter class to form a std::unique_ptr that unrefs objects.
 struct RefCountDeleter {
@@ -73,6 +81,8 @@ using RefCountPtr = std::unique_ptr<T, RefCountDeleter>;
 class ScopedUnref {
  public:
   explicit ScopedUnref(RefCounted* o) : obj_(o) {}
+
+  // 核心函数，out of scope 后自动 Unref()
   ~ScopedUnref() {
     if (obj_) obj_->Unref();
   }
@@ -83,17 +93,28 @@ class ScopedUnref {
   ScopedUnref(const ScopedUnref&) = delete;
   void operator=(const ScopedUnref&) = delete;
 };
+// class ScopedUnref
+// tensorflow/core/lib/core/refcount.h
+// 核心功能：
+// out of scope 后 输入构造函数的 variable: o 自动 Unref()
+
 
 // Inlined routines, since these are performance critical
 inline RefCounted::RefCounted() : ref_(1) {}
 
 inline RefCounted::~RefCounted() { DCHECK_EQ(ref_.load(), 0); }
 
+
+// 增加引用数。
 inline void RefCounted::Ref() const {
   DCHECK_GE(ref_.load(), 1);
   ref_.fetch_add(1, std::memory_order_relaxed);
 }
 
+// Decrements reference count by one.  If the count remains
+// positive, returns false.  When the count reaches zero, returns
+// true and deletes this, in which case the caller must not access
+// the object afterward.
 inline bool RefCounted::Unref() const {
   DCHECK_GT(ref_.load(), 0);
   // If ref_==1, this object is owned only by the caller. Bypass a locked op

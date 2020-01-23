@@ -31,6 +31,14 @@ limitations under the License.
 
 namespace tensorflow {
 
+/** \class RPCState
+ *
+ *  \param Response: typename, class;
+ *         For example, TensorResponse.
+ *
+ *  \brief Start a grpc request and get response from server.
+ *
+ */
 // Object allocated per active RPC.
 // Manage the state of a single asynchronous RPC request.  If `max_retries`
 // is greater than 0, the request will be retried for any transient failures
@@ -38,6 +46,43 @@ namespace tensorflow {
 template <class Response>
 class RPCState : public GrpcClientCQTag {
  public:
+
+  /** \brief RPCState Constructor, indirectly start a grpc call from the client
+   *         side with request message and get the response message from the
+   *         server side.
+   *
+   *  \param stub: ::grpc::GenericStub* ;
+   *         Generic stubs provide a type-unsafe interface to call gRPC methods
+   *         by name.
+   *
+   *  \param cq: ::grpc::CompletionQueue* ;
+   *         A thin wrapper around grpc_completion_queue.
+   *         Completion Queues enable notification of the completion of
+   *         asynchronous actions.
+   *
+   *  \param method: const ::grpc::string& ;
+   *         type alias of std::string.
+   *
+   *  \param request: const protobuf::Message& ;
+   *         class of protocol message.
+   *         For example, message GetStatusRequest.
+   *
+   *  \param response: Response*
+   *         Response: typename, class; For example, TensorResponse.
+   *
+   *  \param done: StatusCallback ;
+   *         A lambda function.
+   *
+   *  \param call_opts: CallOptions* ;
+   *         Options passed to grpc interface calls in call_options.h
+   *
+   *  \param threadpool: thread::ThreadPool* ;
+   *         a pool of CPU threads.
+   *
+   *  \param max_retries: int32, default is 0;
+   *         max of retries of grpc. the request will be retried for any
+   *         transient failures as long as the overall deadline has not elapsed.
+   */
   // Default behavior is to set fail_fast = False and handle timeouts manually.
   RPCState(::grpc::GenericStub* stub, ::grpc::CompletionQueue* cq,
            const ::grpc::string& method, const protobuf::Message& request,
@@ -75,7 +120,17 @@ class RPCState : public GrpcClientCQTag {
     StartCall();
   }
 
+  /** \brief The client starts a grpc call with request message and get response
+   *         message from server.
+   */
   void StartCall() {
+    /// A ::grpc::ClientContext allows the person implementing a service client
+    /// to:
+    /// - Add custom metadata key-value pairs that will propagated to the server
+    ///   side.
+    /// - Control call settings such as compression and authentication.
+    /// - Initial and trailing metadata coming from the server.
+    /// - Get performance metrics (ie, census).
     context_.reset(new ::grpc::ClientContext());
     context_->set_fail_fast(fail_fast_);
 
@@ -83,6 +138,8 @@ class RPCState : public GrpcClientCQTag {
       context_->set_deadline(
           gpr_time_from_millis(timeout_in_ms_, GPR_TIMESPAN));
     }
+    /// CallOptions* call_opts_;
+    /// Options passed to grpc interface calls in call_options.h
     if (call_opts_) {
       call_opts_->SetCancelCallback([this]() { context_->TryCancel(); });
     }
@@ -90,8 +147,41 @@ class RPCState : public GrpcClientCQTag {
     VLOG(2) << "Starting call: " << method_;
 
     call_ = std::move(
+        /// stub_: ::grpc::GenericStub* ;
+        ///
+        /// \fn ::grpc::GenericStub::PrepareUnaryCall
+        /// \brief Setup a unary call to a named method method using context,
+        ///        and don't start it.
+        ///
+        /// params:
+        /// - context_.get(): grpc::ClientContext * context;
+        /// - method_: const grpc::string & method;
+        /// - request_buf_: const grpc::ByteBuffer & request;
+        /// - cq_: grpc::CompletionQueue * cq;
+        /// Return std::unique_ptr<::grpc::GenericClientAsyncResponseReader>
+        ///        GenericClientAsyncResponseReader is an alias of
+        ///          ClientAsyncResponseReader< ByteBuffer >
         stub_->PrepareUnaryCall(context_.get(), method_, request_buf_, cq_));
+
+    /// start the grpc call.
     call_->StartCall();
+
+    /// Request to receive the server's response msg and final status for the
+    /// call, and to notify tag on this call's completion queue when finished.
+    ///
+    /// This function will return when either:
+    ///
+    /// when the server's response message and status have been received.
+    /// when the server has returned a non-OK status (no message expected in this case).
+    /// when the call failed for some reason and the library generated a non-OK status.
+    ///
+    /// template<class R>
+    /// Finish(R* msg, Status* status, void* tag)
+    ///
+    /// Parameters
+    /// [in]	this: tag	Tag identifying this request.
+    /// [out]	status_: status	To be updated with the operation status.
+    /// [out]	response_buf_: msg	To be filled in with the server's response message.
     call_->Finish(&response_buf_, &status_, this);
   }
 

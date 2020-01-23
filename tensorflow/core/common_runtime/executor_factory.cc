@@ -37,6 +37,17 @@ ExecutorFactories* executor_factories() {
 
 }  // namespace
 
+// ExecutorFactory::Register 被调用:
+
+// 1.
+// tensorflow/core/common_runtime/executor.cc
+// class DefaultExecutorRegistrar 内的   DefaultExecutorRegistrar()
+
+// 2.
+// tensorflow/core/kernels/data/single_threaded_executor.cc
+// SingleThreadedExecutorRegistrar() {
+// ExecutorFactory::Register("SINGLE_THREADED_EXECUTOR", new Factory());
+
 void ExecutorFactory::Register(const string& executor_type,
                                ExecutorFactory* factory) {
   mutex_lock l(executor_factory_lock);

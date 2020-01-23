@@ -295,25 +295,73 @@ class BaseGPUDevice::StreamGroupFactory {
   TF_DISALLOW_COPY_AND_ASSIGN(StreamGroupFactory);
 };
 
-BaseGPUDevice::BaseGPUDevice(const SessionOptions& options, const string& name,
-                             Bytes memory_limit, const DeviceLocality& locality,
-                             TfGpuId tf_gpu_id,
-                             const string& physical_device_desc,
-                             Allocator* gpu_allocator, Allocator* cpu_allocator,
-                             bool sync_every_op, int32 max_streams)
-    : LocalDevice(options, Device::BuildDeviceAttributes(name, DEVICE_GPU,
-                                                         memory_limit, locality,
-                                                         physical_device_desc)),
+
+/** \brief Construct a GPU device
+ *
+ *  \details According to the definition of class BaseGPUDevice in gpu_device.h
+ *           1. class member variables are firstly initialized;
+ *           2. constructor of BaseGPUDevice is executed.
+ *
+ *  \param options SessionOptions has a pointer to Env, target string from
+ *                 client perspective, and ConfigProto options for GPU, CPU,
+ *                 OS setting.
+ *
+ *  \param name
+ *         Example of device_name string are "/device:GPU:0", "/device:GPU:1".
+ *
+ *  \param memory_limit Memory limit of GPU.
+ *
+ *  \param locality
+ *         message DeviceLocality contains bus_id, numa_node, links.
+ *
+ *  \param tf_gpu_id TF logical GPU id.
+ *
+ *  \param physical_device_desc
+ *         Example of physical_device_desc is
+ *         "device: 0, name: ..., pci bus id: ... , compute capability: 6.1"
+ *
+ *  \param gpu_allocator
+ *         An abstract interface for allocating and deallocating byte memory
+ *
+ *  \param cpu_allocator
+ *         An abstract interface for allocating and deallocating byte memory
+ *
+ *  \param sync_every_op Default is false
+ *
+ *  \param max_streams Default value is 1
+ *
+ *  \return a unique pointer to BaseGPUDevice
+ */
+BaseGPUDevice::BaseGPUDevice(
+  const SessionOptions& options,
+  const string& name,
+  Bytes memory_limit,
+  const DeviceLocality& locality,
+  TfGpuId tf_gpu_id,
+  const string& physical_device_desc,
+  Allocator* gpu_allocator,
+  Allocator* cpu_allocator,
+  bool sync_every_op,
+  int32 max_streams)
+    : LocalDevice(options,
+                  Device::BuildDeviceAttributes(name,
+                                                DEVICE_GPU,
+                                                memory_limit,
+                                                locality,
+                                                physical_device_desc)),
       gpu_allocator_(gpu_allocator),
       cpu_allocator_(cpu_allocator),
       scoped_allocator_mgr_(new ScopedAllocatorMgr(name)),
       tf_gpu_id_(tf_gpu_id),
       sync_every_op_(sync_every_op),
       max_streams_(max_streams) {
+
   GPUProcessState::singleton()->EnableGPUDevice();
+
   pending_cap_ = options.config.gpu_options().experimental().pending_cap();
   timestamped_allocator_ =
       options.config.gpu_options().experimental().timestamped_allocator();
+
   if (timestamped_allocator_ || pending_cap_ > 0) {
     SharedCounter* timing_counter = nullptr;
     if (timestamped_allocator_) {
@@ -369,14 +417,18 @@ Status BaseGPUDevice::InitScratchBuffers() {
   return Status::OK();
 }
 
+// [精读]
 Status BaseGPUDevice::Init(const SessionOptions& options) {
+
   auto executor_status = GpuIdUtil::ExecutorForTfGpuId(tf_gpu_id_);
+
   if (!executor_status.status().ok()) {
     return errors::Internal("Failed to get StreamExecutor for device ",
                             tf_gpu_id_.value());
   }
 
   executor_ = executor_status.ValueOrDie();
+
   em_.reset(new EventMgr(executor_, options.config.gpu_options()));
 
   if (max_streams_ < 1) {
@@ -385,8 +437,16 @@ Status BaseGPUDevice::Init(const SessionOptions& options) {
 
   // Create the specified number of GPU streams
   for (int i = 0; i < max_streams_; i++) {
-    streams_.push_back(StreamGroupFactory::Global().GetOrCreate(
+
+    // -----------------------------------------------------------------------
+    // GetOrCreate 构造 stream
+    // -----------------------------------------------------------------------
+    streams_.push_back(
+      // GetOrCreate, tensorflow/core/common_runtime/gpu/gpu_device.cc
+      StreamGroupFactory::Global().GetOrCreate(
         tf_gpu_id_, i, executor_, options.config.gpu_options()));
+    // -----------------------------------------------------------------------
+
     device_contexts_.push_back(new GPUDeviceContext(
         i, streams_.back()->compute, streams_.back()->host_to_device,
         streams_.back()->device_to_host, streams_.back()->device_to_device));
@@ -451,15 +511,31 @@ bool BaseGPUDevice::RequiresRecordingAccessedTensors() const {
   return streams_.size() > 1;
 }
 
+/** \brief
+ *
+ *  \param[in] graph: const Graph*;
+ *
+ *  \param[out] device_context_map: DeviceContextMap*;
+ *              typedef std::vector<DeviceContext*> DeviceContextMap;
+ *
+ *
+ */
 Status BaseGPUDevice::FillContextMap(const Graph* graph,
                                      DeviceContextMap* device_context_map) {
   VLOG(2) << "FillContextMap";
 
+  /// streams_: gtl::InlinedVector<StreamGroup*, 4>
+  /// StreamGroup: a struct of compute + h2d + d2h + d2d
+  /// So, num_streams is 1
   const size_t num_streams = streams_.size();
   // Special case for single stream.
   if (num_streams == 1) {
     return Status::OK();
   }
+
+  // ---------------------------------------------------------------------
+  // 如下是 多于 2 个 stream 的分配策略
+  // ---------------------------------------------------------------------
   const int64 before = Env::Default()->NowMicros();
   gpu_stream_util::AssignStreamsOpts opts;
   opts.max_streams = static_cast<int32>(num_streams);
@@ -506,11 +582,20 @@ void BaseGPUDevice::Compute(OpKernel* op_kernel, OpKernelContext* context) {
 
 string BaseGPUDevice::ComputeOpKernelDebugString(const OpKernel& op_kernel,
                                                  const int& stream_id) {
-  return strings::StrCat(op_kernel.name(), " op ", op_kernel.type_string(),
-                         " on GPU ", tf_gpu_id_.value(), " stream[", stream_id,
-                         "]");
+  return strings::StrCat(
+    op_kernel.name(),
+    " op ",
+    op_kernel.type_string(),
+    " on GPU ",
+    tf_gpu_id_.value(),
+    " stream[", stream_id,"]");
+  // 打印实例
+  // 2019-10-01 22:24:04.296780: I
+  // tensorflow/core/common_runtime/gpu/gpu_device.cc:582]
+  // GpuDevice::ComputeHelper scheduled v4 op VariableV2 on GPU 0 stream[0]
 }
 
+// [精读]
 void BaseGPUDevice::ComputeHelper(OpKernel* op_kernel,
                                   OpKernelContext* context) {
   GPUDeviceContext* gpu_device_context = device_contexts_[0];
@@ -612,9 +697,15 @@ void BaseGPUDevice::ConsumeListOfAccessedTensors(
 // all streams not just the current one.
 Status BaseGPUDevice::Sync() { return GPUUtil::SyncAll(this); }
 
+
 void BaseGPUDevice::ComputeAsync(AsyncOpKernel* op_kernel,
                                  OpKernelContext* context,
                                  AsyncOpKernel::DoneCallback done) {
+  // 1.
+  // done lambda 变量说明:
+  // AsyncOpKernel::DoneCallback done
+  // AsyncOpKernel::DoneCallback done 来自 executor.cc 内 Process 里面定义的 done
+
   GPUDeviceContext* gpu_device_context = device_contexts_[0];
   if (context->op_device_context() != nullptr) {
     gpu_device_context =
@@ -633,6 +724,10 @@ void BaseGPUDevice::ComputeAsync(AsyncOpKernel* op_kernel,
                                    op_kernel->IsExpensive());
   ScopedActivateExecutorContext scoped_activation{stream->parent()};
   op_kernel->ComputeAsync(context, done);
+  // 1.
+  // ComputeAsync 对于 RecvOp 的调用是:
+  // RecvOp::ComputeAsync
+  // core/kernels/sendrecv_ops.cc
 }
 
 Status BaseGPUDevice::MaybeCopyTensorToGPU(
@@ -767,12 +862,88 @@ class ConcretePerOpGpuDevice : public PerOpGpuDevice {
 // Parse 'visible_device_list' into a list of platform GPU ids.
 Status ParseVisibleDeviceList(const string& visible_device_list,
                               std::vector<PlatformGpuId>* visible_gpu_order) {
+  // 1.
+  // PlatformGpuId 数据结构说明:
+  // tensorflow/core/common_runtime/gpu/gpu_id.h
+
+  // 2.
+  // 详细说明:
+  // There are three types of GPU ids:
+  // - *physical* GPU id: this is the integer index of a GPU hardware in the
+  //   physical machine, it can be filtered by CUDA environment variable
+  //   CUDA_VISIBLE_DEVICES. Note that this id is not visible to Tensorflow, but
+  //   result after filtering by CUDA_VISIBLE_DEVICES is visible to TF and is
+  //   called platform GPU id as below. See
+  //   http://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#env-vars
+  //   for more details.
+  // - *platform* GPU id (also called *visible* GPU id in
+  //   third_party/tensorflow/core/protobuf/config.proto): this is the id that is
+  //   visible to Tensorflow after filtering by CUDA_VISIBLE_DEVICES, and is
+  //   generated by the CUDA GPU driver. It starts from 0 and is used for CUDA API
+  //   calls like cuDeviceGet().
+  // - TF GPU id (also called *virtual* GPU id in
+  //   third_party/tensorflow/core/protobuf/config.proto): this is the id that
+  //   Tensorflow generates and exposes to its users. It is the id in the <id>
+  //   field of the device name "/device:GPU:<id>", and is also the identifier of
+  //   a BaseGPUDevice. Note that the configuration allows us to create multiple
+  //   BaseGPUDevice per GPU hardware in order to use multi CUDA streams on the
+  //   hardware, so the mapping between TF GPU id and platform GPU id is not a 1:1
+  //   mapping, see the example below.
+  //
+  // For example, assuming that in the machine we have GPU device with index 0, 1,
+  // 2 and 3 (physical GPU id). Setting "CUDA_VISIBLE_DEVICES=1,2,3" will create
+  // the following mapping between platform GPU id and physical GPU id:
+  //
+  //        platform GPU id ->  physical GPU id
+  //                 0  ->  1
+  //                 1  ->  2
+  //                 2  ->  3
+  //
+  // Note that physical GPU id 0 is invisible to TF so there is no mapping entry
+  // for it.
+  //
+  // Assuming we configure the Session to create one BaseGPUDevice per GPU
+  // hardware, then setting GPUOptions::visible_device_list to "2,0" will create
+  // the following mappting between TF GPU id and platform GPU id:
+  //
+  //                  TF GPU id  ->  platform GPU ID
+  //      0 (i.e. /device:GPU:0) ->  2
+  //      1 (i.e. /device:GPU:1) ->  0
+  //
+  // Note that platform GPU id 1 is filtered out by
+  // GPUOptions::visible_device_list, so it won't be used by the TF process.
+  //
+  // On the other hand, if we configure it to create 2 BaseGPUDevice per GPU
+  // hardware, then setting GPUOptions::visible_device_list to "2,0" will create
+  // the following mappting between TF GPU id and platform GPU id:
+  //
+  //                  TF GPU id  ->  platform GPU ID
+  //      0 (i.e. /device:GPU:0) ->  2
+  //      1 (i.e. /device:GPU:1) ->  2
+  //      2 (i.e. /device:GPU:2) ->  0
+  //      3 (i.e. /device:GPU:3) ->  0
+  //
+  // We create strong-typed integer classes for both TF GPU id and platform GPU id
+  // to minimize programming errors and improve code readability. Except for the
+  // StreamExecutor interface (as we don't change its API), whenever we need a
+  // TF GPU id (or platform GPU id) we should use TfGpuId (or PlatformGpuId)
+  // instead of a raw integer.
+
   visible_gpu_order->clear();
+
   se::Platform* gpu_manager = GPUMachineManager();
+  // 1.
+  // GPUMachineManager 函数说明:
+  // tensorflow/stream_executor/cuda/cuda_platform.cc
+  // int CudaPlatform::VisibleDeviceCount() const
 
   // If the user wants to remap the visible to virtual GPU mapping,
   // check for that here.
   if (visible_device_list.empty()) {
+    // 1.
+    // visible_device_list 变量说明
+    // 起初这个是空的，所以进入了这个分支
+
     visible_gpu_order->resize(gpu_manager->VisibleDeviceCount());
     // By default, visible to virtual mapping is unchanged.
     int deviceNo = 0;
@@ -975,10 +1146,29 @@ Allocator* BaseGPUDevice::GetScopedAllocator(AllocatorAttributes attr,
 const int BaseGPUDeviceFactory::InterconnectMap::kSameDeviceStrength = 1000;
 const int BaseGPUDeviceFactory::InterconnectMap::kStreamExecutorStrength = 1;
 
+/** \brief Use CUDA runtime API to create GPU devices
+ *
+ *  \details
+ *
+ *  \param options: const SessionOptions&
+ *         SessionOptions is used to provide 1. environment used; 2. target
+ *         used to perform all computations according to host:port. 3. A bunch
+ *         of Session configuration parameters.
+ *
+ *  \param name_prefix: const string&
+ *
+ *  \param devices: [out] std::vector<std::unique_ptr<Device>>*
+ *
+ *  \return Status
+ *
+ */
 Status BaseGPUDeviceFactory::CreateDevices(
-    const SessionOptions& options, const string& name_prefix,
+    const SessionOptions& options,
+    const string& name_prefix,
     std::vector<std::unique_ptr<Device>>* devices) {
+
   TF_RETURN_IF_ERROR(ValidateGPUMachineManager());
+
   se::Platform* gpu_manager = GPUMachineManager();
   if (gpu_manager == nullptr) {
     return Status::OK();
@@ -1114,6 +1304,7 @@ Status BaseGPUDeviceFactory::CreateDevices(
   }
   int next_tf_gpu_id = 0;
   std::vector<int64> memory_limit_bytes;
+
   for (int i = 0; i < num_gpus_to_use; ++i) {
     const PlatformGpuId platform_gpu_id = valid_platform_gpu_ids[i];
     if (virtual_devices.empty() ||
@@ -1179,15 +1370,38 @@ static string GetShortDeviceDescription(PlatformGpuId platform_gpu_id,
 #endif
 }
 
+/** \brief Create GPU devices handler when adding Device for a tf process.
+ *
+ *  \param options: const SessionOptions&
+ *         SessionOptions is used to provide 1. environment used; 2. target
+ *         used to perform all computations according to host:port. 3. A bunch
+ *         of Session configuration parameters.
+ *
+ *  \param name_prefix
+ *
+ *  \param tf_gpu_id: TfGpuId
+ *
+ *  \param memory_limit: int64 ;
+ *
+ *  \param dev_locality: const DeviceLocality&
+ *
+ *  \param devices: std::vector<std::unique_ptr<Device>>*
+ *
+ *  \return Status
+ */
 Status BaseGPUDeviceFactory::CreateGPUDevice(
     const SessionOptions& options, const string& name_prefix, TfGpuId tf_gpu_id,
     int64 memory_limit, const DeviceLocality& dev_locality,
     std::vector<std::unique_ptr<Device>>* devices) {
   CHECK_GE(tf_gpu_id.value(), 0);
+  /// Example of device_name string can be "/device:GPU:0", "/device:GPU:1" ...
   const string device_name =
       strings::StrCat(name_prefix, "/device:GPU:", tf_gpu_id.value());
   GpuIdUtil::CheckValidTfGpuId(tf_gpu_id);
   PlatformGpuId platform_gpu_id;
+  /// TF gpu id is logical while platform_gpu_id is real GPU.
+  /// The mapping rule is that multiple tf logic gpu can map to one real GPU.
+  /// However, tf logic gpu cannot simultaneously map to two different real GPU.
   TF_RETURN_IF_ERROR(
       GpuIdManager::TfToPlatformGpuId(tf_gpu_id, &platform_gpu_id));
   int numa_node = dev_locality.numa_node();
@@ -1222,7 +1436,9 @@ Status BaseGPUDeviceFactory::CreateGPUDevice(
   LOG(INFO) << "Created TensorFlow device (" << device_name << " with "
             << (bytes_limit >> 20) << " MB memory) -> physical GPU ("
             << GetShortDeviceDescription(platform_gpu_id, desc) << ")";
+  // -----------------------------------------------------------------------
   TF_RETURN_IF_ERROR(gpu_device->Init(options));
+  // -----------------------------------------------------------------------
   devices->push_back(std::move(gpu_device));
 
   return Status::OK();
@@ -1512,7 +1728,87 @@ Status EnablePeerAccess(se::Platform* platform,
 Status BaseGPUDeviceFactory::GetValidDeviceIds(
     const std::vector<PlatformGpuId>& visible_gpu_order,
     std::vector<PlatformGpuId>* ids) {
+  // 1.
+  // visible_gpu_order 变量说明:
+  // 打印
+  // p visible_gpu_order
+  // $4 = std::vector of length 3, capacity 3 = {{value_ = 0}, {value_ = 1}, {value_ = 2}}
+  //
+  // 对应的 log, code
+  // https://gist.github.com/shizukanaskytree/3bc7c81cc9490f4a3abae3c7fb26a107
+
+
+  // 2.
+  // PlatformGpuId 数据结构
+  // tensorflow/core/common_runtime/gpu/gpu_id.h
+  //
+  // There are three types of GPU ids:
+  // - *physical* GPU id: this is the integer index of a GPU hardware in the
+  //   physical machine, it can be filtered by CUDA environment variable
+  //   CUDA_VISIBLE_DEVICES. Note that this id is not visible to Tensorflow, but
+  //   result after filtering by CUDA_VISIBLE_DEVICES is visible to TF and is
+  //   called platform GPU id as below. See
+  //   http://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#env-vars
+  //   for more details.
+  // - PlatformGpuId: *platform* GPU id (also called *visible* GPU id in
+  //   third_party/tensorflow/core/protobuf/config.proto): this is the id that is
+  //   visible to Tensorflow after filtering by CUDA_VISIBLE_DEVICES, and is
+  //   generated by the CUDA GPU driver. It starts from 0 and is used for CUDA API
+  //   calls like cuDeviceGet().
+  // - TfGpuId: TF GPU id (also called *virtual* GPU id in
+  //   third_party/tensorflow/core/protobuf/config.proto): this is the id that
+  //   Tensorflow generates and exposes to its users. It is the id in the <id>
+  //   field of the device name "/device:GPU:<id>", and is also the identifier of
+  //   a BaseGPUDevice. Note that the configuration allows us to create multiple
+  //   BaseGPUDevice per GPU hardware in order to use multi CUDA streams on the
+  //   hardware, so the mapping between TF GPU id and platform GPU id is not a 1:1
+  //   mapping, see the example below.
+  //
+  // For example, assuming that in the machine we have GPU device with index 0, 1,
+  // 2 and 3 (physical GPU id). Setting "CUDA_VISIBLE_DEVICES=1,2,3" will create
+  // the following mapping between platform GPU id and physical GPU id:
+  //
+  //        platform GPU id ->  physical GPU id
+  //                 0  ->  1
+  //                 1  ->  2
+  //                 2  ->  3
+  //
+  // Note that physical GPU id 0 is invisible to TF so there is no mapping entry
+  // for it.
+  //
+  // Assuming we configure the Session to create one BaseGPUDevice per GPU
+  // hardware, then setting GPUOptions::visible_device_list to "2,0" will create
+  // the following mappting between TF GPU id and platform GPU id:
+  //
+  //                  TF GPU id  ->  platform GPU ID
+  //      0 (i.e. /device:GPU:0) ->  2
+  //      1 (i.e. /device:GPU:1) ->  0
+  //
+  // Note that platform GPU id 1 is filtered out by
+  // GPUOptions::visible_device_list, so it won't be used by the TF process.
+  //
+  // On the other hand, if we configure it to create 2 BaseGPUDevice per GPU
+  // hardware, then setting GPUOptions::visible_device_list to "2,0" will create
+  // the following mappting between TF GPU id and platform GPU id:
+  //
+  //                  TF GPU id  ->  platform GPU ID
+  //      0 (i.e. /device:GPU:0) ->  2
+  //      1 (i.e. /device:GPU:1) ->  2
+  //      2 (i.e. /device:GPU:2) ->  0
+  //      3 (i.e. /device:GPU:3) ->  0
+  //
+  // We create strong-typed integer classes for both TF GPU id and platform GPU id
+  // to minimize programming errors and improve code readability. Except for the
+  // StreamExecutor interface (as we don't change its API), whenever we need a
+  // TF GPU id (or platform GPU id) we should use TfGpuId (or PlatformGpuId)
+  // instead of a raw integer.
+
+  // 3.
+  // TfGpuId 数据结构说明:
+  //
+
   se::Platform* gpu_manager = GPUMachineManager();
+
   bool new_gpu_found = false;
   for (int i = 0; i < visible_gpu_order.size(); ++i) {
     const PlatformGpuId visible_gpu_id = visible_gpu_order[i];
@@ -1527,6 +1823,7 @@ Status BaseGPUDeviceFactory::GetValidDeviceIds(
 
     auto executor =
         GpuIdUtil::ExecutorForPlatformGpuId(gpu_manager, visible_gpu_id);
+
     if (!executor.ok()) {
       return executor.status();
     }
@@ -1539,7 +1836,9 @@ Status BaseGPUDeviceFactory::GetValidDeviceIds(
       free_bytes = 0;
       total_bytes = 0;
     }
+
     const auto& description = stream_exec->GetDeviceDescription();
+
 #if GOOGLE_CUDA
     int cc_major;
     int cc_minor;

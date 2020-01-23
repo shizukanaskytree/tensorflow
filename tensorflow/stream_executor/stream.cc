@@ -295,7 +295,9 @@ Stream &Stream::Init() {
       << "stream appears to already have been initialized";
   CHECK(!ok_) << "stream should be in !ok() state pre-initialization";
 
+  // -----------------------------------------------------------------------
   if (parent_->AllocateStream(this)) {
+  // -----------------------------------------------------------------------
     // Successful initialization!
     allocated_ = true;
     ok_ = true;
@@ -1845,13 +1847,28 @@ Stream &Stream::ThenWaitFor(Stream *other) {
   VLOG_CALL(PARAM(other));
 
   CHECK(this != other) << "stream cannot wait for itself";
+
+  // 正常处理
   if (ok() && other->ok()) {
-    CheckError(parent_->CreateStreamDependency(this, other));
+
+    CheckError(
+      parent_->CreateStreamDependency(this, other));
+      // 1.
+      // parent_ 变量说明
+      // parent_: StreamExecutor
+
+      // 2.
+      // CreateStreamDependency 函数说明
+      // tensorflow/stream_executor/stream_executor_pimpl.cc
+      // bool StreamExecutor::CreateStreamDependency(Stream *dependent, Stream *other)
+
   } else {
+    // 异常处理
     SetError();
     LOG(INFO) << DebugStreamPointers() << " did not wait for "
               << other->DebugStreamPointers();
   }
+
   return *this;
 }
 
@@ -4779,19 +4796,36 @@ Stream &Stream::ThenPopulateRandUniform(
 
 Stream &Stream::ThenMemcpy(void *host_dst, const DeviceMemoryBase &gpu_src,
                            uint64 size) {
+
   VLOG_CALL(PARAM(host_dst), PARAM(gpu_src), PARAM(size));
 
   if (ok()) {
+    // 正常处理
     CheckError(parent_->Memcpy(this, host_dst, gpu_src, size));
+    // 1.
+    // parent_ 变量说明
+    // parent_ : class stream_executor::StreamExecutor*
+
+    // 2.
+    // class stream_executor::StreamExecutor::Memcpy 函数说明
+    // tensorflow/stream_executor/stream_executor_pimpl.cc
+    //
+    // bool StreamExecutor::Memcpy(Stream *stream, DeviceMemoryBase *device_dst,
+    //                                const void *host_src, uint64 size)
+
   } else {
+    // 异常处理
     LOG(INFO) << DebugStreamPointers()
               << " did not memcpy device-to-host; source: " << gpu_src.opaque();
   }
+
   return *this;
 }
 
-Stream &Stream::ThenMemcpy(DeviceMemoryBase *gpu_dst, const void *host_src,
-                           uint64 size) {
+// GPUUtil::CopyCPUTensorToGPU 调用了 这个 ThenMemcpy
+Stream &Stream::ThenMemcpy(DeviceMemoryBase *gpu_dst,  // output
+                           const void *host_src, // input
+                           uint64 size) { // input 
   VLOG_CALL(PARAM(gpu_dst), PARAM(host_src), PARAM(size));
 
   if (ok()) {

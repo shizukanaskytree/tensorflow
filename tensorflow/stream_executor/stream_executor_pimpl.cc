@@ -718,7 +718,13 @@ bool StreamExecutor::Memcpy(Stream *stream, void *host_dst,
 
 bool StreamExecutor::Memcpy(Stream *stream, DeviceMemoryBase *device_dst,
                             const void *host_src, uint64 size) {
+
   return implementation_->Memcpy(stream, device_dst, host_src, size);
+  // GpuExecutor::Memcpy 函数说明
+  // tensorflow/stream_executor/cuda/cuda_gpu_executor.cc
+  // bool GpuExecutor::Memcpy(Stream* stream, DeviceMemoryBase* gpu_dst,
+  //                           const void* host_src, uint64 size)
+
 }
 
 bool StreamExecutor::MemcpyDeviceToDevice(Stream *stream,
@@ -791,6 +797,19 @@ void StreamExecutor::DeallocateStream(Stream *stream) {
 
 bool StreamExecutor::CreateStreamDependency(Stream *dependent, Stream *other) {
   return implementation_->CreateStreamDependency(dependent, other);
+  // 1.
+  // implementation_ 变量说明
+  //
+  // Pointer to the platform-specific-interface implementation. This is
+  // delegated to by the interface routines in pointer-to-implementation
+  // fashion.
+  // std::unique_ptr<internal::StreamExecutorInterface> implementation_;
+  // 真实类型: GpuExecutor
+
+  // 2.
+  // CreateStreamDependency 函数说明
+  // bool GpuExecutor::CreateStreamDependency(Stream* dependent, Stream* other)
+  // tensorflow/stream_executor/cuda/cuda_gpu_executor.cc
 }
 
 bool StreamExecutor::AllocateTimer(Timer *timer) {

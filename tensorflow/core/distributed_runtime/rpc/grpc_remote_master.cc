@@ -12,7 +12,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
-
+/** \file grpc_remote_master.cc
+ *
+ *  \brief This file is a wrapper of grpc_master_service_impl.cc .
+ *         It indirectly calls those grpc stubs, which are called by clients,
+ *         from grpc_master_service_impl.cc .
+ */
 #include "tensorflow/core/distributed_runtime/rpc/grpc_remote_master.h"
 
 #include <utility>
@@ -36,11 +41,42 @@ class GrpcRemoteMaster : public MasterInterface {
   using MasterServiceStub = grpc::MasterService::Stub;
 
  public:
+  /** \brief GrpcRemoteMaster Constructor, initialize grpc stub/service that a
+   *         client can use to send a request to the server.
+   *
+   *  \param[in] client_channel: const SharedGrpcChannelPtr&
+   *         SharedGrpcChannelPtr is std::shared_ptr<::grpc::Channel>, a pointer
+   *         of channel represents a connection to the target.
+   *
+   *  \details A client sends a request to the server using the stub. So, here
+   *           Remote Master creates a MasterService::Stub .
+   */
   explicit GrpcRemoteMaster(const SharedGrpcChannelPtr& client_channel)
       : stub_(grpc::MasterService::NewStub(client_channel)) {}
 
   ~GrpcRemoteMaster() override {}
 
+  /** \brief A grpc stub/interface to call CreateSession by a client.
+   *         This the request that client sends. This function is blocking until
+   *         server sends response back to client itself.
+   *
+   *  \param[in] call_options: CallOptions* ;
+   *         CallOptions is options for the grpc call.
+   *
+   *  \param[in] request: const CreateSessionRequest* ;
+   *         message CreateSessionRequest includes
+   *         1. GraphDef: NodeDef, versionDef, FunctionDefLibrary;
+   *         2. ConfigProto, including Session configuration parameters.
+   *         3. The target string used from the client's perspective.
+   *            e.g., "grpc://localhost:2223"
+   *
+   *  \param[in,out] response: CreateSessionResponse* ;
+   *         message CreateSessionResponse includes
+   *         1. session_handle string, and 2. graph version for the subsequent
+   *         call to ExtendSession.
+   *
+   *  \return Status
+   */
   Status CreateSession(CallOptions* call_options,
                        const CreateSessionRequest* request,
                        CreateSessionResponse* response) override {
@@ -62,6 +98,9 @@ class GrpcRemoteMaster : public MasterInterface {
                          &MasterServiceStub::PartialRunSetup);
   }
 
+  /** \brief
+   *
+   */
   Status RunStep(CallOptions* call_options, RunStepRequestWrapper* request,
                  MutableRunStepResponseWrapper* response) override {
     return CallWithRetry(call_options, &request->ToProto(),
@@ -117,6 +156,38 @@ class GrpcRemoteMaster : public MasterInterface {
     return new tracing::ScopedActivity(name, trace_id);
   }
 
+  /** \brief A template grpc function to handle grpc calls and its return status
+   *
+   *  \param Request: typename ; e.g.,
+   *         - CreateSessionRequest
+   *         - ExtendSessionRequest
+   *         - RunStepRequestWrapper etc.
+   *
+   *  \param Response: typename ; e.g.,
+   *         - CreateSessionResponse
+   *         - ExtendSessionResponse
+   *         - MutableRunStepResponseWrapper etc.
+   *
+   *  \param[in] call_options: CallOptions* ;
+   *         CallOptions is options for the grpc call.
+   *
+   *  \param[in] request: const Request* ;
+   *         e.g., a variable of type of CreateSessionRequest.
+   *
+   *  \param[in,out] response: Response* ;
+   *         e.g. a variable of type of CreateSessionResponse.
+   *
+   *  \param[in] ::grpc::Status (MasterServiceStub::*pfunc)(
+   *                                                    ::grpc::ClientContext*,
+   *                                                    const Request&,
+   *                                                    Response*)
+   *         is a lambda function. Its signature is a MasterService::Stub member
+   *         function.
+   *
+   *  \param trace_string: string, default value is {} ;
+   *
+   *  \return Status
+   */
   template <typename Request, typename Response>
   Status CallWithRetry(CallOptions* call_options, const Request* request,
                        Response* response,
@@ -129,6 +200,7 @@ class GrpcRemoteMaster : public MasterInterface {
       expired_time_micros += (timeout_in_ms / 1000.);
     }
     Status s;
+    /// retrying the RPC but not exceeds kMaxRetries = 10.
     for (int num_retries = 0;; ++num_retries) {
       ::grpc::ClientContext ctx;
       std::unique_ptr<tracing::ScopedActivity> trace;
@@ -146,8 +218,17 @@ class GrpcRemoteMaster : public MasterInterface {
         // gRPC RPC layers.
         ctx.set_deadline(gpr_time_from_millis(timeout_in_ms, GPR_TIMESPAN));
       }
+
+      /// \note
+      ///  This is the wildcard grpc function requested by a client.
+      ///  This function is blocking until server sends response back to the
+      ///  client.
+      ///  Its implementation is in
+      ///  tensorflow/core/distributed_runtime/rpc/grpc_master_service_impl.cc
+      ///  After invoking the stub of grpc, checking its return status.
       s = FromGrpcStatus((stub_.get()->*pfunc)(&ctx, *request, response));
       if (!errors::IsUnavailable(s)) {
+        /// return if grpc is successful.
         return s;
       }
       // TODO(b/117162170): we may want to make this configurable.
@@ -182,6 +263,21 @@ class GrpcRemoteMaster : public MasterInterface {
   std::unique_ptr<MasterServiceStub> stub_;
 };
 
+/** \brief Create a new GrpcRemoteMaster for clients to call stubs about Session
+ *         interface, 1. create session 2. extend session 3. run step etc.
+ *
+ *  \param[in] channel: const SharedGrpcChannelPtr& ;
+ *         SharedGrpcChannelPtr is std::shared_ptr<::grpc::Channel>, a pointer
+ *         of channel represents a connection to the target.
+ *
+ *  \return MasterInterface* ;
+ *          Master side grpc session 1.creation 2. extend 3. run step etc.
+ *          interface.
+ *
+ *  \details MasterService::Stub :
+ *           MasterService implements stub for clients to call defined in
+ *           master_service.proto interface.
+ */
 MasterInterface* NewGrpcMaster(const SharedGrpcChannelPtr& channel) {
   return new GrpcRemoteMaster(channel);
 }

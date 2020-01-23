@@ -41,6 +41,16 @@ static const char* grpcMasterService_method_names[] = {
     "/tensorflow.MasterService/ReleaseCallable",
 };
 
+/** \brief MasterService::NewStub.
+ *
+ *  \param[in] channel: const std::shared_ptr< ::grpc::ChannelInterface>& ;
+ *
+ *  \param[in] options: const ::grpc::StubOptions&,
+ *         its default is ::grpc::StubOptions()
+ *         Its default is set in declaration of NewStub.
+ *
+ *  \return std::unique_ptr<MasterService::Stub>
+ */
 std::unique_ptr<MasterService::Stub> MasterService::NewStub(
     const std::shared_ptr< ::grpc::ChannelInterface>& channel,
     const ::grpc::StubOptions& options) {
@@ -48,9 +58,28 @@ std::unique_ptr<MasterService::Stub> MasterService::NewStub(
   return stub;
 }
 
+/** \brief MasterService::Stub constructor.
+ *
+ *  \param channel: const std::shared_ptr< ::grpc::ChannelInterface>& ;
+ *         ::grpc::ChannelInterface is Codegen interface for grpc::Channel.
+ */
 MasterService::Stub::Stub(
     const std::shared_ptr< ::grpc::ChannelInterface>& channel)
     : channel_(channel),
+
+      /// \brief rpcmethod_CreateSession_ is an object of
+      ///        grpc::internal::RpcMethod. Here, we initialize this instance by
+      ///        calling RpcMethod constructor.
+      ///
+      /// \param[in] grpcMasterService_method_names[0]: const char *name
+      ///
+      /// \param[in] ::grpc::internal::RpcMethod::NORMAL_RPC: RpcType type
+      ///        RpcType { NORMAL_RPC = 0, CLIENT_STREAMING,
+      ///                  SERVER_STREAMING, BIDI_STREAMING }
+      ///
+      /// \param[in] channel: const std::shared_ptr< ChannelInterface > &channel
+      ///        ChannelInterface is Codegen interface for grpc::Channel, which
+      ///        represents a connection to an endpoint.
       rpcmethod_CreateSession_(grpcMasterService_method_names[0],
                                ::grpc::internal::RpcMethod::NORMAL_RPC,
                                channel),
@@ -76,9 +105,54 @@ MasterService::Stub::Stub(
                                  ::grpc::internal::RpcMethod::NORMAL_RPC,
                                  channel) {}
 
+/** \brief grpc stub of creating a session. This function is called by a client.
+ *         Delegate it to worker grpc.
+ *
+ *  \param context: ::grpc::ClientContext* ;
+ *  A ClientContext allows the person implementing a service client to:
+ *  - Add custom metadata key-value pairs that will propagated to the server
+ *    side.
+ *  - Control call settings such as compression and authentication.
+ *  - Initial and trailing metadata coming from the server.
+ *  - Get performance metrics (ie, census).
+ *
+ *  \param request: const CreateSessionRequest& ;
+ *         CreateSessionRequest message includes 1. GraphDef 2. ConfigProto
+ *         3. target string.
+ *
+ *  \param response: CreateSessionResponse* ;
+ *         CreateSessionResponse message includes 1. session_handle string
+ *         2. graph_version.
+ *
+ *  \return ::grpc::Status
+ */
 ::grpc::Status MasterService::Stub::CreateSession(
     ::grpc::ClientContext* context, const CreateSessionRequest& request,
     CreateSessionResponse* response) {
+
+  /// \note
+  /// \fn BlockingUnaryCall
+  ///
+  /// \brief a wrapper that performs a blocking unary call. A unary call means
+  ///        a request by a client and a response by a server.
+  ///
+  /// \param channel_.get(): ChannelInterface * channel ;
+  ///        ChannelInterface is Codegen interface for grpc::Channel, which
+  ///        represents a connection to an endpoint.
+  ///
+  /// \param rpcmethod_CreateSession_: const RpcMethod & method ;
+  ///        Descriptor of an RPC method.
+  ///
+  /// \param context: ClientContext * context ;
+  ///
+  /// \param request: const InputMessage & request ; InputMessage is a typename.
+  ///
+  /// \param response: OutputMessage * result ; OutputMessage is a typename.
+  ///
+  /// \return ::grpc::Status
+  ///
+  /// \note The response must be returned, then the next response can be sent.
+
   return ::grpc::internal::BlockingUnaryCall(
       channel_.get(), rpcmethod_CreateSession_, context, request, response);
 }
@@ -147,9 +221,10 @@ MasterService::Stub::Stub(
 }
 
 MasterService::AsyncService::AsyncService() {
-  int method_len = sizeof(grpcMasterService_method_names) / 
+  int method_len = sizeof(grpcMasterService_method_names) /
                     sizeof(grpcMasterService_method_names[0]);
   for (int i = 0; i < method_len; ++i) {
+    /// void grpc::Service::AddMethod(internal::RpcServiceMethod * method)
     AddMethod(new ::grpc::internal::RpcServiceMethod(
         grpcMasterService_method_names[i],
         ::grpc::internal::RpcMethod::NORMAL_RPC, nullptr));

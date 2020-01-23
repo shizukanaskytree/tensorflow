@@ -27,6 +27,16 @@ limitations under the License.
 namespace tensorflow {
 namespace gpu_stream_util {
 
+/** \brief Assign op node to GPU streams. A mapping from node id to stream id.
+ *
+ *  \param[in] graph: const Graph*;
+ *
+ *  \param[in] opts: const AssignStreamsOpts&;
+ *
+ *  \param[out] node_to_stream_id: std::unordered_map<int, int>*;
+ *
+ *
+ */
 Status AssignStreams(const Graph* graph, const AssignStreamsOpts& opts,
                      std::unordered_map<int, int>* node_to_stream_id) {
   VLOG(1) << "AssignStreams";
@@ -49,7 +59,12 @@ Status AssignStreams(const Graph* graph, const AssignStreamsOpts& opts,
 
   // Topologically sort the nodes.
   std::vector<Node*> order;
+  /// \note
+  /// Get the order sequence from source node to sink node of a graph.
+  /// Post order: after visiting all outgoing nodes, visit itself.
+  /// Reverse post order: itself first, then others. So, it is right order.
   GetReversePostOrder(*graph, &order);
+  /// \todo I want to study the graph construction of a neural network.
   if (VLOG_IS_ON(2)) {
     for (Node* n : order) {
       const int node_id = n->id();

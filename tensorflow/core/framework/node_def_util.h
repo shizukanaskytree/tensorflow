@@ -134,6 +134,11 @@ class AttrSlice {
 
   // Returns the attr with attr_name if found.  Otherwise, returns
   // nullptr.
+  // from NodeDef::attr() to find attr_name
+  //
+  // NodeDef
+  //   map<string, AttrValue> attr = 5;
+  //     message AttrValue: tensorflow/core/framework/attr_value.proto:16
   const AttrValue* Find(StringPiece attr_name) const;
 
   // Returns the attr_value for attr_name if found. Otherwise, returns a

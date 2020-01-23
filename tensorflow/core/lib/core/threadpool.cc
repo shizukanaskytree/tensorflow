@@ -31,7 +31,7 @@ namespace tensorflow {
 namespace thread {
 
 struct EigenEnvironment {
-  typedef Thread EnvThread;
+  typedef Thread EnvThread; // type define Thread as EnvThread
   struct TaskImpl {
     std::function<void()> f;
     Context context;
@@ -77,19 +77,35 @@ struct EigenEnvironment {
     };
   }
 
+
+  ///////////////////////////////////////////////////////////////////////////
   void ExecuteTask(const Task& t) {
     WithContext wc(t.f->context);
+
+    // -----------------------------------------------------------------------
+    // ScopedRegion 是比如会创建的
+    // 但是，不会 Star
+    // -----------------------------------------------------------------------
     tracing::ScopedRegion region(tracing::EventCategory::kRunClosure,
                                  t.f->trace_id);
+    // -----------------------------------------------------------------------
+
     t.f->f();
   }
+  ///////////////////////////////////////////////////////////////////////////
+
 };
 
+
+
 struct ThreadPool::Impl : Eigen::ThreadPoolTempl<EigenEnvironment> {
+
   Impl(Env* env, const ThreadOptions& thread_options, const string& name,
        int num_threads, bool low_latency_hint, Eigen::Allocator* allocator)
+
       : Eigen::ThreadPoolTempl<EigenEnvironment>(
-            num_threads, low_latency_hint,
+            num_threads,
+            low_latency_hint, // allow_spinning
             EigenEnvironment(env, thread_options, name)),
         allocator_(allocator) {}
 

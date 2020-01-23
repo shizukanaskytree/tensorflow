@@ -23,19 +23,65 @@ limitations under the License.
 
 namespace tensorflow {
 
-void GPUDeviceContext::CopyCPUTensorToDevice(const Tensor* cpu_tensor,
-                                             Device* device,
-                                             Tensor* device_tensor,
-                                             StatusCallback done) const {
-  GPUUtil::CopyCPUTensorToGPU(cpu_tensor, this, device, device_tensor, done);
+// CPU->GPU
+void GPUDeviceContext::CopyCPUTensorToDevice(
+  const Tensor* cpu_tensor,   // input  // const Tensor* cpu_tensor
+  Device* device,             // input  //dst: Device*
+  Tensor* device_tensor,      // output // Tensor* device_tensor
+  StatusCallback done) const  // input  // StatusCallback done
+{
+
+  GPUUtil::CopyCPUTensorToGPU(cpu_tensor, // input  // const Tensor* cpu_tensor
+                              this, // input // GPUDeviceContext*
+                              device, // input  //dst: Device*
+                              device_tensor, // output // Tensor* device_tensor
+                              done);  // input  // StatusCallback done
+  // 1.
+  // GPUUtil::CopyCPUTensorToGPU 函数说明
+  // tensorflow/core/common_runtime/gpu/gpu_util.cc
+  //
+  // 函数接口
+  // void GPUUtil::CopyCPUTensorToGPU(const Tensor* cpu_tensor,
+  //                                  const DeviceContext* device_context,
+  //                                  Device* gpu_device,
+  //                                  Tensor* gpu_tensor,
+  //                                  StatusCallback done)
 }
 
-void GPUDeviceContext::CopyDeviceTensorToCPU(const Tensor* device_tensor,
-                                             StringPiece tensor_name,
-                                             Device* device, Tensor* cpu_tensor,
+// GPU->CPU
+void GPUDeviceContext::CopyDeviceTensorToCPU(const Tensor* device_tensor, // input
+                                             StringPiece tensor_name, // input , 无效的输入
+                                             Device* device,
+                                             Tensor* cpu_tensor, // output
                                              StatusCallback done) {
-  GPUUtil::CopyGPUTensorToCPU(device, this, device_tensor, cpu_tensor, done);
+  GPUUtil::CopyGPUTensorToCPU(device, // input
+                              this, // input
+                              device_tensor, // input
+                              cpu_tensor,
+                              done);
+  // 1.
+  // GPUUtil::CopyGPUTensorToCPU 函数说明:
+  // tensorflow/core/common_runtime/gpu/gpu_util.cc
+  //
+  // void GPUUtil::CopyGPUTensorToCPU(Device* gpu_device,
+  //                                  const DeviceContext* device_context,
+  //                                  const Tensor* gpu_tensor,
+  //                                  Tensor* cpu_tensor,
+  //                                  StatusCallback done)
+
+  // 2.
+  // QQQ. cpu_tensor 在输入时是怎么准备的? 是什么样的?
+  // AAA.
+  // 参考:
+  // IntraProcessRendezvous::SameWorkerRecvDone
+  // tensorflow/core/common_runtime/rendezvous_mgr.cc
+  // keywords:
+  // - out_allocator
+  // - copy
+  // -
+
 }
+
 
 void GPUDeviceContext::CopyTensorInSameDevice(const Tensor* input_tensor,
                                               Device* device,
@@ -44,6 +90,7 @@ void GPUDeviceContext::CopyTensorInSameDevice(const Tensor* input_tensor,
   GPUUtil::CopyGPUTensorToSameGPU(device, this, input_tensor, output_tensor,
                                   done);
 }
+
 
 Status GPUDeviceContext::ThenExecute(Device* device, se::Stream* stream,
                                      std::function<void()> func) {

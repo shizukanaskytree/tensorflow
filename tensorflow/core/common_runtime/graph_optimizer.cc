@@ -34,11 +34,16 @@ GraphOptimizer::GraphOptimizer(const OptimizerOptions& opts) : opts_(opts) {
 GraphOptimizer::~GraphOptimizer() {}
 
 void GraphOptimizer::Optimize(
-    FunctionLibraryRuntime* runtime, Env* env, Device* device,
+    FunctionLibraryRuntime* runtime,
+    Env* env,
+    // -----------------------------------------
+    Device* device,
+    // -----------------------------------------
     std::unique_ptr<Graph>* graph,
     const std::unordered_map<string, std::vector<PartialTensorShape>>*
         shape_map,
-    const NodePredicate& cse_consider_fn, const NodePredicate& cf_consider_fn) {
+    const NodePredicate& cse_consider_fn,
+    const NodePredicate& cf_consider_fn) {
   Graph* g = graph->get();
   DumpGraph("Initial", g);
 
@@ -68,8 +73,14 @@ void GraphOptimizer::Optimize(
             opts_.max_folded_constant_in_bytes();
       }
       bool was_mutated;
+
+
+      /// 里面是大部头的代码调用
+      // tensorflow/core/common_runtime/constant_folding.cc:563
       ConstantFold(cf_opts, runtime, env, device, g, &was_mutated)
           .IgnoreError();
+
+
       if (was_mutated) {
         RemoveDeadNodes(g);
         DumpGraph("ConstFolding", g);

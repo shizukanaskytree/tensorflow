@@ -649,6 +649,9 @@ void GrpcWorker::LoggingAsync(const LoggingRequest* request,
 
 WorkerEnv* GrpcWorker::env() { return env_; }
 
+/**
+ *
+ */
 std::unique_ptr<GrpcWorker> NewGrpcWorker(WorkerEnv* env,
                                           const ConfigProto& config) {
   return std::unique_ptr<GrpcWorker>(new GrpcWorker(env, config));

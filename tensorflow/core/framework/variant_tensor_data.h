@@ -116,6 +116,13 @@ class VariantTensorData {
   }
 };
 
+// 1.
+// class VariantTensorData 数据结构
+// - type_name_: string
+// - metadata_: string
+// - tensors_: std::vector<Tensor>
+
+
 // For backwards compatibility for when this was a proto
 string ProtoDebugString(const VariantTensorData& object);
 

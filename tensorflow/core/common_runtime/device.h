@@ -79,21 +79,105 @@ class Device : public DeviceBase {
   // Returns an aggregation of device attributes.
   const DeviceAttributes& attributes() const override {
     return device_attributes_;
+    // 1.
+    // message DeviceAttributes 数据结构
+    // tensorflow/core/framework/device_attributes.proto
+    // 1.1
+    // message DeviceAttributes 数据结构
+    // tensorflow/core/framework/device_attributes.proto
+    // - name: string
+    // - device_type: string
+    // - memory_limit: int64
+    // - locality: DeviceLocality
+    // - incarnation: fixed64
+    // - physical_device_desc: string
+
+    // 1.2
+    // message DeviceLocality 数据结构说明:
+    // - bus_id: int32
+    // - numa_node: int32
+    // - links: LocalLinks
+
+    // 1.3
+    // message LocalLinks 数据结构说明:
+    // - link: repeated InterconnectLink , i.e., vector of InterconnectLink instance
+
+    // 1.4
+    // message InterconnectLink 数据结构说明:
+    // - device_id: int32
+    // - type: string
+    // - strength: int32
+
+
+    // 2 打印
+    /*
+    device_attributes_.DebugString() =
+
+    name: "/job:worker/replica:0/task:0/device:GPU:0"
+    device_type: "GPU"
+    memory_limit: 10399953716
+    locality {
+      bus_id: 1
+      links {
+        link {
+          device_id: 1
+          type: "StreamExecutor"
+          strength: 1
+        }
+      }
+    }
+    incarnation: 1405998625628097843
+    physical_device_desc: "device: 0, name: GeForce GTX 1080 Ti, pci bus id: 0000:02:00.0, compute capability: 6.1"
+    */
   }
 
   // Performs the actual compute function.
-  //
   // Subclasses may override this function if they wish to perform
   // some initialization before each compute.
-  virtual void Compute(OpKernel* op_kernel, OpKernelContext* context) {
-    op_kernel->Compute(context);
+  virtual void Compute(
+    OpKernel* op_kernel,          // input
+    OpKernelContext* context) {   // output
+
+      // 纯虚函数，所以是看具体哪个 op ，执行对应的 Compute() 函数
+      op_kernel->Compute(context);
+
+    // OpKernel::Compute 函数说明:
+    // virtual void Compute(OpKernelContext* context) = 0;
+    // tensorflow/core/framework/op_kernel.h
   }
 
+  ////////////////////////////////////////////////////////////////////////
+
   // Asynchronous kernel's compute.
-  virtual void ComputeAsync(AsyncOpKernel* op_kernel, OpKernelContext* context,
-                            AsyncOpKernel::DoneCallback done) {
-    op_kernel->ComputeAsync(context, std::move(done));
+  virtual void ComputeAsync(
+                 AsyncOpKernel* op_kernel,  // input
+                 OpKernelContext* context,  // input
+                 AsyncOpKernel::DoneCallback done) {  // input
+    // AsyncOpKernel::DoneCallback 数据结构
+    // core/framework/op_kernel.h
+    // Asynchronous compute.
+    //
+    // Implementations of ComputeAsync() must run "done" to signal the
+    // completion of the computation. "context" is guaranteed to be
+    // alive until the "done" callback starts.
+    // typedef std::function<void()> DoneCallback;
+
+    op_kernel->ComputeAsync(
+                 context,
+                 std::move(done));
+                 // 1.
+                 // done lambda 的函数体的定义在
+                 // tensorflow/core/common_runtime/executor.cc
+                 // Asynchronous computes.
+                 // ExecutorState::Process 内
+                 //   auto done = [this, state]() {
+
+                 // 2.
+                 // RecvOp::ComputeAsync 函数说明:
+                 // core/kernels/sendrecv_ops.cc
   }
+
+  ////////////////////////////////////////////////////////////////////////
 
   // Takes ownership of the references in tensors. If necessary, a
   // device may override this method to keep a reference to the
@@ -172,7 +256,60 @@ class Device : public DeviceBase {
   OpSegment* op_segment() { return &op_seg_; }
 
   // Returns the resource manager associated w/ this device.
+  // -----------------------------------------------------------------------
   virtual ResourceMgr* resource_manager() { return rmgr_; }
+  // -----------------------------------------------------------------------
+  // 1.
+  // 打印:
+  /*
+  p devices_
+  $10 = std::vector of length 10, capacity 16 = {0x5619adf32fa0, 0x5619afbfcb90, 0x5619afe53ad0, 0x5619afe5c5f0, 0x5619afe648c0, 0x5619afe6d8b0, 0x5619afe84500, 0x5619afe95df0, 0x5619afea3620, 0x5619afeb0f20}
+  p devices_[0].name()
+  Cannot resolve method tensorflow::Device::name to any overloaded instance
+  p devices_[0]->name()
+  $11 = "/job:localhost/replica:0/task:0/device:CPU:0"
+  p devices_[1]->name()
+  $12 = "/job:localhost/replica:0/task:0/device:XLA_CPU:0"
+  p devices_[2]->name()
+  $13 = "/job:localhost/replica:0/task:0/device:XLA_GPU:0"
+  p devices_[3]->name()
+  $14 = "/job:localhost/replica:0/task:0/device:XLA_GPU:1"
+  p devices_[4]->name()
+  $15 = "/job:localhost/replica:0/task:0/device:XLA_GPU:2"
+  p devices_[5]->name()
+  $16 = "/job:localhost/replica:0/task:0/device:XLA_GPU:3"
+  p devices_[6]->name()
+  $17 = "/job:localhost/replica:0/task:0/device:GPU:0"
+  */
+
+  // 2.
+  // 打印:
+  // p devices_[6]->resource_manager()->DebugString()
+  // "localhost | N10tensorflow9LegacyVarE | v1 | float/[25,35]\nlocalhost | N10tensorflow9LegacyVarE | v2 | float/[30,20]\nlocalhost | N10tensorflow9LegacyVarE | v3 | float/[10,40]\nlocalhost | N10tensorflow9LegacyVarE | v4 | float/[25,15]"
+  //
+  // 排版后
+  // localhost | N10tensorflow9LegacyVarE | v1 | float/[25,35]
+  // localhost | N10tensorflow9LegacyVarE | v2 | float/[30,20]
+  // localhost | N10tensorflow9LegacyVarE | v3 | float/[10,40]
+  // localhost | N10tensorflow9LegacyVarE | v4 | float/[25,15]
+
+  // 1.
+  // p devices_[0]->resource_manager()->DebugString()
+  // $19 = ""
+
+  // 3.
+  // vgg16 keras application 的打印
+  // https://gist.github.com/shizukanaskytree/c373da3bac4b18551a91c7bff7015333
+  // localhost            | N10tensorflow3VarE                       | block1_conv1/bias                        | float/[64]
+  // localhost            | N10tensorflow3VarE                       | block1_conv1/kernel                      | float/[3,3,3,64]
+  // localhost            | N10tensorflow3VarE                       | block1_conv2/bias                        | float/[64]
+  // localhost            | N10tensorflow3VarE                       | block1_conv2/kernel                      | float/[3,3,64,64]
+
+  // 4.
+  // N10tensorflow3VarE 解析:
+  // class Var : public ResourceBase
+  // tensorflow/core/framework/resource_var.h
+
 
   // Returns the device manager that owns this device, or nullptr if this Device
   // is not owned by a device manager.
@@ -209,16 +346,134 @@ class Device : public DeviceBase {
   DeviceMgr* device_mgr_ = nullptr;
 
   const DeviceAttributes device_attributes_;
+  // message DeviceAttributes 数据结构
+  // tensorflow/core/framework/device_attributes.proto
+  // - name: string
+  // - device_type: string
+  // - memory_limit: int64
+  // - locality: DeviceLocality
+  // - incarnation: fixed64
+  // - physical_device_desc: string
+
   DeviceNameUtils::ParsedName parsed_name_;
 
   // op_seg_ maps session handle and op name to OpKernel objects.
   OpSegment op_seg_;
-
+  // class OpSegment 数据结构
+  // tensorflow/core/framework/op_segment.h
+  //
+  // 概述:
+  //
+  // OpSegment keeps track of OpKernels registered for sessions running
+  // on a device.
+  //
+  // The implementation maintains a two-level map. The 1st level maps
+  // session handle to the map of registered OpKernels. The 2nd level
+  // map maps node names to instantiated OpKernel objects.
+  //
+  // Each 2-nd level map is reference-counted and the caller can call
+  // AddHold to obtain a reference on all kernels of a session and
+  // ensure these kernels are alive until a corresponding RemoveHold is
+  // called on the same session.
+  //
+  // - SessionMap: typedef std::unordered_map<string, Item*> SessionMap
+  // - KernelMap: typedef std::unordered_map<string, OpKernel*> KernelMap
+  // - sessions_: SessionMap
+  // - Item
+  //    - num_holds: int
+  //    - name_kernel: KernelMap
+  //      session handle -> item.
+  /*
+  +--------------------------------------------------------------+
+  |                      +-------------+                         |
+  | session handle+-------->  Item     |                         |
+  |                      |-------------|                         |
+  |                      |             |   +-------------------+ |
+  |                      | name_kernel+--->|op name+-->OpKernel| |
+  |                      |             |   +-------------------+ |
+  |                      |             |   +-------------------+ |
+  |                      +-------------+   |op name+-->OpKernel| |
+  |                                        +-------------------+ |
+  |                                        +-------------------+ |
+  |                                        |op name+-->OpKernel| |
+  |                                        +-------------------+ |
+  |                                                              |
+  |                                                              |
+  |                                                              |
+  |                      +-------------+                         |
+  | session handle+-------->  Item     |                         |
+  |                      |-------------|                         |
+  |                      |             |   +-------------------+ |
+  |                      | name_kernel+--->|op name+-->OpKernel| |
+  |                      |             |   +-------------------+ |
+  |                      |             |   +-------------------+ |
+  |                      +-------------+   |op name+-->OpKernel  |
+  |                                        +-------------------  |
+  |                                        +-------------------  |
+  |                                        |op name+-->OpKernel  |
+  |                                        +-------------------  |
+  */
   // Resources associated w/ this device. E.g., shared variables, etc.
   ResourceMgr* rmgr_ = nullptr;
 
   TF_DISALLOW_COPY_AND_ASSIGN(Device);
 };
+// 1.
+// class Device 数据结构
+//
+// class Device : public DeviceBase
+// tensorflow/core/common_runtime/device.h
+//
+// 重要接口
+// - Compute
+// - ComputeAsync
+// - FillContextMap
+// - resource_manager
+// 成员变量:
+// - device_mgr_: DeviceMgr*
+// - device_attributes_: const DeviceAttributes
+// - parsed_name_: DeviceNameUtils::ParsedName
+// - op_seg_: OpSegment
+// - rmgr_: ResourceMgr*
+// friend class:
+// friend class DeviceMgr;
+
+// 2.
+// class DeviceBase 数据结构
+// tensorflow/core/framework/device_base.h
+// - struct CpuWorkerThreads
+//    - num_threads: int , default : 0
+//    - workers: thread::ThreadPool*, default : nullptr
+// - struct GpuDeviceInfo
+//    - stream: stream_executor::Stream*
+//    - default_context: DeviceContext*
+//    - event_mgr: EventMgr*
+//    - gpu_id: int, default: -1
+// - env_: Env* const
+// - cpu_worker_threads_: CpuWorkerThreads* , default : nullptr
+// - gpu_device_info_: GpuDeviceInfo* , default : nullptr
+// - device_thread_pool_: thread::ThreadPool* , default : nullptr
+// - eigen_cpu_devices_: std::vector<Eigen::ThreadPoolDevice*>
+// - eigen_sycl_device_: Eigen::SyclDevice*, default : nullptr
+
+// 3.
+// class DeviceContext: public core::RefCounted
+// tensorflow/core/framework/device_base.h
+// 概述:
+// 接口定义
+//
+// 接口:
+// - stream()
+// - MaintainLifetimeOnStream
+// - CopyCPUTensorToDevice
+// - CopyTensorInSameDevice
+// - CopyDeviceTensorToCPU
+// - ThenExecute
+
+// 4.
+// class DeviceMgr 数据结构说明:
+// tensorflow/core/common_runtime/device_mgr.h
+
 
 }  // namespace tensorflow
 

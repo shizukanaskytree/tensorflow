@@ -793,6 +793,8 @@ class Saver(object):
     @end_compatibility
     """
     if defer_build and var_list:
+      # 异常处理
+      # 打印: defer_build : False, var_list : None.
       raise ValueError(
           "If `var_list` is provided then build cannot be deferred. "
           "Either set defer_build=False or var_list=None.")
@@ -807,6 +809,7 @@ class Saver(object):
         raise RuntimeError(
             "When eager execution is enabled, `var_list` must specify a list "
             "or dict of variables to save")
+    # 静态 tf
     self._var_list = var_list
     self._reshape = reshape
     self._sharded = sharded
@@ -828,6 +831,7 @@ class Saver(object):
       self._next_checkpoint_time = (
           time.time() + self._keep_checkpoint_every_n_hours * 3600)
     elif not defer_build:
+      # 进入这个
       self.build()
     if self.saver_def:
       self._check_saver_def()
@@ -840,6 +844,7 @@ class Saver(object):
   def build(self):
     if context.executing_eagerly():
       raise RuntimeError("Use save/restore instead of build in eager mode.")
+    # 进入这个
     self._build(self._filename, build_save=True, build_restore=True)
 
   def _build_eager(self, checkpoint_path, build_save, build_restore):
@@ -850,16 +855,40 @@ class Saver(object):
     """Builds saver_def."""
     if not context.executing_eagerly():
       if self._is_built:
+        # 没有进入
+        # _is_built : False
         return
       self._is_built = True
 
     if not self.saver_def or context.executing_eagerly():
       if self._builder is None:
+        # 进入这里
         self._builder = BulkSaverBuilder(self._write_version)
+        # 1.
+        # BulkSaverBuilder 函数整理
+        # tensorflow/python/training/saver.py
+        #
+        # class BulkSaverBuilder(BaseSaverBuilder):
+        # """SaverBuilder with support for bulk restoring multiple saveables."""
+        # It does not have __init__ function. So, it calls BaseSaverBuilder's __init__
+
+        # 2.
+        # class BaseSaverBuilder 数据结构
+        # tensorflow/python/training/saver.py
 
       if self._var_list is None:
         # pylint: disable=protected-access
+        # -----------------------------------------------------------------------
         self._var_list = variables._all_saveable_objects()
+        # -----------------------------------------------------------------------
+        # 重要
+        # 1. _all_saveable_objects 函数说明:
+        # tensorflow/python/ops/variables.py
+        #
+
+        # 2.
+        # variables module 说明:
+        # tensorflow/python/ops/variables.py
       if not self._var_list:
         if self._allow_empty:
           self._is_empty = True

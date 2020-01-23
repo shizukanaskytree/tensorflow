@@ -22,13 +22,40 @@ class Context {
  public:
   Context() {}
   Context(const ContextKind kind) {}
+  // 1.
+  // enum class ContextKind 数据结构
+  // core/platform/context.h
+  // - kDefault
+  //   Initial state with default (empty) values.
+  // - kThread
+  //   Initial state inherited from the creating or scheduling thread.
 
   bool operator==(const Context& other) const { return true; }
 };
+// 1.
+// class Context 数据结构
+// tensorflow/core/platform/default/context.h
+// 1.1 概述
+// Context is a container for request-specific information that should be passed
+// to threads that perform related work. The default constructor should capture
+// all relevant context.
+
+// 2.
+// enum class ContextKind 数据结构
+// core/platform/context.h
+// - kDefault
+//   Initial state with default (empty) values.
+// - kThread
+//   Initial state inherited from the creating or scheduling thread.
+
 
 class WithContext {
  public:
   explicit WithContext(const Context& x) {}
+  // 1.
+  // class Context 数据结构
+  // 这个文件最上面写着呢。
+
   ~WithContext() {}
 };
 

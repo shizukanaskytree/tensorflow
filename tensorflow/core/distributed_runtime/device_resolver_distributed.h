@@ -26,6 +26,11 @@ namespace tensorflow {
 class DeviceMgr;
 class WorkerCacheInterface;
 
+/** \class DeviceResolverDistributed
+ *
+ *  \brief DeviceResolverDistributed helps 1. get device locality information;
+ *         2. clear all devices' attributes belonging to that target name.
+ */
 class DeviceResolverDistributed : public DeviceResolverInterface {
  public:
   DeviceResolverDistributed(const DeviceMgr* dev_mgr,

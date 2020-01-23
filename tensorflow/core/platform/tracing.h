@@ -41,6 +41,8 @@ enum struct EventCategory : unsigned {
   kCompute = 2,
   kNumCategories = 3  // sentinel - keep last
 };
+
+
 constexpr unsigned GetNumEventCategories() {
   return static_cast<unsigned>(EventCategory::kNumCategories);
 }
@@ -69,14 +71,24 @@ class EventCollector {
 // Not thread safe. Only call while EventCollector::IsEnabled returns false.
 void SetEventCollector(EventCategory category, const EventCollector* collector);
 
+
+///////////////////////////////////////////////////////////////////////
+/// 这个函数判断是否开启 ScopedRegion profiling 。
 // Returns the callback for RecordEvent and ScopedRegion of category if
 // EventCollector::IsEnabled(), otherwise returns null.
 inline const EventCollector* GetEventCollector(EventCategory category) {
+
+  /// EventCollector::IsEnabled() 已经被硬编码成了 false.
+  /// 所以永远不可能开启 ScopedRegion .
   if (EventCollector::IsEnabled()) {
     return EventCollector::instances_[static_cast<unsigned>(category)];
   }
+
   return nullptr;
 }
+///////////////////////////////////////////////////////////////////////
+
+
 
 // Returns a unique id to pass to RecordEvent/ScopedRegion. Never returns zero.
 uint64 GetUniqueArg();
@@ -91,6 +103,15 @@ inline void RecordEvent(EventCategory category, uint64 arg) {
   }
 }
 
+
+
+//////////////////////////////////////////////////////////////////////
+// class ScopedRegion 这个主要用在
+// 1. threadpool.cc ExecuteTask() 内用
+// 2. Process() ScopedAnnotation or ScopedActivity 前面，是他们的高一级层 profiling
+//    范围。
+//////////////////////////////////////////////////////////////////////
+//
 // Records an event for the duration of the instance lifetime through the
 // currently registered EventCollector.
 class ScopedRegion {
@@ -140,6 +161,8 @@ class ScopedRegion {
   const EventCollector* collector_;
 };
 
+
+
 // Interface for accelerator profiler annotations.
 class TraceCollector {
  public:
@@ -169,6 +192,8 @@ class TraceCollector {
   friend void SetTraceCollector(const TraceCollector*);
   friend const TraceCollector* GetTraceCollector();
 };
+
+
 // Set the callback for ScopedAnnotation and ScopedActivity.
 void SetTraceCollector(const TraceCollector* collector);
 // Returns the callback for ScopedAnnotation and ScopedActivity.
@@ -193,18 +218,29 @@ class ScopedAnnotation {
   // single-argument constructor because the concatenation of the
   // label string is only done if tracing is enabled.
   ScopedAnnotation(StringPiece name_part1, StringPiece name_part2)
-      : handle_([&] {
+      :
+      handle_(
+        // --------------------------------------------------------------------
+        [&] {
           auto trace_collector = GetTraceCollector();
           return trace_collector ? trace_collector->CreateAnnotationHandle(
                                        name_part1, name_part2)
                                  : nullptr;
-        }()) {}
+        }
+
+        () // 调用这个 lambda 的
+        // --------------------------------------------------------------------
+
+      ) {}
 
   bool IsEnabled() const { return static_cast<bool>(handle_); }
 
  private:
   std::unique_ptr<TraceCollector::Handle> handle_;
 };
+
+
+
 
 // Adds an activity through the currently registered TraceCollector.
 // The activity starts when an object of this class is created and stops when
@@ -220,12 +256,21 @@ class ScopedActivity {
   // label string is only done if tracing is enabled.
   ScopedActivity(StringPiece name_part1, StringPiece name_part2,
                  bool is_expensive = true)
-      : handle_([&] {
+      :
+      handle_(
+        // --------------------------------------------------------------------
+        // 如下是定义这个 lambda 的
+        [&] {
           auto trace_collector = GetTraceCollector();
           return trace_collector ? trace_collector->CreateActivityHandle(
                                        name_part1, name_part2, is_expensive)
                                  : nullptr;
-        }()) {}
+        }
+
+        () // 调用这个 lambda 的
+        // --------------------------------------------------------------------
+
+      ) {}
 
   bool IsEnabled() const { return static_cast<bool>(handle_); }
 

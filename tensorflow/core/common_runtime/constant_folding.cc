@@ -465,7 +465,13 @@ Graph* GetConstantGraph(
 // 'control_deps' is the set of nodes that should be control predecessors of the
 // new constant node.
 bool ReplaceTensorWithConstant(
-    Graph* graph, Device* partition_device, NodeAndOutput tensor,
+    Graph* graph,
+
+    // 1.QQQ. partition_device 的作用是什么
+    // 1.AAA. 更改 MemoryTypeVector input_mvec 和 output_mvec
+    Device* partition_device,
+
+    NodeAndOutput tensor,
     const Tensor& constant, const gtl::FlatSet<Node*>& control_deps,
     int64 max_constant_size_in_bytes,
     const ConstantFoldNameGenerator& generate_new_name) {
@@ -487,6 +493,8 @@ bool ReplaceTensorWithConstant(
   if (tensor.first->IsConstant()) {
     return false;
   }
+
+  // 1.AAA
   DeviceType device_type = partition_device
                                ? DeviceType{partition_device->device_type()}
                                : DEVICE_CPU;
@@ -498,6 +506,7 @@ bool ReplaceTensorWithConstant(
              .ok()) {
       return false;
     }
+
     for (int i = 0; i < output_mvec.size(); i++) {
       MemoryType memory_type = output_mvec[i];
       bool is_int32 = tensor.first->output_type(i) == DT_INT32;
@@ -507,6 +516,7 @@ bool ReplaceTensorWithConstant(
       }
     }
   }
+
   if (constant.TotalBytes() > max_constant_size_in_bytes) {
     return false;
   }
@@ -518,6 +528,7 @@ bool ReplaceTensorWithConstant(
       edges_to_remove.push_back(out_edge);
     }
   }
+
   const string& node_name = n->name();
   Node* constant_node;
   auto builder = NodeDefBuilder(generate_new_name(graph, node_name), "Const")
@@ -561,8 +572,13 @@ bool ReplaceTensorWithConstant(
 }  // namespace
 
 Status ConstantFold(const ConstantFoldingOptions& opts,
-                    FunctionLibraryRuntime* function_library, Env* env,
-                    Device* partition_device, Graph* graph, bool* was_mutated) {
+                    FunctionLibraryRuntime* function_library,
+                    Env* env,
+                    // QQQ. partition_device 作用是什么？
+                    // AAA. ReplaceTensorWithConstant
+                    Device* partition_device,
+                    Graph* graph,
+                    bool* was_mutated) {
   // TensorFlow flushes denormals to zero and rounds to nearest, so we do
   // the same here.
   port::ScopedFlushDenormal flush;
@@ -588,6 +604,9 @@ Status ConstantFold(const ConstantFoldingOptions& opts,
     // This is not an error, so return the status as OK.
     return Status::OK();
   }
+  // -----------------------------------------------------------------------
+  // END OF STORY
+  // -----------------------------------------------------------------------
 
   std::map<NodeAndOutput, Node*> tensors_to_fetch;
   std::unique_ptr<Graph> constant_graph(
@@ -645,11 +664,14 @@ Status ConstantFold(const ConstantFoldingOptions& opts,
   for (size_t c = 0; c < outputs.size(); ++c) {
     const gtl::FlatSet<Node*>& control_deps =
         constant_control_deps[tensors_to_replace[c].first];
+
+    // -----------------------------------------------------------------------
     if (ReplaceTensorWithConstant(
             graph, partition_device, tensors_to_replace[c], outputs[c],
             control_deps, opts.max_constant_size_in_bytes, generate_new_name)) {
       ++num_nodes_replaced;
     }
+    // -----------------------------------------------------------------------
   }
 
   DumpGraph("After", graph);

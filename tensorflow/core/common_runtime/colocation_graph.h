@@ -132,6 +132,16 @@ class Member {
   // has not yet been computed.
   std::vector<Device*> possible_devices_;
 };  // namespace
+// class Member END!
+// Member 数据结构
+// - parent_: int , default: -1
+// - rank_: int, default: 0
+// - assigned_device_name_index_: int , default: -1
+// - requested_device_name_: DeviceNameUtils::ParsedName
+// - assigned_device_name_: DeviceNameUtils::ParsedName
+// - supported_device_types_: PrioritizedDeviceTypeVector
+// - possible_devices_: std::vector<Device*> 
+
 
 // This class maintains the connected components of a colocation
 // constraint graph, and uses this information to assign a satisfying

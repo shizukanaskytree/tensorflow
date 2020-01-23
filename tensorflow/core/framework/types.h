@@ -68,6 +68,16 @@ class DeviceType {
  private:
   string type_;
 };
+// 1.
+// class DeviceType 数据结构说明:
+// tensorflow/core/framework/types.h
+//
+// 概述:
+// A DeviceType is just a string, but we wrap it up in a class to give
+// some type checking as we're passing these around
+//
+// - type_ : string
+
 std::ostream& operator<<(std::ostream& os, const DeviceType& d);
 
 // Convenient constants that can be passed to a DeviceType constructor

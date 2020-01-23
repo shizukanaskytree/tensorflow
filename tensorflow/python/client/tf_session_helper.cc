@@ -45,14 +45,22 @@ static const char* kFeedDictErrorMsg =
 
 TF_Session* TF_NewSessionRef(TF_Graph* graph, const TF_SessionOptions* opts,
                              TF_Status* status) {
+
   TF_Session* tf_session = TF_NewSession(graph, opts, status);
+  // TF_Session 数据结构:
+  // tensorflow/c/c_api_internal.h:135:struct TF_Session
+  //
+
   if (tf_session == nullptr) {
     return nullptr;
   }
 
   Session* session = reinterpret_cast<Session*>(tf_session->session);
+
   SessionRef* session_ref = new SessionRef(session);
+
   tf_session->session = session_ref;
+
   return tf_session;
 }
 
@@ -206,13 +214,20 @@ void TF_SessionMakeCallable(TF_Session* session,
                      out_status);
 }
 
+
 namespace {
-void RunCallableHelper(tensorflow::Session* session, int64_t handle,
-                       PyObject* feed_values, TF_Status* out_status,
-                       PyObjectVector* out_values, TF_Buffer* run_metadata) {
+void RunCallableHelper(tensorflow::Session* session,
+                       int64_t handle,  // input
+                       PyObject* feed_values,
+                       TF_Status* out_status,
+                       PyObjectVector* out_values,
+                       TF_Buffer* run_metadata) {
+
   // Convert feed values to a vector of tensorflow::Tensor objects.
   std::vector<Tensor> input_tensors;
+
   Status s;
+
   {
     feed_values =
         PySequence_Fast(feed_values, "feed_values must be a sequence");
@@ -246,8 +261,11 @@ void RunCallableHelper(tensorflow::Session* session, int64_t handle,
 
   // Run the callable.
   std::vector<Tensor> output_tensors;
+
   Py_BEGIN_ALLOW_THREADS;
-  s = session->RunCallable(handle, input_tensors, &output_tensors,
+  s = session->RunCallable(handle, // input
+                           input_tensors,
+                           &output_tensors,
                            run_metadata_proto.get());
   Py_END_ALLOW_THREADS;
 
@@ -298,12 +316,22 @@ void TF_DeprecatedSessionRunCallable(TF_DeprecatedSession* session,
                     out_values, run_metadata);
   ClearDecrefCache();
 }
-void TF_SessionRunCallable(TF_Session* session, int64_t handle,
-                           PyObject* feed_values, TF_Status* out_status,
+
+
+void TF_SessionRunCallable(TF_Session* session,
+                           int64_t handle, // input 
+                           PyObject* feed_values,
+                           TF_Status* out_status,
                            PyObjectVector* out_values,
                            TF_Buffer* run_metadata) {
-  RunCallableHelper(session->session, handle, feed_values, out_status,
-                    out_values, run_metadata);
+
+  RunCallableHelper(session->session,
+                    handle, // input
+                    feed_values,
+                    out_status,
+                    out_values,
+                    run_metadata);
+
   ClearDecrefCache();
 }
 

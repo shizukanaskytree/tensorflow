@@ -69,6 +69,9 @@ class DeviceContext : public core::RefCounted {
  public:
   ~DeviceContext() override {}
   virtual stream_executor::Stream* stream() const { return nullptr; }
+
+  // tensorflow/stream_executor/stream.h:92:class Stream
+  // 软件 stream 的集大成者，大而全啊。
   virtual void MaintainLifetimeOnStream(const Tensor* t,
                                         stream_executor::Stream* stream) const {
   }
@@ -107,6 +110,24 @@ class DeviceContext : public core::RefCounted {
     return errors::Internal("ThenExecute not supported by device");
   }
 };
+// 1.
+// class DeviceContext 数据结构
+// class DeviceContext: public core::RefCounted
+// tensorflow/core/framework/device_base.h
+// 概述:
+// A class that devices can subclass to pass around
+// Device-specific context to OpKernels.
+//
+// 没有成员变量
+//
+// 接口:
+// - stream()
+// - MaintainLifetimeOnStream
+// - CopyCPUTensorToDevice
+// - CopyTensorInSameDevice
+// - CopyDeviceTensorToCPU
+// - ThenExecute
+
 
 // map[i] is the DeviceContext* for the node with id i, if i < map.size().
 typedef std::vector<DeviceContext*> DeviceContextMap;
@@ -154,14 +175,29 @@ class DeviceBase {
     EventMgr* event_mgr = nullptr;
     int gpu_id = -1;
   };
+  // 1.
+  // struct GpuDeviceInfo 数据结构
+  // tensorflow/core/framework/device_base.h
+  // - stream: stream_executor::Stream*
+  // - default_context: DeviceContext*
+  // - event_mgr: EventMgr*
+  // - gpu_id: int , default_value : -1
+
 
   // Does not take ownership.
   void set_tensorflow_gpu_device_info(GpuDeviceInfo* g) {
     gpu_device_info_ = g;
   }
+  // 1.
+  // 被调用:
+  // BaseGPUDevice::Init
+  // tensorflow/core/common_runtime/gpu/gpu_device.cc
 
   virtual const GpuDeviceInfo* tensorflow_gpu_device_info() const {
     return gpu_device_info_;
+    // 1.
+    // gpu_device_info_ 变量说明
+    // gpu_device_info_: GpuDeviceInfo*
   }
 
   // The preferred thread pool for this device. If it is nullptr, the system
@@ -272,6 +308,74 @@ class DeviceBase {
   Eigen::SyclDevice* eigen_sycl_device_ = nullptr;
 #endif
 };
+// 1.
+// Device 数据结构
+// class Device : public DeviceBase
+// tensorflow/core/common_runtime/device.h
+
+// 2.
+// class DeviceBase 数据结构
+// tensorflow/core/framework/device_base.h
+// - struct CpuWorkerThreads
+//    - num_threads: int , default : 0
+//    - workers: thread::ThreadPool*, default : nullptr
+// - struct GpuDeviceInfo
+//    - stream: stream_executor::Stream*
+//    - default_context: DeviceContext*
+//    - event_mgr: EventMgr*
+//    - gpu_id: int, default: -1
+// - env_: Env* const
+// - cpu_worker_threads_: CpuWorkerThreads* , default : nullptr
+// - gpu_device_info_: GpuDeviceInfo* , default : nullptr
+// - device_thread_pool_: thread::ThreadPool* , default : nullptr
+// - eigen_cpu_devices_: std::vector<Eigen::ThreadPoolDevice*>
+// - eigen_sycl_device_: Eigen::SyclDevice*, default : nullptr
+
+// 3.
+// class DeviceContext: public core::RefCounted
+// tensorflow/core/framework/device_base.h
+// 概述:
+// 接口定义
+//
+// 接口:
+// - stream()
+// - MaintainLifetimeOnStream
+// - CopyCPUTensorToDevice
+// - CopyTensorInSameDevice
+// - CopyDeviceTensorToCPU
+// - ThenExecute
+
+// 4.
+// 继承 class DeviceBase 的类
+// - class Device : public DeviceBase
+//   tensorflow/core/common_runtime/device.h
+// - class DeviceSimple : public DeviceBase
+//   tensorflow/core/grappler/optimizers/evaluation_utils.h
+
+// 5.
+// 继承 class Device 的类
+// - class LocalDevice
+// - class SingleThreadedCpuDevice
+// - class RenamedDevice
+// - class RemoteDevice
+
+// 6.
+// 继承 class LocalDevice 的类
+// - class ThreadPoolDevice : public LocalDevice
+// - class BaseGPUDevice
+// - class SYCLDevice
+// - class XlaCompilationDevice
+// - class XlaDevice : public LocalDevice
+
+// 7.
+// 继承 class BaseGPUDevice 的类
+// - class GPUDevice : public BaseGPUDevice
+
+// 8.
+// 继承 class ThreadPoolDevice 的类
+// - class GPUCompatibleCPUDevice : public ThreadPoolDevice
+
+
 
 }  // namespace tensorflow
 

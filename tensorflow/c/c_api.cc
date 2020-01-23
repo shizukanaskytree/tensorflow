@@ -284,6 +284,12 @@ static int64_t ShapeNumElements(const int64_t* dims, int num_dims) {
 static void UnrefIfNonNull(::tensorflow::TensorBuffer* buf) {
   if (buf != nullptr) {
     buf->Unref();
+    // 1.
+    // Unref() 函数说明:
+    // bool Unref() const;
+    // tensorflow/core/lib/core/refcount.h (no refcount.cc file)
+
+
   }
 }
 
@@ -752,15 +758,34 @@ void TF_GraphSetOutputHandleShapesAndTypes(TF_Graph* graph, TF_Output output,
 Status LoadLibrary(const char* library_filename, void** result,
                    const void** buf, size_t* len);
 
+/** \brief Fill graph_def with nodes with ids in the range, and extend the
+ *         session.
+ *
+ *  \param session: TF_Session*
+ *         TF_Session encapsulates 1. Session 2. Graph 3. last node number.
+ *
+ *  \param status: TF_Status*
+ *  \note 做过笔记
+ */
 // TODO(josh11b,mrry): Change Session to be able to use a Graph*
 // directly, instead of requiring us to serialize to a GraphDef and
 // call Session::Extend().
+
+// 我看这个函数的目的是:
+// 我想弄明白 DirectSession::execution_state_ 是怎么被初始化的，里面的图是哪来的
+// 相关的函数是
+// DirectSession::MaybeInitializeExecutionState
+// 我这下子明白了，其实是把 TF_Session 内的 Graph 转换成 GraphDef (仅仅因为函数接口需要吧)
+// 然后接着 GraphDef 内的信息把 DirectSession::execution_state_ 给初始化了。
 bool ExtendSessionGraphHelper(TF_Session* session, TF_Status* status) {
   if (session->graph != nullptr) {
+
     // Take the graph lock before the session lock to avoid deadlock. This is
     // safe since session->graph does not change.
     session->graph->mu.lock();
     mutex_lock session_lock(session->mu);
+
+    // 图在此
     const Graph& graph = session->graph->graph;
 
     const string& mutation_warning = session->graph->sessions[session];
@@ -780,7 +805,9 @@ bool ExtendSessionGraphHelper(TF_Session* session, TF_Status* status) {
         return false;
       }
 
+      // 用 Graph session->graph->graph 初始化了 graph_def
       GraphDef graph_def;
+
       *graph_def.mutable_versions() = graph.versions();
       // Fill graph_def with nodes with ids in the range
       // [session->last_num_graph_nodes, num_nodes), that is the nodes
@@ -793,8 +820,42 @@ bool ExtendSessionGraphHelper(TF_Session* session, TF_Status* status) {
         }
       }
       *graph_def.mutable_library() = graph.flib_def().ToProto();
+
       session->graph->mu.unlock();
+
       status->status = session->session->Extend(graph_def);
+      // callstack:
+      // search tensorflow::ExtendSession
+      // https://docs.google.com/document/d/1zyn1CLUu_tCoLA_VGTXfnntesMs5ngvCkMjKHbWLMxU/edit#
+
+      // 1.
+      // session 变量说明
+      // session: TF_Session*
+      // tensorflow/c/c_api_internal.h:135:struct TF_Session
+      // - session: tensorflow::Session*
+      // - graph: TF_Graph* const
+
+      // 2.
+      // session->session: tensorflow::Session*
+      // 因为 继承 tensorflow/python/client/session_ref.h:32:class SessionRef : public Session
+      // 所以，session->session 真实的类型是 class SessionRef
+
+
+      // 3.
+      // tensorflow::Session 数据结构
+      // tensorflow/core/public/session.h:83:class Session
+
+      // 4.
+      // class SessionRef 数据结构
+      // tensorflow/python/client/session_ref.h:32:class SessionRef : public Session
+
+      // 5.
+      // Extend 函数说明
+      // SessionRef::Extend
+      // tensorflow/python/client/session_ref.cc
+      // Status SessionRef::Extend(const GraphDef& graph)
+
+
       if (TF_GetCode(status) != TF_OK) {
         // Contract is we always delete input_values[i].
         return false;
@@ -1202,7 +1263,8 @@ static TF_OperationDescription* TF_NewOperationLocked(TF_Graph* graph,
   return new TF_OperationDescription(graph, op_type, oper_name);
 }
 
-TF_OperationDescription* TF_NewOperation(TF_Graph* graph, const char* op_type,
+TF_OperationDescription* TF_NewOperation(TF_Graph* graph,
+                                         const char* op_type,
                                          const char* oper_name) {
   mutex_lock l(graph->mu);
   return TF_NewOperationLocked(graph, op_type, oper_name);
@@ -2578,6 +2640,16 @@ void TF_AddGradientsWithPrefix(TF_Graph* g, const char* prefix, TF_Output* y,
 TF_Session::TF_Session(tensorflow::Session* s, TF_Graph* g)
     : session(s), graph(g), last_num_graph_nodes(0), extend_before_run(true) {}
 
+/** \brief Create a new Session.
+ *
+ *  \param graph: TF_Graph*
+ *
+ *  \param opt: TF_SessionOptions*
+ *
+ *  \param status: TF_Status*
+ *
+ *  \return TF_Session*
+ */
 TF_Session* TF_NewSession(TF_Graph* graph, const TF_SessionOptions* opt,
                           TF_Status* status) {
   Session* session;

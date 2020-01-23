@@ -118,6 +118,11 @@ void Master::GC() {
   }
 }
 
+/** \brief Return the corresponding master session handler to the calling client
+ *
+ *  \param handle: const string&;
+ *
+ */
 MasterSession* Master::FindMasterSession(const string& handle) {
   MasterSession* session = nullptr;
   {
@@ -132,25 +137,116 @@ MasterSession* Master::FindMasterSession(const string& handle) {
 
 class DeviceFinder {
  public:
+  /** \brief
+   *
+   *  \param[in] device_filters: const protobuf::RepeatedPtrField<string>& ;
+   *         device_filters is defined in core/protobuf/config.proto.
+   *         message ConfigProto::string device_filters
+   *         protobuf::RepeatedPtrField is similar to STL's vector, but include
+   *         a number of optimizations found to be useful specifically in the
+   *         case of Protocol Buffers.
+   *         When any filters are present sessions will ignore all devices which
+   *         do not match the filters. Each filter can be partially specified,
+   *         e.g. "/job:ps", "/job:worker/replica:3", etc.
+   *
+   *  \param[in] env: MasterEnv* ;
+   *         The master environment class, which holds a bag of pointers to
+   *         per-master state. MasterEnv does not own its member pointers.
+   *         It stores pointers to 1. OS environment 2. WorkerCacheInterface
+   *         3. OpRegistryInterface 4. a list of local_devices 5. a lambda of
+   *         factory lambda function for creating master sessions 6. a lambda of
+   *         worker_cache_factory 7. CollectiveExecutorMgrInterface.
+   *
+   *  \param[in] worker_cache: WorkerCacheInterface* ;
+   *         WorkerCacheInterface provides interface for 1. list workers' names;
+   *         2. list workers' name of a job name; 3. create worker with a name;
+   *         4. destory a worker; 5. get device locality information of a device;
+   *         6. logging.
+   *
+   *  \param[out] out_remote: std::vector<std::unique_ptr<Device>>* ;
+   *         Device is the hardware device to do computations.
+   *
+   *  \return Status
+   */
   static Status GetRemoteDevices(
       const protobuf::RepeatedPtrField<string>& device_filters, MasterEnv* env,
       WorkerCacheInterface* worker_cache,
       std::vector<std::unique_ptr<Device>>* out_remote) {
     DeviceFinder finder(device_filters, env, worker_cache);
     finder.Start();
+    /// wait until get all devices.
     TF_RETURN_IF_ERROR(finder.Wait());
     finder.GetRemoteDevices(env->local_devices, out_remote);
     return Status::OK();
   }
 
+  /** \brief Enumerates all known workers' target and get qualified candidates
+   *         according to the filter requirement.
+   *
+   *  \param[in] device_filters: const protobuf::RepeatedPtrField<string>& ;
+   *         device_filters is defined in core/protobuf/config.proto.
+   *         message ConfigProto::string device_filters
+   *         protobuf::RepeatedPtrField is similar to STL's vector, but include
+   *         a number of optimizations found to be useful specifically in the
+   *         case of Protocol Buffers.
+   *         When any filters are present sessions will ignore all devices which
+   *         do not match the filters. Each filter can be partially specified,
+   *         e.g. "/job:ps", "/job:worker/replica:3", etc.
+   *
+   *  \param[in] env: MasterEnv* ;
+   *         The master environment class, which holds a bag of pointers to
+   *         per-master state. MasterEnv does not own its member pointers.
+   *         It stores pointers to 1. OS environment 2. WorkerCacheInterface
+   *         3. OpRegistryInterface 4. a list of local_devices 5. a lambda of
+   *         factory lambda function for creating master sessions 6. a lambda of
+   *         worker_cache_factory 7. CollectiveExecutorMgrInterface.
+   *
+   *  \param[in] worker_cache: WorkerCacheInterface* ;
+   *         WorkerCacheInterface provides interface for 1. list workers' names;
+   *         2. list workers' name of a job name; 3. create worker with a name;
+   *         4. destory a worker; 5. get device locality information of a device;
+   *         6. logging.
+   *
+   *  \param[out] workers: std::vector<string>* ;
+   *         name of workers.
+   */
   static void GetRemoteWorkers(
       const protobuf::RepeatedPtrField<string>& device_filters, MasterEnv* env,
       WorkerCacheInterface* worker_cache, std::vector<string>* workers) {
+    /// DeviceFinder constructor. Enumerates all known workers' target and
+    /// get qualified candidates according to the filter requirement.
     DeviceFinder finder(device_filters, env, worker_cache);
     *workers = finder.targets_;
   }
 
  private:
+  /** \brief DeviceFinder constructor. Enumerates all known workers' target and
+   *         get qualified candidates according to the filter requirement.
+   *
+   *  \param device_filters: const protobuf::RepeatedPtrField<string>& ;
+   *         device_filters is defined in core/protobuf/config.proto.
+   *         message ConfigProto::string device_filters
+   *         protobuf::RepeatedPtrField is similar to STL's vector, but include
+   *         a number of optimizations found to be useful specifically in the
+   *         case of Protocol Buffers.
+   *         When any filters are present sessions will ignore all devices which
+   *         do not match the filters. Each filter can be partially specified,
+   *         e.g. "/job:ps", "/job:worker/replica:3", etc.
+   *
+   *  \param env: MasterEnv* ;
+   *         The master environment class, which holds a bag of pointers to
+   *         per-master state. MasterEnv does not own its member pointers.
+   *         It stores pointers to 1. OS environment 2. WorkerCacheInterface
+   *         3. OpRegistryInterface 4. a list of local_devices 5. a lambda of
+   *         factory lambda function for creating master sessions 6. a lambda of
+   *         worker_cache_factory 7. CollectiveExecutorMgrInterface.
+   *
+   *  \param worker_cache: WorkerCacheInterface* ;
+   *         WorkerCacheInterface provides interface for 1. list workers' names;
+   *         2. list workers' name of a job name; 3. create worker with a name;
+   *         4. destory a worker; 5. get device locality information of a device;
+   *         6. logging.
+   */
   explicit DeviceFinder(
       const protobuf::RepeatedPtrField<string>& device_filters, MasterEnv* env,
       WorkerCacheInterface* worker_cache)
@@ -158,7 +254,11 @@ class DeviceFinder {
     CHECK(worker_cache) << "Worker cache was null!";
     auto process_filter = [this](const string& filter) {
       DeviceNameUtils::ParsedName parsed;
+      /// Parse the fullname string filter into a structed data type of
+      /// ParsedName which can tell job, replica, task, id and bool of them
+      /// immediately.
       if (DeviceNameUtils::ParseFullName(filter, &parsed)) {
+        /// std::vector<DeviceNameUtils::ParsedName> filters_ in master.cc
         filters_.push_back(parsed);
       } else {
         LOG(FATAL) << "Skipping invalid filter: " << filter;
@@ -169,11 +269,25 @@ class DeviceFinder {
     }
     // Enumerates all known workers' target. A target name is a
     // prefix of a device name. E.g., /job:mnist/replica:0/task:10.
+    /// I don't specify the filter, so it goes to the first if branch.
     if (filters_.empty()) {
       // If no filters were specified, we list all known workers in
       // `worker_cache`.
       std::vector<string> workers;
+
+      /// \brief Get all workers from all ip:port, and store them to a string in
+      ///        the of ("/job:", job, "/replica:0/task:", task).
+      ///
+      /// \param workers: std::vector<string>*
+      ///        The return value of ListWorkers, and store them to a string in
+      ///        the of ("/job:", job, "/replica:0/task:", task).
+      ///
+      /// \note call GrpcWorkerCache::ListWorkers,
+      ///       worker_cache is GrpcWorkerCache.
+      ///       GrpcWorkerCache derives WorkerCachePartial, which derives
+      ///       WorkerCacheInterface.
       worker_cache->ListWorkers(&workers);
+
       std::swap(workers, targets_);
     } else {
       // When applying filters, we must include the local worker, even if it
@@ -232,9 +346,12 @@ class DeviceFinder {
     for (Device* dev : found_) delete dev;
   }
 
+  /** \brief Start finding all devices from all ip:port from all targets.
+   */
   void Start() {
     {
       mutex_lock l(mu_);
+      /// targets_ is all job:task_index from all ip:port .
       num_pending_ = targets_.size();
       if (num_pending_ == 0) {
         pending_zero_.notify_all();
@@ -246,6 +363,7 @@ class DeviceFinder {
     for (size_t i = 0; i < targets_.size(); ++i) {
       // TODO(mrry): Propagate a timeout here, since `this->WhenFound()` may
       // never be called.
+      /// Create a work mapping to a target, i.e., job:task_index.
       NewRemoteDevices(env_->env, worker_cache_, targets_[i],
                        std::bind(&ME::WhenFound, this, i, _1, _2));
     }
@@ -256,11 +374,14 @@ class DeviceFinder {
   // responded.
   const int32 kLoggingPeriodMs = 10 * 1000;
 
+  /** \brief CreateSession will wait for response from the unresponsive workers.
+   */
   Status Wait() {
     mutex_lock l(mu_);
     // TODO(mrry): Propagate a timeout here, since `num_pending_` may
     // never become zero.
     while (num_pending_ != 0) {
+      /// condition_variable pending_zero_; is defined in master.cc
       pending_zero_.wait_for(l, std::chrono::milliseconds(kLoggingPeriodMs));
       if (num_pending_ != 0) {
         for (size_t i = 0; i < targets_.size(); ++i) {
@@ -275,6 +396,14 @@ class DeviceFinder {
     return status_;
   }
 
+  /** \brief Get all devices from all workers remotely.
+   *
+   *  \param local: const std::vector<Device*>&
+   *
+   *  \param remote: std::vector<std::unique_ptr<Device>>*
+   *
+   *  \remark No return value.
+   */
   // The caller takes the ownership of returned remote devices.
   void GetRemoteDevices(const std::vector<Device*>& local,
                         std::vector<std::unique_ptr<Device>>* remote) {
@@ -298,6 +427,7 @@ class DeviceFinder {
   std::vector<DeviceNameUtils::ParsedName> filters_;
 
   mutex mu_;
+  /// num of unresponsive workers when create session.
   int num_pending_ GUARDED_BY(mu_);
   condition_variable pending_zero_;
   std::vector<Device*> found_ GUARDED_BY(mu_);
@@ -308,15 +438,30 @@ class DeviceFinder {
   std::vector<bool> seen_targets_ GUARDED_BY(mu_);
   Status status_;
 
+  /** \brief Specify the range of [devices->begin(), devices->end()), inserted
+   *         at the position of found_.end().
+   *
+   *  \param target_index: int ;
+   *
+   *  \param s: const Status& ;
+   *
+   *  \param devices: std::vector<Device*>* ;
+   *
+   *  \remark No return value.
+   */
   void WhenFound(int target_index, const Status& s,
                  std::vector<Device*>* devices) {
     mutex_lock l(mu_);
+    /// std::vector<bool> seen_targets_  defined in master.cc
     seen_targets_[target_index] = true;
     if (!s.ok()) {
       LOG(ERROR) << "CreateSession failed because worker "
                  << targets_[target_index] << " returned error: " << s;
       status_.Update(s);
     } else {
+      /// std::vector<Device*> found_  in master.cc.
+      /// Specify the range of [devices->begin(), devices->end()), inserted at
+      /// the position of found_.end().
       found_.insert(found_.end(), devices->begin(), devices->end());
       devices->clear();
     }
@@ -352,28 +497,94 @@ class DeviceFinder {
   TF_DISALLOW_COPY_AND_ASSIGN(DeviceFinder);
 };
 
+/** \brief Master grpc server side handler function.
+ *         Create a session in another thread, requested by a client to a master
+ *         at Server side. Then, Master sends a request to worker to create a
+ *         session.
+ *
+ *  \param[in] req: CreateSessionRequest* ;
+ *         message CreateSessionRequest includes
+ *         1. GraphDef: NodeDef, versionDef, FunctionDefLibrary;
+ *         2. ConfigProto, including Session configuration parameters.
+ *         3. The target string used from the client's perspective.
+ *            e.g., "grpc://localhost:2223"
+ *
+ *  \param[out] resp: CreateSessionResponse* ;
+ *         message CreateSessionResponse includes
+ *         1. session_handle string, and
+ *         2. graph version for the subsequent call to ExtendSession.
+ *
+ *  \param[in] done: MyClosure;
+ *         A lambda function to be called at the very end of CreateSession to
+ *         send response back to the client
+ *         ```cpp
+ *         [call, rewritten_req](const Status& status) {
+ *           call->SendResponse(ToGrpcStatus(status));
+ *           delete rewritten_req;
+ *         }
+ *         ```
+ *         from grpc_master_service.cc
+ *
+ *  \note SchedClosure: std::thread;
+ *        Start a new thread to run the SchedClosure lambda function, and
+ *        then detach this thread.
+ *
+ *  \details
+ *   1. class Master must be used to manage all master sessions requested by
+ *      all clients.
+ *   - std::unordered_map< string, MasterSession * > sessions_
+ *
+ *   2. It is called by GrpcServer::master_impl_
+ *      - master_impl_: std::unique_ptr< Master >
+ *      - Master is constructed in GrpcServer::CreateMaster
+ *      - master_session_factory is initialized when grpc server is initialized.
+ */
 void Master::CreateSession(const CreateSessionRequest* req,
                            CreateSessionResponse* resp, MyClosure done) {
+  /// \fn SchedClosure
+  /// SchedClosure is at core/common_runtime/process_util.cc
+  /// It is a function, its input is a lambda.
   SchedClosure([this, req, resp, done]() {
+    /// The following code is executed by another thread.
     Status status;
+    /// \note worker_cache_factory_options: WorkerCacheFactoryOptions;
+    /// To fill in fields in the struct of WorkerCacheFactoryOptions.
+    /// Worker cache factory options are pointers to cluster, job, task,
+    /// protocol, host:port information to be used in
+    /// GrpcServer::WorkerCacheFactory to Construct a new GrpcWorkerCache
+    /// which can access all workers responsible for graph computing.
     WorkerCacheFactoryOptions worker_cache_factory_options;
     string grpc_protocol("grpc");
     worker_cache_factory_options.protocol = &grpc_protocol;
+    /// \note gtl::MakeCleanup can make an RAII cleanup object that will call
+    /// the lambda function when it go out of this scope.
     auto call_done = gtl::MakeCleanup([&status, &done] { done(status); });
     status = ValidateExternalGraphDefSyntax(req->graph_def());
     if (!status.ok()) return;
 
     // The following 4 variables are set differently, depending on whether this
     // session uses a client-provided clusterspec or not.
+    /// \note worker_cache: WorkerCacheInterface*
+    /// WorkerCacheInterface provides interface for 1. list workers' names;
+    /// 2. list workers' name of a job name; 3. create worker with a name;
+    /// 4. destory a worker; 5. get device locality information of a device;
+    /// 6. logging.
     WorkerCacheInterface* worker_cache = nullptr;
     // Note: worker_cache_ptr will be null except if this session is using a
     // client-supplied ClusterDef (ClusterSpec propagation).
     std::unique_ptr<WorkerCacheInterface> worker_cache_ptr;
+    /// \note DeviceSet:
+    /// DeviceSet is a container class for managing the various types of
+    /// devices used by a model, registering all device name and Device object.
+    /// utilities includes 1. add device, 2. lookup device by name or type.
     std::unique_ptr<DeviceSet> device_set;
     // TODO(saeta): Convert to std::make_unique when available.
     std::unique_ptr<std::vector<std::unique_ptr<Device>>> remote_devices(
         new std::vector<std::unique_ptr<Device>>());
 
+    /// my server doesn't go to the 1st if branch.
+    /// \todo Why not has cluster def? A. The client doesn't fill in the cluster
+    ///       definition in the request message.
     if (req->config().has_cluster_def()) {
       worker_cache_factory_options.cluster_def = &req->config().cluster_def();
 
@@ -388,7 +599,10 @@ void Master::CreateSession(const CreateSessionRequest* req,
         normalized_string = req->target();
       }
       for (auto&& job : req->config().cluster_def().job()) {
+        /// \note job.tasks(): map<int32, string> tasks;
+        /// Mapping from task ID to "hostname:port" string.
         for (auto&& task : job.tasks()) {
+          /// task.second is "hostname:port".
           if (task.second == normalized_string) {
             if (worker_cache_factory_options.job_name != nullptr) {
               status = errors::InvalidArgument(
@@ -416,12 +630,20 @@ void Master::CreateSession(const CreateSessionRequest* req,
       }
 
       // Create the worker cache from the computed server_def.
+      /// Indirectly call the GrpcServer::WorkerCacheFactory in
+      /// distributed_runtime/rpc/grpc_server_lib.cc.
+      /// to construct a new GrpcWorkerCache which can access all workers
+      /// responsible for graph computing.
       status = env_->worker_cache_factory(worker_cache_factory_options,
                                           &worker_cache);
       if (!status.ok()) return;
       worker_cache_ptr = std::unique_ptr<WorkerCacheInterface>(worker_cache);
       // Ping all the workers and build the list of devices that the
       // session will use.
+      /// \todo Q. What if a second remote session is created? If there is no left
+      ///       devices for the second session?
+      ///       A. I guess the 2nd session creation will also get the same
+      ///       devices.
       status =
           DeviceFinder::GetRemoteDevices(req->config().device_filters(), env_,
                                          worker_cache, remote_devices.get());
@@ -469,6 +691,20 @@ void Master::CreateSession(const CreateSessionRequest* req,
     DeviceFinder::GetRemoteWorkers(req->config().device_filters(), env_,
                                    worker_cache, &filtered_worker_list);
 
+    /// \fn master_session_factory
+    /// A type alias of this lambda:
+    /// ```cpp
+    /// std::function<
+    ///   MasterSession*(
+    ///     SessionOptions,
+    ///     MasterEnv*,
+    ///     std::unique_ptr<std::vector<std::unique_ptr<Device>>>,
+    ///     std::unique_ptr<WorkerCacheInterface>,
+    ///     std::unique_ptr<DeviceSet> device_set,
+    ///     std::vector<string> filtered_worker_list)>
+    /// ```
+    /// \brief master_session_factory creates a MasterSession instance.
+    ///        `session` points to this instance.
     MasterSession* session = env_->master_session_factory(
         options, env_, std::move(remote_devices), std::move(worker_cache_ptr),
         std::move(device_set), std::move(filtered_worker_list));
@@ -476,6 +712,12 @@ void Master::CreateSession(const CreateSessionRequest* req,
     GraphDef* gdef =
         const_cast<CreateSessionRequest*>(req)->mutable_graph_def();
 
+    /// \note session: MasterSession*
+    ///       MasterSession::Create in master_session.cc
+    ///
+    /// \fn Create
+    ///  MasterSession::Create is responsible for creating Worker Session
+    ///  asynchronously.
     status = session->Create(gdef, worker_cache_factory_options);
     if (!status.ok()) {
       session->Close().IgnoreError();
@@ -486,6 +728,8 @@ void Master::CreateSession(const CreateSessionRequest* req,
     // Insert into the session map, which takes ownership of the session.
     {
       mutex_lock l(mu_);
+      /// \todo What if a second remote session is created? If there is no left
+      ///       devices for the second session?
       CHECK(sessions_.insert({session->handle(), session}).second);
     }
   });
@@ -530,6 +774,22 @@ void Master::PartialRunSetup(const PartialRunSetupRequest* req,
   });
 }
 
+/** \brief Server side handler: Client send a request to master to run one step via a new thread.
+ *
+ *  \param opts: CallOptions* ;
+ *
+ *  \param req: const RunStepRequestWrapper* ;
+ *         Wrapper classes for the `MasterService.RunStep` request message, for
+ *         performance.
+ *
+ *  \param resp: MutableRunStepResponseWrapper* ;
+ *
+ *  \param done: MyClosure;
+ *         A callback function ran by a new thread.
+ *
+ *  \remark No return value.
+ *
+ */
 void Master::RunStep(CallOptions* opts, const RunStepRequestWrapper* req,
                      MutableRunStepResponseWrapper* resp, MyClosure done) {
   Status s = recent_request_ids_.TrackUnique(req->request_id(),
@@ -545,6 +805,7 @@ void Master::RunStep(CallOptions* opts, const RunStepRequestWrapper* req,
     return;
   }
 
+  /// Start a new thread to run the closure.
   SchedClosure([this, start_time, session, opts, req, resp, done]() {
     Status status = session->Run(opts, *req, resp);
     session->Unref();

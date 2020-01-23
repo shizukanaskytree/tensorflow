@@ -106,6 +106,9 @@ class Node {
   // on which the operation will run.
   void set_requested_device(const string& device);
 
+  // -----------------------------------------------------------------------
+  // Node 的 device 
+  // -----------------------------------------------------------------------
   // This gives the device the runtime has assigned this node to.  If
   // you want the device the user requested, use def().device() instead.
   // TODO(josh11b): Validate that the assigned_device, if not empty:
@@ -119,6 +122,7 @@ class Node {
   }
   int assigned_device_name_index() const { return assigned_device_name_index_; }
   void set_assigned_device_name_index(int index);
+  // -----------------------------------------------------------------------
 
   // Sets 'original_node_names' field of this node's DebugInfo proto to
   // 'names'.
@@ -618,6 +622,7 @@ class Graph {
     return device_names_[node.assigned_device_name_index()];
   }
 
+  // 针对每一个 node 而言的
   void set_assigned_device_name_index(Node* node, int device_name_index) {
     CheckDeviceNameIndex(device_name_index);
     node->assigned_device_name_index_ = device_name_index;

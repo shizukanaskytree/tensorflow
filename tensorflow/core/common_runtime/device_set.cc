@@ -37,6 +37,28 @@ void DeviceSet::AddDevice(Device* device) {
     device_by_name_.insert({name, device});
   }
 }
+// 1.
+// low_priority_device_set_ 的 devices_ 插入顺序, 所以提取 CPU 就是 最后一个
+//
+// +-----------------------------------------------------------------------------------+
+// |                       computation_capability_device_map                           |
+// |-----------------------------------------------------------------------------------|
+// |                                                                                   |
+// | +--------------------------+     +-----------+-----------+-----------+-----------+|
+// | |computation capability|7.5|---->| Device*   | Device*   | Device*   | Device*   ||
+// | +--------------------------+     +-----------+-----------+-----------+-----------+|
+// |                                                                                   |
+// | +--------------------------+     +-----------+-----------+-----------+-----------+|
+// | |computation capability|6.1|---->| Device*   | Device*   | Device*   | Device*   ||
+// | +--------------------------+     +-----------+-----------+-----------+-----------+|
+// |                                                                                   |
+// |      ...                           ...                                            |
+// |                                                                                   |
+// | +--------------------------+     +-----------+-----------+-----------+-----------+|
+// | |computation capability|1.0|---->| Device*   | Device*   | Device*   | Device*   ||
+// | +--------------------------+     +-----------+-----------+-----------+-----------+|
+// +-----------------------------------------------------------------------------------+
+
 
 void DeviceSet::FindMatchingDevices(const DeviceNameUtils::ParsedName& spec,
                                     std::vector<Device*>* devices) const {
@@ -57,6 +79,15 @@ Device* DeviceSet::FindDeviceByName(const string& name) const {
 // static
 int DeviceSet::DeviceTypeOrder(const DeviceType& d) {
   return DeviceFactory::DevicePriority(d.type_string());
+  // DeviceFactory::DevicePriority 函数说明
+  // tensorflow/core/common_runtime/device_factory.cc:54:
+  //int32 DeviceFactory::DevicePriority(const string& device_type)
+
+  // Search device priority
+  // tensorflow/core/common_runtime/device_factory.cc-66-
+  // void DeviceFactory::Register(const string& device_type, DeviceFactory* factory,
+  // 在这里设置断点就会得到 priority 的结果
+
 }
 
 static bool DeviceTypeComparator(const DeviceType& a, const DeviceType& b) {
@@ -83,5 +114,20 @@ std::vector<DeviceType> DeviceSet::PrioritizedDeviceTypeList() const {
   std::sort(result.begin(), result.end(), DeviceTypeComparator);
   return result;
 }
+// 1.
+// class DeviceType 数据结构说明:
+// tensorflow/core/framework/types.h
+//
+// 概述:
+// A DeviceType is just a string, but we wrap it up in a class to give
+// some type checking as we're passing these around
+//
+// - type_ : string
+
+// 2.
+// PrioritizedDeviceTypeList() 打印
+// p device_set_.PrioritizedDeviceTypeList()
+// $16 = std::vector of length 4, capacity 4 = {{type_ = "GPU"}, {type_ = "CPU"}, {type_ = "XLA_CPU"}, {type_ = "XLA_GPU"}}
+
 
 }  // namespace tensorflow

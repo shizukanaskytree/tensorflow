@@ -58,21 +58,93 @@ void OpRegistry::Register(const OpRegistrationDataFactory& op_data_factory) {
   }
 }
 
-Status OpRegistry::LookUp(const string& op_type_name,
-                          const OpRegistrationData** op_reg_data) const {
+/** \brief 根据 op_type_name, 比如 https://gist.github.com/shizukanaskytree/c2ba2adb06792f030a00705b3a0e2e3e
+ *  得到 op 的定义 : OpRegistrationData
+ *
+ *  \param
+ *    op_type_name [in]
+ *    op_reg_data [out]
+ */
+Status OpRegistry::LookUp(const string& op_type_name, // input
+                          const OpRegistrationData** op_reg_data) const { // output
+  // 1.
+  // op_reg_data 变量说明:
+  // op_reg_data: const OpRegistrationData**
+
+  // 2.
+  // OpRegistrationData 数据结构
+  // tensorflow/core/framework/op_def_builder.h
+  // - op_def: OpDef
+  // - shape_inference_fn: OpShapeInferenceFn
+  // - is_function_op: bool, default : false
+
+  // 3.
+  // op_type_name 变量说明
+  // 打印
+  // p op_type_name
+  // $5 = "Const"
+
   {
     tf_shared_lock l(mu_);
     if (initialized_) {
-      if (const OpRegistrationData* res =
-              gtl::FindWithDefault(registry_, op_type_name, nullptr)) {
-        *op_reg_data = res;
+      if (const OpRegistrationData* res = gtl::FindWithDefault(registry_,
+                                                               op_type_name,
+                                                               nullptr)){
+        // 1.
+        // registry_ 变量说明:
+        //
+        // 背景
+        // OpRegistry 数据结构
+        // tensorflow/core/framework/op.h
+        // - deferred_: mutable std::vector<OpRegistrationDataFactory>
+        // - registry_: mutable std::unordered_map<string, const OpRegistrationData*>
+        // - watcher_: mutable Watcher
+        //
+        // registry_ : std::unordered_map with 1288 elements
+        // tensorflow/core/framework/op.h:154:
+        //
+        // 详细说明:
+        // 这个 unordered_map 是 op_name <=> OpRegistrationData*
+        //
+        // 打印 registry_ :
+        // https://gist.github.com/shizukanaskytree/c2ba2adb06792f030a00705b3a0e2e3e
+        // 所有的 Op 都在 registry_ 里面了
+        //
+        // registry_ 的初始化:
+        // OpRegistrationData is initialized at the beginning of the tf program.
+
+        // 2.
+        // OpRegistrationData 数据结构
+        // OpRegistrationData: tensorflow/core/framework/op_def_builder.h
+        // - op_def: OpDef # owned
+        // - shape_inference_fn: OpShapeInferenceFn
+        // - is_function_op: bool, default : false
+
+        // 3.
+        // OpDef: tensorflow/core/framework/op_def.proto
+
+        // 4.
+        // gtl::FindWithDefault 函数说明
+        // 从 registry_ : std::unordered_map with 1288 elements 里面根据 key , i.e. op_type_name
+        // 返回对应的 value 值, i.e. const OpRegistrationData* res
+        // 如果未能找到就 赋值 nullptr
+
+        *op_reg_data = res; // 赋值 output: op_reg_data
         return Status::OK();
       }
     }
   }
+
   return LookUpSlow(op_type_name, op_reg_data);
 }
 
+/**
+ *
+ *  \param
+ *    op_type_name [in]
+ *    op_reg_data [out]
+ *
+ */
 Status OpRegistry::LookUpSlow(const string& op_type_name,
                               const OpRegistrationData** op_reg_data) const {
   *op_reg_data = nullptr;
@@ -80,6 +152,7 @@ Status OpRegistry::LookUpSlow(const string& op_type_name,
 
   bool first_call = false;
   bool first_unregistered = false;
+
   {  // Scope for lock.
     mutex_lock lock(mu_);
     first_call = MustCallDeferred();
@@ -95,6 +168,8 @@ Status OpRegistry::LookUpSlow(const string& op_type_name,
   if (first_call) {
     TF_QCHECK_OK(ValidateKernelRegistrations(*this));
   }
+
+  // 异常处理:
   if (res == nullptr) {
     if (first_unregistered) {
       OpList op_list;
@@ -106,6 +181,7 @@ Status OpRegistry::LookUpSlow(const string& op_type_name,
         }
       }
     }
+
     Status status = errors::NotFound(
         "Op type not registered '", op_type_name, "' in binary running on ",
         port::Hostname(), ". ",
@@ -118,6 +194,7 @@ Status OpRegistry::LookUpSlow(const string& op_type_name,
     VLOG(1) << status.ToString();
     return status;
   }
+
   *op_reg_data = res;
   return Status::OK();
 }
@@ -155,6 +232,7 @@ void OpRegistry::Export(bool include_internal, OpList* ops) const {
 
   std::vector<std::pair<string, const OpRegistrationData*>> sorted(
       registry_.begin(), registry_.end());
+
   std::sort(sorted.begin(), sorted.end());
 
   auto out = ops->mutable_op();

@@ -33,6 +33,13 @@ class Env;
 class MasterSession;
 class OpRegistryInterface;
 
+/** \struct WorkerCacheFactoryOptions
+ *
+ *  \details WorkerCacheFactoryOptions are options including server definition
+ *         messages, 1. server cluster definition 2. job name 3. task index 4.
+ *         protocol. to be passed to the lambda function
+ *         MasterEnv::worker_cache_factory to create a session by
+ */
 // Options passed to the worker_cache_factory function.
 struct WorkerCacheFactoryOptions {
   const ClusterDef* cluster_def = nullptr;
@@ -88,6 +95,9 @@ struct MasterEnv {
       std::vector<string> filtered_worker_list)>
       master_session_factory;
 
+  /** \fn A lambda function signature of GrpcServer::WorkerCacheFactory defined
+   *      in distributed_runtime/rpc/grpc_server_lib.cc.
+   */
   std::function<Status(const WorkerCacheFactoryOptions&,
                        WorkerCacheInterface**)>
       worker_cache_factory;

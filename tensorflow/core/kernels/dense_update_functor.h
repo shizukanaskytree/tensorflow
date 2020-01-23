@@ -59,9 +59,16 @@ struct DenseUpdate<CPUDevice, T, SUB> {
 
 template <typename T>
 struct DenseUpdate<CPUDevice, T, ASSIGN> {
-  void operator()(const CPUDevice& d, typename TTypes<T>::Flat params,
+  void operator()(const CPUDevice& d,
+                  typename TTypes<T>::Flat params,
                   typename TTypes<T>::ConstFlat update) {
     params.device(d) = update;
+    // 1.
+    // params 变量说明
+    // params: typename TTypes<T>::Flat
+
+    // 2.
+    //
   }
 };
 

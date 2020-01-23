@@ -304,7 +304,10 @@ Status FunctionLibraryRuntimeOverlay::Clone(
 
 class FunctionLibraryRuntimeImpl : public FunctionLibraryRuntime {
  public:
-  FunctionLibraryRuntimeImpl(const DeviceMgr* dmgr, Env* env, Device* device,
+  FunctionLibraryRuntimeImpl(const DeviceMgr* dmgr, Env* env,
+                             // -----------------------------------------
+                             Device* device,
+                             // -----------------------------------------
                              int graph_def_version,
                              const FunctionLibraryDefinition* lib_def,
                              thread::ThreadPool* default_thread_pool,
@@ -322,7 +325,9 @@ class FunctionLibraryRuntimeImpl : public FunctionLibraryRuntime {
 
   const FunctionBody* GetFunctionBody(Handle handle) override;
 
+  // -----------------------------------------------------------------------
   Status CreateKernel(const NodeDef& ndef, OpKernel** kernel) override;
+  // -----------------------------------------------------------------------
 
   void Run(const Options& opts, Handle handle, gtl::ArraySlice<Tensor> args,
            std::vector<Tensor>* rets, DoneCallback done) override;
@@ -421,15 +426,23 @@ class FunctionLibraryRuntimeImpl : public FunctionLibraryRuntime {
   TF_DISALLOW_COPY_AND_ASSIGN(FunctionLibraryRuntimeImpl);
 };
 
+
 FunctionLibraryRuntimeImpl::FunctionLibraryRuntimeImpl(
-    const DeviceMgr* dmgr, Env* env, Device* device, int graph_def_version,
+    const DeviceMgr* dmgr,
+    Env* env,
+    // --------------------------------------------------------------------
+    Device* device,
+    // --------------------------------------------------------------------
+    int graph_def_version,
     const FunctionLibraryDefinition* lib_def,
     thread::ThreadPool* default_thread_pool,
     const OptimizerOptions& optimizer_options,
     CustomKernelCreator custom_kernel_creator,
     ProcessFunctionLibraryRuntime* parent)
     : device_mgr_(dmgr),
+      // --------------------------------------------------------------------
       device_(device),
+      // --------------------------------------------------------------------
       env_(env),
       graph_def_version_(graph_def_version),
       base_lib_def_(lib_def),
@@ -444,9 +457,14 @@ FunctionLibraryRuntimeImpl::FunctionLibraryRuntimeImpl(
   get_func_sig_ = [this](const string& op, const OpDef** sig) {
     return base_lib_def_->LookUpOpDef(op, sig);
   };
+
+  // -----------------------------------------------------------------------
   create_kernel_ = [this](const NodeDef& ndef, OpKernel** kernel) {
     return CreateKernel(ndef, kernel);
   };
+  // -----------------------------------------------------------------------
+
+
   thread::ThreadPool* pool = nullptr;
   if (device_ != nullptr) {
     pool = device_->tensorflow_device_thread_pool();
@@ -456,6 +474,7 @@ FunctionLibraryRuntimeImpl::FunctionLibraryRuntimeImpl(
   }
   if (pool != nullptr) {
     default_runner_ = [pool](Executor::Args::Closure c) {
+      /// 这个地方要设置断点试一试
       pool->Schedule(std::move(c));
     };
   }
@@ -529,16 +548,26 @@ const FunctionBody* FunctionLibraryRuntimeImpl::GetFunctionBody(Handle h) {
   return iter->second->func_graph;
 }
 
+/** \brief 根据输入的参数，创建 OpKernel
+ *
+ *  \param [out] kernel: OpKernel**
+ */
 Status FunctionLibraryRuntimeImpl::CreateKernel(const NodeDef& ndef,
                                                 OpKernel** kernel) {
   return CreateKernel(ndef, base_lib_def_, kernel);
 }
 
+/** \brief 根据输入的参数，创建 OpKernel
+ *
+ *  \param [out] kernel: OpKernel**
+ */
 Status FunctionLibraryRuntimeImpl::CreateKernel(
-    const NodeDef& ndef, const FunctionLibraryDefinition* lib_def,
+    const NodeDef& ndef,
+    const FunctionLibraryDefinition* lib_def,
     OpKernel** kernel) {
   // If a custom kernel creator is given, try that.
   Status s;
+  
   if (custom_kernel_creator_) {
     std::unique_ptr<OpKernel> ret;
     s = custom_kernel_creator_(this, ndef, &ret);
@@ -553,9 +582,12 @@ Status FunctionLibraryRuntimeImpl::CreateKernel(
   }
 
   if (lib_def->Find(ndef.op()) == nullptr) {
+    // -----------------------------------------------------------------------
+    // 创建 op kernel
     // A primitive operation. Creates the registered kernel.
     return CreateNonCachedKernel(device_, this, ndef, graph_def_version_,
                                  kernel);
+    // -----------------------------------------------------------------------
   }
 
   // Try to instantiate this function for the func/attr. Maybe it's
@@ -1222,9 +1254,18 @@ std::unique_ptr<FunctionLibraryRuntime> NewFunctionLibraryRuntime(
     thread::ThreadPool* thread_pool, const OptimizerOptions& optimizer_options,
     CustomKernelCreator custom_kernel_creator,
     ProcessFunctionLibraryRuntime* parent) {
-  return std::unique_ptr<FunctionLibraryRuntime>(new FunctionLibraryRuntimeImpl(
-      device_mgr, env, device, graph_def_version, lib_def, thread_pool,
-      optimizer_options, std::move(custom_kernel_creator), parent));
+  return std::unique_ptr<FunctionLibraryRuntime>(
+    new FunctionLibraryRuntimeImpl(
+      device_mgr,
+      env,
+      device,
+      graph_def_version,
+      lib_def,
+      thread_pool,
+      optimizer_options,
+      std::move(custom_kernel_creator),
+      parent)
+    );
 }
 
 std::unique_ptr<FunctionLibraryRuntime> NewFunctionLibraryRuntime(

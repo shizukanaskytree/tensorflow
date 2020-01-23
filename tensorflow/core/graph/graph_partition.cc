@@ -105,12 +105,58 @@ typedef absl::flat_hash_map<NodePort, MemoryType> MemoryTypeMap;
 
 // We collect the following information about the graph before performing
 // graph partitioning.
+// QQQ. GraphInfo 的用途是什么？
+// AAA.
 struct GraphInfo {
+  // info->device_types.resize(g.num_node_ids(), DEVICE_CPU);
   std::vector<DeviceType> device_types;
   MemoryTypeMap input_types;
   MemoryTypeMap output_types;
   std::vector<ControlFlowInfo> cf_info;
 };
+// 1.
+// GraphInfo 数据结构
+// tensorflow/core/graph/graph_partition.cc:108:
+// struct GraphInfo
+// - device_types: std::vector<DeviceType>
+// - input_types: MemoryTypeMap
+// - output_types: MemoryTypeMap
+// - cf_info: std::vector<ControlFlowInfo>
+
+// 2.
+// class DeviceType: tensorflow/core/framework/types.h
+//  - string type_;
+//    const char* const DEVICE_CPU, DEVICE_GPU, DEVICE_SYCL
+
+// 3.
+// struct ControlFlowInfo 数据结构
+// tensorflow/core/graph/control_flow.h
+// - frame: const Node*
+// - parent_frame: const Node*
+// - frame_name: string
+
+// 4.
+// MemoryTypeMap 数据结构
+// typedef absl::flat_hash_map<NodePort, MemoryType> MemoryTypeMap;
+
+// 5.
+// struct NodePort 数据结构
+// - node_id: int
+// - index: int
+
+// 6.
+// MemoryType 数据结构
+// tensorflow/core/framework/types.h:47:enum MemoryType
+//
+// MemoryType is used to describe whether input or output Tensors of
+// an OpKernel should reside in "Host memory" (e.g., CPU memory) or
+// "Device" Memory (CPU memory for CPU devices, GPU memory for GPU
+// devices).
+// enum MemoryType {
+//   DEVICE_MEMORY = 0,
+//   HOST_MEMORY = 1,
+//};
+
 
 DataType EdgeType(const Edge* e) {
   if (e->IsControlEdge()) {
@@ -121,23 +167,34 @@ DataType EdgeType(const Edge* e) {
 }
 
 // Return true iff we need to add the same device send/recv for 'edge'.
-bool NeedSameDeviceSendRecv(const Edge* edge, const GraphInfo& info) {
+bool NeedSameDeviceSendRecv(
+  const Edge* edge,  // input
+  const GraphInfo& info) { // input
+
   if (edge->IsControlEdge()) {
     return false;
   }
 
   const Node* src = edge->src();
   const Node* dst = edge->dst();
+
+  // need same device send recv node 的前提是 他们属于同一种 device 类型
   if (src->assigned_device_name() == dst->assigned_device_name()) {
+
     int src_port = edge->src_output();
     int dst_port = edge->dst_input();
+
     if (info.device_types[src->id()] != DEVICE_CPU) {
+
       auto src_it = info.output_types.find({src->id(), src_port});
       DCHECK(src_it != info.output_types.end());
+
       auto dst_it = info.input_types.find({dst->id(), dst_port});
       DCHECK(dst_it != info.input_types.end());
+
       return src_it->second != dst_it->second;
     }
+
   }
   return false;
 }
@@ -155,16 +212,51 @@ bool IsDstInputOnHost(const Edge* edge, const GraphInfo& info) {
   return true;
 }
 
+
+
+
+/*
+
+   +----------+
+   |0         |
+   |          |
+   |1       0 +--------+
+   |          |        |
+   |2         |        |
+   +----------+        |
+                       |
+                       |                +----------+
+                       v--------------->|0         |
+                                        |          |
+                       +--------------->|1  dst    |
+                                        |          |
+                       +--------------->|2         |
+                                        +----------+
+
+                                   inputs edges
+*/
+
 // Add an input to dst that comes from the "src_slot" output of the
 // node named by "src_name".
-void AddInput(NodeDef* dst, StringPiece src_name, int src_slot) {
+void AddInput(
+  NodeDef* dst,
+  StringPiece src_name,
+  int src_slot) {
+
   if (src_slot == Graph::kControlSlot) {
+
     dst->add_input(strings::StrCat("^", src_name));
+
   } else if (src_slot == 0) {
+
     dst->add_input(src_name.data(), src_name.size());
+
   } else {
+
     dst->add_input(strings::StrCat(src_name, ":", src_slot));
+
   }
+
 }
 
 // Add a control edge from each input to each recv.
@@ -177,8 +269,13 @@ void AddReadControl(const std::vector<NodeDef*>& recvs,
   }
 }
 
-void SetSendRecvAttrs(const PartitionOptions& opts, const Edge* edge,
-                      NodeDefBuilder* builder) {
+
+
+void SetSendRecvAttrs(
+  const PartitionOptions& opts,
+  const Edge* edge,
+  NodeDefBuilder* builder)
+{
   builder->Attr("tensor_name",
                 strings::StrCat("edge_", edge->id(), "_", edge->src()->name()));
   builder->Attr("send_device", edge->src()->assigned_device_name());
@@ -189,20 +286,64 @@ void SetSendRecvAttrs(const PartitionOptions& opts, const Edge* edge,
   builder->Attr("client_terminated", false);
 }
 
-NodeDef* AddSend(const PartitionOptions& opts, const GraphInfo& g_info,
-                 GraphDef* gdef, const Edge* edge,
-                 NodeDefBuilder::NodeOut send_from, int64 start_time,
-                 Status* status) {
+
+////////////////////////////////////////////////////////////////////////
+
+// AddSend 概述:
+// 往 GraphDef* gdef 里面增加一个 send 节点。
+// 这个 send 节点的 起始点 叫做 send_from 节点。
+NodeDef* AddSend(
+  const PartitionOptions& opts, // input
+  const GraphInfo& g_info,  // input
+  GraphDef* gdef, // input
+  const Edge* edge, // input
+  NodeDefBuilder::NodeOut send_from, // input
+  int64 start_time, // input
+  Status* status) // output
+{
+
+  /*
+
+  p edge->DebugString()
+  $39 = "[id=8 y/RandomStandardNormal:0 -> z:1]"
+
+
+  ptype opts
+  type = const struct tensorflow::PartitionOptions {
+    NodeToLocFunc node_to_loc;
+    NewNameFunc new_name;
+    static const tensorflow::uint64 kIllegalIncarnation;
+    GetIncarnationFunc get_incarnation;
+    const tensorflow::FunctionLibraryDefinition *flib_def;
+    bool control_flow_added;
+    ShouldCastFunc should_cast;
+    bool scheduling_for_recvs;
+    bool need_to_record_start_times;
+    std::vector<tensorflow::gtl::IntType<tensorflow::Microseconds_tag_, long long>> start_times;
+
+    typedef std::function<std::basic_string<char, std::char_traits<char>, std::allocator<char> >(const tensorflow::Node*)> NodeToLocFunc;
+    typedef std::function<std::basic_string<char, std::char_traits<char>, std::allocator<char> >(const std::basic_string<char, std::char_traits<char>, std::allocator<char> >&)> NewNameFunc;
+    typedef std::function<long long unsigned int(const std::basic_string<char, std::char_traits<char>, std::allocator<char> >&)> GetIncarnationFunc;
+    typedef std::function<tensorflow::DataType(const tensorflow::Edge*)> ShouldCastFunc;
+  } &
+
+
+  */
+
   const DataType dtype = send_from.data_type;
   const DataType cast_dtype = opts.should_cast ? opts.should_cast(edge) : dtype;
+
   const Node* src = edge->src();
   const int src_port = edge->src_output();
 
   // host_memory = true iff we need to use HostSend/HostCast.
   bool host_memory = false;
+
   if (!edge->IsControlEdge()) {
+
     auto src_it = g_info.output_types.find({src->id(), src_port});
     DCHECK(src_it != g_info.output_types.end());
+
     host_memory = (src_it->second == HOST_MEMORY);
   }
 
@@ -210,12 +351,16 @@ NodeDef* AddSend(const PartitionOptions& opts, const GraphInfo& g_info,
   // NOTE(yuanbyu): Only cast for cross-device send/recv.
   if (dtype != cast_dtype && !NeedSameDeviceSendRecv(edge, g_info)) {
     const string cast_op = (host_memory) ? "_HostCast" : "Cast";
+
     NodeDefBuilder cast_builder(opts.new_name(src->name()), cast_op,
                                 NodeDebugInfo(*src));
+
     cast_builder.Device(src->assigned_device_name()).Input(send_from);
+
     if (opts.scheduling_for_recvs) {
       cast_builder.Attr("_start_time", start_time);
     }
+
     cast_builder.Attr("DstT", cast_dtype);
 
     if (cast_dtype == DT_BFLOAT16) {
@@ -226,26 +371,43 @@ NodeDef* AddSend(const PartitionOptions& opts, const GraphInfo& g_info,
     }
 
     NodeDef* cast = gdef->add_node();
+
     *status = cast_builder.Finalize(cast);
+
     if (!status->ok()) return nullptr;
 
     // Connect the Send op to the cast.
     send_from.Reset(cast->name(), 0, cast_dtype);
   }
 
+
   // Add the send node.
   const string send_op = (host_memory) ? "_HostSend" : "_Send";
-  NodeDefBuilder send_builder(opts.new_name(src->name()), send_op,
-                              NodeDebugInfo(*src));
+  // p send_op, $42 = "_Send"
+
+  NodeDefBuilder send_builder(
+    opts.new_name(src->name()),
+    send_op,
+    NodeDebugInfo(*src));
+
+  // 详细描述了 send node device, receive node device.
   SetSendRecvAttrs(opts, edge, &send_builder);
+
   send_builder.Device(src->assigned_device_name()).Input(send_from);
+
   if (opts.scheduling_for_recvs) {
     send_builder.Attr("_start_time", start_time);
   }
+
+  // 往子图里构造一个新的节点，最后通过 Finalize 把 send node 构造好。
   NodeDef* send = gdef->add_node();
+
   *status = send_builder.Finalize(send);
+
   return send;
 }
+
+
 
 NodeDef* AddRecv(const PartitionOptions& opts, const GraphInfo& g_info,
                  GraphDef* gdef, const Edge* edge, NodeDef** real_recv,
@@ -334,7 +496,7 @@ NodeDef* AddControlTrigger(const PartitionOptions& opts, GraphDef* gdef,
   return result;
 }
 
-// Optimize colocation for control flow nodes. For cond, we want the
+// Optimize colocation for control flow nodes. 1. For cond, we want the
 // switch nodes to colocate with its data input. This is particularly
 // needed for conditional reading of a remote variable. It may also
 // reduce the number of devices involved in a loop.
@@ -342,8 +504,11 @@ NodeDef* AddControlTrigger(const PartitionOptions& opts, GraphDef* gdef,
 // the GraphDef for these nodes. Ideally, the placer would enforce the
 // colocation to render this unnecessary.
 void OptimizeControlFlowColocation(Graph* graph) {
+
   auto visit = [](Node* node) {
+
     if (IsSwitch(node)) {
+      // Switch Node 分支
       for (const Edge* in_edge : node->in_edges()) {
         if (in_edge->dst_input() == 0) {
           // Colocate with the data input.
@@ -353,6 +518,7 @@ void OptimizeControlFlowColocation(Graph* graph) {
         }
       }
     } else if (IsExit(node)) {
+      // 不是 Switch Node 分支，Exit Node 分支
       for (const Edge* in_edge : node->in_edges()) {
         if (!in_edge->IsControlEdge()) {
           // Colocate with upstream node.
@@ -362,8 +528,11 @@ void OptimizeControlFlowColocation(Graph* graph) {
         }
       }
     } else {
+      // 不是 Switch Node 分支，不是 Exit Node 分支
       if ((IsEnter(node) && !IsRefType(node->input_type(0))) ||
           IsNextIteration(node)) {
+        // 不是 Switch Node 分支，不是 Exit Node 分支，
+        // 是 Enter Node 或者 NextIteration Node 的分支
         const Edge* data_edge = nullptr;
         for (const Edge* out_edge : node->out_edges()) {
           if (!out_edge->IsControlEdge()) {
@@ -377,8 +546,10 @@ void OptimizeControlFlowColocation(Graph* graph) {
               data_edge->dst()->assigned_device_name());
         }
       }
+
     }
   };
+
   DFS(*graph, visit, {});
 }
 
@@ -543,34 +714,134 @@ Status AddControlLoop(const PartitionOptions& opts, Graph* g, const Node* src,
   return Status::OK();
 }
 
+
+
+
+// 这个函数目的:
+// Build memory and device type info
+// for every node in the graph.
+// 这些都存在了 GraphInfo info 里面
+
+// QQQ. 这些被初始化的 memory and device type of each node 在哪里被怎么使用了？
+//      我想不要改动这一部分，所以我打算加一份 low priority memory and device type
+//      of each node
+
 // Build memory and device type info for every node in the graph.
+// comment: 我是不是应该写两个 GraphInfo* info_high, info_low?
+
 // TODO(yuanbyu): It might be simpler if we convert MemoryType to
 // DeviceType for the inputs/outputs of each node.
-Status BuildMemoryDeviceInfo(const Graph& g, GraphInfo* info) {
+Status BuildMemoryDeviceInfo(
+  const Graph& g,  // input
+  GraphInfo* info) // output
+{
+  // GraphInfo 数据结构:
+  // tensorflow/core/graph/graph_partition.cc:108:
+  // struct GraphInfo
+  // - device_types : std::vector<DeviceType>
+  // - input_types: MemoryTypeMap
+  // - output_types: MemoryTypeMap
+  // - cf_info: std::vector<ControlFlowInfo>
+  //    * struct ControlFlowInfo 数据结构
+  //      tensorflow/core/common_runtime/executor.cc
+  //      + unique_frame_names: gtl::FlatSet<string>
+  //      + frame_names: std::vector<string>
+
+  // MemoryTypeVector 数据结构
+  // tensorflow/core/framework/types.h:100:
+  // typedef gtl::InlinedVector<MemoryType, 4> MemoryTypeVector;
+  //   enum MemoryType, tensorflow/core/framework/types.h
+  //     DEVICE_MEMORY = 0
+  //     HOST_MEMORY = 1
+
   MemoryTypeVector input_memory_types;
   MemoryTypeVector output_memory_types;
 
+  // info->device_types: std::vector<DeviceType>
+  // tensorflow/core/framework/types.h:54:
+  // class DeviceType
+  //   A DeviceType is just a string
+  //   string type_;
+  // 取值:
+  //   // Convenient constants that can be passed to a DeviceType constructor
+  //   TF_EXPORT extern const char* const DEVICE_CPU;   // "CPU"
+  //   TF_EXPORT extern const char* const DEVICE_GPU;   // "GPU"
+  //   TF_EXPORT extern const char* const DEVICE_SYCL;  // "SYCL"
   info->device_types.resize(g.num_node_ids(), DEVICE_CPU);
+
+
+  // g.op_nodes(): gtl::iterator_range<NodeIter>
+  // 含义是 Access to the list of all nodes, excluding the Source and Sink nodes.
   for (const Node* node : g.op_nodes()) {
+
     DeviceNameUtils::ParsedName parsed;
+
     if (!DeviceNameUtils::ParseFullName(node->assigned_device_name(),
                                         &parsed)) {
       return errors::Internal("Malformed assigned device '",
                               node->assigned_device_name(), "'");
     }
 
-    TF_RETURN_IF_ERROR(MemoryTypesForNode(
-        g.op_registry(), DeviceType(parsed.type), node->def(),
-        &input_memory_types, &output_memory_types));
+
+    // MemoryTypesForNode 函数说明:
+    // tensorflow/core/framework/memory_types.h:31
+    // tensorflow/core/framework/memory_types.cc
+
+    // // Returns into *{input,output}_memory_types the memory type of each
+    // // {input,output} tensor.
+    // //
+    // // REQUIRES: * '*_memory_types' is not nullptr.
+    // //           * def has all attrs specified (e.g. using AddDefaultsToNodeDef()).
+    // Status MemoryTypesForNode(const OpRegistryInterface* op_registry,
+    //                           const DeviceType& device_type,
+    //                           const NodeDef& ndef,
+    //                           MemoryTypeVector* input_memory_types,
+    //                           MemoryTypeVector* output_memory_types);
+    // 提醒:
+    // 在调用这个函数时，device type 已经确定了。所以是根据是 device type 确定 memory type.
+    // 所以，如果我要增加双份的 CPU 版本，我就要提前告知 CPU device, 或者在函数下层调用栈时跑两遍
+    // 这些函数达到我的目的。
+
+    // 这个函数，会明确每个 node 的 input / output 的 memory type
+    TF_RETURN_IF_ERROR(
+      MemoryTypesForNode(
+        // g.op_registry(): const OpRegistryInterface*
+        g.op_registry(),         // input
+
+        // class DeviceType 见本文件上面一点点
+        DeviceType(parsed.type), // input
+
+        node->def(),             // input
+        &input_memory_types,     // output
+        &output_memory_types));  // output
+        // ------------------------------------------------------------------
+        // 这个函数的 output 用于赋值 info->output_types
+        // ------------------------------------------------------------------
 
     int node_id = node->id();
+
+    // --------------------------------------------------------------------
+    // Summary:
+    // node 的 device 赋值是 info->device_types[node_id]
+    // node 的 每个 input arg 的 memory type 赋值是 info->input_types
+    // node 的 每个 output arg 的 memory type 赋值是 info->input_types
+    // --------------------------------------------------------------------
+
     info->device_types[node_id] = DeviceType(parsed.type);
+
     for (int i = 0; i < input_memory_types.size(); ++i) {
+      // input_memory_types 来自于 上面的 MemoryTypesForNode 函数
+      // 这里的 i 是 多个 input_arg OR output_arg : OpDef::ArgDef
       info->input_types[{node_id, i}] = input_memory_types[i];
     }
+
+
     for (int i = 0; i < output_memory_types.size(); ++i) {
+      // output_memory_types 来自于 上面的 MemoryTypesForNode 函数
       info->output_types[{node_id, i}] = output_memory_types[i];
     }
+
+
   }
   return Status::OK();
 }
@@ -595,31 +866,186 @@ const Node* OutputFrame(const Node* node,
   return cf_info[node->id()].parent_frame;
 }
 
-// Each participating device needs to decide a) if there is a next iteration,
-// and b) if the loop terminates. We take the approach to encode this control
-// flow logic in the dataflow graph. There are at least two possible encodings.
-// In a completely decentralized encoding, the participants communicate peer
-// to peer. The other encoding uses a frame leader (the participant who owns
+
+
+// Each participating device needs to decide
+// a) if there is a next iteration,
+// and
+// b) if the loop terminates.
+// We take the approach to encode this control flow logic in the dataflow graph.
+// There are at least two possible encodings.
+// 1. In a completely decentralized encoding, the participants communicate peer
+// to peer. 2. The other encoding uses a frame leader (the participant who owns
 // the pivot termination predicate) to broadcast the termination condition to
-// all the participants. For now we take the latter because it is simpler.
+// all the participants.
+// For now we take the latter (2.) because it is simpler.
 //
 // TODO(yuanbyu): The correctness of this construction is rather subtle. I got
 // it wrong many times so it would be nice to write a proof to be sure.
-Status AddControlFlow(const PartitionOptions& opts, Graph* g,
-                      GraphInfo* g_info) {
-  Status status;
-  GraphDefBuilder::Options bopts(g, &status);
-  std::vector<ControlFlowInfo>& cf_info = g_info->cf_info;
 
+// 1.
+// QQQ. GraphInfo* g_info 谁的？
+// AAA. g_info 是临时变量一样
+// 在 Partition 函数内被构造。tensorflow/core/graph/graph_partition.cc
+
+Status AddControlFlow(
+  const PartitionOptions& opts,  // input
+  Graph* g, // input
+  GraphInfo* g_info) { // output
+  // 1.
+  // GraphInfo 数据结构
+  // tensorflow/core/graph/graph_partition.cc:108:
+  // struct GraphInfo
+  // - device_types: std::vector<DeviceType>
+  // - input_types: MemoryTypeMap
+  // - output_types: MemoryTypeMap
+  // - cf_info: std::vector<ControlFlowInfo> # AddControlFlow 负责初始化这项
+
+  // 2.
+  // class DeviceType: tensorflow/core/framework/types.h
+  //  - string type_;
+  //    const char* const DEVICE_CPU, DEVICE_GPU, DEVICE_SYCL
+
+  // 3.
+  // struct ControlFlowInfo 数据结构
+  // tensorflow/core/graph/control_flow.h
+  // - frame: const Node*
+  // - parent_frame: const Node*
+  // - frame_name: string
+
+  // 4.
+  // MemoryTypeMap 数据结构
+  // typedef absl::flat_hash_map<NodePort, MemoryType> MemoryTypeMap;
+
+  // 5.
+  // struct NodePort 数据结构
+  // - node_id: int
+  // - index: int
+
+  // 6.
+  // MemoryType 数据结构
+  // tensorflow/core/framework/types.h:47:enum MemoryType
+  //
+  // MemoryType is used to describe whether input or output Tensors of
+  // an OpKernel should reside in "Host memory" (e.g., CPU memory) or
+  // "Device" Memory (CPU memory for CPU devices, GPU memory for GPU
+  // devices).
+  // enum MemoryType {
+  //   DEVICE_MEMORY = 0,
+  //   HOST_MEMORY = 1,
+  //};
+
+  // 7.
+  // struct PartitionOptions 数据结构
+  // tensorflow/core/graph/graph_partition.h:31:struct PartitionOptions
+  //
+  // - NodeToLocFunc: std::function<string(const Node*)>
+  // - node_to_loc: NodeToLocFunc
+  // - NewNameFunc: std::function<string(const string&)>
+  // - new_name: NewNameFunc
+  // - GetIncarnationFunc: std::function<uint64(const string&)>
+  // - get_incarnation: GetIncarnationFunc
+  // - flib_def: const FunctionLibraryDefinition*
+  // - control_flow_added: bool, default: false
+  // - ShouldCastFunc: std::function<DataType(const Edge*)>
+  // - should_cast: ShouldCastFunc
+  // - scheduling_for_recvs: bool, default: false
+  // - need_to_record_start_times: bool, default: false
+  // - start_times: std::vector<Microseconds>
+  //
+  // 打印: https://gist.github.com/shizukanaskytree/7bbf6ef24dae11fb582abc78a1adf748
+
+  // 8.
+  // FunctionLibraryDefinition 数据结构
+  // tensorflow/core/framework/function.h:313:
+  // class FunctionLibraryDefinition : public OpRegistryInterface
+  // - default_registry_ : const OpRegistryInterface* const
+  // - function_defs_ : gtl::FlatMap<string, std::unique_ptr<FunctionDefAndOpRegistration>>
+  // - func_grad_ : gtl::FlatMap<string, string>
+
+  // 9.
+  // FunctionDefAndOpRegistration 数据结构
+  // - fdef: FunctionDef
+  // - op_registration_data: OpRegistrationData
+
+  Status status;
+
+  GraphDefBuilder::Options bopts(g, &status);
+  // 1.
+  // GraphDefBuilder::Options 数据结构
+  // tensorflow/core/graph/graph_def_builder.h
+  // tensorflow/core/graph/graph_def_builder.cc
+  // GraphDefBuilder::Options::Options 构造函数
+  // - graph_: Graph* const;
+  // - status_: Status* const;
+  // - name_: string;
+  // - device_: string;
+  // - control_inputs_: std::vector<Node*>;
+  // - attrs_: std::vector<std::pair<string, AttrValue>>;
+
+  // 2.
+  // GraphDefBuilder 函数说明
+  // tensorflow/core/graph/graph_def_builder.h
+  // - Graph graph_;
+  // - Status status_;
+  // - Options opts_;
+
+  std::vector<ControlFlowInfo>& cf_info = g_info->cf_info;
+  // 1.
+  // struct ControlFlowInfo 数据结构:
+  // Control flow info for a graph node.
+  // tensorflow/core/graph/control_flow.h
+  // - frame: const Node*
+  //    * frame of a node
+  // - parent_frame: const Node*
+  //    * parent frame of a node
+  // - frame_name: string
+  //    * frame name of a node
+  //
+  // 上面的 cf_info 打印是 $13 = std::vector of length 0, capacity 0
+
+  // -----------------------------------------------------------------------
   // Build the control flow info for every node.
-  status = BuildControlFlowInfo(g, &cf_info);
+  // -----------------------------------------------------------------------
+
+  status = BuildControlFlowInfo(
+    g, // input
+    &cf_info); // output
+  // 1.
+  // BuildControlFlowInfo 函数说明
+  // tensorflow/core/graph/control_flow.h
+  // tensorflow/core/graph/control_flow.cc
+  //
+  // Clear and populate `cf_info` with each node's frame and the level it belongs to.
+  // We check the well-formedness of the graph:
+  // 1) All inputs to a node must come from the same frame and have the same
+  //    "static" iteration level.
+  // 2) Each frame has at most one LoopCond node.
+  // 3) Each frame has a single parent frame.
+  // If `unreachable_nodes` is set, return names of nodes unreachable from the
+  // source node. We cannot build ControlFlowInfo for such nodes. They might be
+  // pruned later.
+  //
+  // NOTE(yuanbyu): For now, we require all sends/recvs have iteration level 0.
+  // This essentially means there can't be multiple serial Nexts in an iteration,
+  // which all sane front-ends should satisfy.
+
+  // 2.
+  // 打印 cf_info 的结果, frame 和 parent_frame 都是 SOURCE_ Node 的 指针, frame_name = ""
+  // 和预料的一样。
+  // 打印: https://gist.github.com/shizukanaskytree/b42d709acc435ce5906678e2792ae872
+
   if (!status.ok()) return status;
 
+  // OptimizeControlFlowColocation 只对 Switch, Enter, Exit, NextIteration 节点进行节点 device placement 优化
   OptimizeControlFlowColocation(g);
 
+  // 我的例子没有 loop 节点
   // The map from frames to their LoopCond nodes.
   std::unordered_map<string, Node*> frame_cond_map;
+
   int num_node_ids = g->num_node_ids();
+
   for (int i = 0; i < num_node_ids; ++i) {
     Node* node = g->FindNodeId(i);
     if (node == nullptr) continue;
@@ -631,8 +1057,11 @@ Status AddControlFlow(const PartitionOptions& opts, Graph* g,
     }
   }
 
+  // -----------------------------------------------------------------------
+  // 讨论 cross-device edge，不过因为 frame_name 都是空的原因，没有起到真正的作用
+  // -----------------------------------------------------------------------
   // Add all control loops for cross-device frames.
-  // A control loop is added only when there is a cross-device edge in a
+  // A control loop is added only when there is a **cross-device edge** in a
   // non-root frame. Nothing is added if there is no loops. We also don't
   // add anything for a frame that is completely local to a device. For
   // nested loops, we stack the control loops together by connecting
@@ -640,27 +1069,65 @@ Status AddControlFlow(const PartitionOptions& opts, Graph* g,
   //
   // A map from <frame_name, device_name> to ControlLoop.
   std::unordered_map<string, ControlLoop> control_loops;
+
   int num_edge_ids = g->num_edge_ids();
+
   for (int i = 0; i < num_edge_ids; ++i) {
     const Edge* edge = g->FindEdgeId(i);
+
+    /*
+    p edge->DebugString()
+    $50 = "[id=0 _SOURCE:-1 -> _SINK:-1]"
+
+    p edge->DebugString()
+    $51 = "[id=1 _SOURCE:-1 -> _SINK:-1]"
+
+    p edge->DebugString()
+    $52 = "[id=2 _SOURCE:-1 -> _SINK:-1]"
+
+    p edge->DebugString()
+    $53 = "[id=3 y/shape:0 -> y/RandomStandardNormal:0]" 同一个 device
+
+    p edge->DebugString()
+    $54 = "[id=4 x/shape:0 -> x/RandomStandardNormal:0]" 同一个 device
+
+    p edge->DebugString()
+    $55 = "[id=5 b/shape:0 -> b/RandomStandardNormal:0]" 同一个 device
+
+    p edge->DebugString()
+    $56 = "[id=6 a/shape:0 -> a/RandomStandardNormal:0]" 同一个 device
+
+    p edge->DebugString()
+    $57 = "[id=7 x/RandomStandardNormal:0 -> z:0]" 同一个 device
+
+    p edge->DebugString()
+    $58 = "[id=8 y/RandomStandardNormal:0 -> z:1]"
+    */
+
     if (edge == nullptr) continue;
 
     const Node* src = edge->src();
     const Node* dst = edge->dst();
+
     // Skip Sink/Source nodes.
     if (!src->IsOp() || !dst->IsOp()) continue;
 
     const string& src_device = src->assigned_device_name();
     const string& dst_device = dst->assigned_device_name();
+
     // Skip local edges.
     if (src_device == dst_device) continue;
 
+    // OutputFrame 函数说明:
     const Node* src_frame = OutputFrame(src, cf_info);
     const Node* dst_frame = InputFrame(dst, cf_info);
     const string& src_frame_name = cf_info[src_frame->id()].frame_name;
     const string& dst_frame_name = cf_info[dst_frame->id()].frame_name;
+
     // Skip if src and dst are not in the same frame.
     if (src_frame_name.empty() || src_frame_name != dst_frame_name) {
+      // src_frame_name.empty() 是空，所以进入这个分支，然后 continue
+      // 因为这个原因，没有能够执行到下面的
       continue;
     }
 
@@ -668,6 +1135,7 @@ Status AddControlFlow(const PartitionOptions& opts, Graph* g,
     // current frame if needed, and recursively adding the control loop
     // for its outer frame when nested.
     ControlLoop child_loop;
+
     while (true) {
       const string& curr_frame_name = cf_info[src_frame->id()].frame_name;
       if (curr_frame_name.empty()) {
@@ -675,6 +1143,7 @@ Status AddControlFlow(const PartitionOptions& opts, Graph* g,
         if (child_loop.merge != nullptr) {
           const string& node_name = opts.new_name(edge->dst()->name());
           const string& device_name = edge->dst()->assigned_device_name();
+
           Node* const_node =
               AddControlConst(device_name, bopts.WithName(node_name));
           if (!status.ok()) return status;
@@ -739,6 +1208,8 @@ Status AddControlFlow(const PartitionOptions& opts, Graph* g,
       const Node* dst_frame = InputFrame(dst, cf_info);
       const string& src_frame_name = cf_info[src_frame->id()].frame_name;
       const string& dst_frame_name = cf_info[dst_frame->id()].frame_name;
+
+      // 所有的都没能进入这个分支，因为 !src_frame_name.empty() 这个条件不满足
       if (!src_frame_name.empty() && src_frame_name == dst_frame_name) {
         const string& cl_key =
             strings::StrCat(dst_frame_name, "$$", dst_device);
@@ -748,9 +1219,10 @@ Status AddControlFlow(const PartitionOptions& opts, Graph* g,
         // cross-device inputs. This is expected by the logic in Partition(), so
         // it can add control edges to the recv nodes once they're created.
         g->AddControlEdge(loop.merge, dst, /*allow_duplicates=*/true);
-      }
-    }
-  }
+      } // end if
+    } // end if
+  } // end for
+
   return Status::OK();
 }
 
@@ -950,30 +1422,127 @@ void SetIncarnation(const PartitionOptions& opts, GraphDef* gdef) {
   }
 }
 
-Status Partition(const PartitionOptions& opts, Graph* g,
-                 std::unordered_map<string, GraphDef>* partitions) {
+
+
+
+Status Partition(
+  const PartitionOptions& opts, // input
+  // client_graph->graph, 是以 targets 为输出的最小依赖的图
+  Graph* g, // input
+  std::unordered_map<string, GraphDef>* partitions) // output
+{
+  // 1.
+  // struct PartitionOptions 数据结构
+  // tensorflow/core/graph/graph_partition.h:31:struct PartitionOptions
+  //
+  // - NodeToLocFunc: std::function<string(const Node*)>
+  // - node_to_loc: NodeToLocFunc
+  // - NewNameFunc: std::function<string(const string&)>
+  // - new_name: NewNameFunc
+  // - GetIncarnationFunc: std::function<uint64(const string&)>
+  // - get_incarnation: GetIncarnationFunc
+  // - flib_def: const FunctionLibraryDefinition*
+  // - control_flow_added: bool, default: false
+  // - ShouldCastFunc: std::function<DataType(const Edge*)>
+  // - should_cast: ShouldCastFunc
+  // - scheduling_for_recvs: bool, default: false
+  // - need_to_record_start_times: bool, default: false
+  // - start_times: std::vector<Microseconds>
+  //
+  // 打印: https://gist.github.com/shizukanaskytree/7bbf6ef24dae11fb582abc78a1adf748
+
+  // 2.
+  // FunctionLibraryDefinition 数据结构
+  // tensorflow/core/framework/function.h:313:
+  // class FunctionLibraryDefinition : public OpRegistryInterface
+  // - default_registry_ : const OpRegistryInterface* const
+  // - function_defs_ : gtl::FlatMap<string, std::unique_ptr<FunctionDefAndOpRegistration>>
+  // - func_grad_ : gtl::FlatMap<string, string>
+
+  // 3.
+  // FunctionDefAndOpRegistration 数据结构
+  // - fdef: FunctionDef
+  // - op_registration_data: OpRegistrationData
+
   Status status;
   partitions->clear();
 
   GraphInfo g_info;
+  // 1.
+  // GraphInfo 数据结构
+  // tensorflow/core/graph/graph_partition.cc:108:
+  // struct GraphInfo
+  // - device_types: std::vector<DeviceType>
+  //    * class DeviceType: tensorflow/core/framework/types.h
+  //       + string type_;
+  //          - const char* const DEVICE_CPU, DEVICE_GPU, DEVICE_SYCL
+  // - input_types: MemoryTypeMap
+  // - output_types: MemoryTypeMap
+  // - cf_info: std::vector<ControlFlowInfo>
+
+  // 2.
+  // g_info 变量说明:
+  // g_info 的 MemoryTypeMap input_types 和 MemoryTypeMap output_types
+  // 在 BuildMemoryDeviceInfo() 里面赋值
+
+  // 3.
+  // struct ControlFlowInfo 数据结构
+  // tensorflow/core/graph/control_flow.h
+  // - frame: const Node*
+  // - parent_frame: const Node*
+  // - frame_name: string
+
+  // 进入了这个分支
   if (!opts.control_flow_added) {
     // Add the "code" for distributed execution of control flow. Code is
     // added only for the frames that are placed on multiple devices. The
     // new graph is an equivalent transformation of the original graph and
     // has the property that it can be subsequently partitioned arbitrarily
     // (down to the level of individual device) for distributed execution.
-    status = AddControlFlow(opts, g, &g_info);
+
+    status = AddControlFlow(
+      opts,  // input
+      g, // input
+      &g_info); // output
+    // AddControlFlow 函数说明:
+    // tensorflow/core/graph/graph_partition.cc:608:
+    // Status AddControlFlow(
+    //  const PartitionOptions& opts,
+    //  Graph* g,
+    //  GraphInfo* g_info)
+
     if (!status.ok()) return status;
   }
 
+  // -----------------------------------------------------------------------
+  // Memory Device Info 存在 g_info 这里面
+  //////////////////////////////////////////////////////////////////////////
   // At this point, all the graph mutations have been done. Build memory
   // and device type info for every node and edge in the graph.
-  status = BuildMemoryDeviceInfo(*g, &g_info);
+  //////////////////////////////////////////////////////////////////////////
+  status = BuildMemoryDeviceInfo(
+    *g,  // input
+    &g_info); // output
+
   if (!status.ok()) return status;
+  // -----------------------------------------------------------------------
 
   string dstp;
   std::vector<const Edge*> inputs;
+
+  // DupRecvTable 数据结构:
+  // typedef absl::flat_hash_map<DupRecvKey, RecvInfo> DupRecvTable;
+  // graph/graph_partition.cc
+
+  // DupRecvKey 数据结构:
+  // graph/graph_partition.cc
+
+  // RecvInfo 数据结构:
+  // graph/graph_partition.cc
+
   DupRecvTable dup_recv(3);
+
+  // QQQ. 依然是很模糊的感觉
   // For a node dst, 'ref_recvs' remembers the recvs introduced by a ref
   // edge to dst. 'ref_control_inputs' remembers the inputs by a non-ref
   // edge to dst. We will add a control edge for every pair in
@@ -983,14 +1552,40 @@ Status Partition(const PartitionOptions& opts, Graph* g,
 
   int32 num_data = 0;
   int32 num_control = 0;
+
+  // 造子图开始
+  // step 1: 遍历每个 node
+  // step 2 : 遍历 dst node 的 每条 input edge
   for (const Node* dst : g->op_nodes()) {
+    // node_to_loc
+    //   tensorflow/core/common_runtime/direct_session.cc-1535
+    // lambda 函数:
+    // popts.node_to_loc = [](const Node* node) {
+    //   return node->assigned_device_name();
+    // };
     dstp = opts.node_to_loc(dst);
+
     GraphDef* dst_graph = &(*partitions)[dstp];
-    NodeDef* dst_def = dst_graph->add_node();
-    *dst_def = dst->def();
+
+    // QQQ. 这一步是在 子图与子图直接添加 什么 node？
+    // AAA. 这是在重头构造子图，不是子图与子图直接的什么节点。
+    NodeDef* dst_def = dst_graph->add_node(); // 构造
+
+    *dst_def = dst->def(); // 初始化各个 fields
+
     MergeDebugInfo(NodeDebugInfo(dst->def()), dst_def);
+
+    // -----------------------------------------------------------------------
+    // dst_def: NodeDef*
+    // dst: Node*
+    // 多少感觉是重复了这个 device 的赋值
+    // NodeDef::device : string
+    // dst->assigned_device_name() : device_names_[node.assigned_device_name_index()]
     dst_def->set_device(dst->assigned_device_name());
+    // -----------------------------------------------------------------------
+
     dst_def->clear_input();  // Inputs are filled below
+
     if (opts.need_to_record_start_times) {
       int64 start_time;
       status = GetNodeAttr(*dst_def, "_start_time", &start_time);
@@ -1003,32 +1598,77 @@ Status Partition(const PartitionOptions& opts, Graph* g,
     }
 
     // Arrange the incoming edges to dst so that input[i] holds the
-    // input flowing into slot numbered i. Trailing entries in input[]
+    // input flowing into slot numbered i. Trailing 后面的；拖尾的 entries in input[]
     // hold control edges.
-    inputs.clear();
+
+    // inputs 的含义是 the incoming edges to dst node
+    inputs.clear(); // clear() 是因为 inputs edges 是重复使用的一个变量，对于每个 node 而言
     inputs.resize(dst->num_inputs(), nullptr);
+
     ref_recvs.clear();
     ref_control_inputs.clear();
+
     const Edge* control_flow_edge = nullptr;
+
     int32 num_control_flow_edges = 0;
     int32 num_input_edges = 0;
+
+    // 遍历 dst node 的 每条 input edge ，加入 inputs，用作下一轮处理。
     for (const Edge* edge : dst->in_edges()) {
+
+      // IsControlEdge 函数定义:
+      // graph/graph.h,
+      // if either src_output_ or dst_input_ is kControlSlot,
+      // return src_output_ == Graph::kControlSlot;
       if (edge->IsControlEdge()) {
+
         if (IsMerge(edge->src()) && IsControlLoop(edge->src())) {
           // This is one of the control edges added for control flow. There
           // can be multiple such edges as the dest node may have multiple
           // remote inputs. We keep track of the number of such edges.
           control_flow_edge = edge;
           ++num_control_flow_edges;
+
         } else {
+          // p edge->DebugString()
+          // $29 = "[id=14 _SOURCE:-1 -> x/shape:-1]"
+          // 这个就落入此
+          // 因为是 -1 作为 node slot id , 所以无法像下面一样用数组访问的方式去存入 inputs
           inputs.push_back(edge);
         }
+        // edge 是 Control Edge 分支结束
       } else {
+        // edge 不是 Control Edge 分支
         DCHECK(inputs[edge->dst_input()] == nullptr);
+
+        /*
+                             +----------+
+            +--------------->|0         |
+                             |          |
+            +--------------->|1  dst    |
+                             |          |
+            +--------------->|2         |
+                             +----------+
+
+                        inputs edges
+        */
+
+        // Return the index of the destination input that consumes the data
+        // carried by this edge.  The special value kControlSlot is used
+        // for control dependencies.
+
+        /*
+        进入这个分支的 edge 打印信息:
+
+        p edge->DebugString()
+        $35 = "[id=3 y/shape:0 -> y/RandomStandardNormal:0]"
+        */
+
         inputs[edge->dst_input()] = edge;
         ++num_input_edges;
       }
-    }
+    } // 遍历结束所有的 dst 的 input edges
+
 
     if (num_input_edges != dst->num_inputs()) {
       return errors::InvalidArgument("Incomplete graph, missing ",
@@ -1036,54 +1676,143 @@ Status Partition(const PartitionOptions& opts, Graph* g,
                                      " inputs for ", dst->name());
     }
 
+    /*
+                 +----------+
+                 |0         |
+                 |          |
+                 |1         +--------+
+                 |          |        |
+                 |2         |        |
+                 +----------+        |
+                                     |
+                                     |                +----------+
+                                     v--------------->|0         |
+                                                      |          |
+                                     +--------------->|1  dst    |
+                                                      |          |
+                                     +--------------->|2         |
+                                                      +----------+
+
+                                                 inputs edges
+    */
+
     // Process in order so that all data edges are added as inputs to
     // dst in Edge::dst_input() order.
+    // 如果这条边 cross device 了的话，就要构造 send 和 recv 节点
     for (const Edge* edge : inputs) {
+
       const Node* src = edge->src();
+
       if (!src->IsOp()) continue;  // Skip Sink/Source nodes.
 
+      // 因为 device type : GraphDef instance ，所以 取出 src_graph
       GraphDef* src_graph = &(*partitions)[opts.node_to_loc(src)];
-      if (src_graph == dst_graph && !NeedSameDeviceSendRecv(edge, g_info)) {
+
+      // NeedSameDeviceSendRecv 函数说明:
+      // tensorflow/core/graph/graph_partition.cc
+      // 大致的含义是: 即使在 same device 上也想要增加 send recv node 的判读
+      if (src_graph == dst_graph && !NeedSameDeviceSendRecv(
+                                      edge,     // input
+                                      g_info))  // input
+      {
+        // AddInput 函数说明:
+        // Add an input to dst that comes from the "src_slot" output of the
+        // node named by "src_name".
+        // AddInput 函数接口:
+        // void AddInput(NodeDef* dst, StringPiece src_name, int src_slot)
+
         // Same partition and compatible memory types:
+        // 给 dst_def / dst 节点加一条边
         AddInput(dst_def, src->name(), edge->src_output());
+
+        /*
+                     +----------+
+                     |0         |
+                     |          |
+                     |1       0 +--------+
+                     |          |        |
+                     |2         |        |
+                     +----------+        |
+                                         |
+                                         |                +----------+
+                                         v--------------->|0         |
+                                                          |          |
+                                         +--------------->|1  dst    |
+                                                          |          |
+                                         +--------------->|2         |
+                                                          +----------+
+
+                                                     inputs edges
+        */
+
         if (edge->IsControlEdge() ||
             !IsRefType(src->output_type(edge->src_output()))) {
+
           ref_control_inputs.push_back(src->name());
+
         }
+
         continue;
       }
 
+      // QQQ. 为什么要计时？
+      //
       int64 send_start_time = 0;
       int64 recv_start_time = 0;
+
       if (opts.scheduling_for_recvs) {
+
         status = GetNodeAttr(src->attrs(), "_start_time", &send_start_time);
+
         if (errors::IsNotFound(status) && opts.need_to_record_start_times) {
+
           send_start_time = opts.start_times[src->id()].value();
+
         } else if (!status.ok()) {
+
           return status;
+
         }
 
         status = GetNodeAttr(dst->attrs(), "_start_time", &recv_start_time);
+
         if (errors::IsNotFound(status) && opts.need_to_record_start_times) {
+
           recv_start_time = opts.start_times[dst->id()].value();
+
         } else if (!status.ok()) {
+
           return status;
+
         }
       }
 
       // Check whether there is already a send/recv pair transferring
       // the same tensor/control from the src to dst partition.
       const bool on_host = IsDstInputOnHost(edge, g_info);
+
+      // 两个 key 才能确定一个 edge id: node id + edge slot id of that node
+      // DupRecvKey 数据结构
       DupRecvKey key{src->id(), edge->src_output(), dst_graph, on_host};
+
+      // 之所以叫 duplicated 是因为如果已经存在了的话不就是重复的吗。
       auto iter = dup_recv.find(key);
+
       if (iter != dup_recv.end()) {
+
         // We found one. Reuse the data/control transferred already.
         const string& recv_node_name = iter->second.recv->name();
+
         if (edge->IsControlEdge()) {
+
           AddInput(dst_def, recv_node_name, Graph::kControlSlot);
+
         } else {
+
           AddInput(dst_def, recv_node_name, 0);
+
         }
+
         ref_control_inputs.push_back(recv_node_name);
 
         // We want the start_time for the recv to be the smallest of the start
@@ -1095,6 +1824,9 @@ Status Partition(const PartitionOptions& opts, Graph* g,
         continue;
       }
 
+      // 如果没有进入上面的分支，那么就要构造 send 节点
+
+      // NodeOut 数据结构
       NodeDefBuilder::NodeOut send_from;
       if (edge->IsControlEdge()) {
         // Insert a dummy const node that will generate a tiny
@@ -1111,18 +1843,50 @@ Status Partition(const PartitionOptions& opts, Graph* g,
         AddInput(dummy, src->name(), Graph::kControlSlot);
         send_from.Reset(dummy->name(), 0, DT_FLOAT);
       } else {
+        // send 节点的 send_from 节点
         send_from.Reset(src->name(), edge->src_output(), EdgeType(edge));
+
       }
+
+      // ----------------------------------------------------------------------
+      // ----------------------------------------------------------------------
+      // 增加 send node
+      // QQQ. send node 和 recv node 里面都用到了 GraphInfo g_info device and memory type 信息吧?
+      // AAA. send node 和 recv node 里面都用到了 GraphInfo g_info device and memory type 信息吧?
 
       // Need to split edge by placing matching send/recv nodes on
       // the src/dst sides of the edge.
-      NodeDef* send = AddSend(opts, g_info, src_graph, edge, send_from,
-                              send_start_time, &status);
+
+      // AddSend 函数说明:
+      // graph/graph_partition.cc
+      // NodeDef* AddSend(const PartitionOptions& opts,
+      //                  const GraphInfo& g_info,
+      //                  GraphDef* gdef,
+      //                  const Edge* edge,
+      //                  NodeDefBuilder::NodeOut send_from,
+      //                  int64 start_time,
+      //                  Status* status)
+      //
+      NodeDef* send = AddSend(
+        opts, // input
+        g_info, // input
+        src_graph, // input
+        edge, // input
+        send_from, // input
+        send_start_time, // input
+        &status); // output
+      // -----------------------------------------------------------------------
+
       if (!status.ok()) return status;
 
+      // -----------------------------------------------------------------------
+      // 增加 recv node
+      //
       NodeDef* real_recv = nullptr;
       NodeDef* recv =
           AddRecv(opts, g_info, dst_graph, edge, &real_recv, &status);
+      // -----------------------------------------------------------------------
+
       if (!status.ok()) return status;
 
       // Fix up the control flow edge.
@@ -1164,7 +1928,7 @@ Status Partition(const PartitionOptions& opts, Graph* g,
         ++num_data;
         AddInput(dst_def, recv->name(), 0);
       }
-    }
+    } // end for loop of each a node's inputs' edge
 
     // Add control edges from 'ref_control_inputs' to 'ref_recvs'.
     // NOTE(yuanbyu): Adding these control edges should not introduce
@@ -1183,7 +1947,7 @@ Status Partition(const PartitionOptions& opts, Graph* g,
                  Graph::kControlSlot);
       }
     }
-  }
+  } // for loop of each op node End!
 
   const FunctionLibraryDefinition* flib_def = opts.flib_def;
   if (flib_def == nullptr) {
@@ -1192,7 +1956,20 @@ Status Partition(const PartitionOptions& opts, Graph* g,
 
   // Set versions, function library and send/recv incarnation.
   for (auto& it : *partitions) {
+
     GraphDef* gdef = &it.second;
+    // gpu_graph_def.log
+    // https://gist.github.com/shizukanaskytree/f33ee989f956e6a063949e1048725313
+    // search : op: "_Recv", op: "_Send"
+
+    // cpu_graph_def.log
+    // https://gist.github.com/shizukanaskytree/c5af4564c1c76b6bc3421b268ac18d43
+    // search:
+    // "b/RandomStandardNormal/_3"
+    // op: "MatMul"                         乘法的输入都因此而变了
+    // input: "a/RandomStandardNormal"
+    // input: "b/RandomStandardNormal/_3"
+
     *gdef->mutable_versions() = g->versions();
     // Prune unreachable functions from `flib_def` before adding them to `gdef`.
     *gdef->mutable_library() = flib_def->ReachableDefinitions(*gdef).ToProto();

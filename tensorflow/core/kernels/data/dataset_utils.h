@@ -82,6 +82,11 @@ class VariantTensorDataWriter : public IteratorStateWriter {
  public:
   // Does not take ownership of data.
   explicit VariantTensorDataWriter(VariantTensorData* data) : data_(data) {}
+  // 1.
+  // class VariantTensorData 数据结构
+  // tensorflow/core/framework/variant_tensor_data.h
+  //
+
   Status WriteScalar(StringPiece key, const int64 val) override;
   Status WriteScalar(StringPiece key, const string& val) override;
   Status WriteTensor(StringPiece key, const Tensor& val) override;

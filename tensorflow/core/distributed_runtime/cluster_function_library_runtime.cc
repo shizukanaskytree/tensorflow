@@ -24,6 +24,27 @@ limitations under the License.
 
 namespace tensorflow {
 
+/** \brief Construct a node of the graph by OpDef.
+ *
+ *  \param sig: const OpDef& ;
+ *         message OpDef is the description of Op function, including input,
+ *         output arguments, op attributes, like type.
+ *
+ *  \param attrs: AttrSlice ;
+ *         AttrValue of a node, find, get, equal compare, related with NodeDef.
+ *
+ *  \param options: const FunctionLibraryRuntime::InstantiateOptions& ;
+ *
+ *  \param g: GraphDef* ;
+ *         message GraphDef contains all node definition, and FunctionDefLibrary
+ *
+ *  \param send_keys: std::vector<string>* ;
+ *
+ *  \param recv_keys: std::vector<string>* ;
+ *
+ *  \todo gdb to learn details.
+ *
+ */
 /* static */
 Status ClusterFunctionLibraryRuntime::ConstructFunctionGraph(
     const OpDef& sig, AttrSlice attrs,

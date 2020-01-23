@@ -72,6 +72,11 @@ class TraceMeRecorder {
   static Events Collect();
 
   // Returns whether we're currently recording. Racy, but cheap!
+  /// level 3: cheap
+  /// level 2: expensive
+  // 如果 g_trace_level == 3 , 那么就会都 profiling
+  // RunOptions.FULL_TRACE 就是 3; HARDWARE_TRACE = 2; SOFTWARE_TRACE = 1;
+  //   NO_TRACE = 0;
   static inline bool Active(int level = 1) {
     return ABSL_PREDICT_FALSE(
         internal::g_trace_level.load(std::memory_order_acquire) >= level);

@@ -128,9 +128,134 @@ Status CopyVariable(int output_idx, OpKernelContext* ctx, const Tensor* t) {
 }  // namespace
 
 void ReadVariableOp::Compute(OpKernelContext* ctx) {
+  // 1.
+  // ctx: OpKernelContext*
+  //
+  // class OpKernelContext
+  // tensorflow/core/framework/op_kernel.h
+  // * typedef std::pair<Allocator*, TrackingAllocator*> WrappedAllocator;
+  // - struct Params
+  //    * step_id: int64
+  //    * op_kernel: OpKernel*
+  //      ========================================================
+  //      调试访问:  p ctx->op_kernel().def().DebugString()   # 重要
+  //      ========================================================
+  //    * device: DeviceBase*
+  //    * eigen_gpu_device: PerOpGpuDevice*
+  //    * track_allocations: bool
+  //    * log_memory: bool
+  //    * record_tensor_accesses: bool
+  //    * output_attr_array: const AllocatorAttributes*
+  //    * resource_manager: ResourceMgr*  # 这个和 tensor 是怎么联系起来的？
+  //    * step_container: ScopedStepContainer*
+  //      Per-step resources accessible by this op kernel invocation should be stored in this container.
+  //    * rendezvous: Rendezvous*
+  //      Mechanism used by this op kernel invocation to communicate with computations running on other devices.
+  //    * collective_executor: CollectiveExecutor*
+  //      Mechanism for executing a collective op that needs to coordinate with parallel instances running on other devices.
+  //    * session_state: SessionState*
+  //      The session state for this op.
+  //    * session_handle: string
+  //      Unique session identifier. Can be empty.
+  //    * tensor_store: TensorStore*  # 留意这个
+  //      The tensor store for this op.
+  //    * cancellation_manager: CancellationManager*
+  //    * inputs: const gtl::InlinedVector<TensorValue, 4>*  # 关注一下
+  //    * is_input_dead: bool
+  //    * input_alloc_attrs: const gtl::InlinedVector<AllocatorAttributes, 4>*
+  //    * input_device_contexts: const gtl::InlinedVector<DeviceContext*, 4>*
+  //    * op_device_context: DeviceContext*
+  //    * frame_iter: FrameAndIter
+  //      Control-flow op supports.
+  //    * call_frame: CallFrameInterface*
+  //    * function_library: FunctionLibraryRuntime*
+  //    * runner: std::function<void(std::function<void()>)>*
+  //    * stats_collector: StepStatsCollectorInterface*
+  //    * graph_collector: GraphCollector*
+  //    * slice_reader_cache: checkpoint::TensorSliceReaderCacheWrapper*
+  //    * forward_from_array: const int*
+  //    * inc_num_deferred_ops_function: std::function<void()>
+  //    * dec_num_deferred_ops_function: std::function<void()>
+  // - params_: Params*
+  // - status_: Status
+  // - wrapped_allocators_: gtl::InlinedVector<WrappedAllocator, 4>
+  // - outputs_: gtl::InlinedVector<TensorValue, 4>
+  // - referenced_tensors_: ManualConstructor<UniqueTensorReferences>
+  // - temp_memory_allocated_: int64
+  // - persistent_memory_allocated_: int64
+  // - temp_tensor_buffer_and_size_: std::unique_ptr<gtl::InlinedVector<std::pair<const void*, int64>, 2>>
+  // - persistent_alloc_ids_: std::unique_ptr<gtl::InlinedVector<int64, 2>>
+
+  // 1.1
+  // class TensorStore 数据结构
+  // tensorflow/core/framework/session_state.h
+  // The tensor store remembers the tensors we choose to keep for the
+  // current run call. It is available to every op kernel.
+
+  // 1.2
+  // TensorValue 数据结构
+  // tensorflow/core/framework/op_kernel.h:513:struct TensorValue
+  // 概述:
+  // Holds a tensor or tensor reference. For tensor references, we need
+  // a mutex to prevent concurrent access to the tensor.
+  //
+  // - tensor: Tensor*
+  // - mutex_if_ref: mutex*
+
+  // 1.3
+  // class OpKernel 数据结构
+  // - kInitialCostEstimateCycles: static const uint64 , default_value: 100 * 1000 * 1000
+  // - kOpIsExpensiveThresholdCycles: static const uint64, default_value: 5000
+  // - kCostDecay: static const uint64, default_value: 10
+  //
+  // - def_: const std::unique_ptr<const NodeDef>
+  // - input_types_: const DataTypeVector
+  // - input_memory_types_: const MemoryTypeVector
+  // - output_types_: const DataTypeVector
+  // - output_memory_types_: const MemoryTypeVector
+  // - graph_def_version_: const int
+  // - is_internal_: const bool
+  // - input_name_map_: NameRangeMap
+  // - output_name_map_: NameRangeMap
+  // - expensive_: bool
+  // - cost_estimate_: std::atomic_uint_fast64_t
+  //
+  // - DebugString 等价的有
+  // def().DebugString()
+
   Var* variable = nullptr;
   const ResourceHandle& handle = HandleFromInput(ctx, 0);
   const auto status = LookupResource(ctx, handle, &variable);
+  // 1.
+  // LookupResource
+  // tensorflow/core/framework/resource_mgr.h
+  //
+  // template <typename T, bool use_dynamic_cast>
+  // Status LookupResource(OpKernelContext* ctx,     // 为什么查找还要 OpKernelContext ? ==> 因为 需要 ctx->resource_manager() 得到 resource_mgr
+  //                       const ResourceHandle& p,
+  //                       T** value) {
+  //   TF_RETURN_IF_ERROR(internal::ValidateDeviceAndType<T>(ctx, p));
+  //   return ctx->resource_manager()->Lookup<T, use_dynamic_cast>(p.container(),
+  //                                                               p.name(),
+  //                                                               value);
+  // }
+
+  // 2.
+  // class ResourceHandle 数据结构
+  // tensorflow/core/framework/resource_handle.h
+  //
+  // 概述:
+  // Class representing a handle to a tensorflow resource.
+  //
+  // - device_: string
+  // - container_: string
+  // - name_: string
+  // - hash_code_: uint64
+  // - maybe_type_name_: string
+
+  // 3.
+  // 为什么查找还要 OpKernelContext ? ==> 因为 需要 ctx->resource_manager() 得到 resource_mgr
+
   OP_REQUIRES(ctx, status.ok(),
               errors::FailedPrecondition(
                   "Error while reading resource variable ", handle.name(),
@@ -139,18 +264,38 @@ void ReadVariableOp::Compute(OpKernelContext* ctx) {
                   status.ToString()));
 
   core::ScopedUnref s(variable);
+  // 1.
+  // class ScopedUnref
+  // tensorflow/core/lib/core/refcount.h
+  // 核心功能：
+  // out of scope 后 variable 自动 Unref()
+
+
   // We're acquiring a reference to the underlying buffer while
   // holding a shared lock to guarantee ordering of reads and
   // writes.
   tf_shared_lock ml(*variable->mu());
   const Tensor* t = variable->tensor();
+
   OP_REQUIRES(ctx, dtype_ == t->dtype(),
               errors::InvalidArgument(
                   "Trying to read variable with wrong dtype. Expected ",
                   DataTypeString(dtype_), " got ", DataTypeString(t->dtype())));
   if (variable->copy_on_read_mode.load()) {
+    // copy_on_read_mode 函数说明
+    // core/framework/resource_var.h
+    //
+    // class Var::copy_on_read_mode
+    // Also fake-guarded by mu_. Should be set to True whenever any sparse
+    // operation uses the variable. Once this is true no tensor is allowed to
+    // alias the memory of the variable, and we always copy the variable on
+    // reads. This allows sparse operations to happen with only a shared lock if
+    // so desired.
+    // std::atomic<bool> copy_on_read_mode{false};
+
     OP_REQUIRES_OK(ctx, CopyVariable(0, ctx, t));
   } else {
+    // ===进入的是这个分支===
     ctx->set_output(0, *t);
   }
 }

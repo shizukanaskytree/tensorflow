@@ -68,11 +68,13 @@ bool IsValidNodeName(StringPiece s, bool allow_internal_ops) {
 class GraphConstructor {
  public:
   struct Options {
+
     Options(const GraphConstructorOptions& in)  // NOLINT(runtime/explicit)
         : allow_internal_ops(in.allow_internal_ops),
           expect_device_spec(in.expect_device_spec),
           importing(false),
           validate_colocation_constraints(false) {}
+
     Options(const ImportGraphDefOptions& in)  // NOLINT(runtime/explicit)
         : allow_internal_ops(false),
           expect_device_spec(false),
@@ -122,25 +124,41 @@ class GraphConstructor {
 
   // versions and library may be nullptr
   static Status Construct(
-      const Options& opts, NodeDefSlice node_defs, const VersionDef* versions,
-      const FunctionDefLibrary* library, Graph* g, ShapeRefiner* refiner,
+      const Options& opts,
+      NodeDefSlice node_defs,
+      const VersionDef* versions,
+      const FunctionDefLibrary* library,
+      Graph* g,
+      ShapeRefiner* refiner,
       std::vector<std::pair<Node*, int>>* return_tensors,
       std::vector<Node*>* return_nodes,
-      std::vector<SafeTensorId>* missing_unused_input_map_keys) {
+      std::vector<SafeTensorId>* missing_unused_input_map_keys)
+  {
     if (versions) {
       TF_RETURN_IF_ERROR(CheckVersions(*versions, TF_GRAPH_DEF_VERSION,
                                        TF_GRAPH_DEF_VERSION_MIN_PRODUCER,
                                        "GraphDef", "graph"));
     }
-    GraphConstructor c(opts, node_defs, versions, library, g, refiner,
-                       return_tensors, return_nodes,
-                       missing_unused_input_map_keys);
+
+    GraphConstructor c(
+      opts,
+      node_defs,
+      versions,
+      library,
+      g,
+      refiner,
+      return_tensors,
+      return_nodes,
+      missing_unused_input_map_keys);
+
     const Status s = c.TryImport();
+
     if (!s.ok()) c.Undo();
     return s;
   }
 
  private:
+  // GraphConstructor 构造函数
   GraphConstructor(const Options& opts, NodeDefSlice node_defs,
                    const VersionDef* versions,
                    const FunctionDefLibrary* library, Graph* g,
@@ -160,6 +178,7 @@ class GraphConstructor {
         return_nodes_(return_nodes),
         missing_unused_input_map_keys_(missing_unused_input_map_keys) {}
 
+  // TryImport 函数
   Status TryImport() {
     TF_RETURN_IF_ERROR(EnsureNoNameCollisions());
     TF_RETURN_IF_ERROR(ValidateInputMapAndControlDependencies());
@@ -512,6 +531,8 @@ Status GraphConstructor::InitFromEdges() {
       bool has_loop_back_edge = false;
       for (int i = 0; i < node_def.input_size(); ++i) {
         StringPiece input_name(node_def.input(i));
+
+        // control_edges 计数规则:
         if (str_util::StartsWith(input_name, "^")) {
           num_control_edges++;
         } else {
@@ -572,6 +593,7 @@ Status GraphConstructor::ValidateColocationConstraints(
   return Status::OK();
 }
 
+// 功能: 根据 node_def 构造 node 并放入 g_:Graph 中.
 Status GraphConstructor::MakeNode(const NodeDef& node_def, Node** node) {
   // Add the node to the graph.
   Status status;
@@ -582,6 +604,7 @@ Status GraphConstructor::MakeNode(const NodeDef& node_def, Node** node) {
   }
   return Status::OK();
 }
+
 
 Status GraphConstructor::ValidateShape(Node* node) {
   if (!opts_.importing || !opts_.validate_shape) return Status::OK();
@@ -1204,13 +1227,56 @@ Status GraphConstructor::MakeEdge(Node* src, int output_index, Node* dst,
 
 }  // namespace
 
-Status ConvertGraphDefToGraph(const GraphConstructorOptions& opts,
-                              const GraphDef& gdef, Graph* g) {
-  ShapeRefiner refiner(gdef.versions().producer(), g->op_registry());
-  return GraphConstructor::Construct(
-      opts, gdef.node(), &gdef.versions(), &gdef.library(), g, &refiner,
-      /*return_tensors=*/nullptr, /*return_nodes=*/nullptr,
-      /*missing_unused_input_map_keys=*/nullptr);
+Status ConvertGraphDefToGraph(const GraphConstructorOptions& opts, // input
+                              const GraphDef& gdef,  // input
+                              Graph* g) { // output
+
+  ShapeRefiner refiner(gdef.versions().producer(),
+                       g->op_registry());
+  // 1.
+  // class ShapeRefiner 数据结构
+  // tensorflow/core/common_runtime/shape_refiner.h
+  //
+  // 概述:
+  // ShapeRefiner performs shape inference for TensorFlow Graphs.  It is
+  // responsible for instantiating InferenceContext objects for each
+  // Node in the Graph, and providing/storing the 'input_tensor' Tensors
+  // used by Shape Inference functions, when available at graph
+  // construction time.
+  //
+  // - graph_def_version_: int32
+  // - ops_registry_: const OpRegistryInterface* const
+  // - graph_runner_: GraphRunner
+  // - node_to_context_: std::unordered_map<const Node*, std::unique_ptr<ExtendedInferenceContext>>
+  // - const_tensor_map_: std::unordered_map<string, Tensor>
+  // - require_shape_inference_fns_: bool
+  // - disable_constant_propagation_: bool
+  // - function_library_: const tensorflow::FunctionLibraryDefinition*
+  // - keep_nested_shape_inferences_: bool
+  // - functions_: std::unordered_map<const FunctionDef*, std::unique_ptr<const Graph>>
+
+  return GraphConstructor::Construct(opts, // input
+                                     gdef.node(), // input
+                                     &gdef.versions(), // input
+                                     &gdef.library(), // input
+                                     g,  // output
+                                     &refiner, // input
+                                     /*return_tensors=*/nullptr,
+                                     /*return_nodes=*/nullptr,
+                                     /*missing_unused_input_map_keys=*/nullptr);
+  // GraphConstructor::Construct 函数说明：
+  // tensorflow/core/graph/graph_constructor.cc
+  // static Status Construct(
+  //     const Options& opts,
+  //     NodeDefSlice node_defs,
+  //     const VersionDef* versions,
+  //     const FunctionDefLibrary* library,
+  //     Graph* g,
+  //     ShapeRefiner* refiner,
+  //     std::vector<std::pair<Node*, int>>* return_tensors,
+  //     std::vector<Node*>* return_nodes,
+  //     std::vector<SafeTensorId>* missing_unused_input_map_keys)
+
 }
 
 Status ConvertNodeDefsToGraph(const GraphConstructorOptions& opts,
@@ -1300,21 +1366,36 @@ Status ImportGraphDef(const ImportGraphDefOptions& opts, const GraphDef& gdef,
   }
 }
 
+// 复制图
+// QQQ. CopyGraph 复制了多少的信息?
+// AAA. 相比于 class Graph 琳琅满目的 fields ，这个复制很明显是不全的。
 void CopyGraph(const Graph& src, Graph* dest) {
+  // 1.
+  // dest: Graph*
+  // Graph 数据结构
+  // tensorflow/core/graph/graph.cc
+
   for (Node* n : dest->nodes()) {
     CHECK(n->IsSource() || n->IsSink()) << "*dest must be empty";
   }
+  // 什么意思?
+  // 除了 Source 和 Sink 以外，其他的节点都不能有，所以要求 dest graph 是空的。
 
   // Copy GraphDef versions
   dest->set_versions(src.versions());
 
   // Copy the nodes
-  std::unordered_map<const Node*, Node*>
-      node_map;  // "Node in src" -> "Node in *dest"
+   // "Node in src" -> "Node in *dest"
+  std::unordered_map<const Node*, Node*> node_map;
+
   node_map[src.source_node()] = dest->source_node();
+
   node_map[src.sink_node()] = dest->sink_node();
+
   for (Node* n : src.op_nodes()) {
     node_map[n] = dest->CopyNode(n);
+    // CopyNode 函数说明:
+    // tensorflow/core/graph/graph.cc
   }
 
   // Copy the edges
@@ -1322,6 +1403,14 @@ void CopyGraph(const Graph& src, Graph* dest) {
     Node* src_copy = node_map[e->src()];
     Node* dst_copy = node_map[e->dst()];
     dest->AddEdge(src_copy, e->src_output(), dst_copy, e->dst_input());
+    // 1.
+    // dest: Graph*
+
+    // 2.
+    // AddEdge 函数说明:
+    // const Edge* Graph::AddEdge(Node* source, int x, Node* dest, int y)
+    // tensorflow/core/graph/graph.cc
+
   }
 }
 

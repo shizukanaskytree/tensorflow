@@ -214,6 +214,7 @@ class Node {
   friend class Graph;
   Node();
 
+  // NodeProperties 里面没有直接的 device 信息
   NodeProperties* properties() const { return props_.get(); }
 
   void Initialize(int id, int cost_id, std::shared_ptr<NodeProperties> props);
@@ -236,11 +237,14 @@ class Node {
   // A set of mutually exclusive classes for different kinds of nodes,
   // class_ is initialized in the Node::Initialize routine based on the
   // node's type_string().
+  // -----------------------------------------------------------------------
+  // string --> int / number
+  // -----------------------------------------------------------------------
   enum NodeClass {
     NC_UNINITIALIZED,
     NC_SWITCH,
     NC_MERGE,
-    NC_ENTER,
+    NC_ENTER, // 定义是什么?
     NC_EXIT,
     NC_NEXT_ITERATION,
     NC_LOOP_COND,
@@ -262,7 +266,7 @@ class Node {
     NC_PARTITIONED_CALL,
     NC_ARG,
     NC_RETVAL,
-    NC_OTHER  // Not a special kind of node
+    NC_OTHER  // Not a special kind of node, 比如 SOURCE_ node
   };
 
   static const std::unordered_map<string, NodeClass>& kNodeClassTable;
@@ -279,7 +283,15 @@ class Node {
   // NOTE(skyewm): inheriting from core::RefCounted may have a slight
   // performance benefit over using shared_ptr, at the cost of manual ref
   // counting
+  // not owned
   std::shared_ptr<NodeProperties> props_;
+  // struct NodeProperties 数据结构
+  // tensorflow/core/graph/graph.cc:37
+  // - const OpDef* op_def;  // not owned
+  // - NodeDef node_def;
+  // - const DataTypeVector input_types;
+  // - const DataTypeVector output_types;
+
 
   // Index within Graph::device_names_ of the name of device assigned
   // to perform this computation.
@@ -300,7 +312,11 @@ class Node {
   WhileContext* while_ctx_;
 
   TF_DISALLOW_COPY_AND_ASSIGN(Node);
-};
+}; // class Node END.
+
+
+////////////////////////////////////////////////////////////////////////
+
 
 // Stores debug information associated with the Node.
 struct NodeDebugInfo {
@@ -313,6 +329,7 @@ struct NodeDebugInfo {
 
 // Represents an input of a node, i.e., the `index`-th input to `node`.
 struct InputTensor {
+  // QQQ. its parent node who produce the tensor?
   Node* node;
   int index;
 
@@ -334,6 +351,7 @@ struct InputTensor {
 // that a single `OutputTensor` can correspond to multiple `Edge`s if the output
 // is consumed by multiple destination nodes.
 struct OutputTensor {
+  // An output Tensor of this node,  the `index`-th output of `node`.
   Node* node;
   int index;
 
@@ -360,6 +378,7 @@ class Edge {
   // Return the index of the source output that produces the data
   // carried by this edge.  The special value kControlSlot is used
   // for control dependencies.
+  // 可以称为 src_port
   int src_output() const { return src_output_; }
 
   // Return the index of the destination input that consumes the data
@@ -463,6 +482,9 @@ class Graph {
   // `flib_def` so its lifetime may be shorter than that of the graph's. The
   // OpRegistryInterface backing `flib_def` must still have the lifetime of the
   // graph though.
+  // ------------------------------------------------------------------
+  // FunctionLibraryDefinition
+  //
   explicit Graph(const FunctionLibraryDefinition& flib_def);
 
   ~Graph();
@@ -690,8 +712,10 @@ class Graph {
   std::vector<Node*> free_nodes_;
   std::vector<Edge*> free_edges_;
 
+  // -----------------------------------------------------------------------
   // For generating unique names.
   int name_counter_ = 0;
+  // -----------------------------------------------------------------------
 
   // In most graphs, the number of unique values used for the
   // Node::assigned_device_name() property is quite small.  If the graph is
@@ -725,6 +749,44 @@ class Graph {
 
   TF_DISALLOW_COPY_AND_ASSIGN(Graph);
 };
+// class Graph END.
+
+// 1.
+// class Graph 数据结构
+// - static const int kControlSlot;
+// * enum { kSourceId = 0, kSinkId = 1 };
+// - ops_: FunctionLibraryDefinition
+//   Registry of all known ops, including functions.
+// - versions_: const std::unique_ptr<VersionDef>
+//   GraphDef versions
+// - arena_: core::Arena
+//   Allocator which will give us good locality.
+// - nodes_: std::vector<Node*>
+//   Map from node ids to allocated nodes.  nodes_[id] may be nullptr if the node with that id was removed from the graph.
+// - num_nodes_: int64, default_value : 0
+//   Number of nodes alive.
+// - edges_: std::vector<Edge*>
+//   Map from edge ids to allocated edges.  edges_[id] may be nullptr if the edge with that id was removed from the graph.
+// - num_edges_: int, default_value : 0
+//   The number of entries in edges_ that are not nullptr.
+// - free_nodes_: std::vector<Node*>
+//   Allocated but free nodes.
+// - free_edges_: std::vector<Edge*>
+//   Allocated but free edges.
+// - name_counter_: int, default_value : 0
+//   For generating unique names.
+// - device_names_: std::vector<string>
+//   A table of the unique assigned device names. The InternDeviceName() method handles adding a new entry into the table, or locating the index of an existing entry.
+// - device_names_map_: std::unordered_map<string, int>
+//   Maps unique device names to indices within device_names_[i].
+// - while_ctxs_: std::map<string, WhileContext>
+//   All the while contexts owned by this graph, keyed by frame name, corresponding to all the while loops contained in this graph (including nested loops). The stored contexts are usually accessed via AddWhileContext() or Node::while_ctx(), but this manages the lifetime.
+
+// 2.
+// name_counter_ 被使用:
+// GraphDefBuilder::Options::GetNameForOp
+// tensorflow/core/graph/graph_def_builder.cc
+
 
 // TODO(josh11b): We may want to support keeping an index on various
 // node/edge attributes in a graph, particularly node names.

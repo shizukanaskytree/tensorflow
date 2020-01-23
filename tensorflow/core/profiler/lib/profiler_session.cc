@@ -24,7 +24,7 @@ limitations under the License.
 #include "tensorflow/core/profiler/internal/gpu/tracer.h"
 #include "tensorflow/core/profiler/internal/runtime/eager_profiler.h"
 #include "tensorflow/core/profiler/trace_events.pb.h"
-#include "tensorflow/core/protobuf/config.pb.h"
+#include "tensorflow/core/protobuf/config.pb.h" // message RunMetadata defined.
 
 namespace tensorflow {
 
@@ -66,6 +66,12 @@ void AssignLanes(RunMetadata* run_metadata) {
   }
 }
 
+/** \brief 把 run_metadata 指针指向的 RunMetadata instance 内的部分 tracing 信息保存
+ *         到 message Trace 内用于 timeline 的输出。
+ *
+ *  trace[out]: message Trace*, tensorflow/core/profiler/trace_events.proto
+ *
+ */
 void ConvertRunMetadataToTraceEvent(RunMetadata* run_metadata,
                                     profiler::Trace* trace,
                                     const uint64 profile_start_time_micros) {
@@ -75,6 +81,7 @@ void ConvertRunMetadataToTraceEvent(RunMetadata* run_metadata,
   for (size_t device_id = 0;
        device_id < run_metadata->step_stats().dev_stats_size(); ++device_id) {
     // Create device
+    // device_stats: message DeviceStepStats*
     auto* device_stats =
         run_metadata->mutable_step_stats()->mutable_dev_stats(device_id);
     profiler::Device device;
@@ -93,11 +100,16 @@ void ConvertRunMetadataToTraceEvent(RunMetadata* run_metadata,
     (*trace_devices)[device_id] = device;
 
     // Emit events.
+    // node: message NodeExecStats
     for (auto node :
          run_metadata->step_stats().dev_stats(device_id).node_stats()) {
+
+      /// 丢弃 profiling 开始以前的 Node statistics
       if (node.all_start_micros() < profile_start_time_micros) {
         continue;
       }
+
+      // 用 event 指针指向 新建的 message Trace::TraceEvent trace_events
       auto* event = trace->add_trace_events();
       auto* args = event->mutable_args();
       event->set_device_id(device_id);
@@ -127,16 +139,34 @@ Status ProfilerSession::Status() {
   return status_;
 }
 
+/**
+ *  Args:
+ *    content: [outfput]
+ *
+ */
 Status ProfilerSession::SerializeToString(string* content) {
   mutex_lock l(mutex_);
   if (!status_.ok()) return status_;
   for (auto& profiler : profilers_) {
     profiler->Stop().IgnoreError();
   }
+
+  // -----------------------------------------------------------------------
+  // 收集 RunMetadata
+  // message RunMetadata, tensorflow/core/protobuf/config.proto:512
   RunMetadata run_metadata;
   for (auto& profiler : profilers_) {
+    /// 多态
+    /// Tracer::CollectData(), tracer.cc
     profiler->CollectData(&run_metadata).IgnoreError();
   }
+  // -----------------------------------------------------------------------
+
+
+  // -------------------------------------------------------------------------
+  // IMPT:
+  // 到这里，我们已经提取了 profiling 所得到的 GPU, CPU 的 RunMetadata run_metadata
+  // -------------------------------------------------------------------------
 
   if (active_) {
     // Allow another session to start.
@@ -144,10 +174,13 @@ Status ProfilerSession::SerializeToString(string* content) {
     active_ = false;
   }
 
+  // trace[out]:  message Trace, tensorflow/core/profiler/trace_events.proto
   profiler::Trace trace;
 
+  /// 把 TF 收集的 run_metadata 转换后输到外面 to TraceEvent
   ConvertRunMetadataToTraceEvent(&run_metadata, &trace, start_time_micros_);
 
+  // protobuf message API, SerializeToString
   trace.SerializeToString(content);
   return Status::OK();
 }

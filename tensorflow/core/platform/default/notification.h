@@ -76,6 +76,18 @@ class Notification {
   condition_variable cv_;       // signaled when notified_ becomes non-zero
   std::atomic<bool> notified_;  // mutations under mu_
 };
+// 1.
+// class Notification
+// - cv_ : condition_variable
+//   signaled when notified_ becomes non-zero
+// - notified_: std::atomic<bool>
+//   mutations under mu_
+// - mu_: mutex
+//
+// 接口函数
+// - Notify()
+// - HasBeenNotified()
+// - WaitForNotification()
 
 inline bool WaitForNotificationWithTimeout(Notification* n,
                                            int64 timeout_in_us) {

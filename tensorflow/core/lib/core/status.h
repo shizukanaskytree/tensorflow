@@ -50,8 +50,10 @@ class Status {
 
   static Status OK() { return Status(); }
 
+  // -----------------------------------------------------------------------
   /// Returns true iff the status indicates success.
   bool ok() const { return (state_ == NULL); }
+  // -----------------------------------------------------------------------
 
   tensorflow::error::Code code() const {
     return ok() ? tensorflow::error::OK : state_->code;
@@ -74,6 +76,23 @@ class Status {
   /// Use:
   ///   `overall_status.Update(new_status);`
   void Update(const Status& new_status);
+  // 1.
+  // const 语法说明
+  // https://stackoverflow.com/questions/117293/use-of-const-for-function-parameters
+
+  // 2.
+  // & 语法说明
+  // 如果不用 & 会怎么样?
+  // 会产生一个 copy, since it is working on a copy of the data.
+
+  // 3.
+  // "const is pointless when the argument is passed by value since you will not be modifying the caller's object."
+  // Wrong!
+  // It's about self-documenting your code and your assumptions.
+  // If your code has many people working on it and your functions are non-trivial then you should mark "const" any and everything that you can. When writing industrial-strength code, you should always assume that your coworkers are psychopaths trying to get you any way they can (especially since it's often yourself in the future).
+  // Besides, as somebody mentioned earlier, it might help the compiler optimize things a bit (though it's a long shot).
+
+
 
   /// \brief Return a string representation of this status suitable for
   /// printing. Returns the string `"OK"` for success.

@@ -80,6 +80,13 @@ class GrpcChannelCache {
   virtual string TranslateTask(const string& task) = 0;
 };
 
+/** \brief A lambda function ChannelCreationFunction(string) -> ::grpc::Channel
+ *  
+ *  \param string
+ *
+ *  \return SharedGrpcChannelPtr
+ *          A pointer to grpc channel
+ */
 typedef std::function<SharedGrpcChannelPtr(string)> ChannelCreationFunction;
 
 GrpcChannelCache* NewGrpcChannelCache(const GrpcChannelSpec& channel_spec,

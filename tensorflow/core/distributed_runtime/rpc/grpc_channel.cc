@@ -13,6 +13,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+/** \file grpc_channel.cc
+ *
+ *  \brief channel means host_port.
+ */
 #include "tensorflow/core/distributed_runtime/rpc/grpc_channel.h"
 
 #include <limits>
@@ -38,6 +42,9 @@ namespace tensorflow {
 
 namespace {
 
+/** \brief Make a string of a job and task.
+ *         The return value is in the of ("/job:", job, "/replica:0/task:", task).
+ */
 string MakeAddress(const string& job, int task) {
   return strings::StrCat("/job:", job, "/replica:0/task:", task);
 }
@@ -56,6 +63,16 @@ Status ValidateHostPortPair(const string& host_port) {
 
 }  // namespace
 
+/** \brief Extract configuration parameters from tf RPCOptions to construct
+ *         grpc ChannelArguments, which are options for channel creation.
+ *
+ *  \param rpc_options: const RPCOptions* ;
+ *         message RPCOptions have 1. in-process master setting; 2. compression
+ *         algorithm setting; 3. compression level setting.
+ *
+ *  \return ::grpc::ChannelArguments
+ *          Options for channel creation.
+ */
 ::grpc::ChannelArguments GetChannelArguments(const RPCOptions* rpc_options) {
   // TODO(mrry): Implement secure channels.
   ::grpc::ChannelArguments args;
@@ -86,6 +103,26 @@ Status ValidateHostPortPair(const string& host_port) {
   return args;
 }
 
+/** \brief Create a new custom grpc Channel pointing to target.
+ *
+ *  \param[in] target: const string& ;
+ *
+ *  \param[in] rpc_options: const RPCOptions* ;
+ *
+ *  \param[out] channel_pointer: SharedGrpcChannelPtr* ;
+ *         std::shared_ptr<::grpc::Channel> ; It is the return value, a channel
+ *         pointer to the target.
+ *
+ *  \return Status ;
+ *
+ *  \details To call service methods, we first need to create a stub. First, we
+ *           need to create a gRPC channel for our stub, specifying the server
+ *           address and port we want to connect to.
+ *           In order to set additional options for the channel, use the
+ *           grpc::CreateCustomChannel() api with any special channel arguments
+ *           - grpc::ChannelArguments.
+ *           from: https://grpc.io/docs/tutorials/basic/c/
+ */
 Status NewHostPortGrpcChannel(const string& target,
                               const RPCOptions* rpc_options,
                               SharedGrpcChannelPtr* channel_pointer) {
@@ -93,11 +130,45 @@ Status NewHostPortGrpcChannel(const string& target,
   TF_RETURN_IF_ERROR(ValidateHostPortPair(target));
 
   ::grpc::ChannelArguments args = GetChannelArguments(rpc_options);
+
+  /// \fn ::grpc::CreateCustomChannel
+  ///
+  /// \brief Create a new custom Channel pointing to target.
+  ///
+  /// \param "dns:///" + target: const grpc::string &target;
+  ///        The target string that a new custom Channel created pointing to.
+  ///
+  /// \param ::grpc::InsecureChannelCredentials():
+  ///        const std::shared_ptr<::grpc::ChannelCredentials > & ;
+  ///        A channel credentials object encapsulates all the state needed by a client to authenticate with a server for a given channel.
+  ///
+  /// \param args: const ::grpc::ChannelArguments &;
+  ///
+  /// \return SharedGrpcChannelPtr* channel_pointer:
+  ///         std::shared_ptr<::grpc::Channel> ;
   *channel_pointer = ::grpc::CreateCustomChannel(
       "dns:///" + target, ::grpc::InsecureChannelCredentials(), args);
+      
   return Status::OK();
 }
 
+/** \brief Convert NewHostPortGrpcChannel function to ChannelCreationFunction
+ *
+ *  \details ChannelCreationFunction signature, input, function body, return
+ *           NewHostPortGrpcChannel is shown above.
+ *           - The signature of ChannelCreationFunction is
+ *             std::function<SharedGrpcChannelPtr(string target)>
+ *           - The input is from NewHostPortGrpcChannel's input: target string.
+ *           - The function body is a specialized invocation of
+ *             NewHostPortGrpcChannel(target, nullptr, &channel_ptr)
+ *           - The return value of ChannelCreationFunction is a pointer to
+ *             SharedGrpcChannelPtr (channel_ptr).
+ *
+ *  \param new_channel_func_ptr Take NewHostPortGrpcChannel(above) as an example,
+ *
+ *  \return ChannelCreationFunction is std::function<SharedGrpcChannelPtr(string)>
+ *          SharedGrpcChannelPtr is a pointer to grpc channel
+ */
 ChannelCreationFunction ConvertToChannelCreationFunction(
     const std::function<Status(string, const RPCOptions*,
                                SharedGrpcChannelPtr*)>& new_channel_func_ptr) {
@@ -185,7 +256,15 @@ class MultiGrpcChannelCache : public CachingGrpcChannelCache {
     }
   }
 
+  /** \brief
+   *
+   *  \param workers: [out] std::vector<string>* ;
+   *
+   */
   void ListWorkers(std::vector<string>* workers) override {
+    /// caches_: List of channels used by this MultiGrpcChannelCache
+    /// caches_: std::vector<GrpcChannelCache*>,
+    /// GrpcChannelCache is an interface class.
     for (GrpcChannelCache* cache : caches_) {
       cache->ListWorkers(workers);
     }
@@ -251,7 +330,17 @@ class SparseGrpcChannelCache : public CachingGrpcChannelCache {
   }
   ~SparseGrpcChannelCache() override {}
 
+  /** \brief Get all workers from all ip:port, and store them to a string in the
+   *         of ("/job:", job, "/replica:0/task:", task_index).
+   *
+   *  \param workers: std::vector<string>*
+   *         The return value of ListWorkers, and store them to a string in the
+   *         of ("/job:", job, "/replica:0/task:", task_index).
+   *
+   *  \remark No return values.
+   */
   void ListWorkers(std::vector<string>* workers) override {
+    /// \todo Why do we count workers->size() ?
     workers->reserve(workers->size() + host_ports_.size());
     for (const auto& id_host_port : host_ports_) {
       workers->emplace_back(MakeAddress(job_id_, id_host_port.first));
@@ -265,8 +354,27 @@ class SparseGrpcChannelCache : public CachingGrpcChannelCache {
     }
   }
 
+  /** \brief Find the host:port string by task index from the device fullname
+   *         target.
+   *
+   *  \param target: string
+   *         The fullname of a device name in the form of
+   *        /job:<name>/replica:<replica>/task:<task>/device:<type>:<device_num>.
+   *
+   *  \return A host:port string by task index from the device fullname of target.
+   *
+   */
   string TranslateTask(const string& target) override {
+    /// class DeviceNameUtils represents a device name:
+    /// /job:<name>/replica:<replica>/task:<task>/device:<type>:<device_num> .
+    /// While DeviceNameUtils::ParsedName is a struct storing information of
+    /// each item i.e. job, replica, task id, device, type, and whether it has
+    /// each item or not.
     DeviceNameUtils::ParsedName parsed;
+
+    /// DeviceNameUtils::ParseFullName parses "fullname" target string to the
+    /// struct of DeviceNameUtils::ParsedName, and return the result via parsed.
+    /// The ParseFullName returns true iff succeeds.
     if (!DeviceNameUtils::ParseFullName(target, &parsed)) {
       LOG(WARNING) << "Invalid target: " << target;
       return "";
@@ -280,12 +388,16 @@ class SparseGrpcChannelCache : public CachingGrpcChannelCache {
       return "";
     }
     int32 task = parsed.has_task ? parsed.task : -1;
+    /// Find host:port string from a map of task index to host:port string via
+    /// task id
     auto iter = host_ports_.find(task);
     if (iter == host_ports_.end()) {
       LOG(WARNING) << "Task " << task << " was not defined in sparse job "
                    << job_id_ << ": " << target;
       return "";
     }
+    /// host_ports_ : std::map<int, string>, if found via task id, return
+    /// host:port string
     return iter->second;
   }
 
@@ -318,6 +430,22 @@ class SparseGrpcChannelCache : public CachingGrpcChannelCache {
 
 }  // namespace
 
+/** \brief Create grpc channel information of job id, host:port and a lambda
+ *         function. If there are multiple grpc channel caches, create multiple
+ *         channel cache.
+ *
+ *  \param spec
+ *         grpc channel specification. Speak in more detail, it stores
+ *         information about a list of job id to host:port.
+ *
+ *  \param channel_func
+ *         A lambda function ChannelCreationFunction(string) -> ::grpc::Channel
+ *
+ *  \return A pointer to grpc channel cache. Speak in more details,
+ *          - /job:<job identifier>/task:<task id> is called target or worker
+ *            name
+ *          - host:port
+ */
 GrpcChannelCache* NewGrpcChannelCache(const GrpcChannelSpec& spec,
                                       ChannelCreationFunction channel_func) {
   const int num_jobs = spec.host_ports_jobs().size();

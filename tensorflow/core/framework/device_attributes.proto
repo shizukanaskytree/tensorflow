@@ -12,10 +12,24 @@ message InterconnectLink {
   string type = 2;
   int32 strength = 3;
 };
+// 1.
+// message InterconnectLink 数据结构说明:
+// - device_id: int32
+// - type: string
+// - strength: int32
 
 message LocalLinks {
   repeated InterconnectLink link = 1;
 };
+// 1.
+// message LocalLinks 数据结构说明:
+// - link: repeated InterconnectLink , i.e., vector of InterconnectLink instance
+
+// 2.
+// message InterconnectLink 数据结构说明:
+// - device_id: int32
+// - type: string
+// - strength: int32
 
 message DeviceLocality {
   // Optional bus locality of device.  Default value of 0 means
@@ -28,6 +42,21 @@ message DeviceLocality {
   // Optional local interconnect links to other devices.
   LocalLinks links = 3;
 };
+// 1.
+// message DeviceLocality 数据结构说明:
+// - bus_id: int32
+// - numa_node: int32
+// - links: LocalLinks
+
+// 2.
+// message LocalLinks 数据结构说明:
+// - link: repeated InterconnectLink , i.e., vector of InterconnectLink instance
+
+// 3.
+// message InterconnectLink 数据结构说明:
+// - device_id: int32
+// - type: string
+// - strength: int32
 
 message DeviceAttributes {
   // Fully specified name of the device within a cluster.
@@ -50,3 +79,28 @@ message DeviceAttributes {
   // String representation of the physical device that this device maps to.
   string physical_device_desc = 7;
 }
+// 1.1
+// message DeviceAttributes 数据结构
+// tensorflow/core/framework/device_attributes.proto
+// - name: string
+// - device_type: string
+// - memory_limit: int64
+// - locality: DeviceLocality
+// - incarnation: fixed64
+// - physical_device_desc: string
+
+// 1.2
+// message DeviceLocality 数据结构说明:
+// - bus_id: int32
+// - numa_node: int32
+// - links: LocalLinks
+
+// 1.3
+// message LocalLinks 数据结构说明:
+// - link: repeated InterconnectLink , i.e., vector of InterconnectLink instance
+
+// 1.4
+// message InterconnectLink 数据结构说明:
+// - device_id: int32
+// - type: string
+// - strength: int32

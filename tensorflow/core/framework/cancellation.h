@@ -79,6 +79,10 @@ class CancellationManager {
   //   void CancellableOperation(CancellationManager* cm,
   //                             std::function<void(Status)> callback) {
   //     bool already_cancelled;
+  //     // 1.
+  //     // QQQ. already_cancelled 是什么作用?
+  //     // AAA.
+  //
   //     CancellationToken token = cm->get_cancellation_token();
   //     {
   //       mutex_lock(mu_);
@@ -143,6 +147,32 @@ class CancellationManager {
   CancellationToken next_cancellation_token_ GUARDED_BY(mu_);
   gtl::FlatMap<CancellationToken, CancelCallback> callbacks_ GUARDED_BY(mu_);
 };
+// 1.
+// class CancellationManager 数据结构
+// tensorflow/core/framework/cancellation.h
+// 成员变量
+// - is_cancelling_: bool
+// - is_cancelled_: std::atomic_bool
+// - mu_: mutex
+// - cancelled_notification_: Notification
+// - next_cancellation_token_: CancellationToken
+// - callbacks_: gtl::FlatMap<CancellationToken, CancelCallback>
+//
+// 部分的接口函数
+// - StartCancel()
+//   Run all callbacks associated with this manager.
+// - IsCancelled()
+//   Returns true iff StartCancel() has been called.
+// - Reset()
+//   Resets the cancellation manager to its original pre-cancelled state.
+// - get_cancellation_token()
+//   Returns a token that must be used in calls to RegisterCallback
+//   and DeregisterCallback.
+// - RegisterCallback
+//   Attempts to register the given callback to be invoked when this
+//   manager is cancelled.
+// - ...
+
 
 }  // namespace tensorflow
 

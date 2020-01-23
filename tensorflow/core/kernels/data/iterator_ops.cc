@@ -53,7 +53,8 @@ const char kIteratorVariantTypeName[] = "tensorflow::Iterator";
 
 class IteratorResource : public ResourceBase {
  public:
-  IteratorResource(Env* env, const DataTypeVector& output_dtypes,
+  IteratorResource(Env* env,
+                   const DataTypeVector& output_dtypes,
                    const std::vector<PartialTensorShape>& output_shapes,
                    const int /*unused: graph_def_version*/,
                    std::unique_ptr<DeviceMgr> device_mgr,
@@ -62,18 +63,27 @@ class IteratorResource : public ResourceBase {
                    FunctionLibraryRuntime* lib)
       : unbounded_thread_pool_(env, "tf_data_iterator_resource"),
         device_mgr_(std::move(device_mgr)),
+        // 如下构造了 struct State instance
         iterator_state_(std::make_shared<State>(
-            std::move(flib_def), std::move(pflr), lib, nullptr /* iterator */)),
+            std::move(flib_def),
+            std::move(pflr),
+            lib,
+            nullptr /* iterator */)),
         output_dtypes_(output_dtypes),
         output_shapes_(output_shapes) {}
 
-  Status GetNext(IteratorContext* ctx, std::vector<Tensor>* out_tensors,
-                 bool* end_of_sequence) {
+  Status GetNext(IteratorContext* ctx, // input
+                 std::vector<Tensor>* out_tensors, // output
+                 bool* end_of_sequence) { // output
     std::shared_ptr<State> captured_state;
+
     {
       tf_shared_lock l(mu_);
       captured_state = iterator_state_;
+      // 1.
+      // iterator_state_ 是 class IteratorResource 的核心
     }
+
     if (captured_state->iterator) {
       IteratorContext::Params params(ctx);
       params.lib = captured_state->lib;
@@ -91,17 +101,23 @@ class IteratorResource : public ResourceBase {
     }
   }
 
-  Status GetNext(IteratorContext&& ctx, std::vector<Tensor>* out_tensors,
+
+  Status GetNext(IteratorContext&& ctx,
+                 std::vector<Tensor>* out_tensors,
                  bool* end_of_sequence) {
     return GetNext(&ctx, out_tensors, end_of_sequence);
   }
 
-  Status Save(SerializationContext* ctx, IteratorStateWriter* writer) {
+
+  Status Save(SerializationContext* ctx,
+              IteratorStateWriter* writer) {
     std::shared_ptr<State> captured_state;
+
     {
       tf_shared_lock l(mu_);
       captured_state = iterator_state_;
     }
+
     if (captured_state) {
       SerializationContext::Params params;
       // The iterator state may contain functions that are not present
@@ -113,7 +129,22 @@ class IteratorResource : public ResourceBase {
       params.input_list = ctx->input_list();
       params.optimization_only = ctx->optimization_only();
       SerializationContext ctx_with_functions(params);
+
       return captured_state->iterator->Save(&ctx_with_functions, writer);
+      // 1.
+      // code map
+      // Save # Saves the state of this iterator.
+      // tensorflow/core/framework/dataset.h
+      //  -->
+      //  SaveInternal
+      //  tensorflow/core/framework/dataset.h
+      //  -->
+      //   IteratorStateWriter
+      //   纯虚函数，接口 WriteScalar of int, string, Tensor
+      //   -->
+      //    Restore
+      //    所以，我想看看它究竟恢复了哪些东西?
+
     } else {
       return errors::FailedPrecondition(
           "Save() failed because the iterator has not been initialized. "
@@ -122,7 +153,10 @@ class IteratorResource : public ResourceBase {
     }
   }
 
-  Status Restore(OpKernelContext* ctx, IteratorStateReader* reader) {
+
+  Status Restore(OpKernelContext* ctx,
+                 IteratorStateReader* reader) {
+
     string serialized_graph_def;
     TF_RETURN_IF_ERROR(reader->ReadScalar(DatasetBase::kDatasetGraphKey,
                                           &serialized_graph_def));
@@ -130,13 +164,23 @@ class IteratorResource : public ResourceBase {
     if (!graph_def.ParseFromString(serialized_graph_def)) {
       return errors::Internal("Error parsing dataset GraphDef.");
     }
-    string output_node;
+
+    string output_node; //
     TF_RETURN_IF_ERROR(reader->ReadScalar(
         DatasetBase::kDatasetGraphOutputNodeKey, &output_node));
+    // 1.
+    // DatasetBase::kDatasetGraphOutputNodeKey 变量说明:
+    // const char DatasetBase::kDatasetGraphOutputNodeKey[] = "_DATASET_GRAPH_OUTPUT_NODE";
+    // tensorflow/core/framework/dataset.cc
+
     DatasetBase* dataset = nullptr;
+
     Graph graph(OpRegistry::Global());
+
     TF_RETURN_IF_ERROR(ImportGraphDef({}, graph_def, &graph, nullptr));
-    std::vector<Tensor> outputs;
+
+    std::vector<Tensor> outputs; // output
+
     GraphRunner graph_runner(ctx->env());
 
     // Build a new FLR that knows about the functions in the graph, and use
@@ -147,6 +191,7 @@ class IteratorResource : public ResourceBase {
     FunctionLibraryRuntime* lib;
     std::unique_ptr<FunctionLibraryDefinition> flib_def(nullptr);
     std::unique_ptr<ProcessFunctionLibraryRuntime> pflr(nullptr);
+
     TF_RETURN_IF_ERROR(ctx->function_library()->Clone(&flib_def, &pflr, &lib));
 
     // Some function names may be duplicated (for example, if the serialized
@@ -156,11 +201,20 @@ class IteratorResource : public ResourceBase {
     // serialized function when there is a conflict.
     TF_RETURN_IF_ERROR(
         AddToFunctionLibrary(flib_def.get(), graph_def.library()));
+
     std::unique_ptr<State> new_state = absl::make_unique<State>(
-        std::move(flib_def), std::move(pflr), lib, nullptr /* iterator */);
+        std::move(flib_def),
+        std::move(pflr),
+        lib,
+        nullptr /* iterator */);
 
     TF_RETURN_IF_ERROR(
-        graph_runner.Run(&graph, new_state->lib, {}, {output_node}, &outputs));
+        graph_runner.Run(&graph,
+                         new_state->lib,
+                         {},
+                         {output_node},
+                         &outputs));
+
     TF_RETURN_IF_ERROR(GetDatasetFromVariantTensor(outputs[0], &dataset));
 
     IteratorContext::Params params(ctx);
@@ -191,16 +245,54 @@ class IteratorResource : public ResourceBase {
     }
 
     mutex_lock l(mu_);
+    // =======================================================================
     iterator_state_ = std::move(new_state);
+    // =======================================================================
+    // 1.
+    // iterator_state_ 是恢复的对象/目标
+
+    // 2.
+    // iterator_state_ 变量说明:
+    // iterator_state_: std::shared_ptr<State>
+
+    // 3.
+    // class IteratorResource::struct State 数据结构
+    // - flib_def: std::shared_ptr<FunctionLibraryDefinition>
+    // - pflr: std::shared_ptr<ProcessFunctionLibraryRuntime>
+    // - lib: FunctionLibraryRuntime*
+    // - function_handle_cache: std::unique_ptr<FunctionHandleCache>
+    // - resource_mgr: ResourceMgr
+    // - iterator: std::unique_ptr<IteratorBase>
+
+    // 4.
+    // class IteratorBase 数据结构
+    // tensorflow/core/framework/dataset.h
+    //
+    // 概述:
+    // 主要是和 iterator 相关的接口函数
+    // - GetNext
+    // - output_dtypes
+    // - output_shapes
+    // - Initialize
+    // - Save
+    // - Restore
+    //
+    // 成员变量:
+    // - cleanup_fns_: std::vector<std::function<void()>>
+    // - node_: model::Node*
+
+
     return Status::OK();
   }
+
 
   Status AddLibrary(const FunctionLibraryDefinition& flib_def) {
     mutex_lock l(mu_);
     return iterator_state_->flib_def->AddLibrary(flib_def);
   }
 
-  Status SetIteratorFromDataset(OpKernelContext* ctx, DatasetBase* dataset) {
+  Status SetIteratorFromDataset(OpKernelContext* ctx,
+                                DatasetBase* dataset) {
     std::shared_ptr<State> new_state;
     {
       tf_shared_lock l(mu_);
@@ -263,10 +355,12 @@ class IteratorResource : public ResourceBase {
   }
 
  private:
+
   struct State {
     State(std::shared_ptr<FunctionLibraryDefinition> flib_def,
           std::shared_ptr<ProcessFunctionLibraryRuntime> pflr,
-          FunctionLibraryRuntime* lib, std::unique_ptr<IteratorBase> iterator)
+          FunctionLibraryRuntime* lib,
+          std::unique_ptr<IteratorBase> iterator)
         : flib_def(flib_def),
           pflr(pflr),
           lib(lib),
@@ -299,6 +393,49 @@ class IteratorResource : public ResourceBase {
   const DataTypeVector output_dtypes_;
   const std::vector<PartialTensorShape> output_shapes_;
 };
+// 1.
+// class IteratorResource 数据结构
+// class IteratorResource : public ResourceBase
+// tensorflow/core/kernels/data/iterator_ops.cc
+// * struct State
+// - unbounded_thread_pool_: UnboundedThreadPool
+// - device_mgr_: const std::unique_ptr<DeviceMgr>
+//   =======================================================================
+// - iterator_state_: std::shared_ptr<State> # IteratorResource 的核心
+//   =======================================================================
+// - output_dtypes_: const DataTypeVector
+// - output_shapes_: const std::vector<PartialTensorShape>
+
+// 2.
+// ResourceBase 数据结构
+// class ResourceBase : public core::RefCounted
+// tensorflow/core/framework/resource_mgr.h
+// 只有两个接口
+// - DebugString()
+//   Returns a debug string for *this.
+// - MemoryUsed()
+//   Returns memory used by this resource.
+
+// 3.
+// class IteratorResource::struct State 数据结构
+// - flib_def: std::shared_ptr<FunctionLibraryDefinition>
+// - pflr: std::shared_ptr<ProcessFunctionLibraryRuntime>
+// - lib: FunctionLibraryRuntime*
+// - function_handle_cache: std::unique_ptr<FunctionHandleCache>
+// - resource_mgr: ResourceMgr
+// - iterator: std::unique_ptr<IteratorBase>
+
+// 4.
+// class IteratorBase 数据结构
+// tensorflow/core/framework/dataset.h
+//
+// 概述:
+// 主要是和 iterator 相关的接口函数
+//
+// - cleanup_fns_: std::vector<std::function<void()>>
+// - node_: model::Node*
+
+
 
 namespace {
 

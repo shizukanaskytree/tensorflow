@@ -61,6 +61,10 @@ class EventCount {
     eigen_plain_assert(state_.load() == kStackMask);
   }
 
+  // -----------------------------------------------------------------------
+  // We already did best-effort emptiness check in Steal, so prepare for
+  // blocking.
+  // -----------------------------------------------------------------------
   // Prewait prepares for waiting.
   // If Prewait returns true, the thread must re-check the wait predicate
   // and then call either CancelWait or CommitWait.
@@ -78,6 +82,7 @@ class EventCount {
       CheckState(newstate);
       if (state_.compare_exchange_weak(state, newstate,
                                        std::memory_order_seq_cst))
+        /// 状态稳定后返回信号量个数是否为0
         return (state & kSignalMask) == 0;
     }
   }
@@ -173,7 +178,10 @@ class EventCount {
     EIGEN_ALIGN_TO_BOUNDARY(128) std::atomic<uint64_t> next;
     std::mutex mu;
     std::condition_variable cv;
+    /// epoch 是用来防止 ABA 问题的
     uint64_t epoch = 0;
+    /// 一个线程的初始状态是 kNotSignaled，此后我觉得就是在
+    /// sleep(kWaiting) <--> notified (kSignaled) 之间变化了。
     unsigned state = kNotSignaled;
     enum {
       kNotSignaled,
@@ -181,6 +189,15 @@ class EventCount {
       kSignaled,
     };
   };
+  // 1.
+  // class Waiter 数据结构
+  // lib-python-site-package-tf/tensorflow/include/unsupported/Eigen/CXX11/src/ThreadPool/EventCount.h
+  // - cv: std::condition_variable
+  // - mu: std::mutex
+  // - next: EIGEN_ALIGN_TO_BOUNDARY(128) std::atomic<uint64_t>
+  // - epoch: uint64_t
+  // - state: unsigned, default_value: kNotSignaled
+  // * enum {kNotSignaled, kWaiting, kSignaled}
 
  private:
   // State_ layout:

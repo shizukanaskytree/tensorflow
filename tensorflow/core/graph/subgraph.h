@@ -47,11 +47,16 @@ struct RewriteGraphMetadata {
 // will be invoked once during `RewriteGraphForExecution()` with tensor endpoint
 // named by `endpoint_name`, and it may either create a single new node, or fail
 // with an error if the resulting graph would be invalid.
+
 class PruneRewrite {
+
  public:
+
   // `endpoint_name` and `device_info` must outlive this object.
-  PruneRewrite(const string* endpoint_name, const DeviceAttributes* device_info)
+  PruneRewrite(const string* endpoint_name,
+               const DeviceAttributes* device_info)
       : endpoint_name_(endpoint_name), device_info_(device_info) {}
+
   virtual ~PruneRewrite() {}
 
   // Creates a new node whose output replaces the given `tensor` in graph `g`.
@@ -70,7 +75,42 @@ class PruneRewrite {
   const string* const endpoint_name_;          // Not owned.
   const DeviceAttributes* const device_info_;  // Not owned.
 };
+// 1.
+// class PruneRewrite 数据结构
+// tensorflow/core/graph/subgraph.h
+// - endpoint_name_: const string* const
+// - device_info_: const DeviceAttributes* const
 
+// 2.
+// PruneRewrite 是一个虚函数，会被如下几个函数继承
+//
+// - class ArgFeedRewrite : public PruneRewrite
+//   tensorflow/core/graph/subgraph.h:120:
+//
+// - class RecvFeedRewrite : public PruneRewrite
+//   tensorflow/core/graph/subgraph.h:133:
+//
+// - class RetvalFetchRewrite : public PruneRewrite
+//   tensorflow/core/graph/subgraph.h:141:
+//
+// - class SendFetchRewrite : public PruneRewrite
+//   tensorflow/core/graph/subgraph.h:155:
+//
+// - class TensorConnectionPruneRewrite : public subgraph::PruneRewrite
+//   tensorflow/core/common_runtime/graph_execution_state.cc:251:
+
+// 3.
+// PruneRewrite 虚函数，继承的函数是
+// - class ArgFeedRewrite
+// - class RecvFeedRewrite
+// - class RetvalFetchRewrite
+// - class SendFetchRewrite
+// - class TensorConnectionPruneRewrite
+
+
+// -----------------------------------------------------------------------
+//
+// -----------------------------------------------------------------------
 // Rewrite the graph structure of "*g" to deal with feeding node
 // outputs, fetching node outputs, and only running a subset of the
 // graph.  "fed_outputs" and "fetch_outputs" are both lists of
@@ -78,13 +118,19 @@ class PruneRewrite {
 // "<name>[:<optional_output_index>]", and "target_nodes_str" is a
 // lists of target node names in "*g" "g".
 //
-// In the resulting graph "*g", output edges in "fed_outputs" have
-// been redirected to special "_recv" nodes introduced into the graph.
+// summary:
+// - fed_outputs
+// - fetch_outputs
+// - target_nodes_str
+//
+//
+// In the resulting graph "*g", **output edges** in "fed_outputs" have
+// been redirected to **special "_recv" nodes** introduced into the graph.
 // If these fed nodes are not needed in order to compute the effects
 // of the nodes in "target_node_names" and "fetch_outputs", then these may
 // be omitted from the graph.
 //
-// In the resulting graph "*g", additional "_send" nodes are connected
+// In the resulting graph "*g", additional **"_send" nodes** are connected
 // to every output in "fetch_outputs".  These "_send" nodes are set up
 // to execute on the device described by device_info.
 //
@@ -98,16 +144,19 @@ class PruneRewrite {
 //    - fetch output "node:output_index" does not exist in "*g"
 //    - target node "node" does not exist in "*g"
 Status RewriteGraphForExecution(
-    Graph* g, const gtl::ArraySlice<string>& fed_outputs,
+    Graph* g,
+    const gtl::ArraySlice<string>& fed_outputs,
     const gtl::ArraySlice<string>& fetch_outputs,
     const gtl::ArraySlice<string>& target_node_names,
-    const DeviceAttributes& device_info, bool use_function_convention,
+    const DeviceAttributes& device_info,
+    bool use_function_convention,
     RewriteGraphMetadata* out_metadata);
 
 // A more general version of the above function that supports
 // customizable rewriting actions for each fed and fetched tensor.
 Status RewriteGraphForExecution(
-    Graph* g, const std::vector<std::unique_ptr<PruneRewrite>>& feed_rewrites,
+    Graph* g,
+    const std::vector<std::unique_ptr<PruneRewrite>>& feed_rewrites,
     const std::vector<std::unique_ptr<PruneRewrite>>& fetch_rewrites,
     const gtl::ArraySlice<string>& target_node_names,
     RewriteGraphMetadata* out_metadata);
@@ -116,12 +165,13 @@ Status RewriteGraphForExecution(
 // Custom rewrite actions for fed and fetched tensors. //
 /////////////////////////////////////////////////////////
 
-// A rewrite action that adds an _Arg node for a fed tensor.
+// A rewrite action that **adds an _Arg node** for a fed tensor.
 class ArgFeedRewrite : public PruneRewrite {
  public:
   ArgFeedRewrite(const string* endpoint_name,
                  const DeviceAttributes* device_info, int32 arg_index)
       : PruneRewrite(endpoint_name, device_info), arg_index_(arg_index) {}
+
   Status AddNode(Graph* g, NodeBuilder::NodeOut feed_tensor,
                  Node** out_node) override;
 
@@ -129,7 +179,8 @@ class ArgFeedRewrite : public PruneRewrite {
   const int32 arg_index_;
 };
 
-// A rewrite action that adds a client-terminated _Recv node for a fed tensor.
+// A rewrite action that adds a client-terminated **_Recv node**
+// for a fed tensor.
 class RecvFeedRewrite : public PruneRewrite {
  public:
   using PruneRewrite::PruneRewrite;
@@ -137,20 +188,24 @@ class RecvFeedRewrite : public PruneRewrite {
                  Node** out_node) override;
 };
 
-// A rewrite action that adds a _Retval node for a fetched tensor.
+// A rewrite action that adds a **_Retval node** for a fetched tensor.
 class RetvalFetchRewrite : public PruneRewrite {
  public:
   RetvalFetchRewrite(const string* endpoint_name,
-                     const DeviceAttributes* device_info, int32 retval_index)
-      : PruneRewrite(endpoint_name, device_info), retval_index_(retval_index) {}
-  Status AddNode(Graph* g, NodeBuilder::NodeOut fetch_tensor,
+                     const DeviceAttributes* device_info,
+                     int32 retval_index)
+      : PruneRewrite(endpoint_name, device_info),
+        retval_index_(retval_index) {}
+
+  Status AddNode(Graph* g,
+                 NodeBuilder::NodeOut fetch_tensor,
                  Node** out_node) override;
 
  private:
   const int32 retval_index_;
 };
 
-// A rewrite action that adds a client-terminated _Send node for a
+// A rewrite action that adds a client-terminated **_Send node** for a
 // fetched tensor.
 class SendFetchRewrite : public PruneRewrite {
  public:

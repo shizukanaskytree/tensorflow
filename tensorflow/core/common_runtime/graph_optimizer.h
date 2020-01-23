@@ -49,6 +49,57 @@ class GraphOptimizer {
   };
 
   GraphOptimizer(const OptimizerOptions& opts);
+  // OptimizerOptions 数据结构
+  /*
+  // Options passed to the graph optimizer
+  message OptimizerOptions {
+    // If true, optimize the graph using common subexpression elimination.
+    bool do_common_subexpression_elimination = 1;
+
+    // If true, perform constant folding optimization on the graph.
+    bool do_constant_folding = 2;
+
+    // Constant folding optimization replaces tensors whose values can be
+    // predetermined, with constant nodes. To avoid inserting too large constants,
+    // the size of each constant created can be limited. If this value is zero, a
+    // default limit of 10 MiB will be applied. If constant folding optimization
+    // is disabled, this value is ignored.
+    int64 max_folded_constant_in_bytes = 6;
+
+    // If true, perform function inlining on the graph.
+    bool do_function_inlining = 4;
+
+    // Optimization level
+    enum Level {
+      // L1 is the default level.
+      // Optimization performed at L1 :
+      // 1. Common subexpression elimination
+      // 2. Constant folding
+      L1 = 0;
+
+      // No optimizations
+      L0 = -1;
+    }
+
+    // Overall optimization level. The actual optimizations applied will be the
+    // logical OR of the flags that this level implies and any flags already set.
+    Level opt_level = 3;
+
+    // Control the use of the compiler/jit.  Experimental.
+    enum GlobalJitLevel {
+      DEFAULT = 0;  // Default setting ("off" now, but later expected to be "on")
+      OFF = -1;
+      // The following settings turn on compilation, with higher values being
+      // more aggressive.  Higher values may reduce opportunities for parallelism
+      // and may use more memory.  (At present, there is no distinction, but this
+      // is expected to change.)
+      ON_1 = 1;
+      ON_2 = 2;
+    }
+    GlobalJitLevel global_jit_level = 5;
+  }
+  */
+
   ~GraphOptimizer();
 
   // Applies optimization passes specified in 'opts' to 'graph'.

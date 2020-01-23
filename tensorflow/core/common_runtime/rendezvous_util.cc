@@ -118,6 +118,12 @@ void RecvOutputsFromRendezvousAsync(
   status_cb->Unref();
 }
 
+/** \brief
+ *
+ *
+ *
+ *
+ */
 Status RecvOutputsFromRendezvous(Rendezvous* rendezvous, NamedTensors* out,
                                  const Rendezvous::Args& args) {
   // Receives values requested by the caller.

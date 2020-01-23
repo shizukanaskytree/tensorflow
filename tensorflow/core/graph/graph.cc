@@ -54,8 +54,9 @@ struct NodeProperties {
 #define REF_CLASS(key, value) \
   {key, value}, { "Ref" key, value }
 
-const std::unordered_map<string, Node::NodeClass>& Node::kNodeClassTable =
-    *new std::unordered_map<string, Node::NodeClass>({
+const std::unordered_map<string, Node::NodeClass>&  Node::kNodeClassTable =
+ *new std::unordered_map<string, Node::NodeClass>(
+    {
         // Keep in same order as NodeClass values
         REF_CLASS("Switch", NC_SWITCH),
         REF_CLASS("Merge", NC_MERGE),
@@ -129,13 +130,19 @@ Node::Node()
       assigned_device_name_index_(0),
       while_ctx_(nullptr) {}
 
-void Node::Initialize(int id, int cost_id,
+// 初始化节点
+void Node::Initialize(int id,
+                      int cost_id,
                       std::shared_ptr<NodeProperties> props) {
   DCHECK_EQ(id_, -1);
   DCHECK(in_edges_.empty());
   DCHECK(out_edges_.empty());
+
   id_ = id;
+
   cost_id_ = cost_id;
+  // cost_id_ 变量说明:
+  // int cost_id_;  # -1 if there is no corresponding cost accounting node
 
   props_ = std::move(props);
   // Initialize the class_ based on the type string
@@ -347,9 +354,17 @@ uint64 OutputTensor::Hash::operator()(OutputTensor const& s) const {
 // Graph
 
 Graph::Graph(const OpRegistryInterface* ops)
-    : ops_(ops, FunctionDefLibrary()),
+    : ops_(ops, FunctionDefLibrary()), // 这一句调用 FunctionLibraryDefinition 构造函数
       versions_(new VersionDef),
       arena_(8 << 10 /* 8kB */) {
+  // 1.
+  // ops_ 变量说明:
+  // ops_: FunctionLibraryDefinition // owned
+
+  // 2.
+  // FunctionLibraryDefinition 构造函数:
+  // tensorflow/core/framework/function.cc
+
   versions_->set_producer(TF_GRAPH_DEF_VERSION);
   versions_->set_min_consumer(TF_GRAPH_DEF_VERSION_MIN_CONSUMER);
 
@@ -374,14 +389,23 @@ Graph::Graph(const OpRegistryInterface* ops)
   AddControlEdge(source, sink);
 }
 
+// 第二个 Graph 构造函数调用第一个 Graph 构造函数
 Graph::Graph(const FunctionLibraryDefinition& flib_def)
+    // 第二个 Graph 构造函数调用第一个 Graph 构造函数
     : Graph(flib_def.default_registry()) {
+      // default_registry_: const OpRegistryInterface* const
+
   // Need a new-enough consumer to support the functions we add to the graph.
   if (flib_def.ToProto().function_size() > 0 &&
       versions_->min_consumer() < 12) {
     versions_->set_min_consumer(12);
   }
+
+  // ops_:     FunctionLibraryDefinition
+  // flib_def: FunctionLibraryDefinition
+  // FunctionLibraryDefinition 类里面的核心数据结构是 function_defs_
   Status s = ops_.AddLibrary(flib_def);
+
   CHECK(s.ok()) << s.error_message();
 }
 
@@ -403,11 +427,19 @@ Graph::~Graph() {
 const VersionDef& Graph::versions() const { return *versions_; }
 void Graph::set_versions(const VersionDef& versions) { *versions_ = versions; }
 
+/**
+ *
+ */
 Node* Graph::AddNode(const NodeDef& node_def, Status* status) {
   const OpDef* op_def;
   status->Update(ops_.LookUpOpDef(node_def.op(), &op_def));
   if (!status->ok()) return nullptr;
 
+  /// typedef gtl::InlinedVector<DataType, 4> tensorflow::DataTypeVector
+  ///
+  /// template<typename Data>
+  /// using tensorflow::anonymous_namespace{map_stage_op.cc}::MapTraits< true, Data >::DataType = Data
+  /// For example, Data can be int32, float32
   DataTypeVector inputs;
   DataTypeVector outputs;
   status->Update(InOutTypesForNode(node_def, *op_def, &inputs, &outputs));
@@ -419,20 +451,45 @@ Node* Graph::AddNode(const NodeDef& node_def, Status* status) {
   Node* node = AllocateNode(
       std::make_shared<NodeProperties>(op_def, node_def, inputs, outputs),
       nullptr);
+
   return node;
 }
 
+// QQQ. CopyNode 复制了多少的信息?
 Node* Graph::CopyNode(const Node* node) {
+
   DCHECK(!node->IsSource());
   DCHECK(!node->IsSink());
+
+  // QQQ. 这个 copy 的 node 的 parent graph_ 是谁的? 是传递的吗?
+  // AAA. 是这个 node 归属的那个图的，如果是一个新的子图，就不是 original graph 的
+  //      谁(graph)调用它(CopyNode)就是谁(graph)的。
   Node* copy = AllocateNode(node->props_, node);
+  // 1.
+  // node->props_ 变量说明:
+  // node->props_: NodeProperties*
+
+  // 2.
+  // struct NodeProperties 数据结构
+  // tensorflow/core/graph/graph.cc:37
+  // - const OpDef* op_def;  // not owned
+  // - NodeDef node_def;
+  // - const DataTypeVector input_types;
+  // - const DataTypeVector output_types;
+
+  // 3. AllocateNode 函数说明
+
   copy->set_assigned_device_name(node->assigned_device_name());
 
   // Since the OpDef of a function may be owned by the Graph that owns 'node',
   // relookup the OpDef in the target graph. If it differs, then clone the
   // node properties with the updated OpDef.
   const OpDef* op_def;
-  TF_CHECK_OK(ops_.LookUpOpDef(node->type_string(), &op_def));
+
+  TF_CHECK_OK(ops_.LookUpOpDef(
+                     node->type_string(),  // input
+                     &op_def)); // output
+
   if (op_def != node->props_->op_def) {
     copy->MaybeCopyOnWrite();
     copy->props_->op_def = op_def;
@@ -476,7 +533,9 @@ const Edge* Graph::AddEdge(Node* source, int x, Node* dest, int y) {
     free_edges_.pop_back();
   }
   e->id_ = edges_.size();
+  // edge 的 src node
   e->src_ = source;
+  // edge 的 dst node
   e->dst_ = dest;
   e->src_output_ = x;
   e->dst_input_ = y;
@@ -507,8 +566,12 @@ void Graph::RemoveEdge(const Edge* e) {
   --num_edges_;
 }
 
-const Edge* Graph::AddControlEdge(Node* source, Node* dest,
-                                  bool allow_duplicates) {
+
+const Edge* Graph::AddControlEdge(
+  Node* source,
+  Node* dest,
+  bool allow_duplicates) {
+
   if (!allow_duplicates) {
     for (const Edge* edge : dest->in_edges()) {
       if (edge->IsControlEdge() && edge->src() == source) {
@@ -517,22 +580,30 @@ const Edge* Graph::AddControlEdge(Node* source, Node* dest,
       }
     }
   }
+
   // Modify dest's NodeDef if necessary.
   if (!source->IsSource() && !dest->IsSink() && !allow_duplicates) {
     // Check if this input is already in dest's NodeDef.
+
     const string new_input = strings::StrCat("^", source->name());
+
     bool input_exists = false;
+
     for (const string& input : dest->props_->node_def.input()) {
       if (input == new_input) {
         input_exists = true;
         break;
       }
     }
+
     if (!input_exists) {
       dest->MaybeCopyOnWrite();
       dest->props_->node_def.add_input(new_input);
     }
+
   }
+
+  // 终究不过是 add edge
   return AddEdge(source, kControlSlot, dest, kControlSlot);
 }
 
@@ -741,21 +812,33 @@ Status Graph::IsValidInputTensor(const Node* node, int idx) const {
   return Status::OK();
 }
 
-Node* Graph::AllocateNode(std::shared_ptr<NodeProperties> props,
-                          const Node* cost_node) {
-  Node* node = nullptr;
+// 功能: 根据输入的 node 和 node 的 properties，重新构建一个新的 Node.
+Node* Graph::AllocateNode(std::shared_ptr<NodeProperties> props, // input
+                          const Node* cost_node) { // input
+  Node* node = nullptr; // output
+
   if (free_nodes_.empty()) {
     node = new (arena_.Alloc(sizeof(Node))) Node;  // placement new
   } else {
     node = free_nodes_.back();
     free_nodes_.pop_back();
   }
+
   node->graph_ = this;
+
   const int id = nodes_.size();
+
   int cost_id = cost_node ? cost_node->cost_id() : id;
+
   node->Initialize(id, cost_id, std::move(props));
+  // Initialize 函数说明:
+  // void Initialize(int id, int cost_id, std::shared_ptr<NodeProperties> props);
+  // tensorflow/core/graph/graph.cc
+
   nodes_.push_back(node);
+
   ++num_nodes_;
+
   return node;
 }
 
@@ -767,10 +850,16 @@ void Graph::ReleaseNode(Node* node) {
   node->Clear();
 }
 
+// Get or Insert a new Device by its name
 // Ensures that 'device_name' is present in the device name table, and returns
 // the index of that device name. The index is stable, and can be used in
 // calls to Node::set_assigned_device_name_index().
-int Graph::InternDeviceName(const string& device_name) {
+int Graph::InternDeviceName(const string& device_name) { // input
+  // device_name 变量说明
+  // 打印:
+  // p device_name
+  // $35 = "/job:localhost/replica:0/task:0/device:CPU:0"
+
   // Special case, very common.  Also, this allows us to use a single map
   // lookup below, instead of two.  The 'if (index_cell > 0)' test below
   // relies on this check.
@@ -779,11 +868,17 @@ int Graph::InternDeviceName(const string& device_name) {
   }
 
   int& index_cell = device_names_map_[device_name];
+  // 打印
+  // p device_names_map_
+  // $36 = std::unordered_map with 1 element = {["/job:localhost/replica:0/task:0/device:CPU:0"] = 1}
   if (index_cell > 0) {
+    // 如果有了就返回这个对于的 index ，比如 1
     return index_cell;
   }
 
+  // add a new device
   const int index = device_names_map_.size();
+
   index_cell = index;
   device_names_.push_back(device_name);
   return index;

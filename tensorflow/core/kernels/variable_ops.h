@@ -38,7 +38,21 @@ class VariableOp : public OpKernel {
   TensorShape shape_;
 
   mutex init_mu_;
+  // -----------------------------------------------------------------------
   ContainerInfo cinfo_ GUARDED_BY(init_mu_);
+  // -----------------------------------------------------------------------
+  // 1.
+  // ContainerInfo 里面包含了 ResourceMgr
+
+  // 2.
+  // class ContainerInfo 数据结构
+  // tensorflow/core/framework/resource_mgr.h
+  // - rmgr: ResourceMgr*, default: nullptr
+  // - container_: string
+  // - name_: string
+  // - resource_is_private_to_kernel_: bool, default: false
+
+
   bool initialized_ GUARDED_BY(init_mu_){false};
 
   TF_DISALLOW_COPY_AND_ASSIGN(VariableOp);

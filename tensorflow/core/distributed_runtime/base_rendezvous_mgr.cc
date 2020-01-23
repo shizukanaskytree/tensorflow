@@ -149,6 +149,9 @@ static bool IsLocalDevice(const StringPiece worker_name,
   return str_util::StartsWith(device_name, worker_name);
 }
 
+/** \brief Assign WorkerSession* session to session_
+ *
+ */
 Status BaseRemoteRendezvous::Initialize(WorkerSession* session) {
   CHECK_NE(session, nullptr) << "session must not be null!";
   std::vector<DeferredCall> deferred_calls;
@@ -358,6 +361,7 @@ void BaseRemoteRendezvous::RecvLocalAsyncInternal(const ParsedKey& parsed,
     done(s, Args(), Args(), Tensor(), false);
     return;
   }
+  /// private Rendezvous* local_
   local_->RecvAsync(parsed, Args(), std::move(done));
 }
 

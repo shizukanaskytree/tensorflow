@@ -77,6 +77,8 @@ class IntraProcessRendezvous : public Rendezvous {
   // Tensor "in" will be copied into "out". The key "parsed" encodes
   // the src and dst devices.
   typedef std::function<void(const Status&)> StatusCallback;
+
+
   void SameWorkerRecvDone(const Rendezvous::ParsedKey& parsed,
                           const Rendezvous::Args& send_args,
                           const Rendezvous::Args& recv_args, const Tensor& in,

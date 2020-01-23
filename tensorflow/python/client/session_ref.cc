@@ -395,16 +395,35 @@ Status SessionRef::CheckNotClosed() {
   return ::tensorflow::Status::OK();
 }
 
+/** \brief Use SessionLogger to record a session function call.
+ *         For example, function call will become : Extend --> RecordExtend
+ *         Default is not use logging option.
+ *
+ *  \param OpName
+ *
+ *  \param ... : __VA_ARGS__
+ *
+ *  \note session_ is GrpcSession at runtime when we use grpc session.
+ */
 // If logging is active, log the start and end time of the operation along with
 // the request and response.
 #define LOG_AND_RUN_OPERATION(OpName, ...)                          \
   TF_RETURN_IF_ERROR(CheckNotClosed());                             \
   RunCounter rc(session_, &run_count_, &run_lock_, &run_finished_); \
+  // 1.
+  // RunCounter 数据结构
+  // tensorflow/python/client/session_ref.cc
+  //
+
   if (!logger_) {                                                   \
     return rc.session->OpName(__VA_ARGS__);                         \
   }                                                                 \
   return logger_->Record##OpName(rc.session.get(), __VA_ARGS__);
 
+/**
+ *
+ *
+ */
 Status SessionRef::Run(const RunOptions& run_options,
                        const std::vector<std::pair<string, Tensor> >& inputs,
                        const std::vector<string>& output_tensor_names,
@@ -437,6 +456,12 @@ Status SessionRef::Extend(const RunOptions& run_options,
   LOG_AND_RUN_OPERATION(Extend, run_options, graph);
 }
 
+/** \brief
+ *
+ *  \param graph: const GraphDef&
+ *
+ *  \return Status
+ */
 Status SessionRef::Extend(const GraphDef& graph) {
   LOG_AND_RUN_OPERATION(Extend, graph);
 }
@@ -465,12 +490,56 @@ Status SessionRef::MakeCallable(const CallableOptions& callable_options,
   LOG_AND_RUN_OPERATION(MakeCallable, callable_options, out_handle);
 }
 
-Status SessionRef::RunCallable(CallableHandle handle,
+
+
+Status SessionRef::RunCallable(CallableHandle handle, // input
                                const std::vector<Tensor>& feed_tensors,
                                std::vector<Tensor>* fetch_tensors,
                                RunMetadata* run_metadata) {
-  LOG_AND_RUN_OPERATION(RunCallable, handle, feed_tensors, fetch_tensors,
+  LOG_AND_RUN_OPERATION(RunCallable,
+                        handle,
+                        feed_tensors,
+                        fetch_tensors,
                         run_metadata);
+  // 1.
+  // LOG_AND_RUN_OPERATION 宏定义说明:
+  //
+  // If logging is active, log the start and end time of the operation along with
+  // the request and response.
+  //
+  // #define LOG_AND_RUN_OPERATION(OpName, ...)                          \
+  //   TF_RETURN_IF_ERROR(CheckNotClosed());                             \
+  //   RunCounter rc(session_, &run_count_, &run_lock_, &run_finished_); \
+  //   if (!logger_) {                                                   \
+  //     return rc.session->OpName(__VA_ARGS__);                         \
+  //   }                                                                 \
+  //   return logger_->Record##OpName(rc.session.get(), __VA_ARGS__);
+
+  // 2.
+  // OpName 说明:
+  // OpName: RunCallable
+
+  // 3.
+  // __VA_ARGS__ 说明:
+
+  // 4.
+  // CallableHandle 数据结构
+  // typedef int64 CallableHandle
+  // tensorflow/core/public/session.h
+  // tensorflow/cc/client/client_session.h:92:  typedef int64 CallableHandle;
+
+  // 5.
+  // session_: std::shared_ptr<Session> 的实际类型是: DirectSession
+  // tensorflow/core/common_runtime/direct_session.cc
+  // 接口:
+  // ::tensorflow::Status DirectSession::RunCallable(
+  //     CallableHandle handle, // input, type alias : int64
+  //     const std::vector<Tensor>& feed_tensors,
+  //     std::vector<Tensor>* fetch_tensors,
+  //     RunMetadata* run_metadata) {
+
+
+
 }
 
 Status SessionRef::ReleaseCallable(CallableHandle handle) {
@@ -500,7 +569,15 @@ Status SessionRef::Close() {
   if (logger_) {
     status = logger_->RecordClose(session_.get());
   } else {
+    // 执行这个分支
     status = session_->Close();
+    // 1. session_ 变量说明:
+    // std::shared_ptr<Session> SessionRef::session_;
+    // session_ref.h
+
+    // 2.
+    // session_->Close() 函数说明:
+    // ::tensorflow::Status DirectSession::Close()
   }
   session_.reset();
   while (run_count_ > 0) {

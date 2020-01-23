@@ -31,14 +31,20 @@ void OptimizationPassRegistry::Register(
 }
 
 Status OptimizationPassRegistry::RunGrouping(
-    Grouping grouping, const GraphOptimizationPassOptions& options) {
+    Grouping grouping,
+    const GraphOptimizationPassOptions& options)
+{
   auto group = groups_.find(grouping);
   if (group != groups_.end()) {
     for (auto& phase : group->second) {
       VLOG(1) << "Running optimization phase " << phase.first;
       for (auto& pass : phase.second) {
         VLOG(1) << "Running optimization pass: " << pass->name();
+
+        // ----------------------------------------------------------------
         Status s = pass->Run(options);
+        // ----------------------------------------------------------------
+
         if (!s.ok()) return s;
         if (VLOG_IS_ON(1)) {
           if (options.graph) {

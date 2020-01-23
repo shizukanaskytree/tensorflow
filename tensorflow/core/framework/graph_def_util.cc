@@ -57,9 +57,10 @@ Status AddDefaultAttrsToGraphDef(GraphDef* graph_def,
   return AddDefaultAttrsToGraphDef(graph_def, op_registry, node_offset, false);
 }
 
-Status AddDefaultAttrsToGraphDef(GraphDef* graph_def,
-                                 const OpRegistryInterface& op_registry,
-                                 int node_offset, bool skip_unknown_ops) {
+Status AddDefaultAttrsToGraphDef(GraphDef* graph_def, // input and output
+                                 const OpRegistryInterface& op_registry, // output
+                                 int node_offset, // input
+                                 bool skip_unknown_ops) {
   if (node_offset > graph_def->node_size()) {
     return errors::InvalidArgument(
         "Tried to add default attrs to GraphDef "
@@ -69,7 +70,7 @@ Status AddDefaultAttrsToGraphDef(GraphDef* graph_def,
 
   for (int i = node_offset; i < graph_def->node_size(); ++i) {
     NodeDef* node_def = graph_def->mutable_node(i);
-    const OpDef* op_def;
+    const OpDef* op_def; // 临时变量
     Status s = op_registry.LookUpOpDef(node_def->op(), &op_def);
     if (s.ok()) {
       AddDefaultsToNodeDef(*op_def, node_def);

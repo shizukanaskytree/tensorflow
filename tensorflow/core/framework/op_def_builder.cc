@@ -599,7 +599,9 @@ OpDefBuilder& OpDefBuilder::SetIsAggregate() {
   return *this;
 }
 
+// -----------------------------------------------------------------------
 OpDefBuilder& OpDefBuilder::SetIsStateful() {
+// -----------------------------------------------------------------------
   op_def()->set_is_stateful(true);
   return *this;
 }

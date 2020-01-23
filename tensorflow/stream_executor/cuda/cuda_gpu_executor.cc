@@ -664,6 +664,26 @@ bool GpuExecutor::Memcpy(Stream* stream, DeviceMemoryBase* gpu_dst,
   return GpuDriver::AsynchronousMemcpyH2D(context_, AsCudaDevicePtr(gpu_dst),
                                           host_src, size,
                                           AsGpuStreamValue(stream));
+  // 1.
+  // GpuDriver::AsynchronousMemcpyH2D 函数说明
+  // /* static */
+  // bool GpuDriver::AsynchronousMemcpyH2D(GpuContext* context,
+  //                                       CUdeviceptr gpu_dst,
+  //                                       const void* host_src,
+  //                                       uint64 size,
+  //                                       CUstream stream)
+  // tensorflow/stream_executor/cuda/cuda_driver.cc
+
+  // 2.
+  // AsGpuStreamValue 函数说明
+  // GpuStreamHandle AsGpuStreamValue(Stream* stream)
+  // stream_executor/gpu/gpu_stream.cc
+
+  // 3.
+  // AsCudaDevicePtr 函数说明
+  // tensorflow/stream_executor/cuda/cuda_gpu_executor.cc
+  //
+
 }
 
 bool GpuExecutor::MemcpyDeviceToDevice(Stream* stream,
@@ -744,11 +764,14 @@ void GpuExecutor::DeallocateTimer(Timer* timer) {
   AsGpuTimer(timer)->Destroy();
 }
 
+
 bool GpuExecutor::CreateStreamDependency(Stream* dependent, Stream* other) {
   CUevent other_completed_event = *AsGpuStream(other)->completed_event();
+
   bool ok = GpuDriver::RecordEvent(context_, other_completed_event,
                                    AsGpuStreamValue(other))
                 .ok();
+
   if (!ok) {
     LOG(ERROR) << "failed to record completion event; "
                   "therefore, failed to create inter-stream dependency";
@@ -757,6 +780,19 @@ bool GpuExecutor::CreateStreamDependency(Stream* dependent, Stream* other) {
 
   return GpuDriver::WaitStreamOnEvent(context_, AsGpuStreamValue(dependent),
                                       other_completed_event);
+  // 1.
+  // GpuDriver::WaitStreamOnEvent 函数说明
+  // tensorflow/stream_executor/cuda/cuda_driver.cc
+  //
+  // /* static */
+  // bool GpuDriver::WaitStreamOnEvent(GpuContext* context,
+  //                                   CUstream stream, CUevent event)
+
+  // 2.
+  // AsGpuStreamValue 函数说明
+  // GpuStreamHandle AsGpuStreamValue(Stream* stream)
+  // tensorflow/stream_executor/gpu/gpu_stream.cc
+
 }
 
 bool GpuExecutor::StartTimer(Stream* stream, Timer* timer) {

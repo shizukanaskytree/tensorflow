@@ -149,15 +149,39 @@ class OpRegistry : public OpRegistryInterface {
 
   mutable mutex mu_;
   // Functions in deferred_ may only be called with mu_ held.
+  // 延期; 推迟
   mutable std::vector<OpRegistrationDataFactory> deferred_ GUARDED_BY(mu_);
+
   // Values are owned.
   mutable std::unordered_map<string, const OpRegistrationData*> registry_
       GUARDED_BY(mu_);
+
+  // 唯一一个在构造函数里面初始化的。
   mutable bool initialized_ GUARDED_BY(mu_);
 
   // Registry watcher.
   mutable Watcher watcher_ GUARDED_BY(mu_);
 };
+// 1.
+// OpRegistry 数据结构
+// tensorflow/core/framework/op.h
+// - deferred_: mutable std::vector<OpRegistrationDataFactory>
+// - registry_: mutable std::unordered_map<string, const OpRegistrationData*>
+// - watcher_: mutable Watcher
+
+// 2.
+// OpRegistrationDataFactory 数据结构
+// tensorflow/core/framework/op.h:67:
+// typedef std::function<Status(OpRegistrationData*)> OpRegistrationDataFactory;
+
+// 3.
+// struct OpRegistrationData 数据结构
+// tensorflow/core/framework/op_def_builder.h
+// - op_def: OpDef # owned
+// - shape_inference_fn: OpShapeInferenceFn
+// - is_function_op: bool, default : false
+
+// ---------------------------------------------------------------------------
 
 // An adapter to allow an OpList to be used as an OpRegistryInterface.
 //

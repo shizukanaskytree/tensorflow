@@ -328,6 +328,11 @@ class MasterSession::ReffedClientGraph : public core::RefCounted {
   TF_DISALLOW_COPY_AND_ASSIGN(ReffedClientGraph);
 };
 
+/** \brief
+ *
+ *  \param popts: PartitionOptions
+ *
+ */
 Status MasterSession::ReffedClientGraph::RegisterPartitions(
     PartitionOptions popts) {
   {  // Ensure register once.
@@ -417,6 +422,15 @@ void MasterSession::ReffedClientGraph::TrackFeedsAndFetches(
   }
 }
 
+/** \brief
+ *
+ *  \param popts: PartitionOptions
+ *
+ *  \param client_graph: ClientGraph*
+ *
+ *  \param out_partitions: std::unordered_map<string, GraphDef>*
+ *
+ */
 Status MasterSession::ReffedClientGraph::DoBuildPartitions(
     PartitionOptions popts, ClientGraph* client_graph,
     std::unordered_map<string, GraphDef>* out_partitions) {
@@ -433,6 +447,9 @@ Status MasterSession::ReffedClientGraph::DoBuildPartitions(
   return Partition(popts, &client_graph->graph, out_partitions);
 }
 
+/** \brief
+ *
+ */
 Status MasterSession::ReffedClientGraph::DoRegisterPartitions(
     const PartitionOptions& popts,
     std::unordered_map<string, GraphDef> graph_partitions) {
@@ -443,6 +460,7 @@ Status MasterSession::ReffedClientGraph::DoRegisterPartitions(
     Part* part = &partitions_.back();
     part->name = name_def.first;
     TrackFeedsAndFetches(part, name_def.second, popts);
+    /// CreateWorker
     part->worker = worker_cache_->CreateWorker(part->name);
     if (part->worker == nullptr) {
       s = errors::NotFound("worker ", part->name);
@@ -586,6 +604,32 @@ struct RunCallableResponseWrapper {
 };
 }  // namespace
 
+/** \brief Master Session, Server side, send request to worker, and issues
+ *         RunGraph calls.
+ *
+ *  \param feeds: const std::unordered_map<StringPiece, size_t, StringPieceHasher>&
+ *
+ *  \param fetches: const FetchListType&
+ *
+ *  \param env: const MasterEnv*
+ *
+ *  \param step_id: int64
+ *
+ *  \param execution_count: int64
+ *
+ *  \param pss: PerStepState*
+ *
+ *  \param call_opts: CallOptions*
+ *
+ *  \param req: const ClientRequestType&
+ *
+ *  \param resp: ClientResponseType*
+ *
+ *  \param cm: CancellationManager*
+ *
+ *  \param is_last_partial_run: bool
+ *
+ */
 template <class FetchListType, class ClientRequestType,
           class ClientResponseType>
 Status MasterSession::ReffedClientGraph::RunPartitionsHelper(
@@ -595,6 +639,7 @@ Status MasterSession::ReffedClientGraph::RunPartitionsHelper(
     const ClientRequestType& req, ClientResponseType* resp,
     CancellationManager* cm, bool is_last_partial_run) {
   // Collect execution cost stats on a smoothly decreasing frequency.
+  /// ExecutorOpts 是一个 protobuf message , 定义在 worker.proto
   ExecutorOpts exec_opts;
   if (pss->report_tensor_allocations_upon_oom) {
     exec_opts.set_report_tensor_allocations_upon_oom(true);
@@ -684,6 +729,7 @@ Status MasterSession::ReffedClientGraph::RunPartitionsHelper(
     const Part& part = partitions_[i];
     RunManyGraphs::Call* call = calls.get(i);
     TRACEPRINTF("Partition %d %s", i, part.name.c_str());
+    ///
     part.worker->RunGraphAsync(
         &call->opts, call->req.get(), call->resp.get(),
         std::bind(&RunManyGraphs::WhenDone, &calls, i, std::placeholders::_1));
@@ -747,6 +793,29 @@ Status MasterSession::ReffedClientGraph::RunPartitionsHelper(
   return status;
 }
 
+/** \brief Server side.
+ *
+ *
+ *  \param env: const MasterEnv*;
+ *
+ *  \param step_id: int64;
+ *
+ *  \param execution_count: int64;
+ *
+ *  \param pss: PerStepState*;
+ *
+ *  \param call_opts: CallOptions*;
+ *
+ *  \param req: const RunStepRequestWrapper&;
+ *
+ *  \param resp: MutableRunStepResponseWrapper*;
+ *
+ *  \param cm: CancellationManager*;
+ *
+ *  \param is_last_partial_run: const bool;
+ *
+ *  \return Status;
+ */
 Status MasterSession::ReffedClientGraph::RunPartitions(
     const MasterEnv* env, int64 step_id, int64 execution_count,
     PerStepState* pss, CallOptions* call_opts, const RunStepRequestWrapper& req,
@@ -754,6 +823,7 @@ Status MasterSession::ReffedClientGraph::RunPartitions(
     const bool is_last_partial_run) {
   VLOG(2) << "RunPartitions step_id " << step_id << " execution_count "
           << execution_count;
+  /// 如果不定义 sess.run 内的 feed, fetch 的话，下面两个 for loop 并不会进入
   // Maps the names of fed tensors to their index in `req`.
   std::unordered_map<StringPiece, size_t, StringPieceHasher> feeds(3);
   for (size_t i = 0; i < req.num_feeds(); ++i) {
@@ -1204,6 +1274,17 @@ void MasterSession::UpdateLastAccessTime() {
   last_access_time_usec_.store(Env::Default()->NowMicros());
 }
 
+/** \brief Create sessions of workers.
+ *
+ *  \param[in] graph_def: GraphDef*
+ *
+ *  \param[in] options: const WorkerCacheFactoryOptions&
+ *         WorkerCacheFactoryOptions is Options passed to the
+ *         worker_cache_factory function, including 1. ClusterDef 2. job name
+ *         3. task index 4. protocol string.
+ *
+ *  \return Status
+ */
 Status MasterSession::Create(GraphDef* graph_def,
                              const WorkerCacheFactoryOptions& options) {
   if (session_opts_.config.use_per_session_threads() ||
@@ -1230,6 +1311,21 @@ Status MasterSession::Create(GraphDef* graph_def,
   return CreateWorkerSessions(options);
 }
 
+/** \brief Create sessions for each worker by Master.
+ *
+ *  \param[in] options: const WorkerCacheFactoryOptions&
+ *         WorkerCacheFactoryOptions is Options passed to the
+ *         worker_cache_factory function, including 1. ClusterDef 2. job name
+ *         3. task index 4. protocol string.
+ *
+ *  \return Status
+ *
+ *  \details
+ *   The core step is to further call CreateWorkerSessionAsync to fill in
+ *   std::map< string, std::shared_ptr< WorkerSession > > sessions_ of the
+ *   SessionMgr instance managed by the GrpcServer.
+ *   So, it indirectly creates worker sessions inside the grpc server.
+ */
 Status MasterSession::CreateWorkerSessions(
     const WorkerCacheFactoryOptions& options) {
   const std::vector<string> worker_names = filtered_worker_list_;
@@ -1239,6 +1335,7 @@ Status MasterSession::CreateWorkerSessions(
     // The worker name. (Not owned.)
     const string* name;
 
+    /// WorkerInterface for talking with the TensorFlow Worker grpc service.
     // The worker referenced by name. (Not owned.)
     WorkerInterface* worker = nullptr;
 
@@ -1263,6 +1360,7 @@ Status MasterSession::CreateWorkerSessions(
   // Create all the workers & kick off the computations.
   for (size_t i = 0; i < worker_names.size(); ++i) {
     workers[i].name = &worker_names[i];
+    /// Create a remote worker and initialize their grpc services.
     workers[i].worker = worker_cache->CreateWorker(worker_names[i]);
     workers[i].request.set_session_handle(handle_);
 
@@ -1300,6 +1398,12 @@ Status MasterSession::CreateWorkerSessions(
       workers[i].status = s;
       done.DecrementCount();
     };
+    /// \note
+    /// Create worker session requested by master server to worker server.
+    /// CreateWorkerSessionAsync worker.cc
+    /// MasterSession::initialized worker_cache_:
+    ///     const std::unique_ptr< WorkerCacheInterface >
+    /// it is a connection between Master and worker.
     workers[i].worker->CreateWorkerSessionAsync(&workers[i].request,
                                                 &workers[i].response, cb);
   }
@@ -1428,6 +1532,20 @@ WorkerCacheInterface* MasterSession::get_worker_cache() const {
   return env_->worker_cache;
 }
 
+/** \brief Server side of grpc to find the ReffedClientGraph** out_rcg via its
+ *         hash value.
+ *
+ *  \param [in] opts: const BuildGraphOptions& ;
+ *         Build a sub-graph of the full graph as induced by BuildGraphOptions.
+ *
+ *  \param [in] is_partial: bool ;
+ *
+ *  \param [out] out_rcg: ReffedClientGraph** ;
+ *         asterSession wraps ClientGraph in a reference counted object.
+ *
+ *  \param [out] out_count: int64* ;
+ *
+ */
 Status MasterSession::StartStep(const BuildGraphOptions& opts, bool is_partial,
                                 ReffedClientGraph** out_rcg, int64* out_count) {
   const uint64 hash = HashBuildGraphOptions(opts);
@@ -1436,6 +1554,14 @@ Status MasterSession::StartStep(const BuildGraphOptions& opts, bool is_partial,
     // TODO(suharshs): We cache partial run graphs and run graphs separately
     // because there is preprocessing that needs to only be run for partial
     // run calls.
+    /** \note m: RCGMap*
+     *  生命周期，何时开始（定义），何时结束？
+     *  说明，我发现 m 是指针，意图是作为临时变量，指向 MasterSession::run_graphs_ 或者
+     *  MasterSession::partial_run_graphs_
+     *  MasterSession::run_graphs_ 的类型是 RCGMap
+     *  std::unordered_map<uint64, ReffedClientGraph*> RCGMap
+     *  其中，uint64 是 hash 值，下面会根据 Hash value 找到 ReffedClientGraph*
+     */
     RCGMap* m = is_partial ? &partial_run_graphs_ : &run_graphs_;
     auto iter = m->find(hash);
     if (iter == m->end()) {
@@ -1445,6 +1571,7 @@ Status MasterSession::StartStep(const BuildGraphOptions& opts, bool is_partial,
               << BuildGraphOptionsString(opts) << " is_partial = " << is_partial
               << "\n";
       std::unique_ptr<ClientGraph> client_graph;
+      /// BuildGraph
       TF_RETURN_IF_ERROR(execution_state_->BuildGraph(opts, &client_graph));
       WorkerCacheInterface* worker_cache = get_worker_cache();
       auto entry = new ReffedClientGraph(
@@ -1454,6 +1581,7 @@ Status MasterSession::StartStep(const BuildGraphOptions& opts, bool is_partial,
       iter = m->insert({hash, entry}).first;
       VLOG(1) << "Preparing to execute new graph";
     }
+    /// 这里就是把找到的 ReffedClientGraph* 赋值给输出变量 out_rcg 作为输出。
     *out_rcg = iter->second;
     (*out_rcg)->Ref();
     *out_count = (*out_rcg)->get_and_increment_execution_count();
@@ -1544,6 +1672,15 @@ Status MasterSession::PartialRunSetup(const PartialRunSetupRequest* req,
   return Status::OK();
 }
 
+/** \brief Server side session run handler.
+ *
+ *  \param[in] opts: CallOptions* ;
+ *
+ *  \param[in] req: const RunStepRequestWrapper& ;
+ *
+ *  \param[out] resp: MutableRunStepResponseWrapper* ;
+ *
+ */
 Status MasterSession::Run(CallOptions* opts, const RunStepRequestWrapper& req,
                           MutableRunStepResponseWrapper* resp) {
   UpdateLastAccessTime();
@@ -1849,10 +1986,24 @@ Status MasterSession::PostRunCleanup(MasterSession::ReffedClientGraph* rcg,
   return s;
 }
 
+/** \brief Server side session run handler.
+ *
+ *  \param [in] opts: CallOptions* ;
+ *
+ *  \param [in] req: const RunStepRequestWrapper& ;
+ *
+ *  \param [out] resp: MutableRunStepResponseWrapper* ;
+ *
+ */
 Status MasterSession::DoRunWithLocalExecution(
     CallOptions* opts, const RunStepRequestWrapper& req,
     MutableRunStepResponseWrapper* resp) {
   VLOG(2) << "DoRunWithLocalExecution req: " << req.DebugString();
+  /** \note pss: struct PerStepState
+   *  定义在 master_session.h ， 我感觉是用来记录各种统计信息的，包括 costs, timeline
+   *  start time, end time, grpc 等的
+   *
+   */
   PerStepState pss;
   pss.start_micros = Env::Default()->NowMicros();
   auto cleanup = gtl::MakeCleanup([this] { MarkRunCompletion(); });
@@ -1862,6 +2013,7 @@ Status MasterSession::DoRunWithLocalExecution(
   BuildBuildGraphOptions(req, session_opts_.config, &bgopts);
   ReffedClientGraph* rcg = nullptr;
   int64 count;
+  /// StartStep will build optimize graph.
   TF_RETURN_IF_ERROR(StartStep(bgopts, false, &rcg, &count));
 
   // Unref "rcg" when out of scope.
