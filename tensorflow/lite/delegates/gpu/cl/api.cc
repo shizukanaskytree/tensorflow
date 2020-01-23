@@ -35,6 +35,7 @@ limitations under the License.
 #include "tensorflow/lite/delegates/gpu/cl/tensor_type.h"
 #include "tensorflow/lite/delegates/gpu/cl/tensor_type_util.h"
 #include "tensorflow/lite/delegates/gpu/common/data_type.h"
+#include "tensorflow/lite/delegates/gpu/common/shape.h"
 #include "tensorflow/lite/delegates/gpu/common/tensor.h"
 
 namespace tflite {
@@ -157,7 +158,8 @@ class DefaultTensorTie : public TensorTie {
         const TensorDescriptor desc{
             d.object_def.data_type,
             ToTensorStorageType(d.object_def.object_type,
-                                d.object_def.data_layout)};
+                                d.object_def.data_layout),
+            Layout::BHWC};
         RETURN_IF_ERROR(AllocateTensorMemory(env->context(), env->device(),
                                              shape, desc, &cl_memory_));
         if (d.object_def.object_type == ObjectType::OPENCL_TEXTURE) {
@@ -714,6 +716,15 @@ class InferenceEnvironmentImpl : public InferenceEnvironment {
       RETURN_IF_ERROR(CreateDefaultGPUDevice(&device));
     }
 
+    properties_.is_gl_sharing_supported = IsGlSharingSupported(device);
+    properties_.is_gl_to_cl_fast_sync_supported =
+        IsClEventFromEglSyncSupported(device);
+    properties_.is_cl_to_gl_fast_sync_supported =
+        IsEglSyncFromClEventSupported();
+    if (options_.IsGlAware() && !properties_.is_gl_sharing_supported) {
+      return UnavailableError("GL sharing is not supported");
+    }
+
     CLContext context;
     if (options_.context) {
       if (options_.IsGlAware()) {
@@ -740,20 +751,13 @@ class InferenceEnvironmentImpl : public InferenceEnvironment {
     } else {
       RETURN_IF_ERROR(CreateCLCommandQueue(device, context, &queue));
     }
-    ProfilingCommandQueue profiling_queue;  // default empty instance
+    // Profiling queue is used for workgroup size tuning.
+    ProfilingCommandQueue profiling_queue;
+    RETURN_IF_ERROR(
+        CreateProfilingCommandQueue(device, context, &profiling_queue));
     environment_ = Environment(std::move(device), std::move(context),
                                std::move(queue), std::move(profiling_queue));
-    RETURN_IF_ERROR(environment_.Init());
-
-    properties_.is_gl_sharing_supported = IsGlSharingSupported(device);
-    properties_.is_gl_to_cl_fast_sync_supported =
-        IsClEventFromEglSyncSupported(device);
-    properties_.is_cl_to_gl_fast_sync_supported =
-        IsEglSyncFromClEventSupported();
-    if (options_.IsGlAware() && !properties_.is_gl_sharing_supported) {
-      return UnavailableError("GL sharing is not supported");
-    }
-    return OkStatus();
+    return environment_.Init();
   }
 
   Status NewInferenceBuilder(const InferenceOptions& options,

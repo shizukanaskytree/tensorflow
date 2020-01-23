@@ -18,8 +18,9 @@ package_group(
 )
 
 exports_files([
-    "run_lit.sh",
     "LICENSE.TXT",
+    "include/mlir/Dialect/LLVMIR/LLVMOps.td",
+    "run_lit.sh",
 ])
 
 cc_library(
@@ -433,8 +434,8 @@ cc_library(
     ]),
     includes = ["include"],
     deps = [
+        ":AffineOps",
         ":DialectUtils",
-        ":EDSC",
         ":IR",
         ":StandardOps",
         ":Support",
@@ -603,14 +604,24 @@ cc_library(
 
 cc_library(
     name = "GPUTransforms",
-    srcs = ["lib/Dialect/GPU/Transforms/KernelOutlining.cpp"],
+    srcs = glob(
+        [
+            "lib/Dialect/GPU/Transforms/*.cpp",
+            "lib/Dialect/GPU/Transforms/*.h",
+        ],
+        exclude = ["lib/Dialect/**/DialectRegistration.cpp"],
+    ),
     hdrs = ["include/mlir/Dialect/GPU/Passes.h"],
     includes = ["include"],
     deps = [
+        ":EDSC",
         ":GPUDialect",
+        ":GPUDialectRegistration",
         ":IR",
+        ":LoopOps",
         ":Pass",
         ":StandardOps",
+        ":Support",
         ":Transforms",
     ],
     alwayslink = 1,
@@ -723,6 +734,23 @@ cc_library(
     alwayslink = 1,
 )
 
+gentbl(
+    name = "GPUToSPIRVIncGen",
+    strip_include_prefix = "lib/Conversion/GPUToSPIRV",
+    tbl_outs = [
+        (
+            "-gen-rewriters",
+            "lib/Conversion/GPUToSPIRV/GPUToSPIRV.cpp.inc",
+        ),
+    ],
+    tblgen = ":mlir-tblgen",
+    td_file = "lib/Conversion/GPUToSPIRV/GPUToSPIRV.td",
+    td_srcs = [
+        ":GPUOpsTdFiles",
+        ":SPIRVOpsTdFiles",
+    ],
+)
+
 cc_library(
     name = "GPUToSPIRVTransforms",
     srcs = [
@@ -733,9 +761,13 @@ cc_library(
         "include/mlir/Conversion/GPUToSPIRV/ConvertGPUToSPIRV.h",
         "include/mlir/Conversion/GPUToSPIRV/ConvertGPUToSPIRVPass.h",
     ],
-    includes = ["include"],
+    includes = [
+        "include",
+        "lib/Conversions/GPUToSPIRV",
+    ],
     deps = [
         ":GPUDialect",
+        ":GPUToSPIRVIncGen",
         ":IR",
         ":LoopOps",
         ":Pass",
@@ -959,6 +991,18 @@ gentbl(
             "-gen-enum-defs",
             "include/mlir/Dialect/SPIRV/SPIRVEnums.cpp.inc",
         ),
+        (
+            "-gen-spirv-enum-avail-decls",
+            "include/mlir/Dialect/SPIRV/SPIRVEnumAvailability.h.inc",
+        ),
+        (
+            "-gen-spirv-enum-avail-defs",
+            "include/mlir/Dialect/SPIRV/SPIRVEnumAvailability.cpp.inc",
+        ),
+        (
+            "-gen-spirv-capability-implication",
+            "include/mlir/Dialect/SPIRV/SPIRVCapabilityImplication.inc",
+        ),
     ],
     tblgen = ":mlir-tblgen",
     td_file = "include/mlir/Dialect/SPIRV/SPIRVOps.td",
@@ -1026,19 +1070,19 @@ gentbl(
 )
 
 gentbl(
-    name = "SPIRVLoweringStructGen",
+    name = "SPIRVTargetAndABIStructGen",
     tbl_outs = [
         (
             "-gen-struct-attr-decls",
-            "include/mlir/Dialect/SPIRV/SPIRVLowering.h.inc",
+            "include/mlir/Dialect/SPIRV/TargetAndABI.h.inc",
         ),
         (
             "-gen-struct-attr-defs",
-            "include/mlir/Dialect/SPIRV/SPIRVLowering.cpp.inc",
+            "include/mlir/Dialect/SPIRV/TargetAndABI.cpp.inc",
         ),
     ],
     tblgen = ":mlir-tblgen",
-    td_file = "include/mlir/Dialect/SPIRV/SPIRVLowering.td",
+    td_file = "include/mlir/Dialect/SPIRV/TargetAndABI.td",
     td_srcs = [
         ":SPIRVOpsTdFiles",
         ":StdOpsTdFiles",
@@ -1112,6 +1156,7 @@ cc_library(
         ":SPIRVOpUtilsIncGen",
         ":SPIRVOpsIncGen",
         ":SPIRVSerializationGen",
+        ":SPIRVTargetAndABIStructGen",
         ":Support",
         ":Transforms",
         "@llvm-project//llvm:support",
@@ -1129,6 +1174,7 @@ cc_library(
     hdrs = [
         "include/mlir/Dialect/SPIRV/Passes.h",
         "include/mlir/Dialect/SPIRV/SPIRVLowering.h",
+        "include/mlir/Dialect/SPIRV/TargetAndABI.h",
     ],
     includes = [
         "include",
@@ -1137,7 +1183,7 @@ cc_library(
         ":IR",
         ":Pass",
         ":SPIRVDialect",
-        ":SPIRVLoweringStructGen",
+        ":SPIRVTargetAndABIStructGen",
         ":StandardOps",
         ":Support",
         ":Transforms",
@@ -1326,7 +1372,7 @@ cc_library(
         ":AffineToStandardTransforms",
         ":GPUDialect",
         ":IR",
-        ":Linalg",
+        ":LinalgTransforms",
         ":LoopOps",
         ":StandardOps",
         ":Support",
@@ -1851,35 +1897,8 @@ cc_binary(
 
 cc_library(
     name = "TableGen",
-    srcs = [
-        "lib/TableGen/Argument.cpp",
-        "lib/TableGen/Attribute.cpp",
-        "lib/TableGen/Constraint.cpp",
-        "lib/TableGen/Dialect.cpp",
-        "lib/TableGen/Format.cpp",
-        "lib/TableGen/OpInterfaces.cpp",
-        "lib/TableGen/OpTrait.cpp",
-        "lib/TableGen/Operator.cpp",
-        "lib/TableGen/Pattern.cpp",
-        "lib/TableGen/Predicate.cpp",
-        "lib/TableGen/Type.cpp",
-    ],
-    hdrs = [
-        "include/mlir/TableGen/Argument.h",
-        "include/mlir/TableGen/Attribute.h",
-        "include/mlir/TableGen/Constraint.h",
-        "include/mlir/TableGen/Dialect.h",
-        "include/mlir/TableGen/Format.h",
-        "include/mlir/TableGen/GenInfo.h",
-        "include/mlir/TableGen/GenNameParser.h",
-        "include/mlir/TableGen/OpInterfaces.h",
-        "include/mlir/TableGen/OpTrait.h",
-        "include/mlir/TableGen/Operator.h",
-        "include/mlir/TableGen/Pattern.h",
-        "include/mlir/TableGen/Predicate.h",
-        "include/mlir/TableGen/Region.h",
-        "include/mlir/TableGen/Type.h",
-    ],
+    srcs = glob(["lib/TableGen/*.cpp"]),
+    hdrs = glob(["include/mlir/TableGen/*.h"]),
     includes = ["include"],
     deps = [
         ":Support",
@@ -1905,18 +1924,10 @@ cc_library(
 
 cc_binary(
     name = "mlir-tblgen",
-    srcs = [
-        "tools/mlir-tblgen/DocGenUtilities.h",
-        "tools/mlir-tblgen/EnumsGen.cpp",
-        "tools/mlir-tblgen/LLVMIRConversionGen.cpp",
-        "tools/mlir-tblgen/OpDefinitionsGen.cpp",
-        "tools/mlir-tblgen/OpDocGen.cpp",
-        "tools/mlir-tblgen/OpInterfacesGen.cpp",
-        "tools/mlir-tblgen/ReferenceImplGen.cpp",
-        "tools/mlir-tblgen/RewriterGen.cpp",
-        "tools/mlir-tblgen/SPIRVUtilsGen.cpp",
-        "tools/mlir-tblgen/StructsGen.cpp",
-    ],
+    srcs = glob([
+        "tools/mlir-tblgen/*.h",
+        "tools/mlir-tblgen/*.cpp",
+    ]),
     linkopts = [
         "-lm",
         "-lpthread",
@@ -2211,7 +2222,8 @@ cc_library(
         ":IR",
         ":LLVMDialect",
         ":LLVMTransforms",
-        ":Linalg",
+        ":LinalgOps",
+        ":LinalgTransforms",
         ":Pass",
         ":StandardOps",
         ":Support",
@@ -2223,14 +2235,37 @@ cc_library(
     alwayslink = 1,
 )
 
-# TODO(ntv): Update these to make mapping with cmake simpler.
 cc_library(
-    name = "Linalg",
+    name = "LinalgOps",
+    srcs = [
+        "lib/Dialect/Linalg/IR/LinalgOps.cpp",
+        "lib/Dialect/Linalg/IR/LinalgTypes.cpp",
+    ],
+    hdrs = [
+        "include/mlir/Dialect/Linalg/IR/LinalgOps.h",
+        "include/mlir/Dialect/Linalg/IR/LinalgTraits.h",
+        "include/mlir/Dialect/Linalg/IR/LinalgTypes.h",
+    ],
+    includes = ["include"],
+    deps = [
+        ":DialectUtils",
+        ":IR",
+        ":LinalgOpsIncGen",
+        ":LinalgStructuredOpsIncGen",
+        ":LinalgTransformPatternsIncGen",
+        ":Parser",
+        ":Support",
+        "@llvm-project//llvm:core",
+        "@llvm-project//llvm:support",
+    ],
+    alwayslink = 1,
+)
+
+cc_library(
+    name = "LinalgTransforms",
     srcs = [
         "lib/Dialect/Linalg/Analysis/DependenceAnalysis.cpp",
         "lib/Dialect/Linalg/EDSC/Builders.cpp",
-        "lib/Dialect/Linalg/IR/LinalgOps.cpp",
-        "lib/Dialect/Linalg/IR/LinalgTypes.cpp",
         "lib/Dialect/Linalg/Transforms/Fusion.cpp",
         "lib/Dialect/Linalg/Transforms/LinalgToLoops.cpp",
         "lib/Dialect/Linalg/Transforms/LinalgTransforms.cpp",
@@ -2242,9 +2277,6 @@ cc_library(
         "include/mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h",
         "include/mlir/Dialect/Linalg/EDSC/Builders.h",
         "include/mlir/Dialect/Linalg/EDSC/Intrinsics.h",
-        "include/mlir/Dialect/Linalg/IR/LinalgOps.h",
-        "include/mlir/Dialect/Linalg/IR/LinalgTraits.h",
-        "include/mlir/Dialect/Linalg/IR/LinalgTypes.h",
         "include/mlir/Dialect/Linalg/Passes.h",
         "include/mlir/Dialect/Linalg/Transforms/LinalgTransforms.h",
         "include/mlir/Dialect/Linalg/Utils/Intrinsics.h",
@@ -2261,6 +2293,7 @@ cc_library(
         ":IR",
         ":LLVMDialect",
         ":LLVMTransforms",
+        ":LinalgOps",
         ":LinalgOpsIncGen",
         ":LinalgStructuredOpsIncGen",
         ":LinalgTransformPatternsIncGen",
@@ -2280,8 +2313,8 @@ cc_library(
 
 cc_library(
     name = "LinalgDialectRegistration",
-    srcs = ["lib/Dialect/Linalg/LinalgRegistration.cpp"],
-    deps = [":Linalg"],
+    srcs = ["lib/Dialect/Linalg/IR/LinalgRegistration.cpp"],
+    deps = [":LinalgOps"],
     alwayslink = 1,
 )
 
@@ -2450,12 +2483,13 @@ filegroup(
 
 exports_files(
     [
-        "include/mlir/Dialect/StandardOps/Ops.td",
-        "include/mlir/Analysis/CallInterfaces.td",
-        "include/mlir/Transforms/InliningUtils.h",
-        "include/mlir/IR/OpBase.td",
-        "include/mlir/IR/OpAsmInterface.td",
         "include/mlir/Analysis/CallInterfaces.h",
+        "include/mlir/Analysis/CallInterfaces.td",
+        "include/mlir/Dialect/LLVMIR/LLVMOpBase.td",
+        "include/mlir/Dialect/StandardOps/Ops.td",
+        "include/mlir/IR/OpAsmInterface.td",
+        "include/mlir/IR/OpBase.td",
+        "include/mlir/Transforms/InliningUtils.h",
     ],
     visibility = ["@llvm-project//mlir:friends"],
 )
