@@ -151,17 +151,6 @@ gentbl(
 )
 
 gentbl(
-    name = "attributes_compat_gen",
-    tbl_outs = [("-gen-attrs", "lib/IR/AttributesCompatFunc.inc")],
-    tblgen = ":llvm-tblgen",
-    td_file = "lib/IR/AttributesCompatFunc.td",
-    td_srcs = [
-        "lib/IR/AttributesCompatFunc.td",
-        "include/llvm/IR/Attributes.td",
-    ],
-)
-
-gentbl(
     name = "instcombine_transforms_gen",
     tbl_outs = [(
         "-gen-searchable-tables",
@@ -570,6 +559,17 @@ llvm_target_list = [
         ],
     },
 ]
+
+filegroup(
+    name = "common_target_td_sources",
+    srcs = glob([
+        "include/llvm/CodeGen/*.td",
+        "include/llvm/IR/Intrinsics*.td",
+        "include/llvm/TableGen/*.td",
+        "include/llvm/Target/*.td",
+        "include/llvm/Target/GlobalISel/*.td",
+    ]),
+)
 
 gentbl(
     name = "amdgpu_isel_target_gen",
@@ -1722,7 +1722,6 @@ cc_library(
         ":aarch64_enums_gen",
         ":amdgcn_enums_gen",
         ":arm_enums_gen",
-        ":attributes_compat_gen",
         ":attributes_gen",
         ":binary_format",
         ":bpf_enums_gen",

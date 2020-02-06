@@ -178,8 +178,10 @@ cc_library(
         "//tensorflow/lite/delegates/nnapi:nnapi_delegate",
         "//tensorflow/lite/kernels/internal:tensor_utils",
         "//tensorflow/lite/nnapi:nnapi_implementation",
+        "//tensorflow/lite/schema:schema_fbs",
         "//tensorflow/lite/testing:util",
         "//tensorflow/lite/tools/optimize:quantization_utils",
+        "//tensorflow/lite/tools/optimize/sparsity:format_converter",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -225,9 +227,13 @@ cc_test(
     ],
 )
 
+# TODO(b/148289189): Remove RUY_GEMV flag.
 cc_library(
     name = "tflite_with_ruy_enabled",
-    defines = ["TFLITE_WITH_RUY"],
+    defines = [
+        "TFLITE_WITH_RUY",
+        "TFLITE_WITH_RUY_GEMV",
+    ],
     visibility = ["//visibility:private"],
 )
 
@@ -524,6 +530,7 @@ cc_library(
         ":op_macros",
         ":padding",
         "//tensorflow/lite:framework",
+        "//tensorflow/lite:minimal_logging",
         "//tensorflow/lite:string_util",
         "//tensorflow/lite/c:common",
         "//tensorflow/lite/kernels/internal:audio_utils",
@@ -541,6 +548,7 @@ cc_library(
         "//tensorflow/lite/kernels/internal:types",
         "//third_party/eigen3",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
         "@farmhash_archive//:farmhash",
         "@flatbuffers",
     ],
@@ -611,6 +619,7 @@ cc_library(
         "//tensorflow/lite/experimental/ruy/profiler:instrumentation",
         "//tensorflow/lite/kernels/internal:compatibility",
         "//tensorflow/lite/kernels/internal:kernel_utils",
+        "//tensorflow/lite/kernels/internal:optimized_base",
         "//tensorflow/lite/kernels/internal:tensor",
         "//tensorflow/lite/kernels/internal:tensor_utils",
         "@gemmlowp",
@@ -877,8 +886,26 @@ cc_test(
         ":test_main",
         ":test_util",
         "//tensorflow/lite:framework",
+        "//tensorflow/lite/c:common",
         "//tensorflow/lite/kernels/internal:types",
+        "//tensorflow/lite/schema:schema_fbs",
+        "//tensorflow/lite/tools/optimize/sparsity:format_converter",
         "//third_party/eigen3",
+        "@com_google_absl//absl/memory",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "depthwise_conv_hybrid_test",
+    size = "small",
+    srcs = ["depthwise_conv_hybrid_test.cc"],
+    deps = [
+        ":builtin_ops",
+        ":test_main",
+        ":test_util",
+        "//tensorflow/lite:framework",
+        "//tensorflow/lite/kernels/internal:test_util",
         "@com_google_absl//absl/memory",
         "@com_google_googletest//:gtest",
     ],

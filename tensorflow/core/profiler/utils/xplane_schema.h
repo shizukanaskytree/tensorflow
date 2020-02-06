@@ -30,6 +30,11 @@ ABSL_CONST_INIT extern const absl::string_view kHostThreads;
 // Name prefix of XPlane that contains GPU events.
 ABSL_CONST_INIT extern const absl::string_view kGpuPlanePrefix;
 
+// Id of XPlane that contains TraceMe events.
+ABSL_CONST_INIT extern const int32 kHostPlaneId;
+// Ids prefix of XPlane that contains GPU events.
+ABSL_CONST_INIT extern const int32 kGpuPlaneBaseId;
+
 // Interesting event types (i.e., TraceMe names).
 enum HostEventType {
   kFirstHostEventType = 0,
@@ -64,7 +69,10 @@ enum HostEventType {
   kWhileOpStartBody,
   kForOp,
   kPartitionedCallOp,
-  kLastHostEventType = kPartitionedCallOp,
+  // GPU related.
+  kKernelLaunch,
+  kKernelExecute,
+  kLastHostEventType = kKernelExecute,
 };
 
 enum StatType {
@@ -91,12 +99,14 @@ enum StatType {
   kBytesAvailable,
   kFragmentation,
   kPeakBytesInUse,
+  kTensorShapes,
   // Device trace arguments.
   kDeviceId,
   kContextId,
   kCorrelationId,
   kMemcpyDetails,
   kMemallocDetails,
+  kKernelAnnotation,
   kKernelDetails,
   kStream,
   // Stats added when processing traces.
@@ -123,24 +133,20 @@ enum StatType {
   kLastStatType = kDevCapComputeCapMinor,
 };
 
-absl::Span<const absl::string_view> GetHostEventTypeStrMap();
+absl::string_view GetHostEventTypeStr(HostEventType event_type);
 
-inline absl::string_view GetHostEventTypeStr(HostEventType event_type) {
-  return GetHostEventTypeStrMap()[event_type];
-}
+bool IsHostEventType(HostEventType event_type, absl::string_view event_name);
 
 inline bool IsHostEventType(HostEventType event_type,
                             absl::string_view event_name) {
-  return GetHostEventTypeStrMap()[event_type] == event_name;
+  return GetHostEventTypeStr(event_type) == event_name;
 }
 
 absl::optional<int64> FindHostEventType(absl::string_view event_name);
 
-absl::Span<const absl::string_view> GetStatTypeStrMap();
+absl::string_view GetStatTypeStr(StatType stat_type);
 
-inline absl::string_view GetStatTypeStr(StatType stat_type) {
-  return GetStatTypeStrMap()[stat_type];
-}
+bool IsStatType(StatType stat_type, absl::string_view stat_name);
 
 inline bool IsStatType(StatType stat_type, absl::string_view stat_name) {
   return GetStatTypeStr(stat_type) == stat_name;
