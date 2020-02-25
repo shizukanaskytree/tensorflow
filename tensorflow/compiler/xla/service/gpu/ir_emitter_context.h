@@ -62,6 +62,15 @@ class IrEmitterContext {
   const se::Platform* platform_;
   const se::DeviceDescription* device_desc_;
   llvm::Module* llvm_module_;
+  // 1.
+  // llvm::Module 是什么?
+  // In LLVM, a module represents a single unit of code that is to be processed together.
+  // A module contains things like global variables, function declarations, and implementations.
+
+  // 2.
+  // tutorial ppt 
+  // https://www.cs.sfu.ca/~wsumner/teaching/886/llvm.pdf
+
   NameUniquer name_uniquer_;
 };
 

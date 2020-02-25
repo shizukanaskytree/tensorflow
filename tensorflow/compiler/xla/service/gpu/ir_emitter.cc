@@ -76,6 +76,28 @@ namespace gpu {
 
 IrEmitter::IrEmitter(const HloModuleConfig& hlo_module_config,
                      IrEmitterContext* ir_emitter_context, bool is_nested)
+// 1.
+// class HloModuleConfig
+// tensorflow/compiler/xla/service/hlo_module_config.h
+
+// 1.1
+// class HloModuleConfig 概述:
+//
+// This class gathers all settings and values which affect the compiled
+// executable outside of the HLO code itself. This include layouts of inputs and
+// outputs to the module and settings such as HLO profiling. **Together the
+// HloModule and HloModuleConfig unambiguously determine a particular
+// executable.**
+
+// 1.2
+// example:
+// https://gist.github.com/shizukanaskytree/a800badc2312c65a38fbc93cdae0db23
+// https://gist.github.com/shizukanaskytree/9169a887823ca720d7a9ecea17b26ef0
+
+// 2.
+// class IrEmitterContext
+//
+
     : ir_emitter_context_(ir_emitter_context),
       module_(ir_emitter_context->llvm_module()),
       b_(module_->getContext()),
@@ -84,6 +106,15 @@ IrEmitter::IrEmitter(const HloModuleConfig& hlo_module_config,
                 is_nested),
       hlo_module_config_(hlo_module_config) {
 }
+// 1.
+// bindings_ 变量是什么?
+// class HloToIrBindings
+// tensorflow/compiler/xla/service/gpu/hlo_to_ir_bindings.h
+
+// 2.
+// advice
+// 先把 b_, module_ 的 llvm 类型看懂
+// tensorflow/compiler/xla/service/gpu/ir_emitter.h
 
 Status IrEmitter::DefaultAction(HloInstruction* hlo) {
   ElementalIrEmitter::HloToElementGeneratorMap operand_to_generator;

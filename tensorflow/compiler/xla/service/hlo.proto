@@ -26,9 +26,21 @@ limitations under the License.
 // keep the numeric ids the same. This is because we sometimes serialize these
 // protos as JSON, which includes the field names in the serialization.
 
+// 1.
+// 简述
+// HloModule, HloComputation, and HloInstruction.
+
+// 2.
+// 阅读感受
+// 只是罗列, 没有逻辑, 看得我好找不着北啊, 真迷糊.
+// 演员都到齐了, 剧本是什么? 戏是怎么拍的?
+
 syntax = "proto3";
 
 package xla;
+// 1.
+// package xla; 语法意思:
+// 类似于 import xla
 
 import "tensorflow/compiler/xla/xla_data.proto";
 
@@ -58,6 +70,10 @@ message HloInstructionProto {
 
   string name = 1;
   string opcode = 2;
+  // 1.
+  // 参考 java
+  // https://en.wikipedia.org/wiki/Java_bytecode
+
   xla.ShapeProto shape = 3;
 
   xla.OpMetadata metadata = 7;
@@ -245,6 +261,10 @@ message HloInstructionProto {
   // RNG algorithm used by kRngBitGenerator.
   xla.RandomAlgorithm rng_algorithm = 70;
 }
+// 1.
+// 所处的关系
+// HloInstructionProto ⊆ HloComputationProto ⊆ HloModuleProto
+
 
 // Serialization of HloComputation.
 message HloComputationProto {
@@ -267,6 +287,9 @@ message HloComputationProto {
   // The id of the root of the computation.
   int64 root_id = 6;
 }
+// 1.
+// 所处的关系
+// HloInstructionProto ⊆ HloComputationProto ⊆ HloModuleProto
 
 // Serialization of an HLO schedule. An HLO schedule contains a total order of
 // instructions for each non-fusion computation in the module.
@@ -378,6 +401,18 @@ message HloModuleProto {
 
   DynamicParameterBindingProto dynamic_parameter_binding = 9;
 }
+// 1.
+// 所处的关系
+// HloInstructionProto ⊆ HloComputationProto ⊆ HloModuleProto
+
+// 2.
+// 代码的构思和逻辑:
+// https://sketch2sky.com/2019/09/26/tensorflow-xla-client-%e8%af%a6%e8%a7%a3/
+// compiler/xla/client/	对 compiler/tf2xla/ 提供 xla_builder.cc:Builder
+// 等供 CompileFunction() 使用，将 Graph 由 Op 表达转化为
+// HloModuleProto:
+// HloComputationProto:
+// HloInstructionProto 表达并保存在 XlaComputation 中。
 
 // Serialization of LogicalBuffer.
 message LogicalBufferProto {

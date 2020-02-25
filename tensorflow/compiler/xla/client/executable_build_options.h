@@ -36,6 +36,9 @@ class ExecutableBuildOptions {
   // executable will be executable on any device equivalent to the specified
   // device as determined by Backend::devices_equivalent(). A value of -1
   // indicates this option has not been set.
+  // 1.
+  // ordinal 释义:
+  // 序数词（如第一、第二等）
   ExecutableBuildOptions& set_device_ordinal(int device_ordinal);
   int device_ordinal() const;
 
@@ -91,6 +94,10 @@ class ExecutableBuildOptions {
   se::DeviceMemoryAllocator* device_allocator_ = nullptr;
   int num_replicas_ = 1;
   int num_partitions_ = 1;
+  // 1.
+  // QQQ: 干嘛用的?
+  // AAA. ?
+
   bool alias_passthrough_params_ = false;
 };
 

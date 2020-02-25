@@ -1941,6 +1941,10 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
                 << (tagged_node.is_dead ? " is dead: " : "")
                 << " device: " << device->name();
       }
+      // 1.
+      // xla 调试时的 log:
+      // 2020-02-21 16:58:43.114822: I tensorflow/core/common_runtime/executor.cc:1939] Synchronous kernel done: 44 step -4864531373332038847 {{node cluster_5_1/xla_compile}} = _XlaCompile[Nresources=4, Targs=[DT_FLOAT], Tconstants=[DT_INT32], _XlaHasReferenceVars=false, function=cluster_5[_XlaCompiledKernel=true, _XlaHasReferenceVars=false, _XlaNumConstantArgs=1, _XlaNumResourceArgs=4], must_compile=false, _device="/job:localhost/replica:0/task:0/device:GPU:0"](Conv2DBackpropFilter_3-0-PermConstNHWCToNCHW-LayoutOptimizer/clone_0, IteratorGetNext/_24, sequential_conv2d_biasadd_readvariableop_resource, sequential_conv2d_conv2d_readvariableop_resource, sequential_conv2d_1_biasadd_readvariableop_resource, sequential_conv2d_1_conv2d_readvariableop_resource) device: /job:localhost/replica:0/task:0/device:GPU:0
+
 
       // Clears inputs.
       const int num_inputs = item.num_inputs;

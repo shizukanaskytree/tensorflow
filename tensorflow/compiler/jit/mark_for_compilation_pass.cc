@@ -55,6 +55,14 @@ limitations under the License.
 #include "tensorflow/core/public/version.h"
 #include "tensorflow/core/util/dump_graph.h"
 
+// 1.
+// 全局的逻辑, 截图:
+// https://docs.google.com/document/d/13S21P5AEUYtKFMcOVNAlzu6HH0pmWsdzxYo5vyUxjLU/edit#heading=h.j2bi9zqb5697
+
+// 2.
+// 入口: 1729
+// MarkForCompilationPass::Run
+
 namespace tensorflow {
 
 namespace {
@@ -1728,7 +1736,11 @@ bool IsCompilable(FunctionLibraryRuntime* flr, const NodeDef& ndef,
 
 Status MarkForCompilationPass::Run(
     const GraphOptimizationPassOptions& options) {
+
   MarkForCompilationPassFlags* flags = GetMarkForCompilationPassFlags();
+  // 1.
+  // flag 选项在 
+  // tensorflow/compiler/jit/flags.h
 
   MarkForCompilationPassImpl::DebugOptions debug_options;
   debug_options.ignore_deadness_checks =

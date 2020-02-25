@@ -14,6 +14,10 @@ load("@local_config_rocm//rocm:build_defs.bzl", "if_rocm_is_configured")
 
 package(
     default_visibility = [":internal"],
+    # 1.
+    # ":internal" 是哪些范围? 可见范围是?
+    # 答案: 在 package_group(name = "internal", 里面的那个集合 set.
+    # 就在下面.
     licenses = ["notice"],  # Apache 2.0
 )
 

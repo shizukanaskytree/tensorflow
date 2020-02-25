@@ -33,6 +33,10 @@ class XlaOpKernelContext;
 //
 // See the comments in xla_context.h for more details.
 class XlaOpKernel : public OpKernel {
+// 1.
+// class XlaOpKernel 是什么?
+// https://sketch2sky.com/2019/09/26/tensorflow-xla-client-%e8%af%a6%e8%a7%a3/
+
  public:
   explicit XlaOpKernel(OpKernelConstruction* construction);
 

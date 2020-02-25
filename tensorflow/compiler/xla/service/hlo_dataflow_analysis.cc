@@ -178,6 +178,13 @@ string HloDataflowAnalysis::ToString() const {
   }
   return out;
 }
+// 1.
+// gdb print:
+// https://gist.github.com/shizukanaskytree/9d7f2dd8dd766a5f3f8970947af21191
+//
+// file:///Users/xiaofengwu/Documents/Research_Docs_Sphinx/source/myResearchNote/02_framework/01_tensorflow/21_tf20_new/11_xla/06_example_study/02_xla_dump/1582585021381744.module_0000.before_optimizations.txt
+//
+// file:///Users/xiaofengwu/Documents/Research_Docs_Sphinx/source/myResearchNote/02_framework/01_tensorflow/21_tf20_new/11_xla/06_example_study/02_xla_dump/1582585021381744.module_0000.before_optimizations.html
 
 bool HloDataflowAnalysis::Phi(
     HloInstruction* instruction,
@@ -730,6 +737,9 @@ void HloDataflowAnalysis::Propagate() {
 
     VLOG(3) << "Worklist top: " << instruction->name();
     VLOG(3) << ToString();
+    // 1.
+    // log gdb print
+    // https://gist.github.com/shizukanaskytree/9d7f2dd8dd766a5f3f8970947af21191
 
     if (!UpdateInstructionValueSet(instruction)) {
       // No change to the instruction's value set.

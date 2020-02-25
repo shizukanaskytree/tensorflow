@@ -202,6 +202,10 @@ class HloModuleConfig {
   int64 intra_op_parallelism_threads_ = -1;
 
   DebugOptions debug_options_;
+  // 1.
+  // message DebugOptions
+  // tensorflow/compiler/xla/xla.proto
+  // 佐证: #include "tensorflow/compiler/xla/xla.pb.h"
 
   // Compile-time known device assignment.
   absl::optional<DeviceAssignment> static_device_assignment_;
@@ -212,9 +216,30 @@ class HloModuleConfig {
 
   FusionConfigCollection fusion_config_collection_ =
       FusionConfigCollection::kOff;
+  // 1.
+  // enum class FusionConfigCollection
+  // tensorflow/compiler/xla/service/hlo_module_config.h:30
 
   std::vector<std::vector<bool>> fusion_config_;
 };
+// 1.
+// class HloModuleConfig
+// tensorflow/compiler/xla/service/hlo_module_config.h
+
+// 1.1
+// class HloModuleConfig 概述:
+//
+// This class gathers all settings and values which affect the compiled
+// executable outside of the HLO code itself. This include layouts of inputs and
+// outputs to the module and settings such as HLO profiling. **Together the
+// HloModule and HloModuleConfig unambiguously determine a particular
+// executable.**
+
+// 1.2
+// example:
+// https://gist.github.com/shizukanaskytree/a800badc2312c65a38fbc93cdae0db23
+// https://gist.github.com/shizukanaskytree/9169a887823ca720d7a9ecea17b26ef0
+
 
 }  // namespace xla
 

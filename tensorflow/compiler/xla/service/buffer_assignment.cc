@@ -234,9 +234,26 @@ BufferAllocation::Slice BufferAllocation::GetSlice(
 
 void BufferAllocation::AddAssignment(const HloValue& buffer, int64 offset,
                                      int64 size) {
+  // 1.
+  // buffer 打印:
+  // p buffer.ToString()
+  // $92 = "<9 reduce-window.25 @0>\n positions:\n  reduce-window.25\n  tuple.3 {2}\n uses:\n  tuple.3, operand 2\n"
+
+  // 2.
+  // (gdb) p offset
+  // $93 = 0
+
+  // 3.
+  // (gdb) p size
+  // $94 = 7372800
+
   VLOG(4) << "Adding the following buffer to allocation #" << index()
           << absl::StrFormat(" (size=%d, offset=%d) %s", size, offset,
                              buffer.ToShortString());
+  // 1.
+  // 2020-02-25 03:32:33.587376: I tensorflow/compiler/xla/service/buffer_assignment.cc:237]
+  // Adding the following buffer to allocation #2 (size=7372800, offset=0) <9 reduce-window.25 @0>
+
   CHECK(!assigned_buffers_.contains(&buffer))
       << "LogicalBuffer " << buffer << " already assigned to allocation "
       << index_;
@@ -261,6 +278,7 @@ void BufferAllocation::AddAssignment(const HloValue& buffer, int64 offset,
       shape->mutable_layout()->set_memory_space(buffer.color().value());
     }
   }
+
 }
 
 BufferAllocationProto BufferAllocation::ToProto() const {
@@ -837,6 +855,52 @@ bool BufferAssigner::LiveRangeInterferes(const HloValue* buffer1,
                                          BufferAssignment* assignment) {
   CHECK((assignment->hlo_live_range().total_order_scheduled()));
   const HloLiveRange& hlo_live_range = assignment->hlo_live_range();
+  // 1.
+  // gdb p hlo_live_range
+  //
+  // hlo_live_range.ToString()
+  //
+  // HloLiveRange (max 18):
+  //   InstructionSequence:
+  //     0:constant_20
+  //     1:constant_7
+  //     2:arg4.5
+  //     3:arg3.4
+  //     4:arg2.3
+  //     5:arg1.2
+  //     6:arg0.1
+  //     7:copy.9
+  //     8:copy.4
+  //     9:copy.7
+  //     10:copy.5
+  //     11:fusion
+  //     12:custom-call.4
+  //     13:get-tuple-element.4
+  //     14:custom-call.5
+  //     15:get-tuple-element.5
+  //     16:reduce-window.25
+  //     17:tuple.3
+  //   BufferLiveRange:
+  //     arg0.1{}:0-18
+  //     arg1.2{}:0-18
+  //     arg2.3{}:0-18
+  //     arg3.4{}:0-18
+  //     arg4.5{}:0-8
+  //     constant_20{}:0-16
+  //     reduce-window.25{}:16-18
+  //     constant_7{}:1-7
+  //     copy.4{}:8-12
+  //     copy.5{}:10-14
+  //     custom-call.4{}:12-13
+  //     custom-call.4{0}:12-18
+  //     custom-call.4{1}:12-12
+  //     custom-call.5{}:14-15
+  //     custom-call.5{0}:14-18
+  //     custom-call.5{1}:14-14
+  //     fusion{}:11-18
+  //     copy.7{}:9-18
+  //     copy.9{}:7-18
+  //     tuple.3{}:17-18
 
   const auto& buffer_live_ranges = hlo_live_range.buffer_live_ranges();
 

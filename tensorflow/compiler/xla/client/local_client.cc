@@ -248,6 +248,8 @@ StatusOr<ScopedShapedBuffer> LocalExecutable::RunAsync(
   TF_ASSIGN_OR_RETURN(ScopedShapedBuffer outputs,
                       executable_->ExecuteAsyncOnStreamWrapper(
                           &options_and_stream.first, arguments));
+  // 1.
+  // Profiling within ExecuteAsyncOnStreamWrapper
 
   // Transfer the outputs and save the snapshot to disk.
   if (snapshot) {
@@ -341,15 +343,131 @@ StatusOr<std::vector<std::unique_ptr<LocalExecutable>>> LocalClient::Compile(
     const XlaComputation& computation,
     const absl::Span<const Shape* const> argument_layouts,
     const ExecutableBuildOptions& options) {
+  // 1.
+  // computation: const XlaComputation&
+  // https://gist.github.com/shizukanaskytree/30e4784ab7b69c372883743f9d491c42
+
+  // 1.1
+  // class XlaComputation
+  // tensorflow/compiler/xla/client/xla_computation.h
+
+  // 1.2
+  // XlaComputation 本质是什么?
+  // 本质是 The computation graph.
+  // 来源是通过 XlaBuilder. 具体来说是 the user builds up with the XlaBuilder.
+
+  // 1.3
+  // class XlaComputation
+  // unique_id_: int64
+  // proto_: HloModuleProto
+
+  // 2.
+  // class Shape 数据结构
+  // tensorflow/compiler/xla/shape.h
+
+  // 2.1
+  // 概述:
+  // A shape describes the number of dimensions in a array, the bounds of each
+  // dimension, and the primitive component type. For tuples, shape describes the
+  // structure (number of elements and nesting).
+
+  // 2.2
+  // 数据结构
+  // element_type_: PrimitiveType, PRIMITIVE_TYPE_INVALID
+  // dimensions_: absl::InlinedVector<int64, 6>
+  // dynamic_dimensions_: absl::InlinedVector<bool, 6>
+  // tuple_shapes_: std::vector<Shape>
+  // layout_: Layout
+
+  // 3.
+  // options: const ExecutableBuildOptions&
+  // gdb 打印:
+  // https://gist.github.com/shizukanaskytree/4a0cf933e85febe10ddc9a644af8a8b4
+
+  // 3.1
+  // class ExecutableBuildOptions 数据结构
+  // tensorflow/compiler/xla/client/executable_build_options.h
+  // 欲知详情, 请转去看
+
   ExecutableBuildOptions updated_options = options;
   if (options.device_ordinal() == -1) {
+    // 1.
+    // 没有进入
     updated_options.set_device_ordinal(default_device_ordinal());
     VLOG(3) << "Set device ordinal to default value of: "
             << updated_options.device_ordinal();
   }
+
   TF_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<Executable>> executables,
                       local_service_->CompileExecutables(
                           computation, argument_layouts, updated_options));
+  // 1.
+  // TF_ASSIGN_OR_RETURN 宏定义是怎么替换的?
+  // 结果:
+  //
+  // std::vector<std::unique_ptr<Executable>> executables = local_service_->CompileExecutables(computation, argument_layouts, updated_options)
+  //
+  // https://docs.google.com/document/d/1yUTShb-E3EUicKBgIsSLOnr3WwnmkRTlnDGtcwjVXyA/edit#heading=h.kipl50cgqbja
+  //
+  // 意图: 这里用了很多层的宏定义的意图就是 为了自动化地构造出拼凑出一个的代码段, 自动化的变量名等
+
+  // 1.1
+  // TF_ASSIGN_OR_RETURN 在哪里?
+  // tensorflow/stream_executor/lib/statusor.h
+
+  // 1.2
+  // 替换步骤
+  // lhs: std::vector<std::unique_ptr<Executable>> executables
+  // rexpr: local_service_->CompileExecutables()
+
+  // 1.3
+  // TF_ASSIGN_OR_RETURN_IMPL(TF_STATUS_MACROS_CONCAT_NAME(_status_or_value, __COUNTER__), lhs, rexpr)
+  //                                                                                        ^     ^
+  //                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //                                                statusor (想自动构造命名)
+  //
+  // _status_or_value: 仅仅是个 token string 吧了, 就是用来构造一个 identifier 的,
+  // 通俗的说就是, 就起个变量名的作用.
+  // 关键看 TF_STATUS_MACROS_CONCAT_NAME 对它进一步的改造!
+
+  // 1.4
+  // __COUNTER__ 是什么?
+  // Predefined preprocessor macro __COUNTER__
+  //   __COUNTER__ is a non-standard compiler extension for the GNU compiler.
+  //   Apparently, it's also implemented in Microsoft's compiler and the clang
+  //   compiler. __COUNTER__ evaluates to an integer literal whose value is
+  //   increased by one every time it is found in a source code text.
+
+  // __COUNTER__ 计数原理是什么?
+  // 执行到就自动加 1.
+  // 效果:
+  // https://keep.google.com/u/1/#NOTE/13qun0mToRE5Fu9CWjScDatMJG1SdP4Q0eGbV0nB63uSgq8BlWHRFucjemG-a
+  // /Users/xiaofengwu/Documents/Research_Docs_Sphinx/source/myResearchNote/101/101_03_cpp/98__COUNTER__/01_README.md
+
+  // __COUNTER__ 用途有哪些?
+  // __COUNTER__ is useful anywhere you need a unique name.
+
+  // 1.5
+  // TF_STATUS_MACROS_CONCAT_NAME(_status_or_value, __COUNTER__)
+  // 具体操作:
+  // #define TF_STATUS_MACROS_CONCAT_NAME(x, y) TF_STATUS_MACROS_CONCAT_IMPL(x, y)
+  // #define TF_STATUS_MACROS_CONCAT_IMPL(x, y) x##y
+  //
+  // 评价: 这个不难
+
+  // 1.6
+  // TF_ASSIGN_OR_RETURN_IMPL 操作:
+  //
+  // #define TF_ASSIGN_OR_RETURN_IMPL(statusor, lhs, rexpr) \
+  //   auto statusor = (rexpr);                             \
+  //   if (TF_PREDICT_FALSE(!statusor.ok())) {              \
+  //     return statusor.status();                          \
+  //   }                                                    \
+  //   lhs = std::move(statusor.ValueOrDie())
+
+  // 2.
+  // CompileExecutables
+  //
 
   std::vector<std::unique_ptr<LocalExecutable>> local_executables;
   local_executables.reserve(executables.size());

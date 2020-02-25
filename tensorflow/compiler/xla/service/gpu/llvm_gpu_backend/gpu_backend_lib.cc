@@ -219,6 +219,15 @@ string EmitModuleToPTX(Module* module, llvm::TargetMachine* target_machine) {
     IrDumpingPassManager codegen_passes(
         MakeNameForTempProduct(module->getModuleIdentifier(), "-nvptx.dummy"),
         "", false);
+    // 1.
+    // class IrDumpingPassManager
+    // ./xla/service/gpu/llvm_gpu_backend/dump_ir_pass.h:30:
+    // class IrDumpingPassManager : public llvm::legacy::PassManager
+
+    // 2.
+    
+
+
     codegen_passes.add(new llvm::TargetLibraryInfoWrapperPass(
         llvm::Triple(module->getTargetTriple())));
 
@@ -494,6 +503,12 @@ StatusOr<string> CompileToPtx(llvm::Module* module, GpuVersion gpu_version,
 
   string ptx;
   std::unique_ptr<llvm::TargetMachine> target_machine;
+  // 1.
+  // llvm::TargetMachine 数据结构 在?
+  // 属于 llvm 这个 package
+  // /tensorflow/bazel-tensorflow/bazel-out/k8-opt/bin/tensorflow/tools/pip_package/build_pip_package.runfiles/
+  //   llvm-project/llvm/include/llvm/Target/TargetMachine.h
+
   {
     tensorflow::profiler::TraceMe activity(
         [&] { return absl::StrCat("Compiling IR:", module->getName().str()); },

@@ -249,6 +249,22 @@ class Shape {
   // The layout of the shape. Only relevant for arrays.
   Layout layout_;
 };
+// 1.
+// class Shape 数据结构
+
+// 1.1
+// 概述:
+// A shape describes the number of dimensions in a array, the bounds of each
+// dimension, and the primitive component type. For tuples, shape describes the
+// structure (number of elements and nesting).
+
+// 1.2
+// 数据结构
+// element_type_: PrimitiveType, PRIMITIVE_TYPE_INVALID
+// dimensions_: absl::InlinedVector<int64, 6>
+// dynamic_dimensions_: absl::InlinedVector<bool, 6>
+// tuple_shapes_: std::vector<Shape>
+// layout_: Layout
 
 // Shape of the parameters and output of an XLA computation. This is analogous
 // to a traditional function signature.

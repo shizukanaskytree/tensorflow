@@ -592,6 +592,9 @@ Status FunctionLibraryRuntimeImpl::GetRetTypes(Handle h,
 Status FunctionLibraryRuntimeImpl::CreateKernel(const NodeDef& ndef,
                                                 OpKernel** kernel) {
   return CreateKernel(ndef, this, kernel);
+  // 1.
+  // 继续调用如下的
+  // FunctionLibraryRuntimeImpl::CreateKernel(...)
 }
 
 Status FunctionLibraryRuntimeImpl::CreateKernel(const NodeDef& ndef,
@@ -601,8 +604,16 @@ Status FunctionLibraryRuntimeImpl::CreateKernel(const NodeDef& ndef,
   Status s;
   if (custom_kernel_creator_ != nullptr &&
       custom_kernel_creator_->CanCreateKernel(*this, ndef)) {
+    // 1.
+    // XlaKernelCreator::CanCreateKernel
+    // tensorflow/compiler/jit/xla_kernel_creator.cc
+
     std::unique_ptr<OpKernel> ret;
+
     s = custom_kernel_creator_->CreateKernel(this, ndef, &ret);
+    // 1.
+    //
+
     if (s.ok()) {
       *kernel = ret.release();
     } else {

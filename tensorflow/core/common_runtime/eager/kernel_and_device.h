@@ -48,6 +48,19 @@ namespace tensorflow {
 
 class ProcessFunctionLibraryRuntime;
 class FunctionLibraryRuntime;
+// 1.
+// class re-declaration vs include header in c++
+// "Forward declaration vs include"
+// With a forward declaration about all you can do is have a pointer or
+// reference to that class. If you are going use the class (create an object,
+// call a member function, access one of it's variables, etc.) then you need to
+// include the full class definition.
+// http://www.cplusplus.com/forum/beginner/122704/
+
+// 1.1
+// "Forward declaration vs include"
+// https://softwareengineering.stackexchange.com/questions/195806/forward-declaration-vs-include
+// https://stackoverflow.com/questions/3632818/forward-declaration-vs-include
 
 struct EagerRemoteFunctionParams {
   int64 op_id;
@@ -96,6 +109,8 @@ class KernelAndDevice : public core::RefCounted {
   // The provided FunctionLibraryRuntime MUST outlive all calls to
   // Run() on the returned KernelAndDevice.
   virtual Status Init(const NodeDef& ndef, GraphCollector* graph_collector) = 0;
+  // 1.
+  // virtual 怎么用?
 
   // Non-multi-device functions are run using regular CallOp and look like
   // primitive operations from KernelAndDevice perspective.

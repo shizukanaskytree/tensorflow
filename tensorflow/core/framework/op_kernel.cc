@@ -1565,6 +1565,10 @@ Status CreateOpKernel(DeviceType device_type, DeviceBase* device,
 
   // Look up the Op registered for this op name.
   const OpDef* op_def = nullptr;
+  // 1.
+  // op_def points to const OpDef
+  // https://stackoverflow.com/questions/1143262/what-is-the-difference-between-const-int-const-int-const-and-int-const
+
   TF_RETURN_IF_ERROR(OpRegistry::Global()->LookUpOpDef(node_def.op(), &op_def));
 
   // Validate node_def against OpDef.
@@ -1617,6 +1621,7 @@ Status CreateOpKernel(DeviceType device_type, DeviceBase* device,
                                &node_def, op_def, flib, resource_mgr, inputs,
                                input_memory_types, outputs, output_memory_types,
                                graph_def_version, &s);
+  
   *kernel = registration->factory->Create(&context);
   if (!s.ok()) {
     delete *kernel;

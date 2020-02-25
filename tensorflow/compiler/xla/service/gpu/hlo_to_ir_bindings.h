@@ -101,6 +101,9 @@ class HloToIrBindings {
                                llvm::Value* ir_value);
 
   const BufferAssignment* buffer_assignment_;
+  // 1.
+  // class BufferAssignment
+  // tensorflow/compiler/xla/service/buffer_assignment.h:354
 
   const bool is_nested_;
 
@@ -118,6 +121,9 @@ class HloToIrBindings {
   llvm::Value* temp_buffer_base_ = nullptr;
 
   llvm_ir::AliasAnalysis alias_analysis_;
+  // 1.
+  // llvm_ir::AliasAnalysis
+  // tensorflow/compiler/xla/service/llvm_ir/alias_analysis.h
 };
 
 }  // namespace gpu

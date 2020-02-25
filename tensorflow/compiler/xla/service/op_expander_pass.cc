@@ -40,6 +40,20 @@ StatusOr<bool> OpExpanderPass::Run(HloModule* module) {
       continue;
     }
     TF_RETURN_IF_ERROR(inst->parent()->ReplaceInstruction(inst, expanded_root));
+    // 1.
+    // ReplaceInstruction 函数
+    // tensorflow/compiler/xla/service/hlo_computation.h:338
+    // Status ReplaceInstruction(HloInstruction* old_instruction, HloInstruction* new_instruction)
+
+    // 2.
+    // HloInstruction 的 parent 是什么?
+    // The computation in which this instruction is contained.
+    // from:
+    // tensorflow/compiler/xla/service/hlo_instruction.h
+    //
+    // 2.1
+    // class HloInstruction::FusionReusesParamElements
+    // xla/service/hlo_instruction.cc:3135
   }
 
   return !matching_instructions.empty();

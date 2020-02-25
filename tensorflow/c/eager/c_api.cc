@@ -94,6 +94,10 @@ using tensorflow::int64;
 using tensorflow::string;
 
 namespace {
+// 1.
+// Why do we need empty namespace?
+// https://medium.com/p/2f4b333f0c5f/edit
+// /Users/xiaofengwu/Documents/Research_Docs_Sphinx/source/myResearchNote/101/101_03_cpp/24_using_namespace.md
 
 const tensorflow::OpDef* GetOpDef(TFE_Op* op, TF_Status* status) {
   const tensorflow::OpDef* op_def = op->operation.OpDef();
@@ -1530,17 +1534,44 @@ TF_CAPI_EXPORT extern int TFE_OpGetOutputLength(TFE_Op* op,
 void TFE_Execute(TFE_Op* op, TFE_TensorHandle** retvals, int* num_retvals,
                  TF_Status* status) {
   absl::FixedArray<tensorflow::TensorHandle*> handle_retvals(*num_retvals);
+
   VLOG(1) << "Calling TFE_Execute() on op " << op;
+
   status->status = tensorflow::EagerExecute(&op->operation,
                                             handle_retvals.data(), num_retvals);
+  // 1.
+  // EagerExecute 在哪里定义的?
+  // tensorflow/core/common_runtime/eager/execute.cc:917
+
   if (!status->status.ok()) {
     return;
   }
+
   for (int i = 0; i < *num_retvals; ++i) {
     retvals[i] = new TFE_TensorHandle{
-        std::make_unique<tensorflow::TensorHandleInterface>(handle_retvals[i])};
+        std::make_unique<tensorflow::TensorHandleInterface>(handle_retvals[i])
+      };
+    // 1.
+    // TFE_TensorHandle 数据结构
+    // tensorflow/c/eager/tensor_handle_interface.h
+
+    // 2.
+    // 为什么可以这么构造?
+    // 因为 TFE_TensorHandle 结构体里面就只有这一个 member variable
   }
 }
+// 1.
+// TFE_Op 是什么?
+// tensorflow/c/eager/c_api_internal.h
+//
+
+// 2.
+// TFE_TensorHandle 是什么数据结构?
+// tensorflow/c/eager/c_api_internal.h
+
+// 2.1
+// 为什么要用双指针? 即: TFE_TensorHandle** retvals
+//
 
 TFE_TensorHandle* TFE_TensorHandleCopyToDevice(TFE_TensorHandle* h,
                                                TFE_Context* ctx,

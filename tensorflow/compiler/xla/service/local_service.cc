@@ -124,9 +124,33 @@ LocalService::CompileExecutables(
     const XlaComputation& computation,
     const absl::Span<const Shape* const> argument_layouts,
     const ExecutableBuildOptions& build_options) {
+  // 1.
+  // input:
+  //  computation
+  //  argument_layouts
+  //  build_options
+  // output:
+  //
+
   const HloModuleProto& proto = computation.proto();
+  // 1.
+  // proto: const HloModuleProto&
+  // ?
+
   TF_RET_CHECK(proto.has_host_program_shape());
   ProgramShape program_shape(proto.host_program_shape());
+  // 1.
+  // class ProgramShape
+  // tensorflow/compiler/xla/shape.h
+  // This is analogous to a traditional function signature.
+
+  // 1.1
+  // 打印:
+  // p program_shape.ToString()
+  // $9 = "(arg0: f32[256,32,32,3], arg1: f32[32], arg2: f32[3,3,3,32], arg3: f32[32], arg4: f32[3,3,32,32]) -> (f32[256,32,32,32], f32[3,3,32,32], f32[256,32,15,15], f32[256,32,30,30], f32[256,3,32,32], s32[4])"
+
+  // 1.2
+  //
 
   // Validate incoming layouts.
   if (argument_layouts.size() != program_shape.parameters_size()) {
@@ -136,10 +160,28 @@ LocalService::CompileExecutables(
   }
 
   for (int i = 0; i < argument_layouts.size(); ++i) {
+    // 1.
+    // argument_layouts.size() == 5
+    //
+
     const Shape& argument_shape = *argument_layouts[i];
     TF_RETURN_IF_ERROR(
         ShapeUtil::ValidateShapeWithOptionalLayout(argument_shape));
+    // 2020-02-21 16:15:16.239217: I tensorflow/compiler/xla/shape_util.cc:714] Validating shape size: f32[256,32,32,3]
+    // 2020-02-21 16:15:16.239290: I tensorflow/compiler/xla/shape_util.cc:744] Shape size is valid: 3145728
+    // 2020-02-21 16:15:21.503430: I tensorflow/compiler/xla/shape_util.cc:714] Validating shape size: f32[32]
+    // 2020-02-21 16:15:21.503500: I tensorflow/compiler/xla/shape_util.cc:744] Shape size is valid: 128
+    // 2020-02-21 16:15:26.683889: I tensorflow/compiler/xla/shape_util.cc:714] Validating shape size: f32[3,3,3,32]
+    // 2020-02-21 16:15:26.683967: I tensorflow/compiler/xla/shape_util.cc:744] Shape size is valid: 3456
+    // 2020-02-21 16:15:42.630098: I tensorflow/compiler/xla/shape_util.cc:714] Validating shape size: f32[32]
+    // 2020-02-21 16:15:42.630176: I tensorflow/compiler/xla/shape_util.cc:744] Shape size is valid: 128
+    // 2020-02-21 16:15:55.168280: I tensorflow/compiler/xla/shape_util.cc:714] Validating shape size: f32[3,3,32,32]
+    // 2020-02-21 16:15:55.168339: I tensorflow/compiler/xla/shape_util.cc:744] Shape size is valid: 36864
+
     if (!ShapeUtil::Compatible(argument_shape, program_shape.parameters(i))) {
+      // 1.
+      // 没有进入
+
       absl::optional<const OpMetadata*> metadata =
           ParameterMetadata(computation, /*parameter_number=*/i);
       auto metadata_string = [&metadata]() -> string {
@@ -160,9 +202,14 @@ LocalService::CompileExecutables(
           ShapeUtil::HumanString(argument_shape));
     }
   }
+
+
   if (build_options.result_layout() != nullptr) {
+    // 进入了
     TF_RETURN_IF_ERROR(ValidateResultShape(*build_options.result_layout(),
                                            program_shape.result()));
+    // 1.
+    // 这里的输出和上面的是一样的 5 个 shape.
   }
 
   ExecutionOptions execution_options =
@@ -174,6 +221,10 @@ LocalService::CompileExecutables(
 
   VLOG(3) << "Computation Layout: "
           << module_config->entry_computation_layout().ToString();
+  // 1.
+  // 打印:
+  // 2020-02-21 16:22:56.795771: I tensorflow/compiler/xla/service/local_service.cc:175] Computation Layout: (f32[256,32,32,3]{3,2,1,0}, f32[32]{0}, f32[3,3,3,32]{3,2,1,0}, f32[32]{0}, f32[3,3,32,32]{3,2,1,0}) => (f32[256,32,32,32]{3,2,1,0}, f32[3,3,32,32]{3,2,1,0}, f32[256,32,15,15]{3,2,1,0}, f32[256,32,30,30]{3,2,1,0}, f32[256,3,32,32]{3,2,1,0}, s32[4]{0})
+
 
   TF_ASSIGN_OR_RETURN(
       se::StreamExecutor * executor,
@@ -183,10 +234,15 @@ LocalService::CompileExecutables(
   // single partition computations are built using `BuildExecutables`, fix it,
   // and remove this special case (provided the performance if similar).
   if (build_options.num_partitions() == 1) {
+
     TF_ASSIGN_OR_RETURN(
         std::unique_ptr<Executable> executable,
         BuildExecutable(proto, std::move(module_config), execute_backend_.get(),
                         executor, build_options.device_allocator()));
+    // 1.
+    // BuildExecutable
+    // tensorflow/compiler/xla/service/service.cc
+
     std::vector<std::unique_ptr<Executable>> executables;
     executables.push_back(std::move(executable));
     return executables;

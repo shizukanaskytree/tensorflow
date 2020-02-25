@@ -93,12 +93,22 @@ KernelAndDeviceFunc::~KernelAndDeviceFunc() {
 Status KernelAndDeviceOp::Init(const NodeDef& ndef,
                                GraphCollector* graph_collector) {
   OpKernel* k = nullptr;
+  // OpKernel
+  // tensorflow/core/framework/op_kernel.h
+
   if (flr_ == nullptr) {
     return errors::Internal(
         "A valid FunctionLibraryRuntime must be provided when running ops "
         "based on OpKernel.");
   }
   TF_RETURN_IF_ERROR(flr_->CreateKernel(ndef, &k));
+  // 1.
+  // 是如何通过 ndef 来 构造 kernel 的?
+
+  // 2.
+  // FunctionLibraryRuntimeImpl::CreateKernel()
+  // tensorflow/core/common_runtime/function.cc
+
   kernel_.reset(k);
 
   input_alloc_attrs_.resize(kernel_->num_inputs());
@@ -114,6 +124,16 @@ Status KernelAndDeviceOp::Init(const NodeDef& ndef,
 
   return Status::OK();
 }
+// 1.
+// 被调用是在?
+// tensorflow/core/common_runtime/eager/execute.cc
+// tensorflow::(anonymous namespace)::EagerLocalExecute at execute.cc:532
+
+// 2.
+// class KernelAndDeviceOp
+// tensorflow/core/common_runtime/eager/kernel_and_device.h
+// Represents an op kernel and the device it will be run on.
+
 
 Status KernelAndDeviceFunc::InstantiateFunc(const NodeDef& ndef,
                                             GraphCollector* graph_collector) {

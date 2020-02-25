@@ -54,6 +54,11 @@ Status GatherComputationsByAllocationType(
     const HloModule* module,
     std::vector<const HloComputation*>* thread_local_computations,
     std::vector<const HloComputation*>* global_computations);
+// 1.
+// QQQ: What is thread_local_computations?
+// QQQ: What is global_computations?
+// QQQ: Why f computation A has an instruction which calls computation B, then A
+//      will appear after B in the vector?
 
 // This class abstracts an allocation of contiguous memory which can hold the
 // values described by LogicalBuffers. Each LogicalBuffer occupies a sub-range
@@ -81,6 +86,9 @@ class BufferAllocation {
   // Whether this allocation is used in a parallel calling context such as
   // inside of a map or reduce computation. Such allocations need to be thread
   // local.
+  // 1.
+  // 为什么和 thread local 有关? 是什么关系?
+  // todo
   bool is_thread_local() const { return is_thread_local_; }
   void set_is_thread_local(bool is_thread_local) {
     is_thread_local_ = is_thread_local;
@@ -562,6 +570,37 @@ class BufferAssignment {
 class BufferAssigner {
  public:
   using Colorer = std::function<Status(HloAliasAnalysis*, const HloOrdering&)>;
+  // 1.
+  // Colorer 类型:
+  //
+  // ptype colorer
+  // type = class std::function<tensorflow::Status(xla::HloAliasAnalysis*, const xla::HloOrdering&)> [with _Signature = tensorflow::Status (xla::HloAliasAnalysis *, const xla::HloOrdering &)] : public std::_Maybe_unary_or_binary_function<tensorflow::Status, xla::HloAliasAnalysis*, xla::HloOrdering const&>, private std::_Function_base {
+  //   private:
+  //     _Invoker_type _M_invoker;
+  //
+  //   public:
+  //     function(void);
+  //     function(std::nullptr_t);
+  //     function(const std::function<tensorflow::Status(xla::HloAliasAnalysis*, const xla::HloOrdering&)> &);
+  //     function(std::function<tensorflow::Status(xla::HloAliasAnalysis*, const xla::HloOrdering&)> &&);
+  //     std::function<tensorflow::Status(xla::HloAliasAnalysis*, const xla::HloOrdering&)> & operator=(const std::function<tensorflow::Status(xla::HloAliasAnalysis*, const xla::HloOrdering&)> &);
+  //     std::function<tensorflow::Status(xla::HloAliasAnalysis*, const xla::HloOrdering&)> & operator=(std::function<tensorflow::Status(xla::HloAliasAnalysis*, const xla::HloOrdering&)> &&);
+  //     std::function<tensorflow::Status(xla::HloAliasAnalysis*, const xla::HloOrdering&)> & operator=(std::nullptr_t);
+  //     void swap(std::function<tensorflow::Status(xla::HloAliasAnalysis*, const xla::HloOrdering&)> &);
+  //     operator bool(void) const;
+  //     tensorflow::Status operator()(xla::HloAliasAnalysis *, const xla::HloOrdering &) const;
+  //     const std::type_info & target_type(void) const;
+  //
+  //   private:
+  //     typedef tensorflow::Status (*_Invoker_type)(const std::_Any_data &, xla::HloAliasAnalysis *&&, const xla::HloOrdering &);
+  // }
+
+  // 2.
+  // class HloAliasAnalysis
+  // tensorflow/compiler/xla/service/hlo_alias_analysis.h
+  // Analysis which allocates HloBuffers to HloValues.
+
+
 
   static Colorer DefaultColorer() {
     return [](HloAliasAnalysis* alias_analysis, const HloOrdering&) {

@@ -62,6 +62,11 @@ namespace tensorflow {
 class TensorHandleInterface : public AbstractTensorHandleInterface {
  public:
   explicit TensorHandleInterface(TensorHandle* h) : handle_(h) {}
+  // 1.
+  // TensorHandle 数据结构是什么?
+  // class TensorHandle
+  // tensorflow/core/common_runtime/eager/tensor_handle.h
+
   ~TensorHandleInterface() override;
 
   bool IsValid(Status* status) const override;

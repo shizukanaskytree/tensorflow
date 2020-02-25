@@ -222,6 +222,8 @@ class OpKernel {
 
   TF_DISALLOW_COPY_AND_ASSIGN(OpKernel);
 };
+// 1.
+// class OpKernel
 
 class AsyncOpKernel : public OpKernel {
  public:

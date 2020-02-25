@@ -1419,6 +1419,9 @@ register_extension_info(
 # terminology changes: saving tf_cuda_* definition for compatibility
 def tf_cuda_library(*args, **kwargs):
     tf_gpu_library(*args, **kwargs)
+    # 1.
+    # tf_gpu_library 的定义
+    # 本文件 1379
 
 register_extension_info(
     extension_name = "tf_cuda_library",

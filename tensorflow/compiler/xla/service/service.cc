@@ -804,9 +804,18 @@ StatusOr<std::unique_ptr<Executable>> Service::BuildExecutable(
     const HloModuleProto& module_proto,
     std::unique_ptr<HloModuleConfig> module_config, Backend* backend,
     se::StreamExecutor* executor, se::DeviceMemoryAllocator* device_allocator) {
+  // 1.
+  // 被调用:
+  // tensorflow/compiler/xla/service/local_service.cc
+
   VLOG(1) << StrFormat(
       "BuildExecutable on service %p with serialized module proto: %s", this,
       module_proto.name());
+  // 1.
+  // 2020-02-21 21:57:58.696487: I tensorflow/compiler/xla/service/service.cc:807]
+  // BuildExecutable on service 0x55c744bd43e0 with serialized module proto:
+  // cluster_5[_XlaCompiledKernel=true,_XlaHasReferenceVars=false,_XlaNumConstantArgs=1,_XlaNumResourceArgs=4].46
+
 
   TF_ASSIGN_OR_RETURN(std::unique_ptr<HloModule> module,
                       CreateModuleFromProto(module_proto, *module_config));

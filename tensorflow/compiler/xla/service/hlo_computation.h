@@ -337,6 +337,9 @@ class HloComputation {
   // receive the sharding information of |old_instruction|.
   Status ReplaceInstruction(HloInstruction* old_instruction,
                             HloInstruction* new_instruction);
+  // 1.
+  // sharding information
+  // 分片信息
 
   // Set/get the module containing this computation.
   void set_parent(HloModule* module) { parent_ = module; }
@@ -531,6 +534,23 @@ class HloComputation {
 
   TF_DISALLOW_COPY_AND_ASSIGN(HloComputation);
 };
+// 1.
+// class HloComputation 概述:
+// https://zhuanlan.zhihu.com/p/72121424
+
+// 2.
+// 浓缩 class summary
+// https://gist.github.com/shizukanaskytree/458034b298a020eb022e8a82b2aa0693
+
+// 3.
+// 打印 ToString()
+// https://gist.github.com/shizukanaskytree/a36189f5bc3ac60847a7c7bb71abe66c
+// 对应的文件
+// 图形化:
+// file:///Users/xiaofengwu/Documents/Research_Docs_Sphinx/source/myResearchNote/02_framework/01_tensorflow/21_tf20_new/11_xla/06_example_study/02_xla_dump/1582585021381744.module_0000.before_optimizations.html
+// 文字化:
+// file:///Users/xiaofengwu/Documents/Research_Docs_Sphinx/source/myResearchNote/02_framework/01_tensorflow/21_tf20_new/11_xla/06_example_study/02_xla_dump/1582585021381744.module_0000.before_optimizations.txt
+
 
 template <typename HloInstructionPtr>
 Status HloComputation::Accept(

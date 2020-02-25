@@ -67,6 +67,10 @@ namespace gpu {
 // generator generator.  See comments on that class.
 class IrEmitter : public DfsHloVisitorWithDefault,
                   public IrBuilderMixin<IrEmitter> {
+ // 1.
+ // DfsHloVisitorWithDefault 怎么理解
+ // 我的猜测是, 从树的角度理解, HLO graph 的角度去理解这里的 树遍历.
+
  public:
   using GeneratorForOperandIrArrays =
       std::function<std::vector<llvm_ir::IrArray>()>;
@@ -163,7 +167,20 @@ class IrEmitter : public DfsHloVisitorWithDefault,
   }
 
   IrEmitterContext* ir_emitter_context_;
+  // 1.
+  // class IrEmitterContext
+  // xla/service/gpu/ir_emitter_context.h
+
   llvm::Module* module_;
+  // 1.
+  // llvm::Module 功能和作用
+  // https://llvm.org/doxygen/classllvm_1_1Module.html#details
+  //
+  // Modules are the top level container of all other LLVM Intermediate
+  // Representation (IR) objects. Each module directly contains a list
+  // of globals variables, a list of functions, a list of libraries
+  // (or other modules) this module depends on, a symbol table, and
+  // various data about the target's characteristics.
 
   // The following fields track the IR emission state. According to LLVM memory
   // management rules, their memory is owned by the module.
@@ -171,6 +188,14 @@ class IrEmitter : public DfsHloVisitorWithDefault,
 
   // Mapping from HLO to its underlying LLVM value.
   HloToIrBindings bindings_;
+  // 1.
+  // IMPT:
+  // Mapping from HLO to its underlying LLVM value.
+
+  // 2.
+  // class HloToIrBindings
+  // tensorflow/compiler/xla/service/gpu/hlo_to_ir_bindings.h
+
 
   // Hlo configuration data used during code generation.
   const HloModuleConfig& hlo_module_config_;
@@ -229,6 +254,11 @@ class IrEmitter : public DfsHloVisitorWithDefault,
   // HloComputation.
   std::map<const HloComputation*, llvm::Function*> computation_to_ir_function_;
 };
+// 1.
+// class IrEmitter 概述
+// Abstract base class for translating HLO graphs to LLVM IR for a GPU.
+// 👀
+//
 
 }  // namespace gpu
 }  // namespace xla

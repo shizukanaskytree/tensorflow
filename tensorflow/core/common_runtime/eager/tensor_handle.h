@@ -61,6 +61,20 @@ namespace tensorflow {
 // Associates a Tensor and a Device, used in the eager runtime. Internal version
 // of the TFE_TensorHandle struct and the python EagerTensor class
 // (unrelated to python TensorHandle).
+
+// 1.
+// class TensorHandle 的用途:
+// class TensorHandle(复杂) ⊆ ... ⊆ struct TFE_TensorHandle(简单)
+// 封装直至简单的形式, 即为 TFE_TensorHandle
+
+// 1.1
+// class TensorHandle(复杂) ⊆ ... ⊆ struct TFE_TensorHandle(简单)
+// 打个比方: 亲戚关系
+
+// 2.
+// class TensorHandle 看懂了, 背下来了又怎么样?
+// ?
+
 class TensorHandle : public core::RefCounted {
   // Custom devices do many of the same things as physical Devices, but have a
   // much more restricted interface. We pass around ambiguous pointers since
@@ -294,6 +308,10 @@ class TensorHandle : public core::RefCounted {
 
   PartialTensorShape inference_shape_;
 };
+// 1.
+// public core::RefCounted 在哪里?
+// class RefCounted
+// tensorflow/core/platform/refcount.h
 
 // Checks whether a VariantDevice contains a custom device.
 bool VariantDeviceIsCustom(absl::variant<Device*, CustomDevice*> device);

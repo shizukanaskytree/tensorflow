@@ -73,7 +73,35 @@ class SinglePassSearch {
 bool CanCreateXlaKernel(const NodeDef& node_def) {
   // If kXlaMustCompileAttr is set on the node_def, use its value.
   const auto& it = node_def.attr().find(kXlaMustCompileAttr);
+  // 1.
+  // ptype node_def
+  // https://gist.github.com/shizukanaskytree/4145a9239d96736a6f92b3b96f98759d
+  // NodeDef
+
+  // 2.
+  // message NodeDef 的位置
+  // tensorflow/core/framework/node_def.proto:13:message NodeDef
+
+  // 2.1
+  // attr() of message NodeDef 是什么?
+  // map<string, AttrValue> attr = 5;
+
+  // 2.2
+  // kXlaMustCompileAttr of map<string, AttrValue> of NodeDef 是什么?
+  // 定义的位置:
+  // tensorflow/compiler/jit/defs.cc
+
+  // 3.
+  // 具体点呢?
+  // ./tensorflow/compiler/jit/mark_for_compilation_pass_test.cc:511:
+  // .WithAttr(kXlaCompileAttr, true)
+  // 具体就去看看怎么用的
+
   return it != node_def.attr().end() && it->second.b();
+  // 1.
+  // it->second.b() 是什么?
+  // 挂了 Program terminated with signal SIGSEGV, Segmentation fault.
+  // 注意: 不能乱打印!
 }
 
 // Given a FunctionLibraryRuntime and a NodeDef calling a function in the

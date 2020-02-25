@@ -39,6 +39,9 @@ struct GraphOptimizationPassOptions {
   string session_handle;
   const SessionOptions* session_options = nullptr;
   const CostModel* cost_model = nullptr;
+  // 1.
+  // 实验, 指标
+  // 这个可以看看的.
 
   FunctionLibraryDefinition* flib_def = nullptr;  // Not owned.
   // The DeviceSet contains all the devices known to the system and is

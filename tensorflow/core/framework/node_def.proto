@@ -3,6 +3,21 @@ syntax = "proto3";
 package tensorflow;
 
 import "tensorflow/core/framework/attr_value.proto";
+// 1.
+// 关注
+// 关注一下 framework/attr_value.proto 里面的 xla 部分
+
+// 2.
+// 实际例子
+// https://gist.github.com/shizukanaskytree/f4a67cf5e0f03f288c590bfeab3e6954
+
+// 2.1
+// 按照顺位都有
+// https://gist.github.com/shizukanaskytree/f4a67cf5e0f03f288c590bfeab3e6954#file-encapsulate_subgraphs_before-pbtxt-L1648
+
+// 2.2
+// code
+// https://gist.github.com/shizukanaskytree/558c3af47a64364ada4598dff7019c8a
 
 option cc_enable_arenas = true;
 option java_outer_classname = "NodeProto";

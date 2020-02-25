@@ -386,6 +386,54 @@ class HloModule {
   // SPMD-partitioned programs.
   absl::optional<HloSharding> spmd_output_sharding_;
 };
+// 1.
+// class HloModule 概述
+// from: https://zhuanlan.zhihu.com/p/71980945
+// 经过 tf2xla 后，得到的是一个hlo的图，这个图就和编程语言非常像了。
+
+// 其中涉及到3个概念，hlo module, computation, instruction。
+// hlo module 用源码注释的解释，就是一个编译单元，相当于是一个完整可运行的程序。
+
+// 既然是一个程序，就有入口函数，也就是 entry_computation，
+// 每个module都有且仅有一个 entry_computation ，相当于 main 函数，有输入和输出，
+// 输入可以是多个参数，但输出只有一个（ root instruction 的值），
+// 如果要返回多个值，需要把多个值构造成一个元组（tuple）返回。
+
+// 一个module可以包含多个computation，除了 entry_computation，其他的都是"nested"，
+// 也就是被调用。
+
+// HLO instructions 就是 op 了，对应了官网上列出的 operation semantics ，
+// 看注释已经解释的非常清楚了，op融合和向 llvm ir 转换都是在这个层面进行的。
+
+// 1.1
+// Compiler IR example
+// wiki 里有很多, 挑了一个 Java:
+// https://en.wikipedia.org/wiki/Intermediate_representation
+// https://en.wikipedia.org/wiki/Java_bytecode  看了下很简单的
+
+// 2.
+// 什么是 HLO IR? (没想到中文资料超多)
+// HLO (High Level Optimizer).
+// It is most convenient to think of HLO as a compiler IR. (from TF Official)
+// XLA (Accelerated Linear Algebra) is a domain-specific compiler for linear algebra that can accelerate TensorFlow models with potentially no source code changes.
+// XLA takes graphs ("computations") defined in HLO and compiles them into machine instructions for various architectures. XLA is modular in the sense that it is easy to slot in an alternative backend to target some novel HW architecture. The CPU backend for x64 and ARM64 as well as the NVIDIA GPU backend are in the TensorFlow source tree.
+// https://www.tensorflow.org/xla/images/how-does-xla-work.png
+// 反复读: https://www.tensorflow.org/xla/architecture
+
+// 3. 和 Operation Semantics 什么关系?
+// "The semantics of HLO are described on the Operation Semantics page."
+
+// graph compile -> hlo graph build -> hlo pass pipelime -> hlo dataflow analysis -> codegen
+
+// 2.1
+// 好文章:
+// https://www.zhihu.com/people/hong_pku/posts
+
+// 2.2
+// https://zhuanlan.zhihu.com/p/87664838
+// cubin代码 ?
+// https://blog.csdn.net/dark5669/article/details/62264312  看完就懂
+
 
 }  // namespace xla
 

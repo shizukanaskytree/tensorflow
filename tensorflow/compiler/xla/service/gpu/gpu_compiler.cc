@@ -294,6 +294,10 @@ Status GpuCompiler::OptimizeHloModule(
 
   return Status::OK();
 }
+// 1.
+// tutorial 实例讲解:
+// https://zhuanlan.zhihu.com/p/87709496
+
 
 // Modifies the given HLO module so that it will be accepted by IrEmitter.
 // Unlike optimization passes, the passes are necessary for correctness.
@@ -329,15 +333,55 @@ Status GpuCompiler::PrepareHloModuleForIrEmitting(HloModule* hlo_module) {
 StatusOr<std::unique_ptr<HloModule>> GpuCompiler::RunHloPasses(
     std::unique_ptr<HloModule> module, se::StreamExecutor* stream_exec,
     se::DeviceMemoryAllocator* device_allocator) {
+  // 1.
+  // module: HloModule
+  // class HloModule
+  // tensorflow/compiler/xla/service/hlo_module.h
+
+  // 1.1
+  // class HloModule 概述
+  // HLO IR, It corresponds to a whole "program".
+
+  // 2.
+  // device_allocator: se::DeviceMemoryAllocator*
+  // class DeviceMemoryAllocator
+  // tensorflow/stream_executor/device_memory_allocator.h
+
+  // 2.1
+  // class DeviceMemoryAllocator 概述
+  // 复制 allocate, deallocate memory on the device
+
+  // 3.
+  // stream_exec: se::StreamExecutor*
+  // class StreamExecutor
+  // tensorflow/stream_executor/stream_executor_pimpl.h
+
+  // 3.1
+  // class StreamExecutor 概述
+  // A StreamExecutor manages a single device, in terms of executing work (kernel
+  // launches) and memory management (allocation/deallocation, memory copies to
+  // and from the device). It is conceptually the "handle" for a device -- Stream
+  // objects, which are used to enqueue work to run on the
+  // coprocessor have a StreamExecutor instance as their "parent" object.
+  //
+  // StreamExecutor objects have an underlying platform that is specified up
+  // front;
+  // e.g. either it is a CUDA or OpenCL executor.
+
   // We dump the post-optimization HLO in RunBackend so no need to dump it here.
   XLA_SCOPED_LOGGING_TIMER("GpuCompiler::RunHloPasses");
   tensorflow::profiler::TraceMe activity(
       [&] { return absl::StrCat("HLO Transforms:", module->name()); },
       tensorflow::profiler::TraceMeLevel::kInfo);
+
   TF_RETURN_IF_ERROR(
       OptimizeHloModule(module.get(), stream_exec, device_allocator));
+  // 1.
+  // OptimizeHloModule
 
   TF_RETURN_IF_ERROR(PrepareHloModuleForIrEmitting(module.get()));
+  // 1.
+  // PrepareHloModuleForIrEmitting
 
   return std::move(module);
 }
@@ -386,6 +430,10 @@ StatusOr<std::unique_ptr<Executable>> GpuCompiler::RunBackend(
           /*allocate_buffers_for_constants=*/true,
           /*colorer=*/BufferAssigner::DefaultColorer(),
           /*must_not_live_out=*/{}, GetCanShareBuffer()));
+  // 1.
+  // BufferAssignment
+  //
+
   DumpHloModuleIfEnabled(*module, *buffer_assignment, "after_optimizations");
 
   IrEmitterContext ir_emitter_context(

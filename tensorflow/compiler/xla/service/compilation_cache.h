@@ -37,8 +37,14 @@ namespace xla {
 class CompilationCache {
  public:
   CompilationCache() {}
+  // 1.
+  // 调用栈实例
+  // https://docs.google.com/document/d/1j4iWDAGeU0zvIXU3EqsjqpNqt6ImMRw4JfOLcPUukHo/edit#heading=h.stnlb4dw5box
 
   ExecutionHandle Insert(std::unique_ptr<Executable> executable);
+  // 1.
+  // class Executable 在哪?
+  // tensorflow/compiler/xla/service/executable.h
 
   // Lookup the Executable for the specified handle in the cache. Return a
   // shared_ptr to the Executable if it exists in the cache.

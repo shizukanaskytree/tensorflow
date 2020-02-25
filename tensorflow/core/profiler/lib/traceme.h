@@ -52,6 +52,11 @@ inline int GetTFTraceMeLevel(bool is_expensive) {
 // This class permits user-specified (CPU) tracing activities. A trace activity
 // is started when an object of this class is created and stopped when the
 // object is destroyed.
+
+// 1.
+// 如何使用 TraceMe ?
+// 自动的 scope handling timing mechanism
+
 //
 // CPU tracing can be useful when trying to understand what parts of GPU
 // computation (e.g., kernels and memcpy) correspond to higher level activities

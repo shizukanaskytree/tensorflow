@@ -70,6 +70,19 @@ class ProcessFunctionLibraryRuntime {
       DistributedFunctionLibraryRuntime* parent = nullptr,
       const CustomKernelCreator* custom_kernel_creator = nullptr,
       const SessionMetadata* metadata = nullptr);
+  // 1.
+  // 猜测和探索这个东西的意图:
+  // 从这个函数的输入可以看出, 这个类是用来描述这个 function 跑在什么 device 上, 图是怎么
+  // 样的, thread pool 是多少, kernel 是如何构造的, session 又是什么等
+  // 这些信息.
+
+  // 2.
+  // 启发
+  // 从构造函数的 input args 里面找线索, 构件初步印象
+
+  // 3.
+  // 问题: 有了 kernel 这样的类, 为什么还要这里的 Function Library Runtime?
+  // 他们是互为补充还是分管不同的任务?
 
   virtual ~ProcessFunctionLibraryRuntime() {
     // Deleting the FunctionLibraryRuntime map will delete the function handles

@@ -162,6 +162,10 @@ port::StatusOr<std::vector<uint8>> CompileGpuAsm(int device_ordinal,
        tensorflow::CandidateCudaRoots(options.preferred_cuda_dir)) {
     ptxas_path = tensorflow::io::JoinPath(cuda_root, "bin", "ptxas");
     VLOG(2) << "Looking for ptxas at " << ptxas_path;
+    // 1.
+    // log
+    //  Looking for ptxas at /usr/local/cuda/bin/ptxas
+
     if (env->FileExists(ptxas_path).ok()) {
       break;
     }
@@ -186,6 +190,11 @@ port::StatusOr<std::vector<uint8>> CompileGpuAsm(int device_ordinal,
   TF_RETURN_IF_ERROR(
       tensorflow::WriteStringToFile(env, ptx_path, ptx_contents));
   VLOG(2) << "ptx written to: " << ptx_path;
+  // 1.
+  // log: 
+  // 2020-02-22 15:57:51.593604: I tensorflow/stream_executor/gpu/asm_compiler.cc:188]
+  //   ptx written to: /tmp/tempfile-CBD-007-d6ffd700-12665-59f313a0507ea
+
 
   // Invoke ptxas and collect its output.
   string cubin_path;

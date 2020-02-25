@@ -1377,6 +1377,9 @@ Status XlaCompiler::CompileGraph(
 
   TF_RETURN_IF_ERROR(ExecuteGraph(context, std::move(graph), device_,
                                   flib_runtime_, NextStepId()));
+  // 1.
+  // 主线逻辑
+  
   if (token_input_index != -1) {
     // Add extra token output.
     std::vector<xla::XlaOp> token_inputs;

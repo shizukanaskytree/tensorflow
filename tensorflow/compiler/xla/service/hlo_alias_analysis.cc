@@ -534,6 +534,10 @@ StatusOr<std::unique_ptr<HloAliasAnalysis>> HloAliasAnalysis::Run(
       });
 
   XLA_VLOG_LINES(2, alias_analysis->ToString());
+  // 1.
+  // gdb print
+  // https://gist.github.com/shizukanaskytree/a1550d35fd2c39826d9cb1758853f235
+
   return std::move(alias_analysis);
 }
 

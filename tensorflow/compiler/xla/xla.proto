@@ -28,6 +28,10 @@ message DebugOptions {
 
   // Instrument the computation to collect per-HLO cycle counts.
   bool xla_hlo_profile = 9;
+  // 1.
+  // 如何使用?
+  // os.environ['XLA_FLAGS'] = "--xla_hlo_profile --xla_dump_hlo_as_text --xla_dump_hlo_as_dot --xla_dump_hlo_as_html --xla_dump_hlo_as_proto --xla_dump_to=/tmp/xla_dump_20200219"
+
 
   // List of HLO passes to disable/enable. These names must exactly match the
   // pass names as specified by the HloPassInterface::name() method.
@@ -51,6 +55,11 @@ message DebugOptions {
 
   // Embed the compiler IR as a string in the executable.
   bool xla_embed_ir_in_executable = 33;
+  // 1.
+  // 如何使用?
+  // os.environ['XLA_FLAGS'] = "--xla_embed_ir_in_executable"
+  // https://github.com/tensorflow/tensorflow/issues/19140
+  // 待确定
 
   // Eliminate implicit broadcasts when lowering user computations to HLO
   // instructions; use explicit broadcast instead.
@@ -62,6 +71,9 @@ message DebugOptions {
 
   // Path to directory with cuda/ptx tools and libraries.
   string xla_gpu_cuda_data_dir = 61;
+  // 1.
+  // ptx , 会怎么用呢?
+  // 这个是自动的, 不用操心
 
   // Enable flush-to-zero semantics in the GPU backend.
   bool xla_gpu_ftz = 62;

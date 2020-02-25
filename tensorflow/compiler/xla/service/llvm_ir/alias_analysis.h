@@ -43,6 +43,10 @@ class AliasAnalysis {
  private:
   // Returns a unique alias domain for this emitter.
   llvm::MDNode* GetAliasDomain();
+  // 1.
+  // llvm::MDNode 数据结构
+  // https://llvm.org/doxygen/classllvm_1_1MDNode.html
+  // metadata node
 
   // Returns an alias.scope metadata node corresponding to a given buffer slice.
   llvm::MDNode* GetAliasScopeMetadataForBuffer(

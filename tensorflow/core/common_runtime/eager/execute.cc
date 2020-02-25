@@ -357,19 +357,38 @@ Status MustCompileWithXLA(const EagerOperation* op, const EagerContext& ctx,
 Status EagerLocalExecute(EagerOperation* op, TensorHandle** retvals,
                          int* num_retvals) {
   MEMDEBUG_CACHE_OP(op->op_name());
+
   profiler::TraceMe activity(
       [&] { return absl::StrCat("EagerLocalExecute: ", op->Name()); },
       profiler::TraceMeLevel::kInfo);
+  // 1.
+  // profiler::TraceMe 对于做实验的意义很大:
+  // tensorflow/core/profiler/lib/traceme.h
+  // 发现不是很厉害的测试系统
+
   EagerContext& ctx = op->EagerContext();
+  // 1.
+  // class EagerContext
+  // tensorflow/core/common_runtime/eager/context.h
+
   auto& executor = op->Executor();
+  // 1.
+  // auto 在这里的具体类型是什么?
+  // EagerExecutor
+
   TF_RETURN_IF_ERROR(executor.status());
   Device* device = op->Device();
+  // 1.
+  // device 在这里的具体类型是什么?
+  // GPUDevice
 
   Fprint128 cache_key = op->MutableAttrs()->CacheKey(op->GetDeviceName());
 
   std::vector<Device*> input_dev_ptrs;
   std::unordered_map<int, DtypeAndPartialTensorShape>
       input_resource_variable_dtypes_and_shapes;
+
+
   // We can eliminate some overhead by running simple functions using regular
   // CallOp kernel. However, it is tricky to figure out which functions should
   // be run using CallOp. Also, currently CallOp runs neither optimization
@@ -386,8 +405,14 @@ Status EagerLocalExecute(EagerOperation* op, TensorHandle** retvals,
   //    the function multi-device after a rewrite pass (e.g. various XLA/TPU
   //    special nodes and attributes)
   if (op->is_function()) {
+    // 1.
+    // 打印
+    // p op->is_function()
+    // $4 = false
+
     profiler::TraceMe activity("EagerCopyToDeviceAndAddCacheKey",
                                profiler::TraceMeLevel::kInfo);
+
     input_dev_ptrs.reserve(op->Inputs().size());
     // When LazyCopyFunctionRemoteInputs is disabled, all inputs need to be on
     // local devices, since we execute a remote function through worker service,
@@ -396,9 +421,11 @@ Status EagerLocalExecute(EagerOperation* op, TensorHandle** retvals,
       TensorHandle* input = op->Inputs()[i];
       if (!ctx.LazyCopyFunctionRemoteInputs() && input->IsRemote()) {
         TensorHandle* handle = nullptr;
+
         TF_RETURN_IF_ERROR(EagerCopyToDevice(
             input, &ctx, &executor, device == nullptr ? ctx.HostCPU() : device,
             ctx.MirrorTensors(), &handle));
+
         op->UpdateInput(i, handle);
         // Unref handle since it has a ref as an input now
         handle->Unref();
@@ -442,6 +469,7 @@ Status EagerLocalExecute(EagerOperation* op, TensorHandle** retvals,
   if (kernel == nullptr) {
     DVLOG(2) << "Creating new kernel for " << op->Name() << " on device "
              << DeviceNameOrUnspecified(op->Device());
+
     bool run_function_with_flr = false;
     if (op->is_function()) {
       bool compile_with_xla;
@@ -492,9 +520,18 @@ Status EagerLocalExecute(EagerOperation* op, TensorHandle** retvals,
           "Unable to find a FunctionLibraryRuntime corresponding to device ",
           device->name());
     }
+
     auto runner = (flr != nullptr && flr->runner() != nullptr) ? flr->runner()
                                                                : ctx.runner();
     GraphCollector* graph_collector = nullptr;
+    // 1.
+    // GraphCollector 是什么?
+    // tensorflow/core/framework/op_kernel.h
+
+    // 2.
+    // GraphCollector 干嘛用的?
+    // Used to store partitioned graphs from function-calling ops.
+
     if (ctx.ShouldStoreGraphs()) {
       graph_collector = ctx.GetGraphCollector();
     }
@@ -530,6 +567,13 @@ Status EagerLocalExecute(EagerOperation* op, TensorHandle** retvals,
     }
 
     TF_RETURN_IF_ERROR(kernel->Init(ndef, graph_collector));
+    // 1.
+    // kernel 的类型是什么?
+    // KernelAndDeviceOp*
+
+    // 2.
+    // Init() function 定义在哪里?
+    // tensorflow/core/common_runtime/eager/kernel_and_device.cc
 
     if (op->is_function()) {
       ctx.AddKernelToCache(cache_key, kernel.get());
@@ -547,6 +591,7 @@ Status EagerLocalExecute(EagerOperation* op, TensorHandle** retvals,
       }
     }
   }
+
   const DataTypeVector& output_dtypes = kernel->output_dtypes();
   const size_t num_outputs = static_cast<int>(output_dtypes.size());
   if (num_outputs > *num_retvals) {
@@ -916,14 +961,23 @@ Status MaybeUpdateOpDevice(EagerOperation* op) {
 
 Status EagerExecute(EagerOperation* op, TensorHandle** retvals,
                     int* num_retvals) {
+
   profiler::TraceMe activity(
       [&] { return absl::StrCat("EagerExecute: ", op->Name()); },
       profiler::TraceMeLevel::kInfo);
+
   TF_RETURN_IF_ERROR(MaybeUpdateOpDevice(op));
   CustomDevice* custom_device;
+
   if (op->EagerContext()
           .FindCustomDeviceFromName(op->GetDeviceName(), &custom_device)
           .ok()) {
+    // 1.
+    // op->GetDeviceName() 是什么?
+    // 打印
+    // (gdb) p op->GetDeviceName()
+    // $3 = "/job:localhost/replica:0/task:0/device:GPU:0"
+
     return custom_device->Execute(op, retvals, num_retvals);
   }
 
@@ -943,6 +997,13 @@ Status EagerExecute(EagerOperation* op, TensorHandle** retvals,
     }
     return EagerLocalExecute(op, retvals, num_retvals);
   }
+  // 1.
+  // 我的情况止于此, 就 local 跑跑
+
+  // 2.
+  // EagerLocalExecute 函数定义在哪里?
+  // 本文件内
+  // tensorflow/core/common_runtime/eager/execute.cc
 
   if (op->EagerContext().LogDevicePlacement() || VLOG_IS_ON(1)) {
     string msg = strings::StrCat(

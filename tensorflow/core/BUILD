@@ -2507,6 +2507,10 @@ filegroup(
 )
 
 tf_cuda_library(
+# 1.
+# bazel 函数定义
+# ./tensorflow/tensorflow.bzl:1420: def tf_cuda_library(*args, **kwargs):
+
     name = "core_cpu_impl",
     srcs = [
         "common_runtime/accumulate_n_optimizer.cc",
@@ -2524,6 +2528,9 @@ tf_cuda_library(
         "common_runtime/debugger_state_interface.cc",
         "common_runtime/device.cc",
         "common_runtime/device_factory.cc",
+        # 1.
+        # common_runtime/device_factory.cc
+        
         "common_runtime/device_mgr.cc",
         "common_runtime/device_resolver_local.cc",
         "common_runtime/device_set.cc",
@@ -2578,6 +2585,10 @@ tf_cuda_library(
     ],
     hdrs = [":core_cpu_lib_headers"],
     copts = tf_copts() + tf_openmp_copts(),
+    # 1.
+    # tf_copts 定义
+    # tensorflow/tensorflow.bzl:286:def tf_copts
+
     deps = [
         ":bfc_allocator",
         ":graph",

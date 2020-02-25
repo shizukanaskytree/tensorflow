@@ -51,6 +51,16 @@ class XlaContext;
 // XlaCompiler is typically invoked from an `XlaLaunch` operator once the
 // shapes of all input parameters to the computation are known. This is
 // because the symbolic execution requires known shapes for all operations.
+
+// 1.
+// XlaCompiler 是什么? 作用是什么?
+// https://sketch2sky.com/2019/09/26/tensorflow-xla-client-%e8%af%a6%e8%a7%a3/
+//
+
+// 2.
+// XlaLaunch 是什么?
+//
+
 //
 // XlaCompiler compiles Tensorflow graphs that received inputs via _Arg nodes,
 // and return outputs via _Retval nodes.
@@ -95,6 +105,11 @@ class XlaContext;
 // the packed representation is a (array, gradient0, gradient1, ...) tuple,
 // where gradient_k is the value of the k-th gradient in the
 // `tensor_array_gradients` ordered set.
+
+// 1.
+// 阅读感受
+// 完全没看懂.
+
 class XlaCompiler {
  public:
   // Describes how to derive the value of each _Arg node in the graph/function
@@ -187,9 +202,19 @@ class XlaCompiler {
     // Returns the human-readable string for either TensorShape or xla::Shape.
     string ShapeHumanString() const;
   };
+  // 1.
+  // 阅读感受:
+  // string HumanString() const;
+  // string ShapeHumanString() const;
+  // 这两个应该是有点用
+  // 整体上我感觉这个类没什么用
 
   // Options pertaining to an individual call to CompileGraph() or
   // CompileFunction().
+
+  // 1.
+  // CompileGraph() CompileFunction() 应该是重点
+
   struct CompileOptions {
     // If `use_tuple_arg` is true, a single tuple parameter will be used for all
     // arguments; if false, each argument gets its own parameter.
@@ -263,6 +288,9 @@ class XlaCompiler {
     // Input shapes of the computation. If we are flattening inputs, these are
     // the flattened shapes.
     std::vector<xla::Shape> xla_input_shapes;
+    // 1.
+    // xla::Shape, xla_input_shapes 这个 shape 参数真的对 compile 有那么重要吗???
+    // TODO:
 
     // Output shape in XLA format. The output shape is always a tuple. If we
     // are flattening outputs, these are the flattened shapes.
@@ -285,7 +313,19 @@ class XlaCompiler {
 
     // The XLA computation built from the tensorflow subgraph.
     std::shared_ptr<xla::XlaComputation> computation;
+    // 1.
+    // 阅读感受:
+    // 感觉这个是这个类唯一重要的
+
+    // 2.
+    // xla::XlaComputation 是什么?
+    // ./xla/client/xla_computation.h:29:class XlaComputation {
+
   };
+  // 1.
+  // 背景
+  // 这个是 CompileGraph() 的输出结果
+  //
 
   typedef std::function<xla::StatusOr<xla::Shape>(const TensorShape&, DataType,
                                                   bool)>
@@ -360,6 +400,21 @@ class XlaCompiler {
                          const NameAttrList& fn_name_attrs,
                          absl::Span<const Argument> args,
                          CompilationResult* result);
+  // 1.
+  // CompileFunction 作用是什么?
+  // https://sketch2sky.com/2019/09/26/tensorflow-xla-client-%e8%af%a6%e8%a7%a3/
+  // 对上提供 xla_compiler.cc:XlaCompiler::CompileFunction(), 供 jit:compile_fn() 使用,
+  // 将 cluster 转化为 XlaComputation.
+  //
+  // jit:compile_fn() 在 jit/xla_compilation_cache.cc:185
+  //
+  // XlaComputation 在 xla/client/xla_computation.h:29:class XlaComputation
+
+  // 2.
+  // XlaComputation 本质是什么?
+  // 本质是 The computation graph.
+  // 来源是通过 XlaBuilder. 具体来说是 the user builds up with the XlaBuilder.
+
 
   // Compiles a tensorflow::Graph into an xla::XlaComputation.
   // Similar to CompileFunction, but takes a Graph as input rather than a

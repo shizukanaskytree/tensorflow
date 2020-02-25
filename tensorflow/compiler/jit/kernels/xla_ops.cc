@@ -478,8 +478,19 @@ XlaCompileOp::XlaCompileOp(OpKernelConstruction* ctx)
       has_ref_vars_(HasRefVars(ctx)) {}
 
 void XlaCompileOp::Compute(OpKernelContext* ctx) {
+  // 1.
+  // IMPT
+
   VLOG(3) << "XlaCompileOp " << def().name()
           << (must_compile_ ? "(must-compile)" : "");
+  // 1.
+  // log 打印:
+  // ./split_xla_stderr.txtaq:101413:2020-02-19 16:30:21.403443: I
+  // tensorflow/compiler/jit/kernels/xla_ops.cc:481] XlaCompileOp cluster_2_1/xla_compile
+  //
+  // ./split_xla_stderr.txtaq:77301:2020-02-19 16:30:20.621242: I
+  // tensorflow/compiler/jit/kernels/xla_ops.cc:481] XlaCompileOp cluster_0_1/xla_compile
+
   xla::LocalClient* client;
   const XlaCompiler::CompilationResult* kernel;
   xla::LocalExecutable* executable;
@@ -495,9 +506,14 @@ void XlaCompileOp::Compute(OpKernelContext* ctx) {
       cannot_compile_cluster) {
     executable = nullptr;
   } else {
+    // 进入这个分支
+
     Status status = CompileToLocalExecutable(
         ctx, function_, has_ref_vars_, platform_info_, resources_, constants_,
         /*lazy=*/!must_compile_, &client, &variables, &kernel, &executable);
+    // 1.
+    //
+
     if (must_compile_ || status.code() != error::UNIMPLEMENTED) {
       OP_REQUIRES_OK(ctx, status);
     }
@@ -553,6 +569,11 @@ XlaRunOp::XlaRunOp(OpKernelConstruction* ctx)
     : OpKernel(ctx), platform_info_(PlatformInfoFromContext(ctx)) {}
 
 void XlaRunOp::Compute(OpKernelContext* ctx) {
+  // 1.
+  // 被调用:
+  // op_kernel->Compute(context);
+  // 位于 tensorflow/core/common_runtime/gpu/gpu_device.cc
+
   VLOG(3) << "XlaRunOp " << def().name();
   Tensor key_tensor = ctx->input(ctx->num_inputs() - 1);
   const XlaExecutableClosureStore::KeyT& key = key_tensor.flat<tstring>()(0);
@@ -600,6 +621,9 @@ void XlaRunOp::Compute(OpKernelContext* ctx) {
     run_result =
         closure.executable()->Run(launch_context.arguments(), run_options);
   } else {
+    // 1.
+    // 进入这个分支
+
     run_result =
         closure.executable()->RunAsync(launch_context.arguments(), run_options);
   }

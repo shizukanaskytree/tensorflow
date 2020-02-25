@@ -29,6 +29,25 @@ namespace tensorflow {
 class EagerOperation {
  public:
   explicit EagerOperation(tensorflow::EagerContext* ctx) : ctx_(*ctx) {}
+  // 1.
+  // 构造函数
+  //
+
+  // 2.
+  // tensorflow::EagerContext* ctx
+  //                         ^
+  // tensorflow/core/common_runtime/eager/context.h
+  //
+
+  // 2.1
+  // 为什么不用 const tensorflow::EagerContext* ctx
+  // or tensorflow::EagerContext const * ctx ?
+
+  // 2.2
+  // 我何必对一个指针进行 const 限制呢?
+  //
+
+
   ~EagerOperation() {
     for (tensorflow::TensorHandle* h : inputs_) {
       h->Unref();
@@ -99,6 +118,7 @@ class EagerOperation {
   CancellationManager* GetCancellationManager() const {
     return cancellation_manager_;
   }
+
   void SetCancellationManager(CancellationManager* cancellation_manager) {
     cancellation_manager_ = cancellation_manager;
   }
@@ -125,14 +145,17 @@ class EagerOperation {
     inference_arg_idx_ = 0;
     inference_attrs_.clear_no_resize();
   }
+
   void InferSingleTypeInputListAttrs(const tensorflow::OpDef::ArgDef& input_def,
                                      const tensorflow::DataType dtype,
                                      int num_inputs);
+
   void InferMixedTypeInputListAttrs(
       const tensorflow::OpDef::ArgDef& input_def,
       const std::vector<tensorflow::DataType>& dtypes);
 
   tensorflow::EagerContext& ctx_;
+
   tensorflow::AttrBuilder attrs_;
   const tensorflow::AttrTypeMap* attr_types_;
   tensorflow::gtl::InlinedVector<tensorflow::TensorHandle*, 4> inputs_;
@@ -153,6 +176,17 @@ class EagerOperation {
   tensorflow::gtl::FlatSet<std::string>
       inference_attrs_;  // attributes inferred so far
 };
+// 1.
+// class EagerOperation 数据结构整理
+// 顾名思义, eager operation 的内容和操作, or say 演员和剧本.
+// 这里只有全体演员, 剧本提纲, 没有剧本和故事情节, 所以我看不下去了, 走神到不行了.
+
+// 2.
+// TODO: 思考
+// 如果只给一个 class EagerOperation { ... };
+// 如何一步一步写出里面的演员和剧本和情节?
+// 我在想 researcher 是不是以为太孤独寂寞电视剧电影看多了老是用 "讲故事" 这个老梗来说明问题.
+
 
 inline void EagerOperation::AddInput(tensorflow::TensorHandle* h) {
   h->Ref();

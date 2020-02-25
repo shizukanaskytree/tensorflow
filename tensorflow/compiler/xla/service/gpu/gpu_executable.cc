@@ -139,6 +139,16 @@ Status GpuExecutable::ExecuteThunks(
     const ServiceExecutableRunOptions* run_options,
     const BufferAllocations& buffer_allocations, bool block_host_until_done,
     HloExecutionProfile* hlo_execution_profile) {
+  // 1.
+  // What is thunk?
+  // wiki: In computer programming, a thunk is a subroutine used to inject an
+  // additional calculation into another subroutine. Thunks are primarily used
+  // to delay a calculation until its result is needed, or to insert operations
+  // at the beginning or end of the other subroutine.
+
+  // 2.
+  // IMPT:
+
   TF_RETURN_IF_ERROR(
       CheckCompatibilityWithServiceExecutableRunOptions(run_options));
   GpuDebugInfoManager::Get()->OnModuleStart(module().name());

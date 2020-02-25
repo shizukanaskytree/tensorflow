@@ -92,6 +92,17 @@ struct TFE_TensorDebugInfo {
 struct TFE_Op {
   tensorflow::EagerOperation operation;
 };
+// 1.
+// 感受 1:
+// 根据 namespace 的学习, 感觉这个 struct 等效于是加了一个 namespace TFE_Op
+// 感受 2:
+// 还是 eclipse 跳来跳去用的爽
+
+// 2.
+// EagerOperation 是什么?
+// tensorflow/core/common_runtime/eager/eager_operation.h
+// class EagerOperation
+//
 
 struct TFE_Profiler {
   explicit TFE_Profiler() { profiler = tensorflow::ProfilerSession::Create(); }

@@ -36,6 +36,14 @@ limitations under the License.
 namespace xla {
 
 // Analysis which allocates HloBuffers to HloValues.
+// 1.
+// HloBuffers
+// 不是真的有这个类型
+
+// 2.
+// HloValues
+// tensorflow/compiler/xla/service/hlo_value.h-89-class HloValue : public BufferValue 
+
 class HloAliasAnalysis {
  public:
   // The callgraph of the given HloModule must be flattened

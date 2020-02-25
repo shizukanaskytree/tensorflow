@@ -1,3 +1,11 @@
+// 1.
+// Q. 为什么定义一个 Tensor 要这么多 field?
+// TODO:
+
+// 2.
+// Q. protobuf 要学, bazel 要学, grpc 要学, 你都学会了吗?
+// A. 没有
+
 syntax = "proto3";
 
 package tensorflow;

@@ -43,8 +43,16 @@ namespace tensorflow {
 // Currently no cache eviction policy is implemented and the cache grows without
 // bound.
 class XlaCompilationCache : public ResourceBase {
+// 1.
+// class ResourceBase 在哪里
+// ./tensorflow/core/framework/resource_mgr.h:78:class ResourceBase : public core::RefCounted {
+
  public:
   XlaCompilationCache(xla::LocalClient* client, DeviceType device_type);
+  // 1.
+  // LocalClient 是什么?
+  //
+
   ~XlaCompilationCache() override;
 
   enum class CompileMode {

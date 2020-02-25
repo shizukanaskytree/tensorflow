@@ -26,11 +26,21 @@ limitations under the License.
 namespace xla {
 
 // The computation graph that the user builds up with the XlaBuilder.
+// 1.
+// XlaBuilder 是什么?
+// xla/client/xla_builder.h:134:class XlaBuilder
 class XlaComputation {
  public:
   XlaComputation() : unique_id_(-1) {}
   XlaComputation(const HloModuleProto& proto)
       : unique_id_(proto.id()), proto_(proto) {}
+  // 1.
+  // HloModuleProto 是什么?
+  // message HloModuleProto
+  // xla/service/hlo.proto:358
+  //
+  // 粗搜索:
+  // tensorflow/compiler/xla/service/hlo_module.h
 
   ~XlaComputation() {}
 
@@ -61,7 +71,25 @@ class XlaComputation {
 
   int64 unique_id_;
   HloModuleProto proto_;
+  // 1.
+  // HloModuleProto 是什么?
+  // message HloModuleProto
+  // xla/service/hlo.proto:358
 };
+// 1.
+// XlaComputation 本质是什么?
+// 本质是 The computation graph.
+// 来源是通过 XlaBuilder. 具体来说是 the user builds up with the XlaBuilder.
+
+// 1.1
+// class XlaComputation
+// unique_id_: int64
+// proto_: HloModuleProto
+
+// 2.
+// 打印
+// https://gist.github.com/shizukanaskytree/30e4784ab7b69c372883743f9d491c42
+
 
 }  // namespace xla
 

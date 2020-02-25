@@ -103,6 +103,9 @@ class XlaOp {
   // handle is invalid.
   XlaBuilder* builder_;
 };
+// 1.
+// 逻辑
+// https://sketch2sky.com/2019/09/26/tensorflow-xla-client-%e8%af%a6%e8%a7%a3/
 
 // Arithmetic operator overloads for the XlaOp type.
 XlaOp operator-(XlaOp x);

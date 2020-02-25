@@ -151,6 +151,13 @@ class EagerContext : public core::RefCounted {
   FunctionLibraryRuntime* func_lib(const Device* d) const {
     return pflr_->GetFLR(d->name());
   }
+  // 1.
+  // function library runtime 是什么?
+  // FunctionLibraryRuntime 具体是什么?
+  //
+  // 因为 #include "tensorflow/core/common_runtime/process_function_library_runtime.h"
+  // 所以 tensorflow/core/common_runtime/process_function_library_runtime.h
+
 
   ProcessFunctionLibraryRuntime* pflr() const { return pflr_.get(); }
 
@@ -636,6 +643,13 @@ class EagerContext : public core::RefCounted {
   // to this context.
   std::function<void()> resource_deallocator_ = nullptr;
 };
+// 1.
+// context 有什么用?
+// 这就是个大杂烩, 包罗万象地啥都有.
+
+// 2.
+// context 的设计理念是什么?
+// 
 
 }  // namespace tensorflow
 

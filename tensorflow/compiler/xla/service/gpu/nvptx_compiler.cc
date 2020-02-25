@@ -285,6 +285,11 @@ bool MaybeLoadPtxFromFile(const HloModule* module, std::string* ptx) {
   // If the xla_gpu_ptx_file options is set, be explicit when a file is used
   // and warn when a file is not used to ease catching typo in filename.
   std::string prefix = xla::FilenameFor(*module, "", *ptx);
+  // 1.
+  // log
+  // (gdb) p prefix
+  // $15 = "module_0000."
+
   std::string matched_filename;
   for (const string filename :
        module->config().debug_options().xla_gpu_ptx_file()) {
@@ -311,6 +316,8 @@ bool MaybeLoadPtxFromFile(const HloModule* module, std::string* ptx) {
     return true;
   }
   return false;
+  // 1.
+  // return false
 }
 
 }  // namespace
@@ -343,6 +350,8 @@ NVPTXCompiler::CompileTargetBinary(const HloModule* module,
                                    se::StreamExecutor* stream_exec) {
   std::pair<int, int> compute_capability =
       absl::get<std::pair<int, int>>(gpu_version);
+  // 1.
+  // compute_capability 是 7.5
 
   std::string libdevice_dir;
   {
@@ -353,13 +362,25 @@ NVPTXCompiler::CompileTargetBinary(const HloModule* module,
     // cuda_data_dir.
     if (cached_libdevice_dir_.empty()) {
       cached_libdevice_dir_ = GetLibdeviceDir(module->config());
+      // 1.
+      // 执行到此的 log:
+      // 2020-02-22 15:04:10.553034: I tensorflow/core/platform/default/cuda_libdevice_path.cc:29] CUDA root = /usr/local/cuda
+      // 2020-02-22 15:04:10.553137: I tensorflow/compiler/xla/service/gpu/nvptx_compiler.cc:93] Looking for libdevice at ./cuda_sdk_lib/nvvm/libdevice
+      // 2020-02-22 15:04:10.553269: I tensorflow/compiler/xla/service/gpu/nvptx_compiler.cc:93] Looking for libdevice at /usr/local/cuda/nvvm/libdevice
+      // 2020-02-22 15:04:10.553314: I tensorflow/compiler/xla/service/gpu/nvptx_compiler.cc:95] Found libdevice dir /usr/local/cuda/nvvm/libdevice
     }
     libdevice_dir = cached_libdevice_dir_;
   }
   VLOG(2) << "Libdevice dir = " << libdevice_dir << "\n";
+  // 1.
+  // log:
+  // 2020-02-22 15:05:07.356495: I tensorflow/compiler/xla/service/gpu/nvptx_compiler.cc:359] Libdevice dir = /usr/local/cuda/nvvm/libdevice
 
   string ptx;
   if (!MaybeLoadPtxFromFile(module, &ptx)) {
+    // 1.
+    // 进入了
+
     XLA_SCOPED_LOGGING_TIMER(
         "NVPTXCompiler::CompileTargetBinary - CompileToPtx");
     TF_ASSIGN_OR_RETURN(
@@ -380,9 +401,20 @@ NVPTXCompiler::CompileTargetBinary(const HloModule* module,
   std::vector<uint8> cubin = CompileGpuAsmOrGetCachedResult(
       stream_exec, ptx, compute_capability.first, compute_capability.second,
       module->config());
+  // 1.
+  // cubin
+  // 就是 编译的二进制文件
+
+  // 1.1
+  // log
+  // https://gist.github.com/shizukanaskytree/3448f8572781b622b0f7ca7b23e857bd
 
   return std::pair<std::string, std::vector<uint8>>(std::move(ptx),
                                                     std::move(cubin));
+  // 1.
+  // ptx
+  // gdb print: 
+  // https://gist.github.com/shizukanaskytree/3448f8572781b622b0f7ca7b23e857bd#gistcomment-3185862
 }
 
 std::vector<uint8> NVPTXCompiler::CompileGpuAsmOrGetCachedResult(
@@ -419,10 +451,19 @@ std::vector<uint8> NVPTXCompiler::CompileGpuAsmOrGetCachedResult(
         StatusOr<std::vector<uint8>> maybe_cubin =
             se::CompileGpuAsm(stream_exec->device_ordinal(), cache_ptx->c_str(),
                               PtxOptsFromConfig(hlo_module_config));
+        // 1.
+        // maybe_cubin 是什么?
+        // maybe_cubin 里面存着的就是 编译出来的 二进制
+
         if (maybe_cubin.ok()) {
           cache_value->cubin_data = std::move(maybe_cubin).ValueOrDie();
           VLOG(2) << "Compiled PTX size:" << ptx.size()
                   << " CUBIN size: " << cache_value->cubin_data.size();
+        // 1.
+        // log:
+        // 2020-02-22 16:01:06.753816: I tensorflow/compiler/xla/service/gpu/nvptx_compiler.cc:424]
+        //   Compiled PTX size:14003 CUBIN size: 10664
+
         } else {
           bool log_warning = true;
           if (maybe_cubin.status().code() ==

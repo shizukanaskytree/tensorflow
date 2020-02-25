@@ -1254,6 +1254,10 @@ class HloInstruction {
   // default, backing off on providing full information for very large strings,
   // or provide a different name for a ToString-like function that does that.
   string ToString() const { return ToString(HloPrintOptions()); }
+  // 1.
+  // print example
+  // https://gist.github.com/shizukanaskytree/a36189f5bc3ac60847a7c7bb71abe66c
+
   string ToString(const HloPrintOptions& options) const;
 
   // Components of the ToString() representation:
@@ -2013,6 +2017,51 @@ class HloInstruction {
 
   TF_DISALLOW_COPY_AND_ASSIGN(HloInstruction);
 };
+// 1.
+// class HloInstruction 概述:
+// https://zhuanlan.zhihu.com/p/72121424
+
+// 2.
+// gdb print
+// p instruction->ToString()
+// $10 = "%reduce-window.25 = f32[256,32,15,15]{3,2,1,0} reduce-window(f32[256,32,30,30]{3,2,1,0} %get-tuple-element.5, f32[] %constant_20), window={size=1x1x2x2 stride=1x1x2x2}, to_apply=%max_F32.21, metadata={op_type=\"MaxPool\" op_name=\"sequential/max_pooling2d/MaxPool\"}"
+//
+// %reduce-window.25 = f32[256,32,15,15]{3,2,1,0} reduce-window(f32[256,32,30,30]{3,2,1,0} %get-tuple-element.5, f32[] %constant_20), window={size=1x1x2x2 stride=1x1x2x2}, to_apply=%max_F32.21, metadata={op_type="MaxPool" op_name="sequential/max_pooling2d/MaxPool"}
+//
+// 上面的 instruction 可以在这里找到:
+// file:///Users/xiaofengwu/Documents/Research_Docs_Sphinx/source/myResearchNote/02_framework/01_tensorflow/21_tf20_new/11_xla/06_example_study/02_xla_dump/1582585021381744.module_0000.before_optimizations.txt
+//
+
+// 2.1
+// called_computations 接上面的 %reduce-window.25
+//
+// (gdb) p subcomputation->ToString()
+// $11 = "%max_F32.21 (lhs.22: f32[], rhs.23: f32[]) -> f32[] {\n  %lhs.22 = f32[] parameter(0)\n  %rhs.23 = f32[] parameter(1)\n  ROOT %maximum.24 = f32[] maximum(f32[] %lhs.22, f32[] %rhs.23)\n}"
+//
+// %max_F32.21 (lhs.22: f32[], rhs.23: f32[]) -> f32[] {
+//   %lhs.22 = f32[] parameter(0)
+//   %rhs.23 = f32[] parameter(1)
+//   ROOT %maximum.24 = f32[] maximum(f32[] %lhs.22, f32[] %rhs.23)
+// }
+//
+// 其中,  %lhs.22 = f32[] parameter(0), %rhs.23 = f32[] parameter(1) 可以在如下找到
+// file:///Users/xiaofengwu/Documents/Research_Docs_Sphinx/source/myResearchNote/02_framework/01_tensorflow/21_tf20_new/11_xla/06_example_study/02_xla_dump/1582585021381744.module_0000.before_optimizations.txt
+
+// 另一个例子:
+// (gdb) p instruction->ToString()
+// $14 = "%fusion = f32[256,3,32,32]{3,2,1,0} fusion(f32[256,32,32,3]{3,2,1,0} %arg0.1), kind=kLoop, calls=%fused_computation, metadata={op_type=\"Transpose\" op_name=\"Conv2DBackpropFilter_3-0-TransposeNHWCToNCHW-LayoutOptimizer\"}"
+//
+// (gdb) p subcomputation->ToString()
+// $13 = "%fused_computation (param_0.1: f32[256,32,32,3]) -> f32[256,3,32,32] {\n  %param_0.1 = f32[256,32,32,3]{3,2,1,0} parameter(0)\n  %copy.6 = f32[256,32,32,3]{2,1,3,0} copy(f32[256,32,32,3]{3,2,1,0} %param_0.1), metadata={op_name=\"XLA_Args\"}\n  ROOT %bitcast.1 = f32[256,3,32,32]{3,2,1,0} bitcast(f32[256,32,32,3]{2,1,3,0} %copy.6), metadata={op_type=\"Transpose\" op_name=\"Conv2DBackpropFilter_3-0-TransposeNHWCToNCHW-LayoutOptimizer\"}\n}"
+
+// 2.2
+// e.g., log
+// https://gist.github.com/shizukanaskytree/9169a887823ca720d7a9ecea17b26ef0
+
+
+// 3.
+// 浓缩版的 class summary
+// https://gist.github.com/shizukanaskytree/9f4b9c208572abbcf3099732ed7accd9
 
 // Explicit instantiations in hlo_instruction.cc.
 extern template Status HloInstruction::Accept(DfsHloVisitor*, bool, bool);
