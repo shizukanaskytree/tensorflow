@@ -426,3 +426,6 @@ try-import %workspace%/.tf_configure.bazelrc
 
 # Put user-specific options in .bazelrc.user
 try-import %workspace%/.bazelrc.user
+
+# visualize target 
+query --package_path %workspace%:/home/wxf/bin/bazel/base_workspace
