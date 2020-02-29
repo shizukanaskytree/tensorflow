@@ -218,14 +218,18 @@ void HloModule::ReplaceComputations(
 string HloModule::ToString(const HloPrintOptions& options) const {
   std::ostringstream s;
   s << "HloModule " << PrintName(name(), options.print_ids());
+
   if (has_schedule()) {
     TF_CHECK_OK(schedule().Verify());
     s << ", is_scheduled=true";
   }
+
   s << "\n\n";
+
   const auto& computations = options.canonicalize_computations()
                                  ? MakeComputationSortedByContent()
                                  : MakeComputationPostOrder();
+
   for (const HloComputation* computation : computations) {
     if (!options.print_computation(computation)) {
       continue;
@@ -241,6 +245,7 @@ string HloModule::ToString(const HloPrintOptions& options) const {
       s << computation->ToString(options) << "\n\n";
     }
   }
+
   return s.str();
 }
 
@@ -557,6 +562,7 @@ std::vector<HloComputation*> HloModule::MakeComputationPostOrder() const {
   // computations (computations which are called by an instruction in the
   // module).
   absl::flat_hash_set<HloComputation*> nonroot_computations;
+
   for (auto& computation : computations_) {
     for (auto* instruction : computation->instructions()) {
       for (HloComputation* called_computation :

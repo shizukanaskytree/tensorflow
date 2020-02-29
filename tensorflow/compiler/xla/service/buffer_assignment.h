@@ -600,8 +600,6 @@ class BufferAssigner {
   // tensorflow/compiler/xla/service/hlo_alias_analysis.h
   // Analysis which allocates HloBuffers to HloValues.
 
-
-
   static Colorer DefaultColorer() {
     return [](HloAliasAnalysis* alias_analysis, const HloOrdering&) {
       for (HloValue* value : alias_analysis->dataflow_analysis().values()) {

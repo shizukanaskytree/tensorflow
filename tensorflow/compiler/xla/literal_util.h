@@ -357,6 +357,8 @@ template <typename NativeT>
 /* static */ Literal LiteralUtil::CreateR3(
     std::initializer_list<std::initializer_list<std::initializer_list<NativeT>>>
         values) {
+  // 1.
+  //
   return CreateR3WithLayout(values, LayoutUtil::GetDefaultLayoutForR3());
 }
 

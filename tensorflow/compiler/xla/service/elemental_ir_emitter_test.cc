@@ -31,8 +31,12 @@ class ElementalIrEmitterExecutionTest : public HloTestBase {
   void RunTest(const string& hlo_text, absl::Span<Literal* const> args) {
     HloModuleConfig config;
     config.set_debug_options(GetDebugOptionsForTest());
+
     TF_ASSERT_OK_AND_ASSIGN(std::unique_ptr<HloModule> module,
                             ParseAndReturnVerifiedModule(hlo_text, config));
+    // 1.
+    // ParseAndReturnVerifiedModule
+
     EXPECT_TRUE(RunAndCompareNoHloPasses(std::move(module), args, nullopt));
   }
 
@@ -55,8 +59,10 @@ HloModule FusedDot
 fused_computation {
   arg0 = s32[1,2,1]{2,1,0} parameter(0)
   reshape.lhs = s32[2,1]{1,0} reshape(arg0)
+
   arg1 = s32[1,2,1]{2,1,0} parameter(1)
   reshape.rhs = s32[2,1]{1,0} reshape(arg1)
+
   ROOT dot = s32[1,1]{1,0} dot(reshape.lhs, reshape.rhs), lhs_contracting_dims={0}, rhs_contracting_dims={0}
 }
 
@@ -66,9 +72,96 @@ ENTRY main {
   ROOT fusion = s32[1,1]{1,0} fusion(entry_arg0, entry_arg1), kind=kLoop, calls=fused_computation
 }
 )";
+// 1.
+// R string in C++
+// In C++, to escape characters like “\n” we use an extra “\”. ...
+// The syntax of raw string is that the literal starts with R”( and ends in )”.
+
+// 2.
+// HLO Text Syntax
+// tensorflow/compiler/xla/service/g3doc/hlo_parser.md
+
+// 2.1
+// s32 是什么?
+// Signed integral values of fixed width = 32.
+// tensorflow/compiler/xla/xla_data.proto
+
+// (crash_tf) wxf@CBD-007:~/tf2/crash_tf/tensorflow/tensorflow/compiler$ find . -name "*.proto"
+// ./xrt/xrt.proto
+// ./xla/xla_data.proto
+// ./xla/rpc/xla_service.proto
+// ./xla/xla.proto
+// ./xla/service/hlo_execution_profile_data.proto
+// ./xla/service/hlo_profile_printer_data.proto
+// ./xla/service/hlo.proto
+// ./xla/service/gpu/backend_configs.proto
+
+// ./xla/service/gpu/gpu_autotuning.proto
+
+// ./xla/python/tpu_driver/tpu_driver.proto
+// ./xla/python/tpu_driver/tpu_service.proto
+// ./jit/xla_activity.proto
+// ./mlir/lite/quantization/quantization_info.proto
+// ./tf2xla/tf2xla.proto
+// ./tf2xla/host_compute_metadata.proto
+// ./tf2tensorrt/utils/trt_engine_instance.proto
+
+// 3.
+// dimension example:
+// let v = f32[4x2x3] {{ {10, 11, 12}, {15, 16, 17}},
+//                     { {20, 21, 22}, {25, 26, 27}},
+//                     { {30, 31, 32}, {35, 36, 37}},
+//                     { {40, 41, 42}, {45, 46, 47}}};
+
+// 3.1
+// {{{1}, {2}}}
+// {{{3}, {4}}}
+// 老实说, 换成高维度的, 我真的不知道怎么算 Dot
+
+// 4.
+//
+// arg1 = s32[1,2,1]{2,1,0} parameter(1)
+// reshape.rhs = s32[2,1]{1,0} reshape(arg1)
+//
 
   Literal lhs = LiteralUtil::CreateR3<int32>({{{1}, {2}}});
   Literal rhs = LiteralUtil::CreateR3<int32>({{{3}, {4}}});
+  // 1.
+  // Literal 数据结构
+  //
+  // ptype lhs
+  // type = /* real type = xla::Literal */
+  // class xla::Literal : public xla::MutableLiteralBase {
+  //   public:
+  //     Literal(void);
+  //     Literal(const xla::Shape &);
+  //     Literal(const xla::Literal &);
+  //     Literal(xla::Literal &&);
+  //     Literal(const xla::Shape &, bool);
+  //     ~Literal();
+  //     xla::Literal & operator=(const xla::Literal &);
+  //     xla::Literal & operator=(xla::Literal &&);
+  //     virtual tensorflow::Status MoveFrom(xla::Literal &&, const xla::ShapeIndex &);
+  //     std::vector<xla::Literal, std::allocator<xla::Literal> > DecomposeTuple(void);
+  //   private:
+  //     void DeallocateBuffers(void);
+  //     void SetPiece(const xla::Shape &, xla::LiteralBase::Piece *, bool);
+  // }
+
+  // 2.
+  // CreateR3
+  // tensorflow/compiler/xla/literal_util.h
+  // /* static */ Literal LiteralUtil::CreateR3
+
+  // 3.
+  // 操作规则: https://www.tensorflow.org/xla/operation_semantics#dot
+  //
+  // Dot product result:
+  // {{{1}, {2}}}
+  // {{{3}, {4}}}
+  // {{1x3 + 2x4}} ==> {{ 11 }}
+
+
   RunTest(hlo_text, {&lhs, &rhs});
 }
 

@@ -443,7 +443,15 @@ bool HloParserImpl::TokenError(absl::string_view msg) {
 }
 
 Status HloParserImpl::Run(HloModule* module) {
+  // 1.
+  // 概述:
+  // 把传入的 命令 开始解析.
+  // 变成 token 等
+
   lexer_.Lex();
+  // 1.
+  // hlo_lexer.cc
+
   if (lexer_.GetKind() == TokKind::kw_HloModule) {
     // This means that the text contains a full HLO module.
     if (!ParseHloModule(module)) {

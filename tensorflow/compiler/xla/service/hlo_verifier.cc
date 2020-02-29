@@ -1152,7 +1152,15 @@ Status ShapeVerifier::CheckVariadicShape(const HloInstruction* instruction) {
 Status ShapeVerifier::VerifyEntryComputationLayout(const HloModule& module) {
   const HloComputation* computation = module.entry_computation();
   const auto& layout = module.entry_computation_layout();
+  // 1.
+  // layout: class xla::ComputationLayout
+  // (gdb) p layout.ToString()
+  // $38 = "(s32[1,2,1]{2,1,0}, s32[1,2,1]{2,1,0}) => s32[1,1]{1,0}"
+
   const ShapeLayout& result_layout = layout.result_layout();
+  // 1.
+  // (gdb) p result_layout.ToString()
+  // $40 = "s32[1,1]{1,0}"
 
   TF_RETURN_IF_ERROR(
       ShapeUtil::ValidateShapeWithOptionalLayout(result_layout.shape()));

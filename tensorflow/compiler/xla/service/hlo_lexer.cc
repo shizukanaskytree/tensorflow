@@ -93,14 +93,31 @@ TokKind HloLexer::LookAhead() {
 TokKind HloLexer::LexToken() {
   while (true) {
     token_state_.token_start = current_ptr_;
+    // 1.
+    // gdb p current_ptr_
+    // p current_ptr_
+    // $8 = 0x555556fec9b0 "\nHloModule FusedDot\n\nfused_computation {\n  arg0 = s32[1,2,1]{2,1,0} parameter(0)\n  reshape.lhs = s32[2,1]{1,0} reshape(arg0)\n  arg1 = s32[1,2,1]{2,1,0} parameter(1)\n  reshape.rhs = s32[2,1]{1,0} reshape(arg1)\n  ROOT dot = s32[1,1]{1,0} dot(reshape.lhs, reshape.rhs), lhs_contracting_dims={0}, rhs_contracting_dims={0}\n}\n\nENTRY main {\n  entry_arg0 = s32[1,2,1]{2,1,0} parameter(0)\n  entry_arg1 = s32[1,2,1]{2,1,0} parameter(1)\n  ROOT fusion = s32[1,1]{1,0} fusion(entry_arg0, entry_arg1), kind=kLoop, calls=fused_computation\n}\n"
+    //                       ^
+    //            Ignore whitespace 的分支
+
+    // 1.1
+    // 第二次进入时, 吃掉了一个 "\n" char
+    // p current_ptr_
+    // $12 = 0x555556fec9b1  "HloModule FusedDot\n\nfused_computation {\n  arg0 = s32[1,2,1]{2,1,0} parameter(0)\n  reshape.lhs = s32[2,1]{1,0} reshape(arg0)\n  arg1 = s32[1,2,1]{2,1,0} parameter(1)\n  reshape.rhs = s32[2,1]{1,0} reshape(arg1)\n  ROOT dot = s32[1,1]{1,0} dot(reshape.lhs, reshape.rhs), lhs_contracting_dims={0}, rhs_contracting_dims={0}\n}\n\nENTRY main {\n  entry_arg0 = s32[1,2,1]{2,1,0} parameter(0)\n  entry_arg1 = s32[1,2,1]{2,1,0} parameter(1)\n  ROOT fusion = s32[1,1]{1,0} fusion(entry_arg0, entry_arg1), kind=kLoop, calls=fused_computation\n}\n"
 
     int current_char = GetNextChar();
     switch (current_char) {
       default:
+        // 1.
+        // 这个分支是 截取一个 变量名的
+
         // [a-zA-Z_]
         if (absl::ascii_isalpha(static_cast<unsigned char>(current_char)) ||
             current_char == '_') {
           return LexIdentifier();
+          // 1.
+          // 这个函数会 直到截取到一个 变量名 为止
+          // hlo_lexer.cc
         }
         return TokKind::kError;
       case kEOF:
@@ -109,12 +126,14 @@ TokKind HloLexer::LexToken() {
       case kError:
         // Hit an invalid character in the input buffer.
         return TokKind::kError;
+
       case ' ':
       case '\t':
       case '\n':
       case '\r':
         // Ignore whitespace.
         continue;
+
       case '0':
       case '1':
       case '2':

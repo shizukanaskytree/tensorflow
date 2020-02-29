@@ -408,6 +408,10 @@ StatusOr<std::unique_ptr<Executable>> GpuCompiler::RunBackend(
   llvm::Module llvm_module(module->name().c_str(), llvm_context);
   // Set the target triple and the data layout.
   llvm_module.setTargetTriple(target_triple_);
+  // 1.
+  // p target_triple_
+  // $78 = 0x7fffe13b2ce0 <xla::gpu::nvptx::kTargetTriple> "nvptx64-nvidia-cuda"
+
   llvm_module.setDataLayout(data_layout_);
 
   // Determine the HLO schedule, which is an ordering of HLO instructions.  This
@@ -432,7 +436,6 @@ StatusOr<std::unique_ptr<Executable>> GpuCompiler::RunBackend(
           /*must_not_live_out=*/{}, GetCanShareBuffer()));
   // 1.
   // BufferAssignment
-  //
 
   DumpHloModuleIfEnabled(*module, *buffer_assignment, "after_optimizations");
 
