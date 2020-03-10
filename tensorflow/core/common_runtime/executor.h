@@ -18,6 +18,7 @@ limitations under the License.
 
 #include <thread>
 #include <unordered_map>
+#include <vector>
 
 #include "tensorflow/core/common_runtime/device.h"
 #include "tensorflow/core/framework/rendezvous.h"
@@ -378,7 +379,6 @@ typedef gtl::InlinedVector<DeviceContext*, 4> DeviceContextVec;
 typedef gtl::InlinedVector<AllocatorAttributes, 4> AllocatorAttributeVec;
 
 
-
 // -----------------------------------------------------------------------------
 
 // ExecutorImpl Manager
@@ -562,6 +562,7 @@ class ExecutorState {
   // It is used to construct the ExecutorState instances.
   string device_type_executing_on_;
 
+ public: // wxf
   // Either a tensor pointer (pass-by-reference) or a tensor (pass-by-value).
   // TODO(yuanbyu): A better way to do "has_value"?
   struct Entry {
@@ -640,6 +641,8 @@ class ExecutorState {
     // Device-specific information about how the Tensor was produced.
     DeviceContext* device_context = nullptr;
   };
+
+ private: // wxf
 
   // Contains a value for [node->id()] for the device context assigned by the
   // device at the beginning of a step.
@@ -1247,6 +1250,12 @@ Status CreateNonCachedKernel(Device* device, FunctionLibraryRuntime* flib,
 
 // Deletes "kernel" returned by CreateKernel.
 void DeleteNonCachedKernel(OpKernel* kernel);
+
+// wxf
+// global var to reuse input data
+extern std::vector<ExecutorState::Entry*> reuse_entry_inputs;
+extern bool matmul01_is_ok;
+extern bool matmul02_is_ok;
 
 }  // end namespace tensorflow
 

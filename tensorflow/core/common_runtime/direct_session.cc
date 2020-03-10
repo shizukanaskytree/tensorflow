@@ -181,7 +181,7 @@ class DirectSessionFactory : public SessionFactory {
 
     DirectSession* session =
         new DirectSession(options, new DeviceMgr(std::move(devices)), this);
-    // Collect DirectSession instances into DirectSessionsManager
+    // wxf: Collect DirectSession instances into DirectSessionsManager
     direct_sessions_manager_->AddDirectSessionAndPriority(&session);
     {
       mutex_lock l(sessions_lock_);
@@ -3239,6 +3239,17 @@ Status DirectSession::CreateGraphs(
   // Partition the graph across devices.
   PartitionOptions popts;
   popts.node_to_loc = [](const Node* node) {
+    // wxf
+    // test: set _Arg on GPUs
+    //char envname[] = "REUSE_FLAG";
+    //if (getenv(envname) == "1") {
+    if (node->name() == "_arg_x02_0_0" || node->name() == "_arg_y02_0_1") {
+      //if (node->IsArg()) {
+      return string("/job:localhost/replica:0/task:0/device:GPU:0");
+      //}
+    }
+    //~wxf
+
     return node->assigned_device_name();
   };
   popts.new_name = [this](const string& prefix) {
@@ -3286,6 +3297,9 @@ Status DirectSession::CreateGraphs(
                                               device_graph.get()));
     outputs->emplace(partition.first, std::move(device_graph));
   }
+
+  // wxf
+  VLOG(1) << "OptimizationPassRegistry::POST_PARTITIONING \n";
 
   GraphOptimizationPassOptions optimization_options;
   optimization_options.session_options = &options_;

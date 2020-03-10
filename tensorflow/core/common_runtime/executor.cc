@@ -81,6 +81,11 @@ bool ExecutorState::catched_ = false;
 // wxf
 //bool ExecutorState::entered_ = false;
 
+// wxf
+std::vector<ExecutorState::Entry*> reuse_entry_inputs;
+bool matmul01_is_ok = false;
+bool matmul02_is_ok = false;
+
 //namespace {
 
 // 1-D, 0 element tensor.
@@ -978,6 +983,7 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
 
     TensorReferenceVector accessed_tensors;
     DeviceContext* device_context = nullptr;
+
     // Only execute this node if it is not dead or it is a send/recv
     // transfer node. For transfer nodes, we need to propagate the "dead"
     // bit even when the node is dead.
@@ -987,8 +993,46 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
     } else {
       // Prepares inputs.
       bool is_input_dead = false;
+
+      // wxf
+      if (node->name() == "matmul02") {
+        //VLOG(0) << "Before while(!matmul01_is_ok)";
+        // wait until matmul 01 is ok.
+        while(!matmul01_is_ok){
+          VLOG(0) << matmul01_is_ok << matmul02_is_ok;
+          // loop waiting until matmul 01 is ok
+        }
+        //VLOG(0) << "After while(!matmul01_is_ok)";
+
+        first_input = reuse_entry_inputs[0];
+        Entry* temp = first_input + 1;
+        temp = reuse_entry_inputs[1];
+        matmul02_is_ok = true;
+        //VLOG(0) << "After matmul02_is_ok = true";
+      }
+      //~wxf
+
       s = PrepareInputs(item, first_input, &inputs, &input_device_contexts,
                         &input_alloc_attrs, &is_input_dead);
+
+      // wxf
+      if (node->name() == "matmul01") {
+        for (int i = 0; i < item.num_inputs; ++i) {
+          reuse_entry_inputs.push_back(first_input + i);
+        }
+
+        matmul01_is_ok = true;
+        //VLOG(0) << "Before while(!matmul02_is_ok)";
+        while(!matmul02_is_ok){
+          VLOG(0) << matmul01_is_ok << matmul02_is_ok;
+        }
+        //VLOG(0) << "After while(!matmul02_is_ok)";
+
+        matmul01_is_ok = false;
+        matmul02_is_ok = false;
+      }
+      //~wxf
+
       if (!s.ok()) {
         // Clear inputs.
         int num_inputs = item.num_inputs;
@@ -1121,12 +1165,29 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
                 << (tagged_node.is_dead ? " is dead: " : "")
                 << " device: " << device->name();
       }
+//      // Clears inputs.
+//      const int num_inputs = item.num_inputs;
+//      for (int i = 0; i < num_inputs; ++i) {
+//        (first_input + i)->ClearVal();
+//      }
 
-      // Clears inputs.
-      const int num_inputs = item.num_inputs;
-      for (int i = 0; i < num_inputs; ++i) {
-        (first_input + i)->ClearVal();
+      // wxf
+      if (node->name() == "matmul01") {
+        // Don't delete matmul's inputs
+        //reuse_entry_inputs.clear();
+      } else {
+        // Clears inputs.
+        const int num_inputs = item.num_inputs;
+        for (int i = 0; i < num_inputs; ++i) {
+          (first_input + i)->ClearVal();
+        }
       }
+
+      if (node->name() == "matmul02") {
+        reuse_entry_inputs.clear();
+      }
+      //~wxf 
+
       MaybeMarkCompleted(input_frame, input_iter, id);
       // Propagates outputs.
       if (s.ok()) {
