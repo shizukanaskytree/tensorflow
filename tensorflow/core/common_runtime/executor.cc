@@ -86,6 +86,12 @@ std::vector<ExecutorState::Entry> reuse_entry_inputs;
 std::atomic<bool> matmul01_is_ok(false);
 std::atomic<bool> matmul02_is_ok(false);
 
+// wxf: reuse output
+ExecutorState::Entry reuse_arg_x01_0_0_1;
+ExecutorState::Entry reuse_arg_y01_0_1_3;
+std::atomic<bool> reuse_arg_x01_0_0_1_is_ok(false);
+std::atomic<bool> reuse_arg_y01_0_1_3_is_ok(false);
+
 //namespace {
 
 // 1-D, 0 element tensor.
@@ -994,46 +1000,46 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
       // Prepares inputs.
       bool is_input_dead = false;
 
-      // wxf
-      if (node->name() == "matmul02") {
-        //VLOG(0) << "Before while(!matmul01_is_ok)";
-        // wait until matmul 01 is ok.
-        while(!matmul01_is_ok.load()){
-          //VLOG(0) << matmul01_is_ok.load() << matmul02_is_ok.load();
-          // loop waiting until matmul 01 is ok
-        }
-        //VLOG(0) << "After while(!matmul01_is_ok)";
-
-        first_input = &(reuse_entry_inputs[0]);
-        Entry* temp = first_input + 1;
-        temp = &(reuse_entry_inputs[1]);
-        //matmul02_is_ok.store(true);
-        //VLOG(0) << "After matmul02_is_ok = true";
-        matmul01_is_ok.store(false);
-      }
-      //~wxf
+//      // wxf
+//      if (node->name() == "matmul02") {
+//        //VLOG(0) << "Before while(!matmul01_is_ok)";
+//        // wait until matmul 01 is ok.
+//        while(!matmul01_is_ok.load()){
+//          //VLOG(0) << matmul01_is_ok.load() << matmul02_is_ok.load();
+//          // loop waiting until matmul 01 is ok
+//        }
+//        //VLOG(0) << "After while(!matmul01_is_ok)";
+//
+//        first_input = &(reuse_entry_inputs[0]);
+//        Entry* temp = first_input + 1;
+//        temp = &(reuse_entry_inputs[1]);
+//        //matmul02_is_ok.store(true);
+//        //VLOG(0) << "After matmul02_is_ok = true";
+//        matmul01_is_ok.store(false);
+//      }
+//      //~wxf
 
       s = PrepareInputs(item, first_input, &inputs, &input_device_contexts,
                         &input_alloc_attrs, &is_input_dead);
 
-      // wxf
-      if (node->name() == "matmul01") {
-        for (int i = 0; i < item.num_inputs; ++i) {
-          Entry temp;
-          temp = *(first_input + i);
-          reuse_entry_inputs.push_back(temp);
-        }
-
-        matmul01_is_ok.store(true);
-        //VLOG(0) << "Before while(!matmul02_is_ok)";
-        //while(!matmul02_is_ok.load()){
-        //  //VLOG(0) << matmul01_is_ok.load() << matmul02_is_ok.load();
-        //}
-        //VLOG(0) << "After while(!matmul02_is_ok)";
-
-        //matmul02_is_ok.store(false);
-      }
-      //~wxf
+//      // wxf
+//      if (node->name() == "matmul01") {
+//        for (int i = 0; i < item.num_inputs; ++i) {
+//          Entry temp;
+//          temp = *(first_input + i);
+//          reuse_entry_inputs.push_back(temp);
+//        }
+//
+//        matmul01_is_ok.store(true);
+//        //VLOG(0) << "Before while(!matmul02_is_ok)";
+//        //while(!matmul02_is_ok.load()){
+//        //  //VLOG(0) << matmul01_is_ok.load() << matmul02_is_ok.load();
+//        //}
+//        //VLOG(0) << "After while(!matmul02_is_ok)";
+//
+//        //matmul02_is_ok.store(false);
+//      }
+//      //~wxf
 
       if (!s.ok()) {
         // Clear inputs.
@@ -1071,6 +1077,19 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
           nodestats::SetOpEnd(stats);
           EntryVector outputs;
           Status s = ProcessOutputs(*state->item, &state->ctx, &outputs, stats);
+          
+          // wxf
+          // store the graph 01's_Recv output for reuse
+          if (state->item->node->name() == "_arg_x01_0_0/_1") {
+            reuse_arg_x01_0_0_1 = outputs[0];
+            reuse_arg_x01_0_0_1_is_ok.store(true);
+          }
+          if (state->item->node->name() == "_arg_y01_0_1/_3") {
+            reuse_arg_y01_0_1_3 = outputs[0];
+            reuse_arg_y01_0_1_3_is_ok.store(true);
+          }
+          //~wxf
+
           nodestats::SetMemory(stats, &state->ctx);
           if (vlog_) {
             VLOG(2) << "Async kernel done: " << state->item->node->id()
@@ -1185,10 +1204,24 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
 //        }
 //      }
 
-      if (node->name() == "matmul02") {
-        reuse_entry_inputs.clear();
+//      if (node->name() == "matmul02") {
+//        reuse_entry_inputs.clear();
+//      }
+//      //~wxf 
+      
+      // wxf
+      // To intercept the graph 02's _Arg op node's output as the previously stored tensor.
+      if (node->name() == "_arg_x02_0_0") {
+        while (!reuse_arg_x01_0_0_1_is_ok.load()) {}
+        outputs[0] = reuse_arg_x01_0_0_1;
+        reuse_arg_x01_0_0_1_is_ok.store(false);
       }
-      //~wxf 
+      if (node->name() == "_arg_y02_0_1") {
+        while (!reuse_arg_y01_0_1_3_is_ok.load()) {}
+        outputs[0] = reuse_arg_y01_0_1_3;
+        reuse_arg_y01_0_1_3_is_ok.store(false);
+      }
+      //~wxf
 
       MaybeMarkCompleted(input_frame, input_iter, id);
       // Propagates outputs.

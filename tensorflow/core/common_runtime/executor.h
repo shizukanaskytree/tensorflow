@@ -1258,6 +1258,12 @@ extern std::vector<ExecutorState::Entry> reuse_entry_inputs;
 extern std::atomic<bool> matmul01_is_ok;
 extern std::atomic<bool> matmul02_is_ok;
 
+// wxf
+extern ExecutorState::Entry reuse_arg_x01_0_0_1;
+extern ExecutorState::Entry reuse_arg_y01_0_1_3;
+extern std::atomic<bool> reuse_arg_x01_0_0_1_is_ok;
+extern std::atomic<bool> reuse_arg_y01_0_1_3_is_ok;
+
 }  // end namespace tensorflow
 
 #endif  // TENSORFLOW_CORE_COMMON_RUNTIME_EXECUTOR_H_
