@@ -19,6 +19,7 @@ limitations under the License.
 #include <thread>
 #include <unordered_map>
 #include <vector>
+#include <atomic>
 
 #include "tensorflow/core/common_runtime/device.h"
 #include "tensorflow/core/framework/rendezvous.h"
@@ -1253,9 +1254,9 @@ void DeleteNonCachedKernel(OpKernel* kernel);
 
 // wxf
 // global var to reuse input data
-extern std::vector<ExecutorState::Entry*> reuse_entry_inputs;
-extern bool matmul01_is_ok;
-extern bool matmul02_is_ok;
+extern std::vector<ExecutorState::Entry> reuse_entry_inputs;
+extern std::atomic<bool> matmul01_is_ok;
+extern std::atomic<bool> matmul02_is_ok;
 
 }  // end namespace tensorflow
 

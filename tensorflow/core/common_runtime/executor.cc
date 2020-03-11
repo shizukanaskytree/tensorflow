@@ -82,9 +82,9 @@ bool ExecutorState::catched_ = false;
 //bool ExecutorState::entered_ = false;
 
 // wxf
-std::vector<ExecutorState::Entry*> reuse_entry_inputs;
-bool matmul01_is_ok = false;
-bool matmul02_is_ok = false;
+std::vector<ExecutorState::Entry> reuse_entry_inputs;
+std::atomic<bool> matmul01_is_ok(false);
+std::atomic<bool> matmul02_is_ok(false);
 
 //namespace {
 
@@ -998,17 +998,18 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
       if (node->name() == "matmul02") {
         //VLOG(0) << "Before while(!matmul01_is_ok)";
         // wait until matmul 01 is ok.
-        while(!matmul01_is_ok){
-          VLOG(0) << matmul01_is_ok << matmul02_is_ok;
+        while(!matmul01_is_ok.load()){
+          //VLOG(0) << matmul01_is_ok.load() << matmul02_is_ok.load();
           // loop waiting until matmul 01 is ok
         }
         //VLOG(0) << "After while(!matmul01_is_ok)";
 
-        first_input = reuse_entry_inputs[0];
+        first_input = &(reuse_entry_inputs[0]);
         Entry* temp = first_input + 1;
-        temp = reuse_entry_inputs[1];
-        matmul02_is_ok = true;
+        temp = &(reuse_entry_inputs[1]);
+        //matmul02_is_ok.store(true);
         //VLOG(0) << "After matmul02_is_ok = true";
+        matmul01_is_ok.store(false);
       }
       //~wxf
 
@@ -1018,18 +1019,19 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
       // wxf
       if (node->name() == "matmul01") {
         for (int i = 0; i < item.num_inputs; ++i) {
-          reuse_entry_inputs.push_back(first_input + i);
+          Entry temp;
+          temp = *(first_input + i);
+          reuse_entry_inputs.push_back(temp);
         }
 
-        matmul01_is_ok = true;
+        matmul01_is_ok.store(true);
         //VLOG(0) << "Before while(!matmul02_is_ok)";
-        while(!matmul02_is_ok){
-          VLOG(0) << matmul01_is_ok << matmul02_is_ok;
-        }
+        //while(!matmul02_is_ok.load()){
+        //  //VLOG(0) << matmul01_is_ok.load() << matmul02_is_ok.load();
+        //}
         //VLOG(0) << "After while(!matmul02_is_ok)";
 
-        matmul01_is_ok = false;
-        matmul02_is_ok = false;
+        //matmul02_is_ok.store(false);
       }
       //~wxf
 
@@ -1165,23 +1167,23 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
                 << (tagged_node.is_dead ? " is dead: " : "")
                 << " device: " << device->name();
       }
-//      // Clears inputs.
-//      const int num_inputs = item.num_inputs;
-//      for (int i = 0; i < num_inputs; ++i) {
-//        (first_input + i)->ClearVal();
-//      }
-
-      // wxf
-      if (node->name() == "matmul01") {
-        // Don't delete matmul's inputs
-        //reuse_entry_inputs.clear();
-      } else {
-        // Clears inputs.
-        const int num_inputs = item.num_inputs;
-        for (int i = 0; i < num_inputs; ++i) {
-          (first_input + i)->ClearVal();
-        }
+      // Clears inputs.
+      const int num_inputs = item.num_inputs;
+      for (int i = 0; i < num_inputs; ++i) {
+        (first_input + i)->ClearVal();
       }
+
+//      // wxf
+//      if (node->name() == "matmul01") {
+//        // Don't delete matmul's inputs
+//        //reuse_entry_inputs.clear();
+//      } else {
+//        // Clears inputs.
+//        const int num_inputs = item.num_inputs;
+//        for (int i = 0; i < num_inputs; ++i) {
+//          (first_input + i)->ClearVal();
+//        }
+//      }
 
       if (node->name() == "matmul02") {
         reuse_entry_inputs.clear();
