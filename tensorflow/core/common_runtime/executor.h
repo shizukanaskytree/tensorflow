@@ -1264,6 +1264,12 @@ extern ExecutorState::Entry reuse_arg_y01_0_1_3;
 extern std::atomic<bool> reuse_arg_x01_0_0_1_is_ok;
 extern std::atomic<bool> reuse_arg_y01_0_1_3_is_ok;
 
+// wxf
+extern ExecutorState::Entry reuse_arg_X01_0_0_3;
+extern ExecutorState::Entry reuse_arg_y01_0_1_1;
+extern std::atomic<bool> reuse_arg_X01_0_0_3_is_ok;
+extern std::atomic<bool> reuse_arg_y01_0_1_1_is_ok;
+
 }  // end namespace tensorflow
 
 #endif  // TENSORFLOW_CORE_COMMON_RUNTIME_EXECUTOR_H_

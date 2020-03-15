@@ -3243,10 +3243,13 @@ Status DirectSession::CreateGraphs(
     // test: set _Arg on GPUs
     //char envname[] = "REUSE_FLAG";
     //if (getenv(envname) == "1") {
-    if (node->name() == "_arg_x02_0_0" || node->name() == "_arg_y02_0_1") {
-      //if (node->IsArg()) {
+
+    // graph 02-0N inputs are placed on GPU
+    if (node->name() == "_arg_X02_0_0" || node->name() == "_arg_y02_0_1" || \
+        node->name() == "_arg_X03_0_0" || node->name() == "_arg_y03_0_1" || \
+        node->name() == "_arg_X04_0_0" || node->name() == "_arg_y04_0_1") {
+      //VLOG(0) << "popts.node_to_loc for _Arg nodes: " << node->name();
       return string("/job:localhost/replica:0/task:0/device:GPU:0");
-      //}
     }
     //~wxf
 
