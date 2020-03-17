@@ -1004,6 +1004,16 @@ Status FunctionCallFrame::GetArg(int index, Tensor* val) const {
                                    args_.size(), ")");
   }
   *val = args_[index];
+  // 1.
+  // 这里就是 inputs
+  // 我了个去.
+  // (gdb) p val
+  // $11 = (tensorflow::Tensor *) 0x7f1981ffdeb0
+  // (gdb) p *val
+  // $12 = {shape_ = {<tensorflow::TensorShapeBase<tensorflow::TensorShape>> = {<tensorflow::TensorShapeRep> = {static kMaxRep16 = 65534, static kMaxRep32 = 4294967294, static kUnknownRep16 = 65535, static kUnknownRep32 = 4294967295, static kUnknownRank = 255 '\377', u_ = {buf = "\005\000\003\000\000\000\000\000\377\377\377\377\000\001\002", unused_aligner = 0x30005}, num_elements_ = 15}, static kIsPartial = false}, <No data fields>}, buf_ = 0x55d8df657060}
+  // (gdb) p val->DebugString()
+  // $13 = "Tensor<type: float shape: [5,3] values: [0.860353589 0.614837766 0.465592653]...>"
+  //
   return Status::OK();
 }
 
@@ -1493,6 +1503,8 @@ Status FunctionLibraryDefinition::LookUp(
 
   // 2.
   // OpRegistry::LookUp 函数说明
+  // framework/op.cc
+  //
   //
   // Status LookUp(const string& op_type_name,              // input
   //               const OpRegistrationData** op_reg_data)  // output

@@ -517,25 +517,37 @@ bool BaseGPUDevice::RequiresRecordingAccessedTensors() const {
  *
  *  \param[out] device_context_map: DeviceContextMap*;
  *              typedef std::vector<DeviceContext*> DeviceContextMap;
- *
- *
  */
-Status BaseGPUDevice::FillContextMap(const Graph* graph,
-                                     DeviceContextMap* device_context_map) {
+Status BaseGPUDevice::FillContextMap(const Graph* graph, // in
+                                     DeviceContextMap* device_context_map) { // output
   VLOG(2) << "FillContextMap";
 
-  /// streams_: gtl::InlinedVector<StreamGroup*, 4>
-  /// StreamGroup: a struct of compute + h2d + d2h + d2d
-  /// So, num_streams is 1
   const size_t num_streams = streams_.size();
+  // 1.
+  // 打印 num_streams :
+  // num_streams == 1
+
+  // 2.
+  // streams_: gtl::InlinedVector<StreamGroup*, 4>
+  // (gdb) ptype streams_
+  // type = class absl::InlinedVector<tensorflow::BaseGPUDevice::StreamGroup*, 4, std::allocator<tensorflow::BaseGPUDevice::StreamGroup*> > [with T = tensorflow::BaseGPUDevice::StreamGroup *, A = std::allocator<tensorflow::BaseGPUDevice::StreamGroup*>]
+
+  // 3.
+  // struct StreamGroup
+  // a struct of 1x compute + 1x h2d + 1x d2h + 4x d2d
+  // tensorflow/core/common_runtime/gpu/gpu_device.h
+
+
   // Special case for single stream.
   if (num_streams == 1) {
+    // 进入
+
     return Status::OK();
   }
 
-  // ---------------------------------------------------------------------
+  // 如下未执行!
+
   // 如下是 多于 2 个 stream 的分配策略
-  // ---------------------------------------------------------------------
   const int64 before = Env::Default()->NowMicros();
   gpu_stream_util::AssignStreamsOpts opts;
   opts.max_streams = static_cast<int32>(num_streams);
@@ -707,6 +719,17 @@ void BaseGPUDevice::ComputeAsync(AsyncOpKernel* op_kernel,
   // AsyncOpKernel::DoneCallback done 来自 executor.cc 内 Process 里面定义的 done
 
   GPUDeviceContext* gpu_device_context = device_contexts_[0];
+  // 1.
+  // device_contexts_ 是什么?
+  // std::vector<GPUDeviceContext*> device_contexts_; in class BaseGPUDevice : public LocalDevice
+
+  // 2.
+  // 难道还能有几个?
+  // (gdb) thread apply 172 p device_contexts_.size()
+  // Thread 172 (Thread 0x7f7d057fe700 (LWP 34766)):
+  // $8 = 1
+
+
   if (context->op_device_context() != nullptr) {
     gpu_device_context =
         static_cast<GPUDeviceContext*>(context->op_device_context());

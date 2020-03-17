@@ -153,22 +153,16 @@ Status Rendezvous::Recv(const ParsedKey& key, const Args& args, Tensor* val,
   return Recv(key, args, val, is_dead, no_timeout);
 }
 
-
-/////////////////////////////////////////////////////////////////////////
-
-
 class LocalRendezvousImpl : public Rendezvous {
  public:
   explicit LocalRendezvousImpl() {}
-
-  ////////////////////////////////////////////////////////////////////////
 
   Status Send(
            const ParsedKey& key,
            const Args& send_args,
            const Tensor& val,
           const bool is_dead) override {
-
+    // 1.
     // gdb print see: tensorflow/core/common_runtime/rendezvous_mgr.cc
     // IntraProcessRendezvous::Send
 
@@ -181,6 +175,8 @@ class LocalRendezvousImpl : public Rendezvous {
     // We key the hash table by KeyHash of the Rendezvous::CreateKey string
 
     VLOG(2) << "Send " << this << " " << key_hash << " " << key.FullKey();
+    // 1.
+    // 打印
     /*
     logging
 
@@ -193,7 +189,13 @@ class LocalRendezvousImpl : public Rendezvous {
     /job:localhost/replica:0/task:0/device:GPU:0;edge_8_y/RandomStandardNormal;0:0
     */
 
+    // 2.
+    // another case study
+    // 2020-03-07 00:23:37.412477: I tensorflow/core/framework/rendezvous.cc:156]
+    // Send 0x556f598eea60 4468190680782946214 /job:localhost/replica:0/task:0/device:CPU:0;0000000000000001;/job:localhost/replica:0/task:0/device:GPU:0;edge_7__arg_y_0_1;0:0
+
     mu_.lock();
+
     // 异常处理
     if (!status_.ok()) {
       // Rendezvous has been aborted.
@@ -204,6 +206,15 @@ class LocalRendezvousImpl : public Rendezvous {
 
     // 正常处理
     ItemQueue* queue = &table_[key_hash];
+    // 1.
+    // p key_hash
+    // $20 = 13921614556445525119
+    // 来源如上: uint64 key_hash = KeyHash(key.FullKey());
+
+    // 2.
+    // (gdb) ptype table_
+    // type = class tensorflow::gtl::FlatMap<unsigned long long, std::deque<tensorflow::LocalRendezvousImpl::Item*>>
+
     // 1.
     // ItemQueue 数据结构
     // within class LocalRendezvousImpl,
@@ -259,7 +270,6 @@ class LocalRendezvousImpl : public Rendezvous {
     //  ||+---------+
     //  |+----------+
     //  +-----------+
-
 
     if (queue->empty() || queue->front()->IsSendValue()) {
       // There is no waiter for this message. Append the message
@@ -339,9 +349,6 @@ class LocalRendezvousImpl : public Rendezvous {
     delete item;
     return Status::OK();
   }
-
-
-  ////////////////////////////////////////////////////////////////////////
 
   // LocalRendezvousImpl::RecvAsync
   void RecvAsync(
@@ -463,9 +470,6 @@ class LocalRendezvousImpl : public Rendezvous {
     // 为什么要 delete item?
   }
 
-
-  ////////////////////////////////////////////////////////////////////////
-
   // see :
   // IntraProcessRendezvous::StartAbort, rendezvous_mgr.cc
   //    -> LocalRendezvousImpl::StartAbort, tensorflow/core/framework/rendezvous.cc
@@ -483,7 +487,6 @@ class LocalRendezvousImpl : public Rendezvous {
     // ItemQueue 数据结构
     // tensorflow/core/framework/rendezvous.cc:293:
     // typedef std::deque<Item*> ItemQueue;
-
 
     {
       mutex_lock l(mu_);

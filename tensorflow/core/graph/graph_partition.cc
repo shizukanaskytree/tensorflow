@@ -216,7 +216,6 @@ bool IsDstInputOnHost(const Edge* edge, const GraphInfo& info) {
 
 
 /*
-
    +----------+
    |0         |
    |          |
@@ -242,21 +241,25 @@ void AddInput(
   NodeDef* dst,
   StringPiece src_name,
   int src_slot) {
-
   if (src_slot == Graph::kControlSlot) {
-
     dst->add_input(strings::StrCat("^", src_name));
-
   } else if (src_slot == 0) {
-
     dst->add_input(src_name.data(), src_name.size());
+    // 1.
+    // 意图和作用:
+    // 往 dst node 上增加 Input 属性
+
+    // 2.
+    // (gdb) p dst->DebugString()
+    // $38 = "name: \"MatMul\"\nop: \"MatMul\"\ndevice: \"/job:localhost/replica:0/task:0/device:GPU:0\"\nattr {\n  key: \"T\"\n  value {\n    type: DT_FLOAT\n  }\n}\nattr {\n  key: \"transpose_a\"\n  value {\n    b: false\n  }\n}\nattr {\n  key: \"transpose_b\"\n  value {\n    b: false\n  }\n}\nexperimental_debug_info {\n  original_node_names: \"MatMul\"\n}\n"
+
+    // 3.
+    // p src_name
+    // $39 = {static npos = 18446744073709551615, static kMaxSize = 9223372036854775807, ptr_ = 0x556b95132da8 "_arg_x_0_0/_1", length_ = 13}
 
   } else {
-
     dst->add_input(strings::StrCat(src_name, ":", src_slot));
-
   }
-
 }
 
 // Add a control edge from each input to each recv.
@@ -295,18 +298,15 @@ void SetSendRecvAttrs(
 NodeDef* AddSend(
   const PartitionOptions& opts, // input
   const GraphInfo& g_info,  // input
-  GraphDef* gdef, // input
+  GraphDef* gdef, // input and output
   const Edge* edge, // input
   NodeDefBuilder::NodeOut send_from, // input
   int64 start_time, // input
   Status* status) // output
 {
-
   /*
-
   p edge->DebugString()
   $39 = "[id=8 y/RandomStandardNormal:0 -> z:1]"
-
 
   ptype opts
   type = const struct tensorflow::PartitionOptions {
@@ -326,8 +326,6 @@ NodeDef* AddSend(
     typedef std::function<long long unsigned int(const std::basic_string<char, std::char_traits<char>, std::allocator<char> >&)> GetIncarnationFunc;
     typedef std::function<tensorflow::DataType(const tensorflow::Edge*)> ShouldCastFunc;
   } &
-
-
   */
 
   const DataType dtype = send_from.data_type;
@@ -380,10 +378,11 @@ NodeDef* AddSend(
     send_from.Reset(cast->name(), 0, cast_dtype);
   }
 
-
   // Add the send node.
   const string send_op = (host_memory) ? "_HostSend" : "_Send";
-  // p send_op, $42 = "_Send"
+  // 1.
+  // p send_op
+  // $42 = "_Send"
 
   NodeDefBuilder send_builder(
     opts.new_name(src->name()),
@@ -401,17 +400,85 @@ NodeDef* AddSend(
 
   // 往子图里构造一个新的节点，最后通过 Finalize 把 send node 构造好。
   NodeDef* send = gdef->add_node();
+  // 1.
+  // gdef 打印
+  //
+  // node {
+  //   name: "_arg_x_0_0/_0"
+  //   op: "_Send"
+  //   input: "_arg_x_0_0"
+  //   device: "/job:localhost/replica:0/task:0/device:CPU:0"
+  //   attr {
+  //     key: "T"
+  //     value {
+  //       type: DT_FLOAT
+  //     }
+  //   }
+  //   attr {
+  //     key: "client_terminated"
+  //     value {
+  //       b: false
+  //     }
+  //   }
+  //   attr {
+  //     key: "recv_device"
+  //     value {
+  //       s: "/job:localhost/replica:0/task:0/device:GPU:0"
+  //     }
+  //   }
+  //   attr {
+  //     key: "send_device"
+  //     value {
+  //       s: "/job:localhost/replica:0/task:0/device:CPU:0"
+  //     }
+  //   }
+  //   attr {
+  //     key: "send_device_incarnation"
+  //     value {
+  //       i: 1
+  //     }
+  //   }
+  //   attr {
+  //     key: "tensor_name"
+  //     value {
+  //       s: "edge_5__arg_x_0_0"
+  //     }
+  //   }
+  //   experimental_debug_info {
+  //     original_node_names: "_arg_x_0_0"
+  //   }
+  // }
 
   *status = send_builder.Finalize(send);
 
   return send;
+  // 1.
+  // 打印 send op
+  // https://gist.github.com/shizukanaskytree/6e19054a149cf90c6b1cc61b31a9cd44
 }
-
-
+// 1.
+// Where are we?
+// Thread #1 [python] 17387 [core: 12] (Suspended : Step)
+// 	tensorflow::(anonymous namespace)::AddSend at graph_partition.cc:247 0x7f855b4d8254
+// 	tensorflow::Partition() at graph_partition.cc:1,120 0x7f855b4de089
+// 	tensorflow::DirectSession::CreateGraphs() at direct_session.cc:3,256 0x7f855709aaf1
+// 	tensorflow::DirectSession::CreateExecutors() at direct_session.cc:2,627 0x7f8557095f7e
+// 	tensorflow::DirectSession::GetOrCreateExecutors() at direct_session.cc:3,032 0x7f8557098fdc
+// 	tensorflow::DirectSession::Run() at direct_session.cc:2,147 0x7f8557092802
+// 	tensorflow::SessionRef::Run() at session_ref.cc:414 0x7f8552b72f8a
+// 	TF_Run_Helper() at c_api.cc:878 0x7f8557113b96
+// 	TF_SessionRun() at c_api.cc:2,752 0x7f855711d45e
+// 	tensorflow::TF_SessionRun_wrapper_helper() at tf_session_helper.cc:407 0x7f8552b673e1
+// 	<...more frames...>
 
 NodeDef* AddRecv(const PartitionOptions& opts, const GraphInfo& g_info,
                  GraphDef* gdef, const Edge* edge, NodeDef** real_recv,
                  Status* status) {
+  // 1.
+  // p gdef->DebugString()
+  // 此图是:
+  // https://gist.github.com/shizukanaskytree/5fbc9e444fc60da0e45af57fb310b1c8
+
   const DataType dtype = EdgeType(edge);
   const Node* src = edge->src();
   const Node* dst = edge->dst();
@@ -888,6 +955,24 @@ const Node* OutputFrame(const Node* node,
 // AAA. g_info 是临时变量一样
 // 在 Partition 函数内被构造。tensorflow/core/graph/graph_partition.cc
 
+// 2.
+// 调用方: status = AddControlFlow(opts, g, &g_info);
+
+// 3.
+// where are we ?
+// Thread #1 [python] 17387 [core: 22] (Suspended : Step)
+// 	tensorflow::(anonymous namespace)::AddControlFlow at graph_partition.cc:610 0x7f855b4dad2d
+// 	tensorflow::Partition() at graph_partition.cc:965 0x7f855b4dcf95
+// 	tensorflow::DirectSession::CreateGraphs() at direct_session.cc:3,256 0x7f855709aaf1
+// 	tensorflow::DirectSession::CreateExecutors() at direct_session.cc:2,627 0x7f8557095f7e
+// 	tensorflow::DirectSession::GetOrCreateExecutors() at direct_session.cc:3,032 0x7f8557098fdc
+// 	tensorflow::DirectSession::Run() at direct_session.cc:2,147 0x7f8557092802
+// 	tensorflow::SessionRef::Run() at session_ref.cc:414 0x7f8552b72f8a
+// 	TF_Run_Helper() at c_api.cc:878 0x7f8557113b96
+// 	TF_SessionRun() at c_api.cc:2,752 0x7f855711d45e
+// 	tensorflow::TF_SessionRun_wrapper_helper() at tf_session_helper.cc:407 0x7f8552b673e1
+// 	<...more frames...>
+//
 Status AddControlFlow(
   const PartitionOptions& opts,  // input
   Graph* g, // input
@@ -992,6 +1077,9 @@ Status AddControlFlow(
 
   std::vector<ControlFlowInfo>& cf_info = g_info->cf_info;
   // 1.
+  // cf_info 是个 代理, 给最后的 Output  g_info 赋值用的.
+
+  // 2.
   // struct ControlFlowInfo 数据结构:
   // Control flow info for a graph node.
   // tensorflow/core/graph/control_flow.h
@@ -1004,24 +1092,31 @@ Status AddControlFlow(
   //
   // 上面的 cf_info 打印是 $13 = std::vector of length 0, capacity 0
 
-  // -----------------------------------------------------------------------
   // Build the control flow info for every node.
-  // -----------------------------------------------------------------------
-
   status = BuildControlFlowInfo(
     g, // input
     &cf_info); // output
   // 1.
-  // BuildControlFlowInfo 函数说明
+  // BuildControlFlowInfo 一句话概括:
+  // Build the control flow info for every node.
+
+  // 1.1
+  // Status BuildControlFlowInfo(const Graph* g, std::vector<ControlFlowInfo>* info,
+  //                             std::vector<string>* unreachable_nodes)
   // tensorflow/core/graph/control_flow.h
   // tensorflow/core/graph/control_flow.cc
-  //
+
+  // 2.
+  // 一句话概括:
   // Clear and populate `cf_info` with each node's frame and the level it belongs to.
+  //
+  // 详细说明:
   // We check the well-formedness of the graph:
   // 1) All inputs to a node must come from the same frame and have the same
   //    "static" iteration level.
   // 2) Each frame has at most one LoopCond node.
   // 3) Each frame has a single parent frame.
+  //
   // If `unreachable_nodes` is set, return names of nodes unreachable from the
   // source node. We cannot build ControlFlowInfo for such nodes. They might be
   // pruned later.
@@ -1051,6 +1146,9 @@ Status AddControlFlow(
     if (node == nullptr) continue;
 
     if (IsLoopCond(node)) {
+      // 未进入
+      // study case: z = x * y 一次都未进入.
+
       const string& frame_name = cf_info[node->id()].frame_name;
       DCHECK(!frame_name.empty());
       frame_cond_map[frame_name] = node;
@@ -1138,6 +1236,7 @@ Status AddControlFlow(
 
     while (true) {
       const string& curr_frame_name = cf_info[src_frame->id()].frame_name;
+
       if (curr_frame_name.empty()) {
         // We have reached the root frame.
         if (child_loop.merge != nullptr) {
@@ -1422,16 +1521,60 @@ void SetIncarnation(const PartitionOptions& opts, GraphDef* gdef) {
   }
 }
 
+// 1.
+// 调用方:
+// TF_RETURN_IF_ERROR(Partition(popts, &client_graph->graph, &partitions));
 
+// 2.
+// Where are we ?
+// Thread #1 [python] 17387 [core: 22] (Suspended : Breakpoint)
+// 	tensorflow::Partition() at graph_partition.cc:965 0x7f855b4dcf71
+// 	tensorflow::DirectSession::CreateGraphs() at direct_session.cc:3,256 0x7f855709aaf1
+// 	tensorflow::DirectSession::CreateExecutors() at direct_session.cc:2,627 0x7f8557095f7e
+// 	tensorflow::DirectSession::GetOrCreateExecutors() at direct_session.cc:3,032 0x7f8557098fdc
+// 	tensorflow::DirectSession::Run() at direct_session.cc:2,147 0x7f8557092802
+// 	tensorflow::SessionRef::Run() at session_ref.cc:414 0x7f8552b72f8a
+// 	TF_Run_Helper() at c_api.cc:878 0x7f8557113b96
+// 	TF_SessionRun() at c_api.cc:2,752 0x7f855711d45e
+// 	tensorflow::TF_SessionRun_wrapper_helper() at tf_session_helper.cc:407 0x7f8552b673e1
+// 	tensorflow::TF_SessionRun_wrapper() at tf_session_helper.cc:450 0x7f8552b6786d
+// 	<...more frames...>
 
+// 3.
+// 一句话概括:
+// 在 dst_graph 和 src_graph 中间构建 send, recv node
 
 Status Partition(
   const PartitionOptions& opts, // input
-  // client_graph->graph, 是以 targets 为输出的最小依赖的图
+
+  // client_graph->graph, 是以 targets, fetches nodes 为输出的最小依赖的图
   Graph* g, // input
   std::unordered_map<string, GraphDef>* partitions) // output
 {
   // 1.
+  // direct_session.cc 里面对 opts: PartitionOptions 赋值的情况:
+  //
+  // Partition the graph across devices.
+  // PartitionOptions popts;
+
+  // popts.node_to_loc = [](const Node* node) {
+  //   return node->assigned_device_name();
+  // };
+
+  // popts.new_name = [this](const string& prefix) {
+  //   return strings::StrCat(prefix, "/_", edge_name_counter_.fetch_add(1));
+  // };
+  // popts.get_incarnation = [](const string& name) {
+  //   // The direct session does not have changing incarnation numbers.
+  //   // Just return '1'.
+  //   return 1;
+  // };
+  // popts.flib_def = &client_graph->graph.flib_def();
+  // popts.control_flow_added = false;
+  // std::unordered_map<string, GraphDef> partitions;
+  // TF_RETURN_IF_ERROR(Partition(popts, &client_graph->graph, &partitions));
+
+  // 1.1
   // struct PartitionOptions 数据结构
   // tensorflow/core/graph/graph_partition.h:31:struct PartitionOptions
   //
@@ -1492,8 +1635,9 @@ Status Partition(
   // - parent_frame: const Node*
   // - frame_name: string
 
-  // 进入了这个分支
   if (!opts.control_flow_added) {
+    // 进入
+
     // Add the "code" for distributed execution of control flow. Code is
     // added only for the frames that are placed on multiple devices. The
     // new graph is an equivalent transformation of the original graph and
@@ -1502,10 +1646,16 @@ Status Partition(
 
     status = AddControlFlow(
       opts,  // input
-      g, // input
+      g,     // input
       &g_info); // output
+    // 1.
     // AddControlFlow 函数说明:
-    // tensorflow/core/graph/graph_partition.cc:608:
+    // tensorflow/core/graph/graph_partition.cc
+    // 一句话概括:
+
+    // 2.
+    // signature
+    //
     // Status AddControlFlow(
     //  const PartitionOptions& opts,
     //  Graph* g,
@@ -1514,35 +1664,45 @@ Status Partition(
     if (!status.ok()) return status;
   }
 
-  // -----------------------------------------------------------------------
   // Memory Device Info 存在 g_info 这里面
-  //////////////////////////////////////////////////////////////////////////
   // At this point, all the graph mutations have been done. Build memory
   // and device type info for every node and edge in the graph.
-  //////////////////////////////////////////////////////////////////////////
   status = BuildMemoryDeviceInfo(
     *g,  // input
     &g_info); // output
-
   if (!status.ok()) return status;
-  // -----------------------------------------------------------------------
 
   string dstp;
   std::vector<const Edge*> inputs;
 
+  DupRecvTable dup_recv(3);
+  // 1.
   // DupRecvTable 数据结构:
   // typedef absl::flat_hash_map<DupRecvKey, RecvInfo> DupRecvTable;
   // graph/graph_partition.cc
 
+  // 2.
   // DupRecvKey 数据结构:
   // graph/graph_partition.cc
+  //
+  // (gdb) ptype key
+  // type = struct tensorflow::(anonymous namespace)::DupRecvKey {
+  //     int src_node_id;
+  //     int src_output_slot;
+  //     tensorflow::GraphDef *dst_graph;
+  //     bool recv_output_on_host;
+  // }
 
+  // 3.
   // RecvInfo 数据结构:
   // graph/graph_partition.cc
+  //
+  // struct RecvInfo {
+  //   NodeDef* recv;
+  //   NodeDef* real_recv;
+  //   int64 start_time;
+  // };
 
-  DupRecvTable dup_recv(3);
-
-  // QQQ. 依然是很模糊的感觉
   // For a node dst, 'ref_recvs' remembers the recvs introduced by a ref
   // edge to dst. 'ref_control_inputs' remembers the inputs by a non-ref
   // edge to dst. We will add a control edge for every pair in
@@ -1554,39 +1714,50 @@ Status Partition(
   int32 num_control = 0;
 
   // 造子图开始
-  // step 1: 遍历每个 node
+  // step 1: 遍历每个 node, 这里称为 dst node; 同时也获得了 dst_graph: GraphDef*
   // step 2 : 遍历 dst node 的 每条 input edge
+  // step 3: 将 input edge 的 src node , dst node 所在的 src graph 和 dst graph 之间构造 edge.
   for (const Node* dst : g->op_nodes()) {
-    // node_to_loc
+    dstp = opts.node_to_loc(dst);
+    // 1.
+    // node_to_loc 是什么?
+    // AAA:
+    // A function that returns a location for the execution of a given
+    // Node.
+    // typedef std::function<string(const Node*)> NodeToLocFunc;
+    // NodeToLocFunc node_to_loc = nullptr;
+
+    // 2.
+    // node_to_loc 在哪里初始化的:
     //   tensorflow/core/common_runtime/direct_session.cc-1535
     // lambda 函数:
     // popts.node_to_loc = [](const Node* node) {
     //   return node->assigned_device_name();
     // };
-    dstp = opts.node_to_loc(dst);
+
+    // 3.
+    // assigned_device_name() 函数的 assign device name 规则是什么?
+    // 见 Placer 部分
 
     GraphDef* dst_graph = &(*partitions)[dstp];
 
+    NodeDef* dst_def = dst_graph->add_node();
+    // 1.
+    // dst_graph->add_node(); 在干嘛?
+    // 构造 NodeDef instance 并用 dst_def 指着.
     // QQQ. 这一步是在 子图与子图直接添加 什么 node？
-    // AAA. 这是在重头构造子图，不是子图与子图直接的什么节点。
-    NodeDef* dst_def = dst_graph->add_node(); // 构造
+    // AAA. 这是在重头构造子图, 从而往 partitions 图里面添加节点。
 
-    *dst_def = dst->def(); // 初始化各个 fields
+    *dst_def = dst->def();
 
+    // 初始化各个 fields
     MergeDebugInfo(NodeDebugInfo(dst->def()), dst_def);
-
-    // -----------------------------------------------------------------------
-    // dst_def: NodeDef*
-    // dst: Node*
-    // 多少感觉是重复了这个 device 的赋值
-    // NodeDef::device : string
-    // dst->assigned_device_name() : device_names_[node.assigned_device_name_index()]
     dst_def->set_device(dst->assigned_device_name());
-    // -----------------------------------------------------------------------
-
     dst_def->clear_input();  // Inputs are filled below
 
     if (opts.need_to_record_start_times) {
+      // 未进入
+
       int64 start_time;
       status = GetNodeAttr(*dst_def, "_start_time", &start_time);
       if (errors::IsNotFound(status)) {
@@ -1601,9 +1772,25 @@ Status Partition(
     // input flowing into slot numbered i. Trailing 后面的；拖尾的 entries in input[]
     // hold control edges.
 
+    inputs.clear();
+    // 1.
     // inputs 的含义是 the incoming edges to dst node
-    inputs.clear(); // clear() 是因为 inputs edges 是重复使用的一个变量，对于每个 node 而言
+
+    // 2.
+    // clear() 是因为 inputs edges 是 for loop 里面重复使用的一个变量，对于每个 node 而言
+
     inputs.resize(dst->num_inputs(), nullptr);
+    /*
+        inputs           +----------+
+        +--------------->|0         |
+        edge             |          |
+        +--------------->|1 dst ✅  |
+        edge             |          |
+        +--------------->|2         |
+        edge             +----------+
+
+          inputs edges
+    */
 
     ref_recvs.clear();
     ref_control_inputs.clear();
@@ -1637,34 +1824,24 @@ Status Partition(
           inputs.push_back(edge);
         }
         // edge 是 Control Edge 分支结束
+
       } else {
         // edge 不是 Control Edge 分支
+
         DCHECK(inputs[edge->dst_input()] == nullptr);
-
-        /*
-                             +----------+
-            +--------------->|0         |
-                             |          |
-            +--------------->|1  dst    |
-                             |          |
-            +--------------->|2         |
-                             +----------+
-
-                        inputs edges
-        */
 
         // Return the index of the destination input that consumes the data
         // carried by this edge.  The special value kControlSlot is used
         // for control dependencies.
 
-        /*
-        进入这个分支的 edge 打印信息:
-
-        p edge->DebugString()
-        $35 = "[id=3 y/shape:0 -> y/RandomStandardNormal:0]"
-        */
+        // 进入这个分支的 edge 打印信息:
+        // p edge->DebugString()
+        // $35 = "[id=3 y/shape:0 -> y/RandomStandardNormal:0]"
 
         inputs[edge->dst_input()] = edge;
+        // 1.
+        // edge->dst_input() ret int, 是 dst input slot number.
+
         ++num_input_edges;
       }
     } // 遍历结束所有的 dst 的 input edges
@@ -1676,7 +1853,7 @@ Status Partition(
                                      " inputs for ", dst->name());
     }
 
-    /*
+    /*             "CPU"
                  +----------+
                  |0         |
                  |          |
@@ -1684,7 +1861,7 @@ Status Partition(
                  |          |        |
                  |2         |        |
                  +----------+        |
-                                     |
+                                     |                   "GPU"
                                      |                +----------+
                                      v--------------->|0         |
                                                       |          |
@@ -1707,6 +1884,10 @@ Status Partition(
 
       // 因为 device type : GraphDef instance ，所以 取出 src_graph
       GraphDef* src_graph = &(*partitions)[opts.node_to_loc(src)];
+      // 1.
+      // opts.node_to_loc(src)
+      // GPU : 1 location
+      // CPU : 2 location
 
       // NeedSameDeviceSendRecv 函数说明:
       // tensorflow/core/graph/graph_partition.cc
@@ -1761,29 +1942,17 @@ Status Partition(
       int64 recv_start_time = 0;
 
       if (opts.scheduling_for_recvs) {
-
         status = GetNodeAttr(src->attrs(), "_start_time", &send_start_time);
-
         if (errors::IsNotFound(status) && opts.need_to_record_start_times) {
-
           send_start_time = opts.start_times[src->id()].value();
-
         } else if (!status.ok()) {
-
           return status;
-
         }
-
         status = GetNodeAttr(dst->attrs(), "_start_time", &recv_start_time);
-
         if (errors::IsNotFound(status) && opts.need_to_record_start_times) {
-
           recv_start_time = opts.start_times[dst->id()].value();
-
         } else if (!status.ok()) {
-
           return status;
-
         }
       }
 
@@ -1799,20 +1968,13 @@ Status Partition(
       auto iter = dup_recv.find(key);
 
       if (iter != dup_recv.end()) {
-
         // We found one. Reuse the data/control transferred already.
         const string& recv_node_name = iter->second.recv->name();
-
         if (edge->IsControlEdge()) {
-
           AddInput(dst_def, recv_node_name, Graph::kControlSlot);
-
         } else {
-
           AddInput(dst_def, recv_node_name, 0);
-
         }
-
         ref_control_inputs.push_back(recv_node_name);
 
         // We want the start_time for the recv to be the smallest of the start
@@ -1845,18 +2007,24 @@ Status Partition(
       } else {
         // send 节点的 send_from 节点
         send_from.Reset(src->name(), edge->src_output(), EdgeType(edge));
-
       }
 
-      // ----------------------------------------------------------------------
-      // ----------------------------------------------------------------------
       // 增加 send node
       // QQQ. send node 和 recv node 里面都用到了 GraphInfo g_info device and memory type 信息吧?
       // AAA. send node 和 recv node 里面都用到了 GraphInfo g_info device and memory type 信息吧?
 
       // Need to split edge by placing matching send/recv nodes on
       // the src/dst sides of the edge.
-
+      NodeDef* send = AddSend(
+        opts, // input
+        g_info, // input
+        src_graph, // input and output, 也就是把新增的 send 节点加入了这个 src_graph: GraphDef*
+        edge, // input
+        send_from, // input
+        send_start_time, // input
+        &status); // output
+      if (!status.ok()) return status;
+      // 1.
       // AddSend 函数说明:
       // graph/graph_partition.cc
       // NodeDef* AddSend(const PartitionOptions& opts,
@@ -1866,46 +2034,47 @@ Status Partition(
       //                  NodeDefBuilder::NodeOut send_from,
       //                  int64 start_time,
       //                  Status* status)
-      //
-      NodeDef* send = AddSend(
-        opts, // input
-        g_info, // input
-        src_graph, // input
-        edge, // input
-        send_from, // input
-        send_start_time, // input
-        &status); // output
-      // -----------------------------------------------------------------------
 
-      if (!status.ok()) return status;
+      // ✅
+      // 注意:
+      // AddSend 和 AddRecv 里面的图正好是遥相呼应的一对:
+      // src_graph 和 dst_graph
 
-      // -----------------------------------------------------------------------
       // 增加 recv node
-      //
       NodeDef* real_recv = nullptr;
       NodeDef* recv =
           AddRecv(opts, g_info, dst_graph, edge, &real_recv, &status);
-      // -----------------------------------------------------------------------
-
       if (!status.ok()) return status;
+
+      // 1.
+      // 总结
+      // dst_graph 和 src_graph 是:
+      // https://gist.github.com/shizukanaskytree/6fe37914eb6dda81dfbf0d305fbc71df
 
       // Fix up the control flow edge.
       // NOTE(yuanbyu): 'real_recv' must be the real recv node.
       if (src_graph == dst_graph) {
+        // 未进入
+
         // For same device send/recv, add a control edge from send to recv.
         // This prevents the asynchronous recv kernel from being scheduled
         // before the data is available.
         AddInput(real_recv, send->name(), Graph::kControlSlot);
       } else if (control_flow_edge != nullptr) {
+        // 未进入
+
         // Redirect control edge to the real recv since this is not the same
         // device send/recv.
         --num_control_flow_edges;
         AddInput(real_recv, control_flow_edge->src()->name(),
                  Graph::kControlSlot);
       }
+      // 都未进入
 
       if (!edge->IsControlEdge() &&
           IsRefType(src->output_type(edge->src_output()))) {
+        // 未进入
+
         AddNodeAttr("_start_time", recv_start_time, recv);
         if (real_recv != recv) {
           AddNodeAttr("_start_time", recv_start_time, real_recv);
@@ -1914,6 +2083,8 @@ Status Partition(
         // read semantics and therefore we must control the recv.
         ref_recvs.push_back(real_recv);
       } else {
+        // 进入
+
         // Memorize the send/recv pair, only if this is not a "ref" edge.
         // NOTE(yuanbyu): Collapsing ref edges requires extreme care so
         // for now we don't do it.
@@ -1922,11 +2093,19 @@ Status Partition(
       }
 
       if (edge->IsControlEdge()) {
+        // 未进入
+
         ++num_control;
         AddInput(dst_def, recv->name(), Graph::kControlSlot);
       } else {
+        // 进入
+
         ++num_data;
         AddInput(dst_def, recv->name(), 0);
+        // 1.
+        // idea 是什么
+        // dst_def 是 dst node 的 NodeDef, 我们对 dst node 的 input attr 要指明来源的 node, 也就是 input node.
+
       }
     } // end for loop of each a node's inputs' edge
 

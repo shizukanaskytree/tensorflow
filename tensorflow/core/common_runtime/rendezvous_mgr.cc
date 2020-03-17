@@ -48,9 +48,12 @@ Status IntraProcessRendezvous::Send(const ParsedKey& parsed,
 
   2019-09-26 23:11:20.888187: I
   tensorflow/core/common_runtime/rendezvous_mgr.cc:42]
-  IntraProcessRendezvous Send 0x564c977b0150
-  /job:localhost/replica:0/task:0/device:CPU:0;0000000000000001;
-  /job:localhost/replica:0/task:0/device:GPU:0;edge_8_y/RandomStandardNormal;0:0
+  IntraProcessRendezvous Send
+  0x564c977b0150                                这个是 this 指针地址
+  /job:localhost/replica:0/task:0/device:CPU:0; 这个是 src device name
+  0000000000000001;                             这个是 src_incarnation
+  /job:localhost/replica:0/task:0/device:GPU:0; 这个是 dst device name
+  edge_8_y/RandomStandardNormal;0:0             这个是 edge name
   */
 
   {
@@ -291,7 +294,6 @@ void IntraProcessRendezvous::SameWorkerRecvDone(
     return;
   }
 
-  // -----------------------------------------------------------------------
   Device* src_device;
   Status s = device_mgr_->LookupDevice(parsed.src_device, &src_device);
   if (!s.ok()) {
@@ -304,7 +306,6 @@ void IntraProcessRendezvous::SameWorkerRecvDone(
     done(s);
     return;
   }
-  // -----------------------------------------------------------------------
 
   AllocatorAttributes attr = recv_args.alloc_attrs;
   // 1.
@@ -431,14 +432,9 @@ void IntraProcessRendezvous::SameWorkerRecvDone(
   //                    int dev_to_dev_stream_index, StatusCallback done);
 }
 
-
-////////////////////////////////////////////////////////////////////////
-
-
 void IntraProcessRendezvous::RecvAsync(const ParsedKey& parsed,
                                        const Rendezvous::Args& recv_args,
                                        DoneCallback done) {
-
   // 1.
   // DoneCallback 数据结构说明
   // tensorflow/core/framework/rendezvous.h
@@ -470,11 +466,14 @@ void IntraProcessRendezvous::RecvAsync(const ParsedKey& parsed,
   //   AllocatorAttributes alloc_attrs;
   // };
 
-
   VLOG(1) << "IntraProcessRendezvous Recv " << this << " " << parsed.FullKey();
 
   // Recv the tensor from local_.
   local_->RecvAsync(  // LocalRendezvousImpl::RecvAsync, rendezvous.cc
+    // 1.
+    // local_ 是什么?
+    // local_: LocalRendezvousImpl*
+
     parsed,
     recv_args,
     /*DoneCallback done=*/std::bind(
@@ -485,13 +484,14 @@ void IntraProcessRendezvous::RecvAsync(const ParsedKey& parsed,
                        const Rendezvous::Args& recv_args,
                        const Tensor& in,
                        bool is_dead) {
+    // 1.
+    // std::bind
 
           // If "in" is an uninitialized tensor, do copy-construction to
           // preserve the uninitialized state, along with data type and shape
           // info, which is useful for debugger purposes.
           Tensor* out = in.IsInitialized() ? new Tensor : new Tensor(in);
 
-          // ------------------------------------------------------------------
           // lambda 函数定义
           auto final_callback = std::bind(
               [send_args, recv_args, out, is_dead](
@@ -517,9 +517,8 @@ void IntraProcessRendezvous::RecvAsync(const ParsedKey& parsed,
 
               // 如下是参数
               std::move(done),
-              std::placeholders::_1);
+              std::placeholders::_1); // end of std::bind(...) of final_callback
           // lambda final_callback 函数体定义结束
-          // ------------------------------------------------------------------
 
           if (status.ok() && in.IsInitialized()) {
             SameWorkerRecvDone(
@@ -544,7 +543,8 @@ void IntraProcessRendezvous::RecvAsync(const ParsedKey& parsed,
         std::placeholders::_2,
         std::placeholders::_3,
         std::placeholders::_4,
-        std::placeholders::_5));
+        std::placeholders::_5) // end of std::bind(...) of DoneCallback done
+    ); // end of local_->RecvAsync
 
   // 1.
   // local_ 变量说明

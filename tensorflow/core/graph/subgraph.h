@@ -171,6 +171,10 @@ class ArgFeedRewrite : public PruneRewrite {
   ArgFeedRewrite(const string* endpoint_name,
                  const DeviceAttributes* device_info, int32 arg_index)
       : PruneRewrite(endpoint_name, device_info), arg_index_(arg_index) {}
+  // 1.
+  // arg_index_ 的初始化是依据?
+  // 依据有多少个 feed node, 然后从 0 到 n-1 个顺序随机地赋值
+  // [0, fed_outputs.size() )
 
   Status AddNode(Graph* g, NodeBuilder::NodeOut feed_tensor,
                  Node** out_node) override;

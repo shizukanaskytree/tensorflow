@@ -33,6 +33,9 @@ limitations under the License.
 namespace tensorflow {
 
 const int Graph::kControlSlot = -1;
+// 1.
+// 说明:
+// Control edge 连到 一个 node 上面的 slot number 用 -1, 它没有什么明确的 slot number.
 
 struct NodeProperties {
  public:
@@ -433,6 +436,14 @@ void Graph::set_versions(const VersionDef& versions) { *versions_ = versions; }
 Node* Graph::AddNode(const NodeDef& node_def, Status* status) {
   const OpDef* op_def;
   status->Update(ops_.LookUpOpDef(node_def.op(), &op_def));
+  // 1.
+  // ops_ 类型
+  // FunctionLibraryDefinition
+
+  // 2.
+  // FunctionLibraryDefinition
+  //
+
   if (!status->ok()) return nullptr;
 
   /// typedef gtl::InlinedVector<DataType, 4> tensorflow::DataTypeVector
@@ -605,6 +616,13 @@ const Edge* Graph::AddControlEdge(
 
   // 终究不过是 add edge
   return AddEdge(source, kControlSlot, dest, kControlSlot);
+  // 1.
+  // const int Graph::kControlSlot = -1;
+
+  // 2.
+  // 说明:
+  // Control edge 连到 一个 node 上面的 slot number 用 -1, 它没有什么明确的 slot number.
+
 }
 
 void Graph::RemoveControlEdge(const Edge* e) {
@@ -868,21 +886,54 @@ int Graph::InternDeviceName(const string& device_name) { // input
   }
 
   int& index_cell = device_names_map_[device_name];
+  // 1.
   // 打印
-  // p device_names_map_
-  // $36 = std::unordered_map with 1 element = {["/job:localhost/replica:0/task:0/device:CPU:0"] = 1}
+  // (gdb) p device_names_map_
+  // $18 = std::unordered_map with 0 elements
+
   if (index_cell > 0) {
-    // 如果有了就返回这个对于的 index ，比如 1
+    // 未进入
     return index_cell;
   }
 
   // add a new device
   const int index = device_names_map_.size();
+  // 此刻就有了, 可能是上面 "device_names_map_[device_name];" 增加了的缘故,
+  // 反正一开始是没有的
+  //
+  // (gdb) p index
+  // $20 = 1
+  // (gdb) p device_names_map_
+  // $21 = std::unordered_map with 1 element = {["/job:localhost/replica:0/task:0/device:GPU:0"] = 0}
 
   index_cell = index;
   device_names_.push_back(device_name);
+  // 1.
+  // 执行完后的 device_names_
+  // (gdb) p device_names_
+  // $22 = std::vector of length 2, capacity 2 = {"", "/job:localhost/replica:0/task:0/device:GPU:0"}
+
   return index;
+  // 1.
+  // (gdb) p index
+  // $20 = 1
 }
+// 1.
+// 返回到哪里?
+// tensorflow::Placer::Run() at placer.cc
+//
+// Thread #1 [python] 15583 [core: 34] (Suspended : Step)
+// 	tensorflow::Placer::Run() at placer.cc:181 0x7efc0acf1639
+// 	tensorflow::GraphExecutionState::InitBaseGraph() at graph_execution_state.cc:616 0x7efc1b23eaea
+// 	tensorflow::GraphExecutionState::MakeForBaseGraph() at graph_execution_state.cc:97 0x7efc1b23abc2
+// 	tensorflow::DirectSession::MaybeInitializeExecutionState() at direct_session.cc:1,694 0x7efc1708f659
+// 	tensorflow::DirectSession::ExtendLocked() at direct_session.cc:1,740 0x7efc1708fa41
+// 	tensorflow::DirectSession::Extend() at direct_session.cc:1,733 0x7efc1708f9fc
+// 	tensorflow::SessionRef::Extend() at session_ref.cc:441 0x7efc12b73833
+// 	tensorflow::ExtendSessionGraphHelper() at c_api.cc:815 0x7efc171137c3
+// 	tensorflow::ExtendSession() at python_api.cc:118 0x7efc12bac2e6
+// 	_wrap_ExtendSession() at pywrap_tensorflow_internal.cc:19,726 0x7efc12ae1b45
+// 	<...more frames...>
 
 Status Graph::AddWhileContext(StringPiece frame_name,
                               std::vector<Node*> enter_nodes,

@@ -211,10 +211,35 @@ NodeDefBuilder& NodeDefBuilder::Device(StringPiece device_spec) {
   return *this;
 }
 
-Status NodeDefBuilder::Finalize(NodeDef* node_def) const {
+Status NodeDefBuilder::Finalize(NodeDef* node_def) const { // output
   const std::vector<string>* errors_ptr = &errors_;
   std::vector<string> errors_storage;
+
+  // 1.
+  // op_def_ 打印
+  //
+  // name: "_Arg"
+  // output_arg {
+  //   name: "output"
+  //   description: "The argument."
+  //   type_attr: "T"
+  // }
+  // attr {
+  //   name: "T"
+  //   type: "type"
+  // }
+  // attr {
+  //   name: "index"
+  //   type: "int"
+  //   description: "This argument is the index-th argument of the function."
+  //   has_minimum: true
+  // }
+  // summary: "A graph node which represents an argument to a function."
+  // is_stateful: true
+
   if (op_def_ != nullptr && inputs_specified_ < op_def_->input_arg_size()) {
+    // 未进入
+
     // Since this is a const method, to add an error, we have to make
     // a copy of the existing errors.
     errors_storage = errors_;
@@ -225,6 +250,7 @@ Status NodeDefBuilder::Finalize(NodeDef* node_def) const {
   }
 
   if (!errors_ptr->empty()) {
+    // 未进入
     if (errors_ptr->size() == 1) {
       if (op_def_ == nullptr) {
         return errors::InvalidArgument((*errors_ptr)[0],
@@ -241,6 +267,8 @@ Status NodeDefBuilder::Finalize(NodeDef* node_def) const {
           str_util::Join(*errors_ptr, "\n"));
     }
   } else {
+    // 进入
+
     NodeDef node_def_backup;
     if (node_def == nullptr) node_def = &node_def_backup;
     *node_def = node_def_;
@@ -252,6 +280,9 @@ Status NodeDefBuilder::Finalize(NodeDef* node_def) const {
 
     // Add default values for unspecified attrs.
     AddDefaultsToNodeDef(*op_def_, node_def);
+    // 1.
+    // 函数功用: AddDefaultsToNodeDef
+    // 用 op_def_ 里面的 attr 去赋值 node_def 里面的 attr
 
     return Status::OK();
   }

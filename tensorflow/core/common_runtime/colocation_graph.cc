@@ -53,31 +53,121 @@ std::vector<Device*> FilterSupportedDevices(
     const std::vector<Device*>& devices, // input
     const PrioritizedDeviceTypeVector& supported_device_types, // input
     const Device* default_device) { // input
+  // 1.
+  // output 是 retval
+
+  // 2.
+  // 被调用是在 :
+  // devices = FilterSupportedDevices(
+  //   device_set_->devices(), members_[node_root].supported_device_types(),
+  //   default_device_);
+
+  // 2.1
+  // 调用栈:
+  // Thread #1 [python] 14797 [core: 58] (Suspended : Step)
+  // 	tensorflow::(anonymous namespace)::FilterSupportedDevices at colocation_graph.cc:58 0x7fba26c52d0a
+  // 	tensorflow::ColocationGraph::GetDevicesForNode() at colocation_graph.cc:813 0x7fba26c56214
+  // 	tensorflow::Placer::Run() at placer.cc:144 0x7fba26cf145e
+  // 	tensorflow::GraphExecutionState::InitBaseGraph() at graph_execution_state.cc:616 0x7fba3723eaea
+  // 	tensorflow::GraphExecutionState::MakeForBaseGraph() at graph_execution_state.cc:97 0x7fba3723abc2
+  // 	tensorflow::DirectSession::MaybeInitializeExecutionState() at direct_session.cc:1,694 0x7fba3308f659
+  // 	tensorflow::DirectSession::ExtendLocked() at direct_session.cc:1,740 0x7fba3308fa41
+  // 	tensorflow::DirectSession::Extend() at direct_session.cc:1,733 0x7fba3308f9fc
+  // 	tensorflow::SessionRef::Extend() at session_ref.cc:441 0x7fba2eb73833
+  // 	tensorflow::ExtendSessionGraphHelper() at c_api.cc:815 0x7fba331137c3
+  // 	<...more frames...>
+
+  // 3.
+  // devices 输入参数描述:
+  // p devices.size()
+  // $10 = 6
+
+  // 3.1
+  // (gdb) p devices[0]->DebugString()
+  // $11 = "name: \"/job:localhost/replica:0/task:0/device:CPU:0\"\ndevice_type: \"CPU\"\nmemory_limit: 268435456\nlocality {\n}\nincarnation: 18378914362316115292\n"
+  // (gdb) p devices[1]->DebugString()
+  // $12 = "name: \"/job:localhost/replica:0/task:0/device:XLA_CPU:0\"\ndevice_type: \"XLA_CPU\"\nmemory_limit: 17179869184\nlocality {\n}\nincarnation: 2985873009677690439\nphysical_device_desc: \"device: XLA_CPU device\"\n"
+  // (gdb) p devices[2]->DebugString()
+  // $13 = "name: \"/job:localhost/replica:0/task:0/device:XLA_GPU:0\"\ndevice_type: \"XLA_GPU\"\nmemory_limit: 17179869184\nlocality {\n}\nincarnation: 11431876017459358775\nphysical_device_desc: \"device: XLA_GPU device\"\n"
+  // (gdb) p devices[3]->DebugString()
+  // $14 = "name: \"/job:localhost/replica:0/task:0/device:XLA_GPU:1\"\ndevice_type: \"XLA_GPU\"\nmemory_limit: 17179869184\nlocality {\n}\nincarnation: 105147883587665474\nphysical_device_desc: \"device: XLA_GPU device\"\n"
+  // (gdb) p devices[4]->DebugString()
+  // $15 = "name: \"/job:localhost/replica:0/task:0/device:GPU:0\"\ndevice_type: \"GPU\"\nmemory_limit: 10244181198\nlocality {\n  bus_id: 1\n  links {\n  }\n}\nincarnation: 6695519563019833777\nphysical_device_desc: \"device: 0, name: GeForce RTX 2080 Ti, pci bus id: 0000:03:00.0, compute capability: 7.5\"\n"
+  // (gdb) p devices[5]->DebugString()
+  // $16 = "name: \"/job:localhost/replica:0/task:0/device:GPU:1\"\ndevice_type: \"GPU\"\nmemory_limit: 10410806478\nlocality {\n  bus_id: 1\n  links {\n  }\n}\nincarnation: 5658237319182308682\nphysical_device_desc: \"device: 1, name: GeForce GTX 1080 Ti, pci bus id: 0000:02:00.0, compute capability: 6.1\"\n"
+  // device:CPU:0; device:XLA_CPU:0; device:XLA_GPU:0; device:XLA_GPU:1; device:GPU:0; device:GPU:1
+
+  // 4.
+  // ptype supported_device_types
+  // type = const class absl::InlinedVector<std::pair<tensorflow::DeviceType, int>, 4, std::allocator<std::pair<tensorflow::DeviceType, int> > > [with T = std::pair<tensorflow::DeviceType, int>, A = std::allocator<std::pair<tensorflow::DeviceType, int> >]
+  // 是 absl::InlinedVector 类型
+
+  // 4.1
+  // 能用来 debug 的 absl::InlinedVector 成员函数:
+  // size_type size(void) const;
+  // reference operator[](size_type);
+
+  // 4.2
+  // (gdb) p supported_device_types.size()
+  // $17 = 4
+
+  // 4.3
+  // (gdb) p supported_device_types[0]
+  // $18 = {first = {type_ = "GPU"}, second = 0}
+  // (gdb) p supported_device_types[1]
+  // $19 = {first = {type_ = "CPU"}, second = 0}
+  // (gdb) p supported_device_types[2]
+  // $20 = {first = {type_ = "XLA_CPU"}, second = 0}
+  // (gdb) p supported_device_types[3]
+  // $21 = {first = {type_ = "XLA_GPU"}, second = 0}
+
+  // 5.
+  // ❎default_device 是什么?
+  // !!! 千万不要打印! 输入的是空指针!!!
+  // 原因在调用这个函数的地方(本文件内)已经写了, 这里不写了.
 
   Device* filtered_default_device = nullptr;
 
   std::vector<std::pair<Device*, int32>> prioritized_filtered_devices;
 
   for (const auto& supported_device_type : supported_device_types) {
+    // 1.
+    // 依次遍历: GPU, CPU, XLA_CPU, XLA_GPU
 
     for (Device* device : devices) {
+      // 1.
+      // 依次遍历:
+      // device:CPU:0; device:XLA_CPU:0; device:XLA_GPU:0; device:XLA_GPU:1; device:GPU:0; device:GPU:1
 
       if (DeviceType(device->attributes().device_type()) ==
           supported_device_type.first) {
+        // 1.
+        // 如果説
 
         if (device == default_device) {
-
+          // 1.
+          // comment: 这个应该是不可能进入了, 因为 default_device == 0x0
           filtered_default_device = device;
-
         } else {
+          // 进入
 
           prioritized_filtered_devices.emplace_back(
               device, supported_device_type.second);
+          // 1.
+          // 所以, 根据 遍历组合
+          // 优先级依次从高到低是: GPU, CPU, XLA_CPU, XLA_GPU
+          // 并把真实存在的 device 实体加入 prioritized_filtered_devices:
+          //   device:CPU:0; device:XLA_CPU:0; device:XLA_GPU:0; device:XLA_GPU:1; device:GPU:0; device:GPU:1
 
         }
       }
     }
   }
+  // 1.1
+  // prioritized_filtered_devices 的最终结果是?
+  // p prioritized_filtered_devices.size()
+  // $3 = 6
+  //
 
   auto device_sort = [](const std::pair<Device*, int32>& a,
                         const std::pair<Device*, int32>& b) {
@@ -108,13 +198,56 @@ std::vector<Device*> FilterSupportedDevices(
 
   std::vector<Device*> filtered_devices;
   if (filtered_default_device != nullptr) {
+    // 未进入
     filtered_devices.emplace_back(filtered_default_device);
   }
+
   for (const auto& prioritized_filtered_device : prioritized_filtered_devices) {
     filtered_devices.push_back(prioritized_filtered_device.first);
+    // 1.
+    // 打印部分结果, 第一个加入的是:
+    // (gdb) p prioritized_filtered_device.first->DebugString()
+    // $5 = "name: \"/job:localhost/replica:0/task:0/device:GPU:0\"\ndevice_type: \"GPU\"\nmemory_limit: 10244181198\nlocality {\n  bus_id: 1\n  links {\n  }\n}\nincarnation: 16511413941568493076\nphysical_device_desc: \"device: 0, name: GeForce RTX 2080 Ti, pci bus id: 0000:03:00.0, compute capability: 7.5\"\n"
+
+    // 2.
+    // 第二个是: "name: \"/job:localhost/replica:0/task:0/device:GPU:1\"\ndevice_type: \"GPU\"\nmemory_limit: 10410806478\nlocality {\n  bus_id: 1\n  links {\n  }\n}\nincarnation: 16526567406605668175\nphysical_device_desc: \"device: 1, name: GeForce GTX 1080 Ti, pci bus id: 0000:02:00.0, compute capability: 6.1\"\n"
+
   }
   return filtered_devices;
+  // 1.
+  // 最后 filtered_devices 的结果
+  //
+  // (gdb) p filtered_devices.size()
+  // $7 = 6
+  // (gdb) p filtered_devices[0]->DebugString()
+  // $9 = "name: \"/job:localhost/replica:0/task:0/device:GPU:0\"\ndevice_type: \"GPU\"\nmemory_limit: 10244181198\nlocality {\n  bus_id: 1\n  links {\n  }\n}\nincarnation: 16511413941568493076\nphysical_device_desc: \"device: 0, name: GeForce RTX 2080 Ti, pci bus id: 0000:03:00.0, compute capability: 7.5\"\n"
+  // (gdb) p filtered_devices[1]->DebugString()
+  // $10 = "name: \"/job:localhost/replica:0/task:0/device:GPU:1\"\ndevice_type: \"GPU\"\nmemory_limit: 10410806478\nlocality {\n  bus_id: 1\n  links {\n  }\n}\nincarnation: 16526567406605668175\nphysical_device_desc: \"device: 1, name: GeForce GTX 1080 Ti, pci bus id: 0000:02:00.0, compute capability: 6.1\"\n"
+  // (gdb) p filtered_devices[2]->DebugString()
+  // $11 = "name: \"/job:localhost/replica:0/task:0/device:CPU:0\"\ndevice_type: \"CPU\"\nmemory_limit: 268435456\nlocality {\n}\nincarnation: 6029465270020419012\n"
+  // (gdb) p filtered_devices[3]->DebugString()
+  // $12 = "name: \"/job:localhost/replica:0/task:0/device:XLA_CPU:0\"\ndevice_type: \"XLA_CPU\"\nmemory_limit: 17179869184\nlocality {\n}\nincarnation: 17983607328380520671\nphysical_device_desc: \"device: XLA_CPU device\"\n"
+  // (gdb) p filtered_devices[4]->DebugString()
+  // $13 = "name: \"/job:localhost/replica:0/task:0/device:XLA_GPU:0\"\ndevice_type: \"XLA_GPU\"\nmemory_limit: 17179869184\nlocality {\n}\nincarnation: 11283929416580422794\nphysical_device_desc: \"device: XLA_GPU device\"\n"
+  // (gdb) p filtered_devices[5]->DebugString()
+  // $14 = "name: \"/job:localhost/replica:0/task:0/device:XLA_GPU:1\"\ndevice_type: \"XLA_GPU\"\nmemory_limit: 17179869184\nlocality {\n}\nincarnation: 9782071633836128780\nphysical_device_desc: \"device: XLA_GPU device\"\n"
 }
+// 1.
+// 返回到哪? GetDevicesForNode
+//
+// Thread #1 [python] 15583 [core: 13] (Suspended : Step)
+// 	tensorflow::ColocationGraph::GetDevicesForNode() at colocation_graph.cc:817 0x7efc0ac56236
+// 	tensorflow::Placer::Run() at placer.cc:144 0x7efc0acf145e
+// 	tensorflow::GraphExecutionState::InitBaseGraph() at graph_execution_state.cc:616 0x7efc1b23eaea
+// 	tensorflow::GraphExecutionState::MakeForBaseGraph() at graph_execution_state.cc:97 0x7efc1b23abc2
+// 	tensorflow::DirectSession::MaybeInitializeExecutionState() at direct_session.cc:1,694 0x7efc1708f659
+// 	tensorflow::DirectSession::ExtendLocked() at direct_session.cc:1,740 0x7efc1708fa41
+// 	tensorflow::DirectSession::Extend() at direct_session.cc:1,733 0x7efc1708f9fc
+// 	tensorflow::SessionRef::Extend() at session_ref.cc:441 0x7efc12b73833
+// 	tensorflow::ExtendSessionGraphHelper() at c_api.cc:815 0x7efc171137c3
+// 	tensorflow::ExtendSession() at python_api.cc:118 0x7efc12bac2e6
+// 	<...more frames...>
+
 
 // Using absl::StrJoin with lambda does not work in tf-lite builds.
 std::vector<string> DevicesToString(const std::vector<Device*> devices) {
@@ -749,12 +882,38 @@ Status ColocationGraph::LimitToAssignedDevice(const Node& node) {
 Status ColocationGraph::GetDevicesForNode(
     Node* node,  // input
     const std::vector<Device*>** possible_devices) { // output
+  // 1.
+  // case study
+  // p node->DebugString()
+  // $7 = "{name:'MatMul' id:4 op device:{} def:{{{node MatMul}} = MatMul[T=DT_FLOAT, transpose_a=false, transpose_b=false](x, y)}}"
+
+  // 2.
+  // case study
+  // (gdb) p node->DebugString()
+  // $27 = "{name:'x' id:2 op device:{} def:{{{node x}} = Placeholder[dtype=DT_FLOAT, shape=[2,5]]()}}"
+
+  // 3.
+  // string ColocationGraph::DebugInfo(const int node_root)
+  // (gdb) p this-> DebugInfo(2)
+  //
+  // Colocation Debug Info:
+  // Colocation group had the following types and devices:
+  // Placeholder: GPU CPU XLA_CPU XLA_GPU
+  //
+  // Colocation members and user-requested devices:
+  //   x (Placeholder)
 
   *possible_devices = nullptr; // output
 
   const int node_root = FindRoot(node->id());
+  // 1.
+  // (gdb) p node_root
+  // $8 = 4
+  // (gdb) p node->id()
+  // $9 = 4
 
   if (!members_[node_root].possible_devices().empty()) {
+    // 未进入
     *possible_devices = &members_[node_root].possible_devices();
     return Status::OK();
   }
@@ -769,6 +928,9 @@ Status ColocationGraph::GetDevicesForNode(
 
   if (DeviceNameUtils::HasSomeDetails(
           members_[node_root].requested_device_name())) {
+    // 1.
+    // 👀未进入
+
     // The root node has a (possibly partial) device
     // specification, so enumerate the physical devices that
     // conform to it.
@@ -871,6 +1033,9 @@ Status ColocationGraph::GetDevicesForNode(
 
     // The device is completely unspecified, so enumerate the devices that
     // support all of the nodes in the set.
+    // 1.
+    // 这个注释很清楚
+
     if (device_set_->devices().empty()) {
       return errors::Internal("No devices are registered");
     }
@@ -881,6 +1046,33 @@ Status ColocationGraph::GetDevicesForNode(
         device_set_->devices(), // input
         members_[node_root].supported_device_types(), // input
         default_device_); // input
+    // 1.
+    // ❎
+    // 提醒: ColocationGraph::default_device_ 是空指针, 千万别打印
+
+    // 1.1
+    // 因为 👀, 所以起初就没有赋值啊!
+    //
+    // Thread #1 [python] 15583 [core: 19] (Suspended : Breakpoint)
+    // 	tensorflow::(anonymous namespace)::FilterSupportedDevices at colocation_graph.cc:57 0x7efc0ac52cc9
+    // 	tensorflow::ColocationGraph::GetDevicesForNode() at colocation_graph.cc:813 0x7efc0ac56214
+    // 	tensorflow::Placer::Run() 👀at placer.cc:144 0x7efc0acf145e
+    // 	tensorflow::GraphExecutionState::InitBaseGraph() at graph_execution_state.cc:616 0x7efc1b23eaea
+    // 	tensorflow::GraphExecutionState::MakeForBaseGraph() at graph_execution_state.cc:97 0x7efc1b23abc2
+    // 	tensorflow::DirectSession::MaybeInitializeExecutionState() at direct_session.cc:1,694 0x7efc1708f659
+    // 	tensorflow::DirectSession::ExtendLocked() at direct_session.cc:1,740 0x7efc1708fa41
+    // 	tensorflow::DirectSession::Extend() at direct_session.cc:1,733 0x7efc1708f9fc
+    // 	tensorflow::SessionRef::Extend() at session_ref.cc:441 0x7efc12b73833
+    // 	tensorflow::ExtendSessionGraphHelper() at c_api.cc:815 0x7efc171137c3
+    // 	<...more frames...>
+
+    // Placer placer(new_graph.get(), device_set_,  /* default_device= */ nullptr, 👀
+    //                 session_options_ == nullptr ||
+    //                     session_options_->config.allow_soft_placement(),
+    //                 session_options_ != nullptr &&
+    //                     session_options_->config.log_device_placement());
+    //
+
 
     if (devices.empty()) {
       return errors::InvalidArgument(
@@ -892,10 +1084,34 @@ Status ColocationGraph::GetDevicesForNode(
 
   // Cache the result of the possible devices for this node group.
   members_[node_root].set_possible_devices(std::move(devices));
+  // 1.
+  // (gdb) p node_root
+  // $16 = 4
+  // 这里是以 matmul op 为 study case 的.
+
   *possible_devices = &members_[node_root].possible_devices();
+  // 1.
+  // possible_devices 是这个函数的 Output
 
   return Status::OK();
 }
+// 1.
+// 函数返回到哪里?
+// Placer::Run()
+//
+// Thread #1 [python] 15583 [core: 13] (Suspended : Step)
+// 	tensorflow::ColocationGraph::GetDevicesForNode() at colocation_graph.cc:817 0x7efc0ac56236
+// 	tensorflow::Placer::Run() at placer.cc:144 0x7efc0acf145e
+// 	tensorflow::GraphExecutionState::InitBaseGraph() at graph_execution_state.cc:616 0x7efc1b23eaea
+// 	tensorflow::GraphExecutionState::MakeForBaseGraph() at graph_execution_state.cc:97 0x7efc1b23abc2
+// 	tensorflow::DirectSession::MaybeInitializeExecutionState() at direct_session.cc:1,694 0x7efc1708f659
+// 	tensorflow::DirectSession::ExtendLocked() at direct_session.cc:1,740 0x7efc1708fa41
+// 	tensorflow::DirectSession::Extend() at direct_session.cc:1,733 0x7efc1708f9fc
+// 	tensorflow::SessionRef::Extend() at session_ref.cc:441 0x7efc12b73833
+// 	tensorflow::ExtendSessionGraphHelper() at c_api.cc:815 0x7efc171137c3
+// 	tensorflow::ExtendSession() at python_api.cc:118 0x7efc12bac2e6
+// 	<...more frames...>
+
 
 Status ColocationGraph::InitializeMembers() {
   for (Node* node : graph_->op_nodes()) {

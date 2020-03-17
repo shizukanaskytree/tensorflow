@@ -319,7 +319,7 @@ void TF_DeprecatedSessionRunCallable(TF_DeprecatedSession* session,
 
 
 void TF_SessionRunCallable(TF_Session* session,
-                           int64_t handle, // input 
+                           int64_t handle, // input
                            PyObject* feed_values,
                            TF_Status* out_status,
                            PyObjectVector* out_values,
@@ -468,7 +468,8 @@ void TF_SessionRun_wrapper_helper(TF_Session* session, const char* handle,
   }
 }
 
-void TF_SessionRun_wrapper(TF_Session* session, const TF_Buffer* run_options,
+void TF_SessionRun_wrapper(TF_Session* session,
+                           const TF_Buffer* run_options,
                            const std::vector<TF_Output>& inputs,
                            const std::vector<PyObject*>& input_ndarrays,
                            const std::vector<TF_Output>& outputs,

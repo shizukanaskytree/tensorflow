@@ -317,9 +317,7 @@ class PersistentTensor {
 
 
 class OpKernelConstruction {
-
  public:
-
   OpKernelConstruction(
     DeviceType device_type,
     DeviceBase* device,

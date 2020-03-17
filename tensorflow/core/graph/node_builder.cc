@@ -120,12 +120,100 @@ Status NodeBuilder::Finalize(Graph* graph, Node** created_node) const {
   }
 
   NodeDef node_def;
-  TF_RETURN_IF_ERROR(def_builder_.Finalize(&node_def));
+  TF_RETURN_IF_ERROR(def_builder_.Finalize(&node_def)); // output
+  // 1.
+  // def_builder_.Finalize 是
+  // Status NodeDefBuilder::Finalize(NodeDef* node_def) const
+  // tensorflow/core/framework/node_def_builder.cc
+
   TF_RETURN_IF_ERROR(ValidateNodeDef(node_def, def_builder_.op_def()));
   TF_RETURN_IF_ERROR(
       CheckOpDeprecation(def_builder_.op_def(), graph->versions().producer()));
   Status status;
+
   Node* node = graph->AddNode(node_def, &status);
+  // 1.
+  // node {
+  //   name: "x"
+  //   op: "Placeholder"
+  //   device: "/job:localhost/replica:0/task:0/device:GPU:0"
+  //   attr {
+  //     key: "dtype"
+  //     value {
+  //       type: DT_FLOAT
+  //     }
+  //   }
+  //   attr {
+  //     key: "shape"
+  //     value {
+  //       shape {
+  //         dim {
+  //           size: 2
+  //         }
+  //         dim {
+  //           size: 5
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
+  // node {
+  //   name: "y"
+  //   op: "Placeholder"
+  //   device: "/job:localhost/replica:0/task:0/device:GPU:0"
+  //   attr {
+  //     key: "dtype"
+  //     value {
+  //       type: DT_FLOAT
+  //     }
+  //   }
+  //   attr {
+  //     key: "shape"
+  //     value {
+  //       shape {
+  //         dim {
+  //           size: 5
+  //         }
+  //         dim {
+  //           size: 3
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
+  // node {
+  //   name: "MatMul"
+  //   op: "MatMul"
+  //   input: "x"
+  //   input: "y"
+  //   device: "/job:localhost/replica:0/task:0/device:GPU:0"
+  //   attr {
+  //     key: "T"
+  //     value {
+  //       type: DT_FLOAT
+  //     }
+  //   }
+  //   attr {
+  //     key: "transpose_a"
+  //     value {
+  //       b: false
+  //     }
+  //   }
+  //   attr {
+  //     key: "transpose_b"
+  //     value {
+  //       b: false
+  //     }
+  //   }
+  // }
+  // library {
+  // }
+  // versions {
+  //   producer: 27
+  // }
+  //
+
+
   if (!status.ok()) return status;
 
   // 我感觉是在 NodeBuilder().AssignedDevice("xxx") 这种情况下才会把 device 给

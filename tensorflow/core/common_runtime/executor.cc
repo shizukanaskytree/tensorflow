@@ -438,8 +438,6 @@ typedef gtl::InlinedVector<AllocatorAttributes, 4> AllocatorAttributeVec;
 //  |+----------+
 //  +-----------+
 
-// =======================================================================
-
 // Immutable view of a Graph organized for efficient execution.
 class GraphView {
  public:
@@ -1299,11 +1297,6 @@ Status InferAllocAttr(const Node* n, const Node* dst,
   return s;
 }
 
-
-////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////
-
-
 // Very long: 919 - 1451
 //
 // The state associated with one invocation of ExecutorImpl::Run.
@@ -1318,7 +1311,6 @@ class ExecutorState {
 
  private:
 
-  // -----------------------------------------------------------------------
   // Either a tensor pointer (pass-by-reference) or a tensor (pass-by-value).
   // TODO(yuanbyu): A better way to do "has_value"?
   struct Entry {
@@ -1343,9 +1335,19 @@ class ExecutorState {
     }
 
     Entry& operator=(const Entry& other) {
+      // 1.
+      // 一句人话概括:
+      // 一个不查地把 other 里面的 member 全部都复制给了 this Entry. 一个不查地!
+
+      // 1.1
+      // 今后知道 operator= 要怎么写了吧~
+
       if (val_field_is_set) {
         val.Destroy();
       }
+      // 1.
+      // 如果 this Entry has val, 先炸掉(Destroy), 最后还会复制 other 的 Entry.
+
       ref = other.ref;
       ref_mu = other.ref_mu;
       has_value = other.has_value;
@@ -1378,6 +1380,10 @@ class ExecutorState {
     void ClearVal() {
       if (val_field_is_set) {
         val.Destroy();
+        // 1.
+        // ManualConstructor<Tensor> val;
+        // 就下面
+
         val_field_is_set = false;
         has_value = false;
       }
@@ -1533,6 +1539,24 @@ class ExecutorState {
     // and the control-flow primitives are responsible for creating and managing these execution frames.
     // Intuitively, for each while loop, the TensorFlow runtime sets up an execution frame and runs all the ops belonging to the while loop inside the execution frame.
     // Nested while loops run in nested execution frames. Ops from different execution frames can run in parallel as long as there is no data dependency between them.
+
+    // 4.
+    // 构造是在哪里?
+    // Thread #1 [python] 57018 [core: 24] (Suspended : Breakpoint)
+    // 	tensorflow::ExecutorState::IterationState::IterationState() at executor.h:662 0x7f623ec8a824
+    // 	tensorflow::ExecutorState::ExecutorState() at executor.cc:669 0x7f623ec8eebd ExecutorState()的构造函数内
+
+    //  ... root_frame_->iterations[0] = new IterationState(root_frame_->pending_counts, root_frame_->total_input_tensors);
+
+    // 	tensorflow::ExecutorImpl::RunAsync() at executor.cc:2,319 0x7f623ec97890
+    // 	tensorflow::DirectSession::RunInternal() at direct_session.cc:2,025 0x7f624b0918ac
+    // 	tensorflow::DirectSession::Run() at direct_session.cc:2,192 0x7f624b092d2b
+    // 	tensorflow::SessionRef::Run() at session_ref.cc:414 0x7f6246b72f8a
+    // 	TF_Run_Helper() at c_api.cc:878 0x7f624b113c4a
+    // 	TF_SessionRun() at c_api.cc:2,752 0x7f624b11d512
+    // 	tensorflow::TF_SessionRun_wrapper_helper() at tf_session_helper.cc:407 0x7f6246b673e1
+    // 	tensorflow::TF_SessionRun_wrapper() at tf_session_helper.cc:450 0x7f6246b6786d
+    // 	<...more frames...>
 
 
     // The state of an iteration.
@@ -2696,21 +2720,81 @@ void ExecutorState::RunAsync(Executor::DoneCallback done) {
   // - StatusCallback Get()
 
   const Graph* graph = impl_->graph_.get();
+  // 1.
+  // graph 是 某个 item 的图 GPU or CPU 的图.
+  //
+  // Thread #1 [python] 27176 [core: 2] (Suspended : Step)
+  // 	tensorflow::ExecutorState::RunAsync() at executor.cc:766 0x7fe472c8fd4e
+  // 	tensorflow::ExecutorImpl::RunAsync() at executor.cc:2,245 0x7fe472c97b53
+  // 	tensorflow::DirectSession::RunInternal() at direct_session.cc:2,025 0x7fe47f091894
+  // 	tensorflow::DirectSession::Run() at direct_session.cc:2,192 0x7fe47f092d13
+  // 	tensorflow::SessionRef::Run() at session_ref.cc:414 0x7fe47ab72f8a
+  // 	TF_Run_Helper() at c_api.cc:878 0x7fe47f113b96
+  // 	TF_SessionRun() at c_api.cc:2,752 0x7fe47f11d45e
+  // 	tensorflow::TF_SessionRun_wrapper_helper() at tf_session_helper.cc:407 0x7fe47ab673e1
+  // 	tensorflow::TF_SessionRun_wrapper() at tf_session_helper.cc:450 0x7fe47ab6786d
+  // 	_wrap_TF_SessionRun_wrapper() at pywrap_tensorflow_internal.cc:21,335 0x7fe47aae75b9
+  // 	<...more frames...>
+
+  // for (const auto& item : executors_and_keys->items) {
+  //   // TODO(azaks): support partial run.
+  //   // TODO(azaks): if the device picks its own threadpool, we need to assign
+  //   //     less threads to the main compute pool by default.
+  //   thread::ThreadPool* device_thread_pool =
+  //       item.device->tensorflow_device_thread_pool();
+  //   // TODO(crk): Investigate usage of RunHandlerPool when using device specific
+  //   // thread pool(s).
+  //   if (!device_thread_pool) {
+  //     args.runner = default_runner;
+  //   } else {
+  //     args.runner = [this, device_thread_pool](Executor::Args::Closure c) {
+  //       SchedClosure(device_thread_pool, std::move(c));
+  //     };
+  //   }
+  //   item.executor->RunAsync(args, barrier->Get());
+  // }
+
+  // 2.
+  // 打印 graph (GPU 上跑的图)
+  // https://gist.github.com/shizukanaskytree/f3c08913ca7ef798a32f1aa1e87c6b56
+
   TaggedNodeSeq ready;
+  // 1.
+  // type:
+  // class absl::InlinedVector<tensorflow::ExecutorState::TaggedNode, 8, std::allocator<tensorflow::ExecutorState::TaggedNode> > [with T = tensorflow::ExecutorState::TaggedNode, A = std::allocator<tensorflow::ExecutorState::TaggedNode>]
+  // 里面是 TaggedNode
 
   // Ask the device to fill in the device context map.
   Device* device = impl_->params_.device;
+  // 1.
+  // impl_ 是什么
+  // (gdb) ptype impl_
+  // type = const class tensorflow::ExecutorImpl : public tensorflow::Executor
 
-  // -----------------------------------------------------------------------
+  // 2.
+  // impl_->params_ 是什么
+  //  tensorflow::LocalExecutorParams params_;
+
+  const Status fill_status =
+      device->FillContextMap(graph, &device_context_map_);
+  // 1.
+  // ptype device_context_map_
+  // type = std::vector<tensorflow::DeviceContext*>
+
+  // 2.
   // GPU 有具体的 FillContextMap 实现, CPU 没有。
   //
   // GPU 的实现是:
   // 分配 graph op node 到对应的 物理的 GPU 软件 stream 内
   // 调用栈: https://docs.google.com/document/d/1Paqq-fJbqYIWzt5S2ZRSLGUb18Hb5T0LerpV4ZCcgV0/edit#
-  // -----------------------------------------------------------------------
-  const Status fill_status =
-      device->FillContextMap(graph, &device_context_map_);
-  // -----------------------------------------------------------------------
+
+  // 3.
+  // gpu_device.cc
+  // Status BaseGPUDevice::FillContextMap(const Graph* graph,
+  //                                      DeviceContextMap* device_context_map) {
+  //   VLOG(2) << "FillContextMap";
+  //   ...
+  // }
 
   if (!fill_status.ok()) {
     delete this;
@@ -2721,33 +2805,81 @@ void ExecutorState::RunAsync(Executor::DoneCallback done) {
   // Initialize the ready queue.
   for (const Node* n : impl_->root_nodes_) {
     DCHECK_EQ(n->in_edges().size(), 0);
-    // -------------------------------------------------------------
     ready.push_back(TaggedNode{n, root_frame_, 0, false});
-    // -------------------------------------------------------------
+    //                         |       |       |    |
+    //                         |       |       |    is_dead
+    //                         |       |       int64 in_iter
+    //                         |       FrameState* in_frame
+    //                         const Node* t_node
+
     // 1.
-    // struct TaggedNode 数据结构 | 重要
+    // impl_->root_nodes_ 是什么时候赋值的?
+    // 在 ExecutorImpl::Initialize() 内
+    //   在 tensorflow/core/common_runtime/executor.cc:387:
+    // See if this node is a root node, and if so, add to root_nodes_.
+    //   root_nodes_.push_back(n); // if in_edge is empty
+
+    // 2.
+    // (gdb) p n->DebugString()
+    // $17 = "{name:'_SOURCE' id:0 source}"
+
+    // 3.
+    // struct TaggedNode 数据结构
     // tensorflow/core/common_runtime/executor.cc
+
+    // 3.1
     // const Node* node = nullptr;
     // FrameState* input_frame = nullptr;
     // int64 input_iter = -1;
     // bool is_dead = false;
+
+    // 3.2
     // 构造:
     // TaggedNode(const Node* t_node, FrameState* in_frame, int64 in_iter, is_dead)
 
-    // 2.
+    // 3.3 ✅
     // input_frame 和 input_iter 很重要，每次都要靠它找到 input tensor
   }
+
   if (ready.empty()) {
+    // 未进入
+
     delete this;
     done(Status::OK());
   } else {
+    // 进入
+
     num_outstanding_ops_ = ready.size();
+    // 1.
+    // (gdb) p ready.size()
+    // $18 = 1
+
     root_frame_->iterations[0]->outstanding_ops = ready.size();
+    // 1.
+    // (gdb) p root_frame_
+    // $19 = (tensorflow::ExecutorState::FrameState *) 0x55cb72dd8f60
+
     done_cb_ = std::move(done);
     // Schedule to run all the ready ops in thread pool.
     ScheduleReady(ready, nullptr);
   }
 }
+// 1.
+// where am I
+//
+// Thread #1 [python] 27176 [core: 23] (Suspended : Step)
+// 	tensorflow::ExecutorState::RunAsync() at executor.cc:798 0x7fe472c8ffe3
+// 	tensorflow::ExecutorImpl::RunAsync() at executor.cc:2,245 0x7fe472c97b53
+// 	tensorflow::DirectSession::RunInternal() at direct_session.cc:2,025 0x7fe47f091894
+// 	tensorflow::DirectSession::Run() at direct_session.cc:2,192 0x7fe47f092d13
+// 	tensorflow::SessionRef::Run() at session_ref.cc:414 0x7fe47ab72f8a
+// 	TF_Run_Helper() at c_api.cc:878 0x7fe47f113b96
+// 	TF_SessionRun() at c_api.cc:2,752 0x7fe47f11d45e
+// 	tensorflow::TF_SessionRun_wrapper_helper() at tf_session_helper.cc:407 0x7fe47ab673e1
+// 	tensorflow::TF_SessionRun_wrapper() at tf_session_helper.cc:450 0x7fe47ab6786d
+// 	_wrap_TF_SessionRun_wrapper() at pywrap_tensorflow_internal.cc:21,335 0x7fe47aae75b9
+// 	<...more frames...>
+
 
 // State kept alive for executing an asynchronous node in another
 // thread.  NOTE: We need to make a copy of p.input,
@@ -2803,9 +2935,7 @@ struct ExecutorState::AsyncState {
   TaggedNode tagged_node;
   const NodeItem* item;
   Entry* first_input;
-  // =======================================================================
   OpKernelContext ctx;
-  // =======================================================================
   // 最最重要
   // - 包含了 这个 op 的 output_
 
@@ -2950,8 +3080,6 @@ void ExecutorState::Process(
   // input_frame: FrameState*, default : nullptr;
   // input_iter: int64, default : -1;
   // is_dead: bool, default : false;
-
-
 
   TaggedNodeReadyQueue inline_ready;
   // 1.
@@ -3133,10 +3261,8 @@ void ExecutorState::Process(
 
   params.step_id = step_id_;
 
-  // ------------------------------------------------------------------------
   Device* device = impl_->params_.device;
   params.device = device;
-  // ------------------------------------------------------------------------
 
   params.log_memory = log_memory_;
   params.record_tensor_accesses = impl_->device_record_tensor_accesses_;
@@ -3146,9 +3272,7 @@ void ExecutorState::Process(
   params.session_handle = session_handle_;
   params.tensor_store = tensor_store_;
 
-  // -----------------------------------------------------------------------
   params.cancellation_manager = cancellation_manager_;
-  // -----------------------------------------------------------------------
 
   params.call_frame = call_frame_;
   params.function_library = impl_->params_.function_library;
@@ -3162,7 +3286,9 @@ void ExecutorState::Process(
   // params.inputs: const gtl::InlinedVector<TensorValue, 4>*
   // 输入的 input tensor
 
-  // ------------------------------------------------------------------------
+  // 2.
+  // inputs: gtl::InlinedVector<TensorValue, 4>*, 为什么在 Compute() 后, 就换了一个数据结构了呢 (Entry) ?
+
   params.input_device_contexts = &input_device_contexts;
   // 1.
   // input_device_contexts 变量说明
@@ -3173,7 +3299,6 @@ void ExecutorState::Process(
   // class DeviceContext 数据结构
   // framework/device_base.h
   // 虚函数被继承
-  // ------------------------------------------------------------------------
 
   params.input_alloc_attrs = &input_alloc_attrs;
   // 1.
@@ -3296,10 +3421,8 @@ void ExecutorState::Process(
 
   inline_ready.push_back(tagged_node);
 
-  // ***********************************************************************
   // 循环
   while (!inline_ready.empty()) {
-  // ***********************************************************************
 
     tagged_node = inline_ready.front();
 
@@ -3311,27 +3434,21 @@ void ExecutorState::Process(
 
     const Node* node = tagged_node.node;
 
-    ////////////////////////////////////////////////////////////////////////
     // 困惑和费解的地方
     // 想象，如果有循环，那么确实要区分是第几次循环，每个节点也要额外的记录
     FrameState* input_frame = tagged_node.input_frame;
     const int64 input_iter = tagged_node.input_iter;
     // 评价: node, frame, iter 三个唯一确定一个状态
-    ////////////////////////////////////////////////////////////////////////
 
     // tagged_node: struct TaggedNode
     // int64 input_iter = -1; 是初始值
     const int id = node->id();
 
-
-    //***********************************************************************
     // 重要！
     // 取出 item 开始执行 op kernel
     const NodeItem& item = *gview.node(id);
     // QQQ. 这个数据结构来自哪里?
     // AAA. 这个数据结构来自于 gview, 来自于 ExecutorState::impl_->gview_
-    //***********************************************************************
-
 
     // TODO(misard) Replace with a finer-grain enabling flag once we
     // add better optional debugging support.
@@ -3408,12 +3525,22 @@ void ExecutorState::Process(
       VLOG(1) << "Process node: " << id << " step " << params.step_id << " "
               << SummarizeNode(*node) << (tagged_node.is_dead ? " is dead" : "")
               << " device: " << device->name();
+      // 1.
+      // case study:
+      // 2020-03-07 00:03:42.278630: I tensorflow/core/common_runtime/executor.cc:970]
+      // Process node: 3
+      // step 1
+      // {{node _arg_y_0_1/_3}} = _Recv[client_terminated=false, recv_device="/job:localhost/replica:0/task:0/device:GPU:0", send_device="/job:localhost/replica:0/task:0/device:CPU:0", send_device_incarnation=1, tensor_name="edge_7__arg_y_0_1", tensor_type=DT_FLOAT, _device="/job:localhost/replica:0/task:0/device:GPU:0"]()
+      // device: /job:localhost/replica:0/task:0/device:GPU:0
     }
 
     // 用于获取 这个节点的 input tensors
-    // =======================================================================
     Entry* input_tensors = GetInputTensors(input_frame, input_iter);
-    // =======================================================================
+    // 1.
+    // 打印:
+    // p input_tensors->ref
+    // $2 = (tensorflow::Tensor *) 0x0
+
     // 1.
     // Entry 数据结构
     // tensorflow/core/common_runtime/executor.cc
@@ -3480,18 +3607,47 @@ void ExecutorState::Process(
     // p input_iter
     // $21 = 0
 
-    // 5.
+    // 5. ✅
     // 关于从 input_frame 里面得到的 tensor 都是临时存入的
     // ExecutorState::FrameState::ActivateNodes 里面的关键几步可以证明这些 tensor 都是临时变量
+    //
     // Entry* input_tensors = iter_state->input_tensors;
+    //
     // if (dst_need_input) {
     //   input_tensors[dst_loc] = (*outputs)[src_slot];
     // }
 
-    // 用于获取这个节点的 第一个 input tensor
-    // =======================================================================
+    // 5.1
+    // 关于 Entry* input_tensors = iter_state->input_tensors; 中的 "iter_state->input_tensors"
+    // 其中 iter_state->input_tensors; 中的 input_tensors 是定义在 struct IterationState::Entry* input_tensors;
+
     Entry* first_input = input_tensors + item.input_start;
-    // =======================================================================
+    // 1.
+    // 用于获取这个节点的 第一个 input tensor
+
+    // 2.
+    // input_tensors 应该是可能合法的, 有值的了.
+
+    // 3.
+    // 指针方面的心得:
+    // 原来在指针上 + 1 是偏移了一整个 数据结构的范围.
+
+    // 4.
+    // 上面那条中的 "input_tensors[dst_loc] = (*outputs)[src_slot];"
+    // 原来 input_tensors 是个指针数组啊!
+
+    // 5.
+    // 移花接木!
+
+    // 6.
+    // 访问和打印 first_input:
+    // p (*first_input).val.get()->DebugString() 会挂.
+    // https://gist.github.com/shizukanaskytree/8ab63e3299d830a20506a117b611f601
+    // (经过两次验证, 确实是会挂, 就是我明确知道是 Tensor 了)
+
+    // 6.1
+    // 既然会挂, 为什么还能用? 是不是因为在 GPU 上的缘故, 所以我不能乱访问, 但是 matmul 可以使用?
+    //
 
     outputs.clear();
 
@@ -3524,7 +3680,6 @@ void ExecutorState::Process(
       // Prepares inputs.
       bool is_input_dead = false;
 
-      // -----------------------------------------------------------------------
       s = PrepareInputs(
             item, // input
             first_input, // input
@@ -3532,12 +3687,21 @@ void ExecutorState::Process(
             &input_device_contexts, // output
             &input_alloc_attrs, // output
             &is_input_dead); // output
-      // -----------------------------------------------------------------------
       // 对于 _Recv Node 而已，没有 Inputs, 所以这个函数几乎是没干什么。
 
       // 1.
       // inputs 变量说明
       // inputs 是输入这个节点的 input tensors
+
+      // 2.
+      // 打印 first_input 的正确方法:
+      // p (*first_input).val.get()->DeviceSafeDebugString()
+      // https://gist.github.com/shizukanaskytree/8ab63e3299d830a20506a117b611f601
+
+      // 3.
+      // 一旦这个 sess.run 结束, ExecutorState 就没了, Entry 内存的 GPU memory 就没了
+      // https://gist.github.com/shizukanaskytree/8ab63e3299d830a20506a117b611f601#gistcomment-3205125
+      // 第二次跑 sess.run() 的时候确实重新构造了 ExecutorState::ExecutorState()
 
       if (!s.ok()) {
         // Clear inputs.
@@ -3659,10 +3823,19 @@ void ExecutorState::Process(
           nodestats::SetOpEnd(stats);
 
           EntryVector outputs;
+          // 1.
+          // outputs 功用:
+          // 从这个节点收集到的 output tensor 作为下一个节点的输入
+          // ProcessOutputs(取出 outputs) --> PropagateOutputs(输入 outputs 传播给后继节点们)
 
           // Process Outputs
-          // 取出 &state->ctx 内的 outputs
           Status s = ProcessOutputs(*state->item, &state->ctx, &outputs, stats);
+          // 1.
+          // 取出 &state->ctx 内的 outputs
+
+          // 2.
+          // outputs 功用:
+          // 从这个节点收集到的 output tensor 作为下一个节点的输入
 
           nodestats::SetMemory(stats, &state->ctx);
 
@@ -3696,6 +3869,15 @@ void ExecutorState::Process(
                              &outputs, // input
                              &ready); // output
           }
+          // 1.
+          // PropagateOutputs 函数 signature:
+          //
+          // void ExecutorState::PropagateOutputs(
+          //   const TaggedNode& tagged_node, // input
+          //   const NodeItem* item, // input
+          //   EntryVector* outputs, // input, 从这个节点收集到的 output tensor 作为下一个节点的输入
+          //   TaggedNodeSeq* ready) // output
+          //
 
           outputs.clear();
           if (s.ok() && impl_->device_record_tensor_accesses_) {
@@ -3717,7 +3899,6 @@ void ExecutorState::Process(
           if (completed) ScheduleFinish();
 
         };
-
 
         nodestats::SetOpStart(stats);
         // 1.
@@ -3825,28 +4006,27 @@ void ExecutorState::Process(
         // - persistent_alloc_ids_: std::unique_ptr<gtl::InlinedVector<int64, 2>>
 
       } else {
-
-        ///////////////////////////////////////////////////////////////////////
         // Synchronous computes.
-        ///////////////////////////////////////////////////////////////////////
-
-        // ====================================================================
-        // ====================================================================
         OpKernelContext ctx(&params, item.num_outputs);
-        // ====================================================================
-        // ====================================================================
-        // 最最重要的参数
-
         // 1.
+        // tensorflow/core/framework/op_kernel.cc
+        // const Tensor& OpKernelContext::input(int index)
+        // 其中的关键一步是从 params_ 里面取出了 inputs tenor
+        // const Tensor& tensor = *((*params_->inputs)[index].tensor);
+
+        // (gdb) p ctx->input(0).DebugString()
+        // $11 = "Tensor<type: float shape: [5,3] values: [0.127816513 0.533222497 0.559521496]...>"
+
+        // 2.
         // item.num_outputs 变量说明
         // NodeItem& instance 的 num_outputs
         // 这个节点的输出个数
 
-        // 2.
+        // 3.
         // tensorflow/core/framework/op_kernel.h:567:
         // class OpKernelContext
 
-        // 3.
+        // 4.
         // ctx: OpKernelContext 的生命周期:
         // QQQ.ctx 出了这个 scope 后会没有吗？
         // AAA. 是的， ctx 出了这个 {} 后就析构了。
@@ -3883,11 +4063,7 @@ void ExecutorState::Process(
                 op_name, strings::StrCat(op_kernel->type_string(),
                                          "#id=", step_id_, "#"));
 
-            // -------------------------------------------------------------------
-
             device->Compute(op_kernel, &ctx);
-
-            // -------------------------------------------------------------------
 
           } else {
             // Use the cheaper `ScopedActivity` to trace just the OpKernel
@@ -3899,19 +4075,13 @@ void ExecutorState::Process(
                 strings::StrCat(op_kernel->type_string(), "#id=", step_id_,
                                 "#"),
                 item.kernel->IsExpensive());
-            // -------------------------------------------------------------------
 
             device->Compute(op_kernel, &ctx);
 
-            // -------------------------------------------------------------------
-
           }
           // =============================================================
-
         } else {
-
           // In the common case, avoid creating any tracing objects.
-
           if (op_kernel->IsExpensive()) {
             // op_kernel: OpKernel*
             // ConstantOp::IsExpensive() 对于 const op 而言
@@ -3920,11 +4090,7 @@ void ExecutorState::Process(
 
             KernelTimer timer;
 
-            // -------------------------------------------------------------------
-
             device->Compute(op_kernel, &ctx);
-
-            // -------------------------------------------------------------------
             // 1.
             // 如果是 send op 那么会进入这个分支
             // SendOp::Compute(OpKernelContext* ctx)
@@ -3934,11 +4100,9 @@ void ExecutorState::Process(
 
           } else {
 
-            // -------------------------------------------------------------------
             device->Compute(
               op_kernel, // input
               &ctx); // output
-            // -------------------------------------------------------------------
 
             // 1.
             // Device::Compute 函数说明:
@@ -4022,23 +4186,21 @@ void ExecutorState::Process(
 
         nodestats::SetOpEnd(stats);
 
-        // -------------------------------------------------------------------
         s = ProcessOutputs(
               item,  // input
               &ctx,  // input
               &outputs, // output
               stats);   // output
-
+        // 1.
         // ProcessOutputs 函数说明:
-        // ********************************************************************
         // 这个函数把计算得到的结果从 ctx 取出来，放到 outputs 里面，作为这个函数的输出。
-        // ********************************************************************
+
+        // 2.
         // Status ExecutorState::ProcessOutputs(
         //   const NodeItem& item, // input
         //   OpKernelContext* ctx, // input
         //   EntryVector* outputs, // output
         //   NodeExecStatsInterface* stats) // output
-        // -------------------------------------------------------------------
 
         if (s.ok() && impl_->device_record_tensor_accesses_) {
           // Get the list of all tensors accessed during the execution
@@ -4070,20 +4232,16 @@ void ExecutorState::Process(
         (first_input + i)->ClearVal();
       }
 
-      // -----------------------------------------------------------------------
       MaybeMarkCompleted(input_frame, input_iter, id);
-      // -----------------------------------------------------------------------
 
       // Propagates outputs.
       if (s.ok()) {
 
-        // ---------------------------------------------------------------------
         PropagateOutputs(
           tagged_node, // input
           &item, // input
           &outputs,  // input
           &ready); // output
-        // ---------------------------------------------------------------------
         // 1.
         // PropagateOutputs 函数说明:
         // After processing the outputs, propagates the outputs to their dsts.
@@ -4163,17 +4321,14 @@ void ExecutorState::Process(
   if (completed) ScheduleFinish();
 }
 
-
-///////////////////////////////////////////////////////////////////////////////
-
-
-
+// 1.
 // 主要逻辑是把输入从 first_input (数组中的一个) 开始的片段中拷贝到 inputs , 并收集一些其他的信息。
 // 在调用的时候，first_input 指向 IterationState 中 inputs 数组中的一个元素
 // 在 Process 里调用结束后，inputs 、 input_device_contexts 、 input_alloc_attrs 、 is_input_dead
 // 这些数据会传递给 OpKernelContext ，在 Kernel::Compute 里被使用。
 // ExecutorState::ProcessOutputs 把计算地 OpKernelContext 里地输出拷贝出来
 
+// 2.
 // class OpKernelContext 数据结构
 // tensorflow/core/framework/op_kernel.h:567:
 
@@ -4192,6 +4347,14 @@ Status ExecutorState::PrepareInputs(
   // inputs 是输入这个节点的 input tensors
 
   const Node* node = item.node;
+  // 1.
+  // 诡异的是 SOURCE_ node 也会进入这里
+
+  // 1.1
+  // 打印:
+  // (gdb) thread apply 170 p node->DebugString()
+  // Thread 170 (Thread 0x7fe18cffd700 (LWP 27570)):
+  // $20 = "{name:'_SOURCE' id:0 source}"
 
   inputs->clear();
   inputs->resize(item.num_inputs);
@@ -4215,9 +4378,12 @@ Status ExecutorState::PrepareInputs(
     (*input_alloc_attrs)[i] = entry->alloc_attr;
 
     // i-th input.
-    TensorValue* inp = &(*inputs)[i]; // inp 是代理 &(*inputs)[i] 的 指针
-
+    TensorValue* inp = &(*inputs)[i];
     // 1.
+    // inp 是代理 &(*inputs)[i] 的 指针
+    // 下面分情况对 inp 赋值, 目前是空指针
+
+    // 2.
     // TensorValue 数据结构
     // framework/op_kernel.h
     //
@@ -4234,7 +4400,6 @@ Status ExecutorState::PrepareInputs(
     //   mutex* mutex_if_ref;  // nullptr if not a ref, != nullptr if a ref
     //   Tensor* tensor;
     // };
-
 
     // Only merge and transfer nodes can have no-value inputs.
     if (!entry->has_value) {
@@ -4257,10 +4422,11 @@ Status ExecutorState::PrepareInputs(
             item.kernel->def());
       }
 
-      // -----------------------------------------------------------------------
       inp->tensor = entry->val.get();
-      // -----------------------------------------------------------------------
-
+      // 1.
+      // 这里赋值了, 值来自 entry 的 val: ManualConstructor<Tensor>
+      // (gdb) p entry->val.get()->DebugString()
+      // $7 = "Tensor<type: float shape: [5,3] values: [0.127816513 0.533222497 0.559521496]...>"
     } else {
 
       {
@@ -4311,24 +4477,24 @@ Status ExecutorState::PrepareInputs(
   }
   return Status::OK();
 
-  /*
-  输出的打印
-
-  p inputs.size()
-  $7 = 1
-
-  p inputs[0].tensor->DebugString()
-  $8 = "Tensor<type: float shape: [30,20] values: [-1.39755154 -0.0128526222 0.0272815395...]...>"
-  */
+  // 1.
+  // 输出的打印
+  //
+  // p inputs.size()
+  // $7 = 1
+  //
+  // p inputs[0].tensor->DebugString()
+  // $8 = "Tensor<type: float shape: [30,20] values: [-1.39755154 -0.0128526222 0.0272815395...]...>"
 }
 
-
-
+// 1.
+// 一句人话概括:
+//
 
 Status ExecutorState::ProcessOutputs(
   const NodeItem& item, // input
   OpKernelContext* ctx, // input
-  EntryVector* outputs, // output
+  EntryVector* outputs, // output  关键 ✅
   NodeExecStatsInterface* stats) // output
 {
   // class OpKernelContext 数据结构:
@@ -4351,10 +4517,9 @@ Status ExecutorState::ProcessOutputs(
   DCHECK_EQ(0, outputs->size());
 
   outputs->resize(item.num_outputs);
-  /*
-  _Send Op
-  item.num_outputs == 0
-  */
+  // 1.
+  // _Send Op study case:
+  // item.num_outputs == 0
 
   Status s = ctx->status();
 
@@ -4394,7 +4559,6 @@ Status ExecutorState::ProcessOutputs(
   // class DeviceContext 数据结构:
   // tensorflow/core/framework/device_base.h
 
-
   // Get the device_context for this node id, if it exists.
   if (node->id() < device_context_map_.size()) {
     device_context = device_context_map_[node->id()];
@@ -4425,12 +4589,27 @@ Status ExecutorState::ProcessOutputs(
     */
   }
 
-  // -----------------------------------------------------------------------
-  // 遍历所有的存在 OpKernelContext 内的输出
-  // -----------------------------------------------------------------------
   for (int i = 0; i < item.num_outputs; ++i) {
+    // 1.
+    // 遍历 node 的所有输出
+
+    // 2.
+    // 解释
+    // 这个 node item 有几个 num outptus 就存下几个 output 到 Entry
+
+    // 3.
+    // study case : _Recv node
+    // "{name:'_arg_x_0_0/_1' id:2 op device:{/job:localhost/replica:0/task:0/device:GPU:0} def:{{{node _arg_x_0_0/_1}} = _Recv[client_terminated=false, recv_device=\"/job:localhost/replica:0/task:0/device:GPU:0\", send_device=\"/job:localhost/replica:0/task:0/device:CPU:0\", send_device_incarnation=1, tensor_name=\"edge_5__arg_x_0_0\", tensor_type=DT_FLOAT, _device=\"/job:localhost/replica:0/task:0/device:GPU:0\"]()}}"
+
+    // 3.1
+    // thread apply 166 p item.num_outputs
+    // $8 = 1
+    // 明确了, _Recv node 只有一个 output
 
     const TensorValue val = ctx->release_output(i);
+    // 1.
+    // 逻辑:
+    // 这里提取 这个 node 的输出 TensorValue val.
     // 提醒: val 这个变量在本函数最后被 delete 了
 
     // 1.
@@ -4444,20 +4623,21 @@ Status ExecutorState::ProcessOutputs(
     // tensor: Tensor*
 
     if (val.tensor == nullptr) {
-      // ***********************************************************************
       // Unless it's a Switch or a Recv, the node must produce a
       // tensor value at i-th output.
-      // ***********************************************************************
       if (!IsSwitch(node) && !IsRecv(node)) {
         s.Update(errors::Internal("Missing ", i, "-th output from ",
                                   FormatNodeForError(*node)));
       }
-
     } else {
-
-      // 首先，取出 i-th output from outputs 并且用 out 指针代理。
       Entry* out = &((*outputs)[i]);
       // 1.
+      // 一句人话表面意图:
+      // 首先，取出 i-th output from outputs 并且用 out 指针代理。
+      // 现在 out 指向的数据就是 outputs + i 偏移量 所指向的数据
+      // 这样做的好处是简洁了指代 `&((*outputs)[i])` 这一串.
+
+      // 2.
       // outputs: EntryVector*
 
       // 2.
@@ -4472,7 +4652,6 @@ Status ExecutorState::ProcessOutputs(
       // ref: Tensor*
       // device_context: DeviceContext*
       // ... 其他
-
 
       // 然后，填充初始化所有的 out 的内容。
 
@@ -4551,6 +4730,7 @@ Status ExecutorState::ProcessOutputs(
           out->has_value = true;
           out->ref = val.tensor;
           out->ref_mu = val.mutex_if_ref;
+
           if (log_memory_) {
             Tensor to_log;
             {
@@ -4560,6 +4740,7 @@ Status ExecutorState::ProcessOutputs(
             }
             LogMemory::RecordTensorOutput(ctx->op_kernel().name(),
                                           ctx->step_id(), i, to_log);
+            // 1.
             // 打印实例:
             // 2019-10-01 22:33:58.235769: I
             // tensorflow/core/framework/log_memory.cc:35]
@@ -4567,6 +4748,19 @@ Status ExecutorState::ProcessOutputs(
           }
         } else {
           // tensor 不是 reference tensor 的分支
+          // 即 val.is_ref() 是 false, 说明有值, 也就是存在 val: ManualConstructor<Tensor>
+
+          // 1.
+          // case study: _Recv node
+          // _Recv node 进入此分支
+          // 当我执行 _Recv node 时, 我发现它进入的是这个分支.
+          // $7 = "{name:'_arg_x_0_0/_1' id:2 op device:{/job:localhost/replica:0/task:0/device:GPU:0} def:{{{node _arg_x_0_0/_1}} = _Recv[client_terminated=false, recv_device=\"/job:localhost/replica:0/task:0/device:GPU:0\", send_device=\"/job:localhost/replica:0/task:0/device:CPU:0\", send_device_incarnation=1, tensor_name=\"edge_5__arg_x_0_0\", tensor_type=DT_FLOAT, _device=\"/job:localhost/replica:0/task:0/device:GPU:0\"]()}}"
+
+          // 1.1
+          // case study: _Arg node
+          // 进入此分支
+          // p node->DebugString()
+          // $5 = "{name:'_arg_x_0_0' id:2 op device:{/job:localhost/replica:0/task:0/device:CPU:0} def:{{{node _arg_x_0_0}} = _Arg[T=DT_FLOAT, index=0, _device=\"/job:localhost/replica:0/task:0/device:CPU:0\"]()}}"
 
           // NOTE that std::move is used here, so val.tensor goes to
           // uninitialized state (val.tensor->IsInitialized return false).
@@ -4575,31 +4769,63 @@ Status ExecutorState::ProcessOutputs(
           out->has_value = true;  // TRUE 哦
           out->val_field_is_set = true; // TRUE 哦
 
-          // ==================================================================
+          out->val.Init(std::move(*val.tensor));
+          // 1.
           // 最核心的一步
           // new 一个 tensor ，然后赋值给 out->val
-          out->val.Init(std::move(*val.tensor));
-          // ==================================================================
-
-          // 1.
-          // val: const TensorValue
 
           // 2.
-          // val.tensor: TensorValue::Tensor*
+          // (gdb) ptype out->val
+          // type = class tensorflow::ManualConstructor<tensorflow::Tensor> [with Type = tensorflow::Tensor]
+          // 打印:
+          // thread apply 166 p ((*outputs)[0])->val.get()->DeviceSafeDebugString()
+          // $9 = "Tensor<type: float shape: [2,5]>"
+
+          // 2.1
+          // ManualConstructor 数据结构
+          // type = class tensorflow::ManualConstructor<tensorflow::Tensor> [with Type = tensorflow::Tensor] {
+          //   private:
+          //     tensorflow::gtl::internal::AlignType<8, 32>::result space_;
+          //
+          //   public:
+          //     static void * operator new [](size_t);
+          //     static void operator delete [](void *);
+          //     Type * get(void);
+          //     const Type * get(void) const;
+          //     Type * operator->(void);
+          //     const Type * operator->(void) const;
+          //     Type & operator*(void);
+          //     const Type & operator*(void) const;
+          //     void Init(void);
+          //     void Destroy(void);
+          //     void Init<tensorflow::Tensor&>(Type &);
+          //     void Init<tensorflow::Tensor>(Type &&);
+          //     void Init<tensorflow::Tensor const&>(const Type &);
+          // }
 
           // 3.
-          // out: Entry*
+          // LHS val 是什么类型?
+          // ptype val
+          // type = const struct tensorflow::TensorValue
+
+          // 3.1
+          // *val.tensor 是什么类型?
+          // ptype *val.tensor
+          // type = class tensorflow::Tensor
+
+          // 3.2
+          // val.tensor: TensorValue::Tensor*
 
           // 4.
-          // out->val: ExecutorState::Entry::ManualConstructor<Tensor>;
-          // A tensor value, if val_field_is_set
+          // out 是什么类型?
+          // out: Entry*
 
           // 5.
           // class ManualConstructor 数据结构
           // tensorflow/core/lib/gtl/manual_constructor.h
           //                 -------
 
-          // 6.
+          // 5.1
           // ManualConstructor::Init 函数说明
           // inline void Init(const T1& p1) { new (space_) Type(p1); }
 
@@ -4621,7 +4847,7 @@ Status ExecutorState::ProcessOutputs(
                                   DataTypeString(item.output_type(i)),
                                   " for node ", FormatNodeForError(*node)));
       }
-    } // if branch
+    } // if branch end!
 
 
     if (!val.is_ref()) {
@@ -4630,21 +4856,25 @@ Status ExecutorState::ProcessOutputs(
       delete val.tensor;
     }
 
-
   } // End For, 遍历这个节点的所有输出
 
   return s;
 }
 
+// 1.
+// 一句人话概括:
+// 从这个节点收集到的 output tensor 作为下一个节点的输入
+// ProcessOutputs(取出 outputs) --> PropagateOutputs(输入 outputs 传播给后继节点们)
 
-
+// After processing the outputs, propagates the outputs to their dsts.
+// Contents of *outputs are left in an indeterminate state after
+// returning from this method.
 void ExecutorState::PropagateOutputs(
   const TaggedNode& tagged_node, // input
   const NodeItem* item, // input
   EntryVector* outputs, // input, 这个节点的 output tensor 作为下一个节点的输入
-  TaggedNodeSeq* ready) // output
+  TaggedNodeSeq* ready) // output, 代理
 {
-
   // 如果 这个节点会追踪，那么会构造一个 trace_collector->CreateActivityHandle
   // activity_handle = CreateActivityHandle() instance 出了本函数范围，然后析构，
   // 那时 profiling 结束。
@@ -4669,6 +4899,7 @@ void ExecutorState::PropagateOutputs(
 
   const Node* node = tagged_node.node;
 
+  // 1.
   // 和 while loop 相关的两个
   // Frame <==> loop
   // FrameState 协助 Frame
@@ -4676,19 +4907,65 @@ void ExecutorState::PropagateOutputs(
   // Frames maintain a variety of data structures to hold the state of each iteration.
   // 参考 https://topic.alibabacloud.com/a/tensorflow-source-code-analysis-of-the-common_runtime-executor-_8_8_30000147.html
   // 强烈推荐: https://www.imooc.com/article/73372
+
+  // 2.
+  // 我的笔记: https://docs.google.com/document/d/1BxO7Ffxa1BA42IYqwlTTKe_X5CKE6g4ZYevLEiELtxs/edit#
+  // Frame: https://docs.google.com/document/d/1BxO7Ffxa1BA42IYqwlTTKe_X5CKE6g4ZYevLEiELtxs/edit#heading=h.1zk0qg660k0v
+  //   video: https://youtu.be/IzKXEbpT9Lg?t=440
+
+  // 3.
+  // white paper of control flow:
+  // 2017-TF-Implementation of Control Flow in TensorFlow-white_paper_tf_control_flow_implementation_2017_11_1.pdf
+
   FrameState* input_frame = tagged_node.input_frame;
+  // 1.
+  // 用意何在:
+  // 明确是这个 node 是在哪个 frame 里面.
+
+  // 1.1
+  // Frame 图示: (笔记)
+  // https://docs.google.com/document/d/1BxO7Ffxa1BA42IYqwlTTKe_X5CKE6g4ZYevLEiELtxs/edit#heading=h.1zk0qg660k0v
+
+  // 2.
   // FrameState 数据结构
   // tensorflow/core/common_runtime/executor.cc:673:  struct FrameState
 
+  // 3.
   // struct Frame 数据结构
   // tensorflow/core/graph/control_flow.cc:29:struct Frame
 
+
   const int64 input_iter = tagged_node.input_iter;
+  // 1.
+  // input_iter 用意:
+  // 明确 node 是在 while loop 的 第几个 iteration.
+
+  // 1.1
+  // iteration 图示:
+  // https://docs.google.com/document/d/1BxO7Ffxa1BA42IYqwlTTKe_X5CKE6g4ZYevLEiELtxs/edit#heading=h.fv8siwsnj86k
+
   const bool is_dead = tagged_node.is_dead;
+  // 1.
+  // is_dead 表示:
+  // is_dead is a boolean indicating if the tensor is **on an untaken branch** of a conditional
+
+  // 1.1
+  // 具体参阅:
+  // 2017-TF-Implementation of Control Flow in TensorFlow-white_paper_tf_control_flow_implementation_2017_11_1.pdf
+  //
+  // tensors inside the executor are represented as a tuple d = (value, is_dead, tag),
+  // where value is the actual tensor,
+  // **is_dead is a boolean indicating if the tensor is on an untaken branch of a conditional,**
+  // tag is a string uniquely identifying the tensor (and the execution instance of the node producing the tensor).
 
   // Propagates outputs along out edges, and puts newly ready nodes
   // into the ready queue.
-  ready->clear(); // 居然 clear 了 ready queue?
+  ready->clear();
+  // 1.
+  // 居然 clear 了 ready queue?
+  // output 是这个函数的输出, 先清空下确保不要有残留, 下面要往里面装东西了.
+
+  // 2.
   // ready 变量说明:
   // ready: TaggedNodeSeq
   // 这个变量是在 ExecutorState::Process 一开始被构造的。
@@ -4702,6 +4979,13 @@ void ExecutorState::PropagateOutputs(
   // 全部复制 input_frame, input_iter 的，奇怪
 
   if (!item->is_enter_exit_or_next_iter) {
+    // 1.
+    // Normal path for most nodes
+
+    // 2.
+    // 关于 control flow 中的 enter, exit, next_iter op 的教程:
+    // https://www.youtube.com/watch?v=IzKXEbpT9Lg
+
     // 关于 output_frame, output_iter 说明:
     // 如果不是 enter, exit, next iteraton node 的话，那么就 全部复制 input_frame , input_iter 的。
 
@@ -4710,25 +4994,26 @@ void ExecutorState::PropagateOutputs(
     // Normal path for most nodes
     mutex_lock l(input_frame->mu);
 
-    // =======================================================================
     // Activate the successors of a node. Contents of *outputs are left in an
     // indeterminate state after returning from this method.
-    // ** ActivateNodes 主要功能**
-    // 把 NodeItem* item 的 各条 out edge 的 destination node 放入 ready queue 准备执行。
-    // 感觉这个才是执行流程的起点
     output_frame->ActivateNodes(
       item,         // input
       is_dead,      // input
       output_iter,  // input
       outputs,      // input
       ready);       // output
-    // =======================================================================
-    // ExecutorState::FrameState::ActivateNodes 函数说明
-    // void ExecutorState::FrameState::ActivateNodes(const NodeItem* item,
-    //                                               const bool is_dead,
-    //                                               int64 iter,
-    //                                               EntryVector* outputs,
-    //                                               TaggedNodeSeq* ready) // output
+    // 1.
+    // ** ActivateNodes 主要功能**
+    // 把 NodeItem* item 的 各条 out edge 的 destination node 放入 ready queue 准备执行。
+    // 感觉这个才是执行流程的起点
+
+    // 2.
+    // ExecutorState::FrameState::ActivateNodes 函数说明:
+    // void ExecutorState::FrameState::ActivateNodes(const NodeItem* item, // input
+    //                                               const bool is_dead, // input
+    //                                               int64 iter, // input
+    //                                               EntryVector* outputs, // input, 已知, 这个 Node 的 output
+    //                                               TaggedNodeSeq* ready) { // output
     //
 
     is_frame_done = input_frame->DecrementOutstandingOpsLocked(
@@ -4822,9 +5107,13 @@ void ExecutorState::PropagateOutputs(
   // At this point, this node is completely done. We also know if the
   // completion of this node makes its frame completed.
   if (is_frame_done) {
+    // 1.
+    // since frame ~= while loop, so this statement means is while loop done?
+
     FrameState* parent_frame = input_frame->parent_frame;
     const int64 parent_iter = input_frame->parent_iter;
     DeleteFrame(input_frame, ready);
+
     if (parent_frame != nullptr) {
       // The completion of frame may cause completions in its parent frame.
       // So clean things up recursively.
@@ -5625,23 +5914,34 @@ void ExecutorState::CleanupFramesIterations(FrameState* frame, int64 iter,
   }
 }
 
+// 1.
 // ** ActivateNodes 主要功能**
 // 把 NodeItem* item 的 各条 out edge 的 destination node 放入 ready queue 准备执行。
-// 感觉这个才是执行流程的起点
+// 感觉这个才是执行流程的起点.
+// 其中, 把前驱节点的 EntryVector* outputs 填充给后继节点的 input_tensors, 做好了数据的流动, 即 dataflow 的赋值.
 
 // _Send Op 的 dst node 没有放入 ready ，因为 _SINK node 没必要放进 ready queue.
 
+// 2.
 // 说明帖子
 // http://jcf94.com/2018/01/23/2018-01-23-tfunpacking2/
 // https://www.twblogs.net/a/5b822d562b717737e032d359
+
+// 3.
+// 被调用时:
+// output_frame->ActivateNodes(item, is_dead, output_iter, outputs, ready);
 void ExecutorState::FrameState::ActivateNodes(const NodeItem* item, // input
                                               const bool is_dead, // input
                                               int64 iter, // input
-                                              EntryVector* outputs, // input
+                                              EntryVector* outputs, // input, 已知, 这个 Node 的 output
                                               TaggedNodeSeq* ready) { // output
   // 1.
   // ready 变量目的说明:
   // ready queue 给我的感觉其主要目的是为了存放 这个 已经处理完的 NodeItem* item 的后继节点
+
+  // 2.
+  // 看不懂, 举个例子吧
+  // 图片见: tf-code-map.graffle:ProcessOutputs
 
   const GraphView& gview = executor->gview_;
   // 1.
@@ -5649,9 +5949,14 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item, // input
   // executor: ExecutorState::FrameState::const ExecutorImpl*
   // 含义 The executor the frame is in.
 
-  // 拿到 当前这个 ExecutorState::FrameState 的 第 iter 次 對應的 IterationState
+  // 拿到 当前这个 ExecutorState::FrameState 的第 iter 次 对应的 IterationState
   IterationState* iter_state = GetIteration(iter);
   // 1.
+  // 意图, 目的:
+  // iter 对应的那个 ExecutorState::FrameState::IterationState
+  // 具体来说是 output_iter 对应的那个, 根据被调用方传入的参数.
+
+  // 2.
   // struct IterationState 数据结构
   // 含义: The state of an iteration.
   // - input_tensors: Entry*
@@ -5663,16 +5968,17 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item, // input
 
   // 2.
   // GetIteration 函数说明:
-  //
+  // 其意图得到是 output node 的 iter_state
 
-  // 從NodeItem 拿到輸出邊的信息
   const size_t num_output_edges = item->num_output_edges;
-  /*
-  p item->node->DebugString()
-  $12 = "{name:'_SOURCE' id:0 source}"
-  p num_output_edges
-  $13 = 6
-  */
+  // 1.
+  // 從NodeItem 拿到輸出邊的信息
+
+  // 2.
+  // p item->node->DebugString()
+  // $12 = "{name:'_SOURCE' id:0 source}"
+  // p num_output_edges
+  // $13 = 6
 
   const EdgeInfo* edges = item->output_edge_list();
   // 只是返回第一个 EdgeInfo 的 base 作为起点
@@ -5681,34 +5987,44 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item, // input
   // 從 iter_state 拿到 Entry 數組 的起始指針, 下面有一种情况讨论到，
   // if (dst_need_input) 怎么怎么样. 这时会用到 input_tensors 。
   Entry* input_tensors = iter_state->input_tensors;
+  // 1.
+  // 下面会对 input_tensors: Entry* 视作 array 逐个塞入 当前节点的 output ,
+  // 也就是传递了 output to dst node 里面
+
+  // 2.
+  // 一句人话概括这个 input_tensors 是
+  // output node 的 iter_state: IteratorState* 结构体内的 input_tensors
+  // 归根到底是 input_tensors 是 **后继节点** (output) node 的 input_tensors: Entry*
 
   // 遍历所有的 output edge
   for (size_t out_index = 0; out_index < num_output_edges; out_index++) {
 
     const EdgeInfo& e = edges[out_index];
+    // 1.
     // edges: EdgeInfo*
     // e: const EdgeInfo&
 
     const int dst_id = e.dst_id;
+    // 1.
     // 得到 这条边的 dst node id
 
-    ////////////////////////////////////////////////////////////////////////
-    // 重要！
     const NodeItem* dst_item = gview.node(dst_id);
+    // 1.
+    // 重要！
     // 根据 ID 得到这条边的 dst node item
     //
     // 这个数据结构用来表示这个 out edge 的 destination node item
     // 这个 destination node item 会被放入 ready queue 内进行周而复始的执行
-    ////////////////////////////////////////////////////////////////////////
 
-    // 一個 handle 用來從 PendingCounts 結構裏存取 counts
-    // 一個 Iteration 維持一個 PeningCounts 對象，用來保存 NodeItem 在本次 iteration 的
-    // pendingcount 數據
-    //
     const PendingCounts::Handle dst_pending_id = dst_item->pending_id;
     // 1.
     // PendingCounts 数据结构
     // common_runtime/pending_counts.h
+
+    // 1.1
+    // 一個 handle 用來從 PendingCounts 結構裏存取 counts
+    // 一個 Iteration 維持一個 PeningCounts 對象，用來保存 NodeItem 在本次 iteration 的
+    // pendingcount 數據
 
     // 2.
     // PendingCounts::Handle 数据结构
@@ -5717,14 +6033,12 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item, // input
     // - is_large_: bool  : 1;  // If true, rep is LargeCounts; otherwise PackedCounts
 
     // 3.
-    /*
     // 以 _Send node 的 dst node _SINK Node 为例:
-    p dst_pending_id
-    $66 = {
-      byte_offset_ = 1,
-      is_large_ = false
-    }
-    */
+    // p dst_pending_id
+    // $66 = {
+    //   byte_offset_ = 1,
+    //   is_large_ = false
+    // }
 
     const int src_slot = e.output_slot;
     // 打印
@@ -5733,7 +6047,9 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item, // input
 
     // TODO(yuanbyu): We don't need this if we require the subgraph
     // given to an executor not to contain a sink node.
-    if (dst_item->is_sink) continue; // 对于 send node , 就止步于此了。
+    if (dst_item->is_sink) continue;
+    // 1.
+    // 对于 send node , 就止步于此了。
 
     bool dst_dead = false;
     bool dst_ready = false;
@@ -5748,11 +6064,13 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item, // input
 
     if (dst_item->is_merge) {
       // 如果是 merge node
+
       // A merge node is ready if all control inputs have arrived and either
       // a) a live data input becomes available or b) all data inputs are
       // dead. For Merge, pending's LSB is set iff a live data input has
       // arrived.
       if (is_control_edge) {
+        // 如果是 control_edge
 
         iter_state->decrement_pending(dst_pending_id, 2);
         // iter_state: IterationState*
@@ -5766,6 +6084,7 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item, // input
         dst_ready = (count == 0) || ((count == 1) && dst_dead);
 
       } else {
+        // 不是 control_edge 的分支:
 
         if ((*outputs)[src_slot].has_value) {
           // outputs 变量说明:
@@ -5788,6 +6107,7 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item, // input
           dst_need_input = ((count & 0x1) == 1);
 
         } else {
+          // 如果 src_slot of the outputs does not have value
 
           // This is a dead data input. Note that dst_node is dead if node is
           // a dead enter. We need this to handle properly a while loop on
@@ -5795,20 +6115,15 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item, // input
           // TODO(yuanbyu): This is a bit hacky, but a good solution for
           // now.
           iter_state->increment_dead_count(dst_pending_id);
-
           const int dead_cnt = iter_state->dead_count(dst_pending_id);
-
           dst_dead = (dead_cnt == dst_item->num_inputs) || item->is_enter;
-
           dst_ready = (iter_state->pending(dst_pending_id) == 1) && dst_dead;
-
           dst_need_input = false;
-
         }
       }
-
     } else {
       // 如果不是 merge node
+
       const bool increment_dead =
           (is_dead || (!is_control_edge && !(*outputs)[src_slot].has_value));
 
@@ -5818,19 +6133,62 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item, // input
                                         &pending, &dead);
       dst_dead = (dead > 0);
       dst_ready = (pending == 0);
-
     }
 
     if (dst_need_input) {
+      // dst node 需要这个节点输出的 tensor 作为输入的话:
+
+      // 1.
+      // 进入此分支
+
+      // 2.
+      // study case:
+      // dst 是 matmul node, src node 是 _Recv node.
 
       const int dst_slot = e.input_slot;
+      // 1.
+      // e type:
+      // (gdb) ptype e
+      // type = const struct tensorflow::EdgeInfo {
+      //     int dst_id;
+      //     int output_slot : 31;
+      //     bool is_last : 1;
+      //     int input_slot;
+      // } &
+
+      // 2.
+      // value of dst_slot is 0.
+
       const int dst_loc = dst_item->input_start + dst_slot;
+      // 1.
+      // dst_item type
+      // (gdb) ptype dst_item
+      // type = const struct tensorflow::NodeItem*
+
+      // 2.
+      // dst_item->input_start type:
+      // int
+      // result: 0
+
+      // 3.
+      // dst_loc = 0 + 0
+      //         = 0
+
       if (e.is_last) {
         input_tensors[dst_loc] = std::move((*outputs)[src_slot]);
+        // 1.
+        // input_tensors type:
+        // (gdb) ptype input_tensors
+        // type = struct tensorflow::ExecutorState::Entry*
+        // 视作 array of Entry
+
       } else {
         input_tensors[dst_loc] = (*outputs)[src_slot];
+        // 1.
+        // 很规整的赋值
+        // 一句人话概括意图就是
+        // 后继节点 node 的 input_tensors 的 某个槽口 用 前驱节点的某个槽口的 Entry 来填上/赋值!
       }
-
     }
 
     // Add dst to the ready queue if it's ready
@@ -5850,7 +6208,6 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item, // input
       //                                    FrameState* in_frame
       //                 --------------------------------------
       //                       全部：TaggedNode instance
-      //////////////////////////////////////////////////////////////////////
       // 1.
       // 构造了 TaggedNode
       // 构造函数:
@@ -5891,7 +6248,6 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item, // input
 
       iter_state->outstanding_ops++;
     }
-
   }
 }
 
@@ -6002,9 +6358,15 @@ bool ExecutorState::FrameState::CleanupIterations(const GraphView* gview,
 void ExecutorImpl::RunAsync(
       const Args& args,
       DoneCallback done) {
+  // 1.
+  // Args 是什么?
+  // class Executor::Args
+
+  // 2.
+  // DoneCallback 是什么?
+  // class Executor::typedef std::function<void(const Status&)> DoneCallback;
 
   (new ExecutorState(args, this))->RunAsync(std::move(done));
-
 }
 // 1.
 // args 变量说明:
@@ -6041,10 +6403,11 @@ void ExecutorImpl::RunAsync(
 // tensorflow/core/common_runtime/executor.h
 //
 // typedef std::function<void(const Status&)> DoneCallback;
-//
-// 由 `item.executor->RunAsync(args, barrier->Get());` 的 barrier->Get() 传入
 
 // 3.1
+// 由 `item.executor->RunAsync(args, barrier->Get());` 的 barrier->Get() 传入
+
+// 3.2
 // barrier->Get() 函数说明:
 // 概述:
 // Returns a closure that Executors must call when they are done
@@ -6056,12 +6419,12 @@ void ExecutorImpl::RunAsync(
 //   return std::bind(&ExecutorBarrier::WhenDone, this, std::placeholders::_1);
 // }
 
-// 3.2
+// 3.3
 // StatusCallback 数据结构
 // tensorflow/core/common_runtime/executor.h:150:
 // typedef std::function<void(const Status&)> StatusCallback;
 
-// 3.3
+// 3.4
 // ExecutorBarrier::WhenDone 函数说明:
 // tensorflow/core/common_runtime/executor.h
 // 概述:

@@ -29,6 +29,21 @@ SafeTensorId::SafeTensorId(const TensorId& id)
 
 TensorId ParseTensorName(const string& name) {
   return ParseTensorName(StringPiece(name.data(), name.size()));
+  // 1.
+  // (gdb) p name
+  // $27 = "x:0"
+
+  // 2.
+  // type of name.data()
+  // (gdb) ptype name.data()
+  // type = const char *
+
+  // 3.
+  // (gdb) p name.size()
+  // $26 = 3
+
+  // 4.
+  // 继续调用如下的 TensorId ParseTensorName(StringPiece name) 函数.
 }
 
 TensorId ParseTensorName(StringPiece name) {

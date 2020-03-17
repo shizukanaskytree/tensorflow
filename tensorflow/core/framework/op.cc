@@ -40,6 +40,29 @@ Status OpRegistryInterface::LookUpOpDef(const string& op_type_name,
   const OpRegistrationData* op_reg_data = nullptr;
   TF_RETURN_IF_ERROR(LookUp(op_type_name, &op_reg_data));
   *op_def = &op_reg_data->op_def;
+  // 1.
+  // 打印 查找的 op_def: _Arg op
+  // context: https://docs.google.com/document/d/1FdkOkqexWnymuYKqF3HCNlRUAbDXjTHTjsK8wIdxIRQ/edit#
+  // p (*op_def)->DebugString()
+  // name: "_Arg"
+  // output_arg {
+  //   name: "output"
+  //   description: "The argument."
+  //   type_attr: "T"
+  // }
+  // attr {
+  //   name: "T"
+  //   type: "type"
+  // }
+  // attr {
+  //   name: "index"
+  //   type: "int"
+  //   description: "This argument is the index-th argument of the function."
+  //   has_minimum: true
+  // }
+  // summary: "A graph node which represents an argument to a function."
+  // is_stateful: true
+
   return Status::OK();
 }
 
@@ -84,6 +107,12 @@ Status OpRegistry::LookUp(const string& op_type_name, // input
   // p op_type_name
   // $5 = "Const"
 
+  // 3.1
+  // e.g.
+  // p op_type_name
+  // $51 = "_Arg"
+  // context: https://docs.google.com/document/d/1FdkOkqexWnymuYKqF3HCNlRUAbDXjTHTjsK8wIdxIRQ/edit#
+
   {
     tf_shared_lock l(mu_);
     if (initialized_) {
@@ -92,6 +121,10 @@ Status OpRegistry::LookUp(const string& op_type_name, // input
                                                                nullptr)){
         // 1.
         // registry_ 变量说明:
+        // type: ptype registry_
+        // type = class std::unordered_map<std::string, tensorflow::OpRegistrationData const*>
+
+        // 1.1
         //
         // 背景
         // OpRegistry 数据结构

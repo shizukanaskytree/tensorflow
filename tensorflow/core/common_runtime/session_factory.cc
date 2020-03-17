@@ -124,6 +124,11 @@ Status SessionFactory::GetFactory(const SessionOptions& options,
 
   if (candidate_factories.size() == 1) {
     *out_factory = candidate_factories[0].second;
+    // 1.
+    // 打印
+    // (gdb) p *out_factory
+    // $3 = (tensorflow::DirectSessionFactory *) 0x55d79faf6f80
+    
     return Status::OK();
   } else if (candidate_factories.size() > 1) {
     // NOTE(mrry): This implementation assumes that the domains (in

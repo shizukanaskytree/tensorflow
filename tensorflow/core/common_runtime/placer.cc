@@ -56,11 +56,23 @@ bool IsGeneratorNode(const Node* node) {
 void LogDeviceAssignment(const Node* node, bool log_device_placement) {
   // Log placement if log_device_placement is set.
   if (log_device_placement) {
-    printf("%s: (%s): %s\n", node->name().c_str(), node->type_string().c_str(),
-           node->assigned_device_name().c_str());
+    // 1.
+    // tf python 处打开的命令:
+    // with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess
+
+    // 1.1
+    // 原来不打开也是可以看的
+
+    printf("%s: (%s): %s\n",
+      node->name().c_str(),
+      node->type_string().c_str(),
+      node->assigned_device_name().c_str());
+    // MatMul: (MatMul): /job:localhost/replica:0/task:0/device:GPU:0
+
     LOG(INFO) << node->name() << ": "
               << "(" << node->type_string() << ")"
               << node->assigned_device_name();
+    // 2020-03-04 22:57:37.270443: I tensorflow/core/common_runtime/placer.cc:61] MatMul: (MatMul)/job:localhost/replica:0/task:0/device:GPU:0
   }
 }
 // 1.
@@ -74,17 +86,41 @@ Status AssignAndLog(int assigned_device,  // input
                     bool log_device_placement) { // input
 
   node->set_assigned_device_name_index(assigned_device);
+  // 1.
   // assigned_device
-  // 对于 CPU, assigned_device 是 1
+  // assigned_device 是 1
 
   // Constraint the group of node to the assigned device.
   TF_RETURN_IF_ERROR(colocation_graph->LimitToAssignedDevice(*node));
+  // 1.
   // ColocationGraph::LimitToAssignedDevice 函数说明:
-
+  // 和 allow_soft_placement, 还有 union find member 等相关,
+  // 看了后因为 union find member root tree 没看懂过, 所以不知道
 
   LogDeviceAssignment(node, log_device_placement);
+  // 1.
+  // 执行这句后, 打印
+  //
+  // MatMul: (MatMul): /job:localhost/replica:0/task:0/device:GPU:0
+  // 2020-03-04 22:57:37.270443: I tensorflow/core/common_runtime/placer.cc:61] MatMul: (MatMul)/job:localhost/replica:0/task:0/device:GPU:0
+
   return Status::OK();
 }
+// 1.
+// where are we ?
+//
+// Thread #1 [python] 15583 [core: 54] (Suspended : Step)
+// 	tensorflow::(anonymous namespace)::AssignAndLog at placer.cc:76 0x7efc0acf0c3a
+// 	tensorflow::Placer::Run() at placer.cc:184 0x7efc0acf1673
+// 	tensorflow::GraphExecutionState::InitBaseGraph() at graph_execution_state.cc:616 0x7efc1b23eaea
+// 	tensorflow::GraphExecutionState::MakeForBaseGraph() at graph_execution_state.cc:97 0x7efc1b23abc2
+// 	tensorflow::DirectSession::MaybeInitializeExecutionState() at direct_session.cc:1,694 0x7efc1708f659
+// 	tensorflow::DirectSession::ExtendLocked() at direct_session.cc:1,740 0x7efc1708fa41
+// 	tensorflow::DirectSession::Extend() at direct_session.cc:1,733 0x7efc1708f9fc
+// 	tensorflow::SessionRef::Extend() at session_ref.cc:441 0x7efc12b73833
+// 	tensorflow::ExtendSessionGraphHelper() at c_api.cc:815 0x7efc171137c3
+// 	tensorflow::ExtendSession() at python_api.cc:118 0x7efc12bac2e6
+// 	<...more frames...>
 
 }  // namespace
 
@@ -110,6 +146,7 @@ Placer::~Placer() {}
 // 提醒：
 // 牢牢记住，虽然这里的函数复杂，但是最后的目的仅仅就是初始化 Graph 里面每个 Node 的 device placement 而已。
 Status Placer::Run() {
+
   if (devices_->devices().empty()) {
     return errors::FailedPrecondition("No devices are registered");
   }
@@ -235,8 +272,6 @@ Status Placer::Run() {
   // p *devices_
   // $7 = {devices_ = std::vector of length 1, capacity 1 = {0x55939ea4c770}, device_by_name_ = std::unordered_map with 2 elements = {["/job:localhost/replica:0/task:0/cpu:0"] = 0x55939ea4c770, ["/job:localhost/replica:0/task:0/device:CPU:0"] = 0x55939ea4c770}, client_device_ = 0x0}
 
-
-
   TF_RETURN_IF_ERROR(colocation_graph.Initialize());
   // 1.
   // ColocationGraph::Initialize 函数说明
@@ -253,12 +288,14 @@ Status Placer::Run() {
   // node set.
   std::vector<Node*> second_pass;
   for (Node* node : graph_->op_nodes()) {
+    // 1.
+    // 遍历所有的节点
+
+    // 下面的注释非常好!!! ✅
     // The graph may have come pre-populated by the framework with assigned
     // devices (e.g., for stateful placements), so the placer should not try to
     // place nodes that are already placed.
     if (node->has_assigned_device_name()) {
-      // 通常是没有的，这个分支不进入
-
       TF_RETURN_IF_ERROR(colocation_graph.LimitToAssignedDevice(*node));
       LogDeviceAssignment(node, log_device_placement_);
       continue;
@@ -270,21 +307,27 @@ Status Placer::Run() {
     // If this is a node with no inputs and one output, we save
     // this for a second pass, so that the consumer's placement
     // is chosen.
+    // 1.
+    // 把只有输出没有输入的生产节点放入到第二次 pass 中去 place.
     if (IsGeneratorNode(node)) {
+      // 1.
+      // 什么样的节点是 GeneratorNode ?
       // Returns true if the node has no inputs and produces outputs
       // that are consumed by a single node.
+
+      // 2.
+      // e.g., 如下的节点进入了分支:
+      // p node->DebugString()
+      // $6 = "{name:'x' id:2 op device:{} def:{{{node x}} = Placeholder[dtype=DT_FLOAT, shape=[2,5]]()}}"
       second_pass.push_back(node);
-      // 把只有输出没有输入的生产节点放入到第二次 pass 中去 place.
       continue;
     }
 
     const std::vector<Device*>* devices; // 临时变量
 
-    // -----------------------------------------------------------------------
     Status status = colocation_graph.GetDevicesForNode(
                                       node,  // input
                                       &devices); // output
-    // -----------------------------------------------------------------------
     // 1.
     // GetDevicesForNode 函数说明
     // tensorflow/core/common_runtime/colocation_graph.cc
@@ -354,6 +397,10 @@ Status Placer::Run() {
     // then it is desirable to place that metadata node with its
     // input.
     if (IsMetadata(node)) {
+      // 1.
+      // IsMetadata(node) ?
+      // AAA: Specifically, returns true for "Size", "Shape" and "Rank" ops.
+
       // Make sure that the input device type is in the list of supported
       // device types for this node.
       const Node* input = (*node->in_edges().begin())->src();
@@ -369,15 +416,26 @@ Status Placer::Run() {
     // Provide the default, if necessary.
     if (assigned_device == -1) {
       // 正式赋值 assigned_device
-      // -----------------------------------------------------------------------
       assigned_device = graph_->InternDeviceName(
                                   (*devices)[0]->name()); // input
-      // -----------------------------------------------------------------------
       // 1.
+      // devices 变量是什么?
+      // 它是由给目前正在遍历的这个个 node 匹配返回所有的 devices, 按照计算能力从高到低排序.
+      // const std::vector<Device*>* devices;
+      // 精读了 GetDevicesForNode() 就懂了.
+
+      // 1.1
+      // devices 相关信息打印:
+      // (gdb) p devices->size()
+      // $3 = 6
+
+      // 1.2
       // (*devices)[0]->name() 变量说明
-      // 把 possible_devices 的第一个赋值给 assigned_device, 注意，类型为 int
+      // 把 possible_devices 的第一个赋值给 assigned_device, 注意，assigned_device 类型为 int
       // devices (possible_devices) 是上面 GetDevicesForNode 所得到的。
-      // 打印：
+
+      // 1.3
+      // (*devices)[0]->name() 打印：
       // $35 = "/job:localhost/replica:0/task:0/device:CPU:0"
 
       // 2.
@@ -412,9 +470,14 @@ Status Placer::Run() {
 
       // 3.
       // Graph::InternDeviceName 函数说明:
+      // Ensures that 'device_name' is present in the device name table, and returns
+      // the index of that device name. The index is stable, and can be used in
+      // calls to Node::set_assigned_device_name_index().
       // graph/graph.cc
       // 注意: 返回值是一个 int
 
+      // 3.1
+      // Graph::InternDeviceName 返回值是 assigned_device == 1
     }
 
     TF_RETURN_IF_ERROR(AssignAndLog(
@@ -448,28 +511,51 @@ Status Placer::Run() {
 
     // Heuristic A application.
     if (IsGeneratorNode(node) && !node->out_edges().empty()) {
+      // 进入
+
       const Node* output = (*node->out_edges().begin())->dst();
+      // 1.
+      // output:
+      // (gdb) p output->DebugString()
+      // $31 = "{name:'MatMul' id:4 op device:{/job:localhost/replica:0/task:0/device:GPU:0} def:{{{node MatMul}} = MatMul[T=DT_FLOAT, transpose_a=false, transpose_b=false](x, y)}}"
+
       int output_device_name = output->assigned_device_name_index();
+      // 1.
+      // output_device_name == 1
 
       const bool consumers_on_same_device = std::all_of(
           node->out_edges().begin(), node->out_edges().end(),
           [output_device_name](const Edge* e) {
             return e->dst()->assigned_device_name_index() == output_device_name;
           });
+      // 1.
+      // (gdb) p consumers_on_same_device
+      // $32 = true
 
       if (consumers_on_same_device &&
           CanAssignToDevice(output->assigned_device_name(), *devices)) {
+        // 进入
+
         assigned_device = output_device_name;
+        // 1.
+        // assigned_device ==  1
       }
     }
 
     // Provide the default, if necessary.
     if (assigned_device == -1) {
+      // 不进入
+
       assigned_device = graph_->InternDeviceName((*devices)[0]->name());
     }
 
     TF_RETURN_IF_ERROR(AssignAndLog(assigned_device, node, &colocation_graph,
                                     log_device_placement_));
+    // 1.
+    // log:
+    // 2020-03-04 23:30:04.449519: I tensorflow/core/common_runtime/placer.cc:61] x: (Placeholder)/job:localhost/replica:0/task:0/device:GPU:0
+    // x: (Placeholder): /job:localhost/replica:0/task:0/device:GPU:0
+    // 原来 placeholder 也是 on GPU
   }
 
   if (VLOG_IS_ON(3)) {

@@ -32,8 +32,9 @@ static string GetRendezvousKeyPrefix(const string& send_device,
                          recv_device, ";", tensor_name);
 }
 
-static void GetRendezvousKey(const string& key_prefix,
-                             const FrameAndIter& frame_iter, string* key) {
+static void GetRendezvousKey(const string& key_prefix, // input
+                             const FrameAndIter& frame_iter, // input
+                             string* key) { // output
   key->clear();
   strings::StrAppend(key, key_prefix, ";", frame_iter.frame_id, ":",
                      frame_iter.iter_id);
@@ -65,17 +66,25 @@ SendOp::SendOp(OpKernelConstruction* ctx) : OpKernel(ctx) {
   OP_REQUIRES_OK(ctx, ctx->GetAttr("tensor_name", &tensor_name));
   key_prefix_ = GetRendezvousKeyPrefix(send_device, recv_device,
                                        send_device_incarnation, tensor_name);
+  // 1.
+  // p key_prefix_
+  // $16 = "/job:localhost/replica:0/task:0/device:GPU:0;0000000000000001;/job:localhost/replica:0/task:0/device:CPU:0;edge_8_matmul"
+
   // The vast majority of Send nodes are outside any loop context, so
   // proactively cache the rendezvous key for the top-level.
   GetRendezvousKey(key_prefix_, {0, 0}, &parsed_key_.buf_);
   OP_REQUIRES_OK(ctx, Rendezvous::ParseKey(parsed_key_.buf_, &parsed_key_));
+  // 1.
+  // 提醒
+  // parsed_key_ 是本类的成员变量 SendOp::Rendezvous::ParsedKey parsed_key_
+
+  // 1.1
+  // 用途: 传输管道的 ID/key 
+
   if (!ctx->GetAttr("_hostmem_sendrecv", &hostmem_sendrecv_).ok()) {
     hostmem_sendrecv_ = false;
   }
 }
-
-
-// -----------------------------------------------------------------------
 
 void SendOp::Compute(OpKernelContext* ctx) {
 
@@ -110,13 +119,11 @@ void SendOp::Compute(OpKernelContext* ctx) {
   // or providing a callback: in either case, the consumer receives the
   // Tensor as soon as it is available.  A producer never blocks.
 
-
   // 2.
   // struct Rendezvous::Args 数据结构
   // tensorflow/core/framework/rendezvous.h
   // - device_context: DeviceContext*
   // - alloc_attrs: AllocatorAttribute
-
 
   args.device_context = ctx->op_device_context();
   /*
@@ -141,16 +148,18 @@ void SendOp::Compute(OpKernelContext* ctx) {
   }
   */
 
-
   if (frame_iter == FrameAndIter(0, 0)) {
     // Use the cached rendezvous key.
     VLOG(2) << "Send " << parsed_key_.buf_;
-    /*
-    2019-09-26 22:52:14.603571: I tensorflow/core/kernels/sendrecv_ops.cc:93]
-    Send
-    /job:localhost/replica:0/task:0/device:CPU:0;0000000000000001;
-    /job:localhost/replica:0/task:0/device:GPU:0;edge_8_y/RandomStandardNormal;0:0
-    */
+    // 1.
+    // 打印:
+    // 2019-09-26 22:52:14.603571: I tensorflow/core/kernels/sendrecv_ops.cc:93]
+    // Send /job:localhost/replica:0/task:0/device:CPU:0;0000000000000001;/job:localhost/replica:0/task:0/device:GPU:0;edge_8_y/RandomStandardNormal;0:0
+
+    // 2.
+    // another case study print:
+    // 2020-03-07 00:15:34.904568: I tensorflow/core/kernels/sendrecv_ops.cc:93]
+    // Send /job:localhost/replica:0/task:0/device:CPU:0;0000000000000001;/job:localhost/replica:0/task:0/device:GPU:0;edge_7__arg_y_0_1;0:0
 
     ctx->SetStatus(
       ctx->rendezvous()->Send(
@@ -308,24 +317,77 @@ REGISTER_KERNEL_BUILDER(Name("_HostSend").Device(DEVICE_CPU), SendOp);
 REGISTER_KERNEL_BUILDER(
     Name("_HostSend").Device(DEVICE_GPU).HostMemory("tensor"), SendOp);
 
+
 RecvOp::RecvOp(OpKernelConstruction* ctx) : AsyncOpKernel(ctx) {
   string send_device;
   OP_REQUIRES_OK(ctx, ctx->GetAttr("send_device", &send_device));
+  // 1.
+  // (gdb) p send_device
+  // $2 = "/job:localhost/replica:0/task:0/device:CPU:0"
+
   string recv_device;
   OP_REQUIRES_OK(ctx, ctx->GetAttr("recv_device", &recv_device));
+  // 1.
+  // (gdb) p recv_device
+  // $3 = "/job:localhost/replica:0/task:0/device:GPU:0"
+
   uint64 send_device_incarnation;
   OP_REQUIRES_OK(
       ctx, ctx->GetAttr("send_device_incarnation",
                         reinterpret_cast<int64*>(&send_device_incarnation)));
+  // 1.
+  // 打印 send_device_incarnation
+  // (gdb) p send_device_incarnation
+  // $5 = 1
+
   string tensor_name;
   OP_REQUIRES_OK(ctx, ctx->GetAttr("tensor_name", &tensor_name));
+  // 1.
+  // 打印 tensor_name
+  // (gdb) p tensor_name
+  // $4 = "edge_5__arg_x_0_0"
+
   key_prefix_ = GetRendezvousKeyPrefix(send_device, recv_device,
                                        send_device_incarnation, tensor_name);
+  // 1.
+  // 返回值是 string, 规则如下:
+  // key_prefix_ = string(send_device;send_device_incarnation;recv_device;tensor_name)
+
+  // 1.1
+  // 打印
+  // p key_prefix_
+  // $7 = "/job:localhost/replica:0/task:0/device:CPU:0;0000000000000001;/job:localhost/replica:0/task:0/device:GPU:0;edge_5__arg_x_0_0"
+
   // The vast majority of Recv nodes are outside any loop context, so
   // proactively cache the rendezvous key for the top-level.
-  GetRendezvousKey(key_prefix_, {0, 0}, &parsed_key_.buf_);
+  GetRendezvousKey(key_prefix_, // input
+                   {0, 0}, // input
+                   &parsed_key_.buf_); // output
+
+  // 1.
+  // 一句人话概括
+  // GetRendezvousKey 是 构造这个 recv op 的 key string
+
+  // 2.
+  // {0, 0} 用于 struct FrameAndIter 构造函数
+  // FrameAndIter(uint64 frame, int64 iter)
+
+  // 2.1
+  // FrameAndIter 意图:
+  // For the purpose of control flow, every tensor produced by TensorFlow is
+  // conceptually tagged by a 'FrameAndIter'. FrameAndIter consists of a
+  // 'frame_id' and an 'iter_id'. The tensor value it represents is produced
+  // in the frame with frame_id at the iteration of iter_id.
+
   OP_REQUIRES_OK(ctx, Rendezvous::ParseKey(parsed_key_.buf_, &parsed_key_));
+  // 1.
+  // 构造 Rendezvous::struct ParseKey(...)
+  // 一句人话概括:
+  // 把 ParsedKey = {srd_device, dst_devic, edge_name, ...} 相关的 member 赋值好.
+
   if (!ctx->GetAttr("_hostmem_sendrecv", &hostmem_sendrecv_).ok()) {
+    // 进入
+
     hostmem_sendrecv_ = false;
   }
 }
@@ -401,9 +463,6 @@ Rendezvous::DoneCallback make_recv_callback(OpKernelContext* ctx,
 }
 }  // namespace
 
-
-////////////////////////////////////////////////////////////////////////
-
 void RecvOp::ComputeAsync(
                OpKernelContext* ctx,
                DoneCallback done) {
@@ -427,6 +486,7 @@ void RecvOp::ComputeAsync(
 
 
   Rendezvous::Args args;
+  // 1.
   // Rendezvous::Args 数据结构
   // tensorflow/core/framework/rendezvous.h
   //
@@ -445,6 +505,11 @@ void RecvOp::ComputeAsync(
   if (frame_iter == FrameAndIter(0, 0)) {
 
     VLOG(2) << "Recv " << parsed_key_.buf_;
+    // 1.
+    // case study :
+    // 2020-03-06 23:21:22.668826: I tensorflow/core/kernels/sendrecv_ops.cc:182]
+    // Recv /job:localhost/replica:0/task:0/device:CPU:0;0000000000000001;/job:localhost/replica:0/task:0/device:GPU:0;edge_5__arg_x_0_0;0:0
+    //      ----------------...   buf_ ... -------------------...
 
     ctx->rendezvous()->RecvAsync(parsed_key_,
                                  args,
@@ -453,7 +518,9 @@ void RecvOp::ComputeAsync(
                                    std::move(done)));
     // 1.
     // make_recv_callback 函数说明
-    //
+    // 再加工 ExecutorState::Process() 里面 Async 的那个 done lambda 函数.
+
+    // 1.1
     // Callback provided by a tensor consumer waiting on the rendezvous.
     // It will be invoked when the tensor is available, or when a non-OK
     // status arises in the production of that tensor.  It also gets

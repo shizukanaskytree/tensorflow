@@ -298,7 +298,10 @@ bool FixupSourceAndSinkEdges(Graph* g) {
     }
   }
   return changed;
-  // 我的例子里面: p changed, $19 = false
+  // 1.
+  // 我的例子里面:
+  // p changed
+  // $19 = false
 }
 
 }  // namespace tensorflow

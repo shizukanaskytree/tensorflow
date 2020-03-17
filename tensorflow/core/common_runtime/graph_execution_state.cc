@@ -142,12 +142,11 @@ GraphExecutionState::~GraphExecutionState() {
   delete graph_;
 }
 
-// ==========================================================================
 
-// 我看这个函数的目的是:
-// 我想弄明白 DirectSession::execution_state_ 是怎么被初始化的，里面的图是哪来的
-// 我这下子明白了，其实是把 TF_Session 内的 Graph 转换成 GraphDef (仅仅因为函数接口需要吧)
-// 然后接着 GraphDef 内的信息把 DirectSession::execution_state_ 给初始化了。
+// 1.
+// 一句人话总结:
+// 构造 GraphExecutionState instance, 并把 GraphExecutionState instance 内的图 device placement 做好.
+// 图的效果是: https://gist.github.com/shizukanaskytree/bfd21d79a7c13bf0b945a3710c1c13ef
 /* static */ Status GraphExecutionState::MakeForBaseGraph(
     GraphDef* graph_def, // input, temp GraphDef var
     const GraphExecutionStateOptions& options, // input
@@ -373,7 +372,21 @@ GraphExecutionState::~GraphExecutionState() {
   *out_state = std::move(ret);
   return Status::OK();
 }
-
+// 1.
+// where are we ?
+//
+// Thread #1 [python] 15583 [core: 55] (Suspended : Step)
+// 	tensorflow::GraphExecutionState::MakeForBaseGraph() 👀 at graph_execution_state.cc:99 0x7efc1b23ac2a
+// 	tensorflow::DirectSession::MaybeInitializeExecutionState() 👀 at direct_session.cc:1,694 0x7efc1708f659
+// 	tensorflow::DirectSession::ExtendLocked() at direct_session.cc:1,740 0x7efc1708fa41
+// 	tensorflow::DirectSession::Extend() at direct_session.cc:1,733 0x7efc1708f9fc
+// 	tensorflow::SessionRef::Extend() at session_ref.cc:441 0x7efc12b73833
+// 	tensorflow::ExtendSessionGraphHelper() at c_api.cc:815 0x7efc171137c3
+// 	tensorflow::ExtendSession() at python_api.cc:118 0x7efc12bac2e6
+// 	_wrap_ExtendSession() at pywrap_tensorflow_internal.cc:19,726 0x7efc12ae1b45
+// 	_PyCFunction_FastCallDict() at methodobject.c:234 0x55be63d17681
+// 	call_function() at ceval.c:4,851 0x55be63d9e610
+// 	<...more frames...>
 
 
 
@@ -554,9 +567,20 @@ void GraphExecutionState::SaveStatefulNodes(Graph* graph) {
 void GraphExecutionState::RestoreStatefulNodes(Graph* graph) {
   for (Node* n : graph->nodes()) {
     if (n->op_def().is_stateful()) {
+      // 1.
+      // n->op_def().is_stateful() 是什么?
+      // 去 tensorflow/core/framework/op_def.proto 看
+      // bool is_stateful = 17;  // for things like variables, queue
+      // **for things like variables, queue**
+      // Ops are marked as stateful if their behavior depends on some state beyond
+      // their input tensors (e.g. variable reading op
+      // 不是特别懂, 但是感觉理解了.
+
       auto iter = stateful_placements_.find(n->name());
       if (iter != stateful_placements_.end()) {
         n->set_assigned_device_name(iter->second);
+        // 1.
+        // 设置 Node 的 device_name
         VLOG(2) << "Restored " << n->DebugString();
       }
     }
@@ -615,6 +639,14 @@ Status LookupDevice(
   *out_device_attrs = nullptr;
 
   if (tensor2device.empty()) {
+    // 1.
+    // 进入
+    // 对于 feed nodes 而言.
+
+    // 2.
+    // 对于 feed nodes 而言, 由于 tensor2device.empty() 为 True, 致使如下 *out_device_attrs 使用了 CPU!
+
+    // 3.
     // device_set: class DeviceSet
     // tensorflow/core/common_runtime/device_set.h:32:class DeviceSet {
     // - client_device_: Device*
@@ -624,9 +656,13 @@ Status LookupDevice(
     //    * Fullname -> device* for device in devices_.
     // - devices_: std::vector<Device*>
 
+    // 4.
     // &device_set.client_device(): Device*
 
+    // 5.
     // &device_set.client_device()->attributes() : tensorflow::DeviceAttributes**
+
+    // 5.1
     // DeviceAttributes 数据结构
     // tensorflow/core/framework/device_attributes.proto:32:
     // message DeviceAttributes
@@ -636,9 +672,27 @@ Status LookupDevice(
     // - locality : DeviceLocality
     // - incarnation : fixed64
     // - physical_device_desc: string
+
     *out_device_attrs = &device_set.client_device()->attributes();
+
+    // 1.
+    // 打印 *out_device_attrs
+    // p (*out_device_attrs )->DebugString()
+    //
+    // "name: \"/job:localhost/replica:0/task:0/device:CPU:0\"\ndevice_type: \"CPU\"\nmemory_limit: 268435456\nlocality {\n}\nincarnation: 6649073119670775225\n"
+    //
+    // 即:
+    //
+    // name: "/job:localhost/replica:0/task:0/device:CPU:0"
+    // device_type: "CPU"
+    // memory_limit: 268435456
+    // locality {
+    // }
+    // incarnation: 6649073119670775225
+
     return Status::OK();
-  }
+  } // 解释返回了.
+
 
   const auto it = tensor2device.find(tensor_name);
   if (it == tensor2device.end()) {
@@ -837,15 +891,114 @@ Status GetFeedShapeAndTypeFromAttribute(const NodeDef& node,
 
 }  // namespace
 
-
+// Where am I ?
+//
+// Thread #1 [python] 17387 [core: 3] (Suspended : Step)
+// 	tensorflow::GraphExecutionState::PruneGraph() 👀 at graph_execution_state.cc:564 0x7f855b23e460
+// 	tensorflow::GraphExecutionState::BuildGraph() 👀 at graph_execution_state.cc:806 0x7f855b240643
+// 	tensorflow::DirectSession::CreateGraphs() 👀 at direct_session.cc:3,191 0x7f855709a515
+// 	tensorflow::DirectSession::CreateExecutors() 👀 at direct_session.cc:2,627 0x7f8557095f7e
+// 	tensorflow::DirectSession::GetOrCreateExecutors() at direct_session.cc:3,032 0x7f8557098fdc
+// 	tensorflow::DirectSession::Run() at direct_session.cc:2,147 0x7f8557092802
+// 	tensorflow::SessionRef::Run() at session_ref.cc:414 0x7f8552b72f8a
+// 	TF_Run_Helper() at c_api.cc:878 0x7f8557113b96
+// 	TF_SessionRun() at c_api.cc:2,752 0x7f855711d45e
+// 	tensorflow::TF_SessionRun_wrapper_helper() at tf_session_helper.cc:407 0x7f8552b673e1
+// 	<...more frames...>
 Status GraphExecutionState::PruneGraph(
     const BuildGraphOptions& options, // input
     Graph* graph, // input
     subgraph::RewriteGraphMetadata* out_rewrite_metadata) // output
 {
-  std::vector<std::unique_ptr<subgraph::PruneRewrite>> feed_rewrites;
   // 1.
-  // 我的例子没有 feed
+  // 进来时的图 graph:
+  //
+  // node {
+  //   name: "x"
+  //   op: "Placeholder"
+  //   device: "/job:localhost/replica:0/task:0/device:GPU:0"
+  //   attr {
+  //     key: "dtype"
+  //     value {
+  //       type: DT_FLOAT
+  //     }
+  //   }
+  //   attr {
+  //     key: "shape"
+  //     value {
+  //       shape {
+  //         dim {
+  //           size: 2
+  //         }
+  //         dim {
+  //           size: 5
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
+  // node {
+  //   name: "y"
+  //   op: "Placeholder"
+  //   device: "/job:localhost/replica:0/task:0/device:GPU:0"
+  //   attr {
+  //     key: "dtype"
+  //     value {
+  //       type: DT_FLOAT
+  //     }
+  //   }
+  //   attr {
+  //     key: "shape"
+  //     value {
+  //       shape {
+  //         dim {
+  //           size: 5
+  //         }
+  //         dim {
+  //           size: 3
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
+  // node {
+  //   name: "MatMul"
+  //   op: "MatMul"
+  //   input: "x"
+  //   input: "y"
+  //   device: "/job:localhost/replica:0/task:0/device:GPU:0"
+  //   attr {
+  //     key: "T"
+  //     value {
+  //       type: DT_FLOAT
+  //     }
+  //   }
+  //   attr {
+  //     key: "transpose_a"
+  //     value {
+  //       b: false
+  //     }
+  //   }
+  //   attr {
+  //     key: "transpose_b"
+  //     value {
+  //       b: false
+  //     }
+  //   }
+  // }
+  // library {
+  // }
+  // versions {
+  //   producer: 27
+  // }
+
+  std::vector<std::unique_ptr<subgraph::PruneRewrite>> feed_rewrites;
+  feed_rewrites.reserve(options.callable_options.feed_size());
+  std::vector<std::unique_ptr<subgraph::PruneRewrite>> fetch_rewrites;
+  fetch_rewrites.reserve(options.callable_options.fetch_size());
+  // 1.
+  // 一句话概括: feed_rewrites, fetch_rewrites of the client graph by adding _Arg
+  // and _Retval and by removing placeholders.
 
   // 2.
   // class PruneRewrite 数据结构
@@ -872,16 +1025,14 @@ Status GraphExecutionState::PruneGraph(
   // Target nodes:
   // collective_order: none
 
-
-  feed_rewrites.reserve(options.callable_options.feed_size());
-
-  // 我的例子有 fetch
-  std::vector<std::unique_ptr<subgraph::PruneRewrite>> fetch_rewrites;
-  fetch_rewrites.reserve(options.callable_options.fetch_size());
-
-
-  // 有进入这个分支
   if (options.use_function_convention) {
+    // 进入
+
+    // 1.
+    // options.use_function_convention 含义:
+    // If `true`, uses Arg/Retval to implement feeds/fetches; otherwise
+    // uses Recv/Send to implement feeds/fetches.
+
     std::vector<TensorAndDevice> tensors_and_devices;
     // 1.
     // tensorflow/core/common_runtime/graph_execution_state.cc:322:
@@ -891,19 +1042,69 @@ Status GraphExecutionState::PruneGraph(
 
     // === feed ===
     for (int i = 0; i < options.callable_options.feed_size(); ++i) {
+      // 1.
+      // (gdb) p options.callable_options.feed_size()
+      // $3 = 2
+
       // WARNING: feed MUST be a reference, since ArgFeedRewrite and
       // tensors_and_devices holds on to its address.
       const string& feed = options.callable_options.feed(i);
       const DeviceAttributes* device_info;
       TF_RETURN_IF_ERROR(
-        LookupDevice(*device_set_,
-                     feed,
-                     options.callable_options.feed_devices(),
-                     &device_info));
+        LookupDevice(*device_set_, // input
+                     feed, // input
+                     options.callable_options.feed_devices(), // input 空的 const Map& tensor2devic
+                     &device_info));  // output, &device_info == const tensorflow::DeviceAttributes** out_device_attrs
+      // 1.
       // LookupDevice 函数说明:
+      // tensorflow/core/common_runtime/graph_execution_state.cc ✅
+      // Status LookupDevice(const DeviceSet& device_set, const string& tensor_name,
+      //               const Map& tensor2device,
+      //               const tensorflow::DeviceAttributes** out_device_attrs)
+
+      // 2.
+      // options.callable_options.feed_devices()
       //
+      // inline const ::google::protobuf::Map< ::std::string, ::std::string >&
+      // CallableOptions::feed_devices() const {
+      //   // @@protoc_insertion_point(field_map:tensorflow.CallableOptions.feed_devices)
+      //   return feed_devices_.GetMap();
+      // }
+
+      // 2.1
+      // message CallableOptions {
+      //   ...
+      //   map<string, string> feed_devices = 6;
+      //   ...
+      // }
+      // tensorflow/core/protobuf/config.proto
+
+      // 2.2
+      // p options.callable_options.DebugString()
+      // $17 = "feed: \"x:0\"\nfeed: \"y:0\"\nfetch: \"MatMul:0\"\nrun_options {\n  debug_options {\n  }\n  experimental {\n  }\n}\n"
+      //
+      // 即:
+      //
+      // feed: "x:0"
+      // feed: "y:0"
+      // fetch: "MatMul:0"
+      // run_options {
+      //   debug_options {
+      //   }
+      //   experimental {
+      //   }
+      // }
+
+      // 3.
+      // (gdb) p device_info->DebugString()
+      // $23 = "name: \"/job:localhost/replica:0/task:0/device:CPU:0\"\ndevice_type: \"CPU\"\nmemory_limit: 268435456\nlocality {\n}\nincarnation: 6649073119670775225\n"
+
       feed_rewrites.emplace_back(
           new subgraph::ArgFeedRewrite(&feed, device_info, i));
+      // 1.
+      // ArgFeedRewrite 构造函数
+      // 这样, 后面才能用上它里面的 ArgFeedRewrite::AddNode()
+
       tensors_and_devices.push_back({ParseTensorName(feed), device_info});
     }
 
@@ -1054,9 +1255,10 @@ Status GraphExecutionState::PruneGraph(
     TF_RETURN_IF_ERROR(
         ValidateFeedAndFetchDevices(*graph, tensors_and_devices));
 
-  // -----------------------------------------------------------------------
   // another branch of if statement
   } else {
+    // 未进入
+
     if (!options.callable_options.feed_devices().empty() ||
         !options.callable_options.fetch_devices().empty()) {
       return errors::Unimplemented(
@@ -1079,9 +1281,10 @@ Status GraphExecutionState::PruneGraph(
   }
   // if end
 
-  // 我的例子没有进入这个
   for (const TensorConnection& tensor_connection :
        options.callable_options.tensor_connection()) {
+    // 未进入
+
     Node* from_node = nullptr;
     TensorId from_id(ParseTensorName(tensor_connection.from_tensor()));
 
@@ -1112,41 +1315,183 @@ Status GraphExecutionState::PruneGraph(
   std::vector<string> target_node_names(
       options.callable_options.target().begin(),
       options.callable_options.target().end());
+  // 1.
+  // target_node_names
+  // (gdb) p target_node_names
+  // $24 = std::vector of length 0, capacity 0
 
+  // 进入 subgraph::RewriteGraphForExecution() 前的图:
+  // p graph->ToGraphDefDebug().DebugString()
+  // node {
+  //   name: "x"
+  //   op: "Placeholder"
+  //   device: "/job:localhost/replica:0/task:0/device:GPU:0"
+  //   attr {
+  //     key: "dtype"
+  //     value {
+  //       type: DT_FLOAT
+  //     }
+  //   }
+  //   attr {
+  //     key: "shape"
+  //     value {
+  //       shape {
+  //         dim {
+  //           size: 2
+  //         }
+  //         dim {
+  //           size: 5
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
+  // node {
+  //   name: "y"
+  //   op: "Placeholder"
+  //   device: "/job:localhost/replica:0/task:0/device:GPU:0"
+  //   attr {
+  //     key: "dtype"
+  //     value {
+  //       type: DT_FLOAT
+  //     }
+  //   }
+  //   attr {
+  //     key: "shape"
+  //     value {
+  //       shape {
+  //         dim {
+  //           size: 5
+  //         }
+  //         dim {
+  //           size: 3
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
+  // node {
+  //   name: "MatMul"
+  //   op: "MatMul"
+  //   input: "x"
+  //   input: "y"
+  //   device: "/job:localhost/replica:0/task:0/device:GPU:0"
+  //   attr {
+  //     key: "T"
+  //     value {
+  //       type: DT_FLOAT
+  //     }
+  //   }
+  //   attr {
+  //     key: "transpose_a"
+  //     value {
+  //       b: false
+  //     }
+  //   }
+  //   attr {
+  //     key: "transpose_b"
+  //     value {
+  //       b: false
+  //     }
+  //   }
+  // }
+  // library {
+  // }
+  // versions {
+  //   producer: 27
+  // }
+  //
 
-  // -----------------------------------------------------------------------
   TF_RETURN_IF_ERROR(
     subgraph::RewriteGraphForExecution(
-      graph, // input
+      graph, // input and output
       feed_rewrites, // input
       fetch_rewrites, // input
       target_node_names, // input
       out_rewrite_metadata)); // output
-  // -----------------------------------------------------------------------
+  // 1.
+  // 函数原型:
+  // Status RewriteGraphForExecution(
+  //     Graph* g,
+  //     const std::vector<std::unique_ptr<PruneRewrite>>& feed_rewrites,
+  //     const std::vector<std::unique_ptr<PruneRewrite>>& fetch_rewrites,
+  //     const gtl::ArraySlice<string>& target_node_names,
+  //     RewriteGraphMetadata* out_metadata)
+  //
+  // 这个函数的效果
+  // 出来后的图
+  // https://gist.github.com/shizukanaskytree/50c61811865c9b79f8965e0769d12b9b
 
   CHECK_EQ(
     out_rewrite_metadata->feed_types.size(),
     options.callable_options.feed_size() +
     options.callable_options.tensor_connection_size());
 
-
   for (int i = 0; i < options.callable_options.tensor_connection_size(); ++i) {
+    // 未进入
+
     out_rewrite_metadata->feed_types.pop_back();
   }
 
   return Status::OK();
 }
+// Where are we?
+// Thread #1 [python] 17387 [core: 1] (Suspended : Step)
+// 	tensorflow::GraphExecutionState::PruneGraph() at graph_execution_state.cc:574 0x7f855b23e60d
+// 	tensorflow::GraphExecutionState::BuildGraph() at graph_execution_state.cc:806 0x7f855b240643
+// 	tensorflow::DirectSession::CreateGraphs() at direct_session.cc:3,191 0x7f855709a515
+// 	tensorflow::DirectSession::CreateExecutors() at direct_session.cc:2,627 0x7f8557095f7e
+// 	tensorflow::DirectSession::GetOrCreateExecutors() at direct_session.cc:3,032 0x7f8557098fdc
+// 	tensorflow::DirectSession::Run() at direct_session.cc:2,147 0x7f8557092802
+// 	tensorflow::SessionRef::Run() at session_ref.cc:414 0x7f8552b72f8a
+// 	TF_Run_Helper() at c_api.cc:878 0x7f8557113b96
+// 	TF_SessionRun() at c_api.cc:2,752 0x7f855711d45e
+// 	tensorflow::TF_SessionRun_wrapper_helper() at tf_session_helper.cc:407 0x7f8552b673e1
+// 	<...more frames...>
+
+
 
 // 1.
 // QQQ. 如果我要构造两个 Executor, 我需要构造两个 GraphExecutionState::GraphExecutionState 吗？
 //      我需要构造两个所谓的  Base Graph 吗?
 // AAA. 需要
+
+// 2.
+// 一句人话总结:
+// GraphExecutionState::InitBaseGraph() 进行了 node 的 device assignment placement
+// 图的输出效果是 https://gist.github.com/shizukanaskytree/bfd21d79a7c13bf0b945a3710c1c13ef
+// 上图初始化了 GraphExecutionState::graph_ : Graph*
+
+// 3.
+// 函数末尾有 call stack
 Status GraphExecutionState::InitBaseGraph(const BuildGraphOptions& options) {
+  // 1.
+  // const BuildGraphOptions& options 语法
+  // const BuildGraphOptions& options = BuildGraphOptions()
+  // 表示 reference "代理"
+
+  // 2.
+  // Thread #1 [python] 12410 [core: 7] (Suspended : Breakpoint)
+  // 	tensorflow::(anonymous namespace)::AssignAndLog at placer.cc:70 0x7f9b5acf0bb3
+  // 	tensorflow::Placer::Run() at placer.cc:184 0x7f9b5acf1673
+  //
+  // 	tensorflow::GraphExecutionState::InitBaseGraph() at graph_execution_state.cc:616 0x7f9b6b23eaea
+  //
+  // 	tensorflow::GraphExecutionState::MakeForBaseGraph() at graph_execution_state.cc:97 0x7f9b6b23abc2
+  // 	tensorflow::DirectSession::MaybeInitializeExecutionState() at direct_session.cc:1,694 0x7f9b6708f659
+  // 	tensorflow::DirectSession::ExtendLocked() at direct_session.cc:1,740 0x7f9b6708fa41
+  // 	tensorflow::DirectSession::Extend() at direct_session.cc:1,733 0x7f9b6708f9fc
+  // 	tensorflow::SessionRef::Extend() at session_ref.cc:441 0x7f9b62b73833
+  // 	tensorflow::ExtendSessionGraphHelper() at c_api.cc:815 0x7f9b671137c3
+  // 	tensorflow::ExtendSession() at python_api.cc:118 0x7f9b62bac2e6
+  // 	_wrap_ExtendSession() at pywrap_tensorflow_internal.cc:19,726 0x7f9b62ae1b45
+  // 	_PyCFunction_FastCallDict() at methodobject.c:234 0x55909b42e681
+  // 	call_function() at ceval.c:4,851 0x55909b4b5610
 
   const GraphDef* graph_def = &original_graph_def_;
   // 1.
   // graph_def 变量说明
-  // graph_def 代理 GraphExecutionState::original_graph_def_, 使用指针，为了避免复制。
+  // graph_def "代理" GraphExecutionState::original_graph_def_, 使用指针，为了避免复制。
 
   // 2.
   // original_graph_def_ 变量说明:
@@ -1187,9 +1532,20 @@ Status GraphExecutionState::InitBaseGraph(const BuildGraphOptions& options) {
     ConvertGraphDefToGraph(opts, // input
                            *graph_def, // input
                            new_graph.get())); // output
+  // 1.
+  // 此刻的图并未安排 device assignment
+  // log: https://gist.github.com/shizukanaskytree/cbf37674fb1ca66d4fb3fe9ac59fa000
 
   if (session_options_ &&
       session_options_->config.graph_options().place_pruned_graph()) {
+    // 未进入
+    // 因为: session_options_->config.graph_options().place_pruned_graph() == false
+
+    // 1.
+    // session_options_ 是什么?
+    // const SessionOptions*
+    // tensorflow/core/public/session_options.h
+
     // Rewrite the graph before placement.
     rewrite_metadata_.reset(new subgraph::RewriteGraphMetadata);
     TF_RETURN_IF_ERROR(
@@ -1198,7 +1554,10 @@ Status GraphExecutionState::InitBaseGraph(const BuildGraphOptions& options) {
 
   // Save stateful placements before placing.
   RestoreStatefulNodes(new_graph.get());
-  // 因为下面马上要执行 Placer 了
+  // 1.
+  // RestoreStatefulNodes 意图:
+  // 下面马上要执行 Placer 了, 所以对于 stateful op node 提前设定好 device 保证在下面的
+  // placer 过程中不会去改变它.
 
   GraphOptimizationPassOptions optimization_options;
   optimization_options.session_handle = session_handle_;
@@ -1217,9 +1576,6 @@ Status GraphExecutionState::InitBaseGraph(const BuildGraphOptions& options) {
     /*allow_soft_placement=*/session_options_ == nullptr || session_options_->config.allow_soft_placement(),
     /*log_device_placement=*/session_options_ != nullptr && session_options_->config.log_device_placement());
   // 1.
-  // QQQ. 这里会怎么样? 我感觉不应该进展
-
-  // 2.
   // Placer 构造函数:
   // Placer::Placer(Graph* graph,
   //                const DeviceSet* devices,
@@ -1227,34 +1583,92 @@ Status GraphExecutionState::InitBaseGraph(const BuildGraphOptions& options) {
   //                bool allow_soft_placement,
   //                bool log_device_placement)
 
+
   // TODO(mrry): Consider making the Placer cancelable.
-  // -----------------------------------------------------------------------
   TF_RETURN_IF_ERROR(placer.Run());
-  // -----------------------------------------------------------------------
+  // 1.
+  // 执行完这个后的 log 和 效果:
+  // MatMul: (MatMul): /job:localhost/replica:0/task:0/device:GPU:0
+  // 2020-03-04 22:57:37.270443: I tensorflow/core/common_runtime/placer.cc:61] MatMul: (MatMul)/job:localhost/replica:0/task:0/device:GPU:0
+  // 2020-03-04 23:30:04.449519: I tensorflow/core/common_runtime/placer.cc:61] x: (Placeholder)/job:localhost/replica:0/task:0/device:GPU:0
+  // x: (Placeholder): /job:localhost/replica:0/task:0/device:GPU:0
+  // y: (Placeholder): /job:localhost/replica:0/task:0/device:GPU:0
+  // 2020-03-04 23:39:56.480328: I tensorflow/core/common_runtime/placer.cc:61] y: (Placeholder)/job:localhost/replica:0/task:0/device:GPU:0
+
+  // 2.
+  // 原来都在 GPU 上.
 
   TF_RETURN_IF_ERROR(OptimizationPassRegistry::Global()->RunGrouping(
       OptimizationPassRegistry::POST_PLACEMENT, optimization_options));
+  // 1.
+  // POST_PLACEMENT 只有唯一一个 图优化 pass, 是 NcclReplacePass
 
   for (const Node* n : new_graph->nodes()) {
     VLOG(2) << "Mapping " << n->name() << " to " << n->cost_id();
     node_name_to_cost_id_map_[n->name()] = n->cost_id();
   }
+  // 1.
+  // vlog
+  //
+  // Mapping _SOURCE to 0
+  // Mapping _SINK to 1
+  // Mapping x to 2
+  // Mapping y to 3
+  // Mapping MatMul to 4
+
+  // 1.1
+  // 什么是 cost_id
+  // if there is no corresponding cost accounting node
+  //
+  // Node* Graph::AllocateNode(std::shared_ptr<NodeProperties> props,
+  //                           const Node* cost_node)
+  //
+  // int cost_id = cost_node ? cost_node->cost_id() : id;
+  // cost_id 和 id 等效
+
+  // 2.
+  // 此刻的图
+  // p new_graph.get()->ToGraphDefDebug().DebugString()
+  // log:
+  // https://gist.github.com/shizukanaskytree/bfd21d79a7c13bf0b945a3710c1c13ef
 
   SaveStatefulNodes(new_graph.get());
+  // 1.
+  // 对于 z = x * y 这个例子, 没有节点是 stateful 的, 这个函数没有作用.
+  // https://gist.github.com/shizukanaskytree/bfd21d79a7c13bf0b945a3710c1c13ef
 
-  // ---------------------------
   graph_ = new_graph.release();
-  // ---------------------------
   // 1.
   // graph_ 变量说明:
-  // 最终初始化了 GraphExecutionState::graph_ : Graph*
+  // GraphExecutionState::graph_ : Graph*
+
+  // 2.
+  // 效果是:
+  // 初始化了 GraphExecutionState::graph_ : Graph*
 
   return Status::OK();
 }
+// 1.
+// where are we?
+//
+// Thread #1 [python] 15583 [core: 55] (Suspended : Step)
+// 	tensorflow::GraphExecutionState::InitBaseGraph() 👀 at graph_execution_state.cc:632 0x7efc1b23edd7
+// 	tensorflow::GraphExecutionState::MakeForBaseGraph() at graph_execution_state.cc:97 0x7efc1b23abc2
+// 	tensorflow::DirectSession::MaybeInitializeExecutionState() at direct_session.cc:1,694 0x7efc1708f659
+// 	tensorflow::DirectSession::ExtendLocked() at direct_session.cc:1,740 0x7efc1708fa41
+// 	tensorflow::DirectSession::Extend() at direct_session.cc:1,733 0x7efc1708f9fc
+// 	tensorflow::SessionRef::Extend() at session_ref.cc:441 0x7efc12b73833
+// 	tensorflow::ExtendSessionGraphHelper() at c_api.cc:815 0x7efc171137c3
+// 	tensorflow::ExtendSession() at python_api.cc:118 0x7efc12bac2e6
+// 	_wrap_ExtendSession() at pywrap_tensorflow_internal.cc:19,726 0x7efc12ae1b45
+// 	_PyCFunction_FastCallDict() at methodobject.c:234 0x55be63d17681
+// 	<...more frames...>
 
-
-////////////////////////////////////////////////////////////////////////////
-
+// 2.
+// 一句人话总结:
+// GraphExecutionState::InitBaseGraph() 进行了 node 的 device assignment placement
+// 图的输出效果是 https://gist.github.com/shizukanaskytree/bfd21d79a7c13bf0b945a3710c1c13ef
+// 上图初始化了 GraphExecutionState::graph_ : Graph*
 
 Status GraphExecutionState::OptimizeGraph(
     const BuildGraphOptions& options, // input
@@ -1390,9 +1804,7 @@ Status GraphExecutionState::OptimizeGraph(
         TF_RETURN_IF_ERROR((*optimized_flib)->AddFunctionDef(fdef));
       }
     }
-    //////////////////////////////////////////////////////////////////
 
-    // -----------------------------------------------------------------------
     // 处理优化的图
     optimized_graph->reset(new Graph(OpRegistry::Global()));
 
@@ -1423,10 +1835,6 @@ Status GraphExecutionState::OptimizeGraph(
 #endif  // IS_MOBILE_PLATFORM
 }
 
-
-////////////////////////////////////////////////////////////////////////////
-
-
 /** \brief Build a sub-graph of the full graph as induced by BuildGraphOptions.
  *
  *  \param options: const BuildGraphOptions&
@@ -1440,14 +1848,12 @@ Status GraphExecutionState::BuildGraph(
   std::unique_ptr<ClientGraph>* out) { // output
   // 1.
   // options 变量说明:
-  /**
-  BuildGraphOptions& options 打印:
-
-  Feed endpoints:
-  Fetch endpoints: out:0,
-  Target nodes:
-  collective_order: none
-  */
+  // BuildGraphOptions& options 打印:
+  //
+  // Feed endpoints:
+  // Fetch endpoints: out:0,
+  // Target nodes:
+  // collective_order: none
 
   // 2.
   // ClientGraph 数据结构
@@ -1469,11 +1875,18 @@ Status GraphExecutionState::BuildGraph(
   const uint64 start_time_usecs = Env::Default()->NowMicros();
 
   if (!graph_) {
+    // 未进入
+
     // It is only valid to call this method directly when the original graph
     // was created with the option `place_pruned_graph == false`.
     return errors::Internal(
         "Attempted to prune a graph that has not been fully initialized.");
   }
+
+  // 1.
+  // 此刻的图:
+  // p graph_->ToGraphDefDebug().DebugString()
+  // https://gist.github.com/shizukanaskytree/b23525eecfa6543441b5ad0986b0e7e7
 
   // Grappler optimization might change the structure of a graph itself, and
   // also it can add/prune functions to/from the library.
@@ -1490,15 +1903,23 @@ Status GraphExecutionState::BuildGraph(
   // - func_grad_ : gtl::FlatMap<string, string>
   std::unique_ptr<FunctionLibraryDefinition> optimized_flib;
 
-  // -----------------------------------------------------------------------
   /// OptimizeGraph has a lot to do.
   Status s = OptimizeGraph(options, // input  打印见上面
                            &optimized_graph, // output
                            &optimized_flib); // output
-  // -----------------------------------------------------------------------
+  // 1.
+  // 优化图
+  // 参考日志中的时间戳:
+  // ✅ BuildGraph 和 ✅ 图优化
+  // https://gist.github.com/shizukanaskytree/3c875d642406b61356865064835695f2
 
+  // 2.
+  // 执行上面 OptimizeGraph() 所对应的 log:
+  // https://gist.github.com/shizukanaskytree/033da3ad0919cd2b4cc93a16f34f2e07
 
   if (!s.ok()) {
+    // 未进入
+
     VLOG(2) << "Grappler optimization failed. Error: " << s.error_message();
     // Simply copy the original graph and the function library if we couldn't
     // optimize it.
@@ -1517,17 +1938,29 @@ Status GraphExecutionState::BuildGraph(
 
   if (session_options_ == nullptr ||
       !session_options_->config.graph_options().place_pruned_graph()) {
-    // -----------------------------------------------------------------------
-    // PruneGraph for fetch subgraph
-    // -----------------------------------------------------------------------
+    // 进入
+
+    // 1.
+    // 此刻 optimized_graph 的图, 未执行 PruneGraph()
+    // https://gist.github.com/shizukanaskytree/0bd24751a6f79730afaf47efae5912b3
+
     TF_RETURN_IF_ERROR(
         PruneGraph(
           options, // input
           optimized_graph.get(), // input
           &rewrite_metadata)); // output
-    // -----------------------------------------------------------------------
+    // 1.
+    // ✅一句话概括:
+    // 把用户输入的图转变为一个带 _Arg, _Retval nodes 的图,
+    // 消掉以前的 placeholder 节点.
+    // 暂不涉及 send recv op
+
+    // 2.
+    // optimized_graph after PruneGraph:
+    // https://gist.github.com/shizukanaskytree/50c61811865c9b79f8965e0769d12b9b
 
   } else {
+    // 未进入
 
     // This GraphExecutionState represents a graph that was
     // pruned when this was constructed, so we copy the metadata from
@@ -1541,7 +1974,6 @@ Status GraphExecutionState::BuildGraph(
   CHECK_EQ(options.callable_options.fetch_size(),
            rewrite_metadata.fetch_types.size());
 
-
   // TODO(andydavis): Clarify optimization pass requirements around CostModel.
   GraphOptimizationPassOptions optimization_options;
   optimization_options.session_options = session_options_;
@@ -1554,11 +1986,99 @@ Status GraphExecutionState::BuildGraph(
       OptimizationPassRegistry::POST_REWRITE_FOR_EXEC,
       optimization_options)
   );
+  // 1.
+  // 此刻的图
+  // node {
+  //   name: "MatMul"
+  //   op: "MatMul"
+  //   input: "_arg_x_0_0"
+  //   input: "_arg_y_0_1"
+  //   device: "/job:localhost/replica:0/task:0/device:GPU:0"  ✅ 发现没, 这里已经把 node device assignment 给分配好了.
+  //   attr {
+  //     key: "T"
+  //     value {
+  //       type: DT_FLOAT
+  //     }
+  //   }
+  //   attr {
+  //     key: "transpose_a"
+  //     value {
+  //       b: false
+  //     }
+  //   }
+  //   attr {
+  //     key: "transpose_b"
+  //     value {
+  //       b: false
+  //     }
+  //   }
+  // }
+  // node {
+  //   name: "_arg_x_0_0"
+  //   op: "_Arg"
+  //   device: "/job:localhost/replica:0/task:0/device:CPU:0"
+  //   attr {
+  //     key: "T"
+  //     value {
+  //       type: DT_FLOAT
+  //     }
+  //   }
+  //   attr {
+  //     key: "index"
+  //     value {
+  //       i: 0
+  //     }
+  //   }
+  // }
+  // node {
+  //   name: "_arg_y_0_1"
+  //   op: "_Arg"
+  //   device: "/job:localhost/replica:0/task:0/device:CPU:0"
+  //   attr {
+  //     key: "T"
+  //     value {
+  //       type: DT_FLOAT
+  //     }
+  //   }
+  //   attr {
+  //     key: "index"
+  //     value {
+  //       i: 1
+  //     }
+  //   }
+  // }
+  // node {
+  //   name: "_retval_MatMul_0_0"
+  //   op: "_Retval"
+  //   input: "MatMul"
+  //   device: "/job:localhost/replica:0/task:0/device:CPU:0"
+  //   attr {
+  //     key: "T"
+  //     value {
+  //       type: DT_FLOAT
+  //     }
+  //   }
+  //   attr {
+  //     key: "index"
+  //     value {
+  //       i: 0
+  //     }
+  //   }
+  // }
+  // library {
+  // }
+  // versions {
+  //   producer: 27
+  // }
 
+  // 2.
+  // 进展到了这里: L339 (中间态)
+  // https://gist.github.com/shizukanaskytree/3c875d642406b61356865064835695f2#file-analysis_level_1_log-cc-L339
 
   int64 collective_graph_key = options.collective_graph_key;
-  // 我的例子有进入如下的分支
   if (collective_graph_key == BuildGraphOptions::kNoCollectiveGraphKey) {
+    // 进入
+
     // BuildGraphOptions does not specify a collective_graph_key.  Check all
     // nodes in the Graph and FunctionLibraryDefinition for collective ops and
     // if found, initialize a collective_graph_key as a hash of the ordered set
@@ -1567,16 +2087,22 @@ Status GraphExecutionState::BuildGraph(
 
     for (Node* node : optimized_graph->nodes()) {
       if (node->IsCollective()) {
+        // 未进入
+
         int32 instance_key;
         TF_RETURN_IF_ERROR(
             GetNodeAttr(node->attrs(), "instance_key", &instance_key));
         instance_key_set.emplace(instance_key);
       } else {
-        // 进入这个分支
-        // 但是，没有那个 node 的 fdef 是存在的，目前都是 空指针
+        // 进入
+
+        // 但是，没有那个 node 的 fdef 是存在的，**目前都是 空指针**
         const FunctionDef* fdef = optimized_flib->Find(node->def().op());
 
         if (fdef != nullptr) {
+          // 未进入
+          // 因为 fdef == nullptr 
+
           for (const NodeDef& ndef : fdef->node_def()) {
             if (ndef.op() == "CollectiveReduce" ||
                 ndef.op() == "CollectiveBcastSend" ||
@@ -1602,13 +2128,12 @@ Status GraphExecutionState::BuildGraph(
   }
 
   // Make collective execution order deterministic if needed.
-  // 没有进入这个分支
   if (options.collective_order != GraphCollectiveOrder::kNone) {
+    // 未进入
     TF_RETURN_IF_ERROR(
         OrderCollectives(optimized_graph.get(), options.collective_order));
   }
 
-  // 构造输出的 ClientGraph.
   // Copy the extracted graph in order to make its node ids dense,
   // since the local CostModel used to record its stats is sized by
   // the largest node id.
@@ -1618,10 +2143,12 @@ Status GraphExecutionState::BuildGraph(
         rewrite_metadata.feed_types,
         rewrite_metadata.fetch_types,
         collective_graph_key));
+  // 1.
+  // ClientGraph
 
+  // 2.
   // optimized_flib: std::unique_ptr<FunctionLibraryDefinition>
 
-  /**
   // FunctionLibraryDefinition 数据结构
   // ./tensorflow/core/framework/function.h:313:
   // class FunctionLibraryDefinition : public OpRegistryInterface
@@ -1632,15 +2159,97 @@ Status GraphExecutionState::BuildGraph(
   //    + op_registration_data: OpRegistrationData
   // - func_grad_ : gtl::FlatMap<string, string>
 
-  ===
-
-  int64 collective_graph_key = options.collective_graph_key;
-
-  p collective_graph_key
-  $33 = 0
-  */
+  // int64 collective_graph_key = options.collective_graph_key;
+  // p collective_graph_key
+  // $33 = 0
 
   CopyGraph(*optimized_graph, &dense_copy->graph);
+  // 1.
+  // 此刻的图 optimized_graph 和 dense_copy->graph
+  /*
+  node {
+    name: "MatMul"
+    op: "MatMul"
+    input: "_arg_x_0_0"
+    input: "_arg_y_0_1"
+    device: "/job:localhost/replica:0/task:0/device:GPU:0"
+    attr {
+      key: "T"
+      value {
+        type: DT_FLOAT
+      }
+    }
+    attr {
+      key: "transpose_a"
+      value {
+        b: false
+      }
+    }
+    attr {
+      key: "transpose_b"
+      value {
+        b: false
+      }
+    }
+  }
+  node {
+    name: "_arg_x_0_0"
+    op: "_Arg"
+    device: "/job:localhost/replica:0/task:0/device:CPU:0"
+    attr {
+      key: "T"
+      value {
+        type: DT_FLOAT
+      }
+    }
+    attr {
+      key: "index"
+      value {
+        i: 0
+      }
+    }
+  }
+  node {
+    name: "_arg_y_0_1"
+    op: "_Arg"
+    device: "/job:localhost/replica:0/task:0/device:CPU:0"
+    attr {
+      key: "T"
+      value {
+        type: DT_FLOAT
+      }
+    }
+    attr {
+      key: "index"
+      value {
+        i: 1
+      }
+    }
+  }
+  node {
+    name: "_retval_MatMul_0_0"
+    op: "_Retval"
+    input: "MatMul"
+    device: "/job:localhost/replica:0/task:0/device:CPU:0"
+    attr {
+      key: "T"
+      value {
+        type: DT_FLOAT
+      }
+    }
+    attr {
+      key: "index"
+      value {
+        i: 0
+      }
+    }
+  }
+  library {
+  }
+  versions {
+    producer: 27
+  }
+  */
 
   // TODO(vrv): We should check invariants of the graph here.
   metrics::UpdateGraphBuildTime(
@@ -1650,5 +2259,8 @@ Status GraphExecutionState::BuildGraph(
 
   return Status::OK();
 }
+// where are we?
+
+
 
 }  // namespace tensorflow

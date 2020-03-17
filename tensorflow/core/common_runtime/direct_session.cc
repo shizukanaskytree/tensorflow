@@ -668,11 +668,7 @@ DirectSession::~DirectSession() {
 }
 
 
-// 我看这个函数的目的是:
-// 我想弄明白 DirectSession::execution_state_ 是怎么被初始化的，里面的图是哪来的
-// 我这下子明白了，其实是把 TF_Session 内的 Graph 转换成 GraphDef (仅仅因为函数接口需要吧)
-// 然后接着 GraphDef 内的信息把 DirectSession::execution_state_ 给初始化了。
-
+// 1.
 // QQQ. 请问，DirectSession::execution_state_ 日后被用在了那里?
 // AAA.
 Status DirectSession::MaybeInitializeExecutionState(
@@ -682,9 +678,7 @@ Status DirectSession::MaybeInitializeExecutionState(
   // If already initialized, do nothing.
   if (flib_def_ && execution_state_) {
     *out_already_initialized = true;
-    // -----------------
     return Status::OK();
-    // -----------------
   }
 
   // Set up the per-session execution state.
@@ -945,6 +939,11 @@ Status DirectSession::MaybeInitializeExecutionState(
   // that it copies the graph fewer times.
 
   GraphDef temp(graph);
+  // 1.
+  // 此刻的 graph 还没有被 device assignment
+  // log: https://gist.github.com/shizukanaskytree/b0fd007ce90cc8b04ab9d9549f5e656a
+
+  // 2.
   // temp 变量说明:
   // 最后这个 temp 一直传到 构造 GraphExecutionState::GraphExecutionState 时，
   // 会使用 Swap 把这个 temp 自动换成空的变量，这就是 GraphExecutionState 构造函数内 Swap 的意图。
@@ -955,6 +954,11 @@ Status DirectSession::MaybeInitializeExecutionState(
       options, // input
       &execution_state_)); // output
   // 1.
+  // 一句人话概括 GraphExecutionState::MakeForBaseGraph:
+  // temp 是 GraphDef, 经过 GraphExecutionState::MakeForBaseGraph 加工后 被 device assignment.
+  // 进而构造并初始化了 DirectSession::execution_state_ (内含 Graph* )
+
+  // 2.
   // GraphExecutionState::MakeForBaseGraph 函数说明
   //
   // Creates a new `GraphExecutionState` for the given
@@ -965,11 +969,11 @@ Status DirectSession::MaybeInitializeExecutionState(
   // after this call, make an explicit copy of the graph before
   // calling this method.
 
-  // 2.
+  // 3.
   // execution_state_ 变量说明:
   // DirectSession::execution_state_: std::unique_ptr<GraphExecutionState>
 
-  // 3.
+  // 4.
   // GraphExecutionState 数据结构
   // tensorflow/core/common_runtime/graph_execution_state.cc
   // - graph_: Graph*
@@ -1059,14 +1063,20 @@ Status DirectSession::ExtendLocked(const GraphDef& graph) { // input
   TF_RETURN_IF_ERROR(
       MaybeInitializeExecutionState(
         graph,  // input
-        &already_initialized)); // output
+        &already_initialized)); // output ✅
 
   // 1.
   // Bug Report
   if (already_initialized) {
+    // 1.
     // already_initialized 变量说明:
-    // 第一次不会进入, 因为 MaybeInitializeExecutionState 内结尾处把它 设置为 false 了
+    // 第一次不会进入, 因为 MaybeInitializeExecutionState 内结尾处把它设置为了 false ✅
     // 如果有新节点加入就会进入。
+
+    // 2.
+    // 意图:
+    // Initialize ExecutionState 后就别进来了.
+
     TF_RETURN_IF_ERROR(flib_def_->AddLibrary(graph.library()));
 
     std::unique_ptr<GraphExecutionState> state;
@@ -1192,7 +1202,7 @@ Status DirectSession::RunInternal(int64 step_id,
   // struct ExecutorsAndKeys {
   //   ExecutorsAndKeys() : step_count(0) {}
   //   std::atomic_int_fast64_t step_count;
-  //   std::unique_ptr<Graph> graph;
+  //   std::unique_ptr<Graph> graph;  ☠️这里是 0x0 指针
   //   NameNodeMap name_to_node;
   //   // ------------------------------------------------------------------------
   //   // 最重要
@@ -1209,6 +1219,14 @@ Status DirectSession::RunInternal(int64 step_id,
   //   int64 collective_graph_key = BuildGraphOptions::kNoCollectiveGraphKey;
   // };
 
+  // 1.1
+  // graph within executors_and_keys
+  // (gdb) p executors_and_keys->graph.get()
+  // $3 = (tensorflow::Graph *) 0x0
+
+  // 1.2
+  // 为什么是 0x0?
+
   const uint64 start_time_usecs = Env::Default()->NowMicros();
 
   string session_id_meta = strings::StrCat("SessionRun #id=", step_id, "#");
@@ -1221,15 +1239,12 @@ Status DirectSession::RunInternal(int64 step_id,
   const int64 executor_step_count = executors_and_keys->step_count.fetch_add(1);
 
   std::unique_ptr<DebuggerStateInterface> debugger_state;
-
   if (!run_options.debug_options().debug_tensor_watch_opts().empty()) {
-
     TF_RETURN_IF_ERROR(
         CreateDebuggerState(executors_and_keys->callable_options,
                             run_options.debug_options().global_step(), step_id,
                             executor_step_count, &debugger_state));
   }
-
 
   // Create a run state and start execution.
   RunState run_state(step_id, &devices_);
@@ -1282,18 +1297,15 @@ Status DirectSession::RunInternal(int64 step_id,
   //   The tensors that will be saved to session state when this run completes.
   //   A map from tensor string name to tensor.
 
-
-  // -----------------------------------------------------------------------
   run_state.rendez = new IntraProcessRendezvous(device_mgr_.get());
-  // -----------------------------------------------------------------------
 
 #ifndef __ANDROID__
-  // 进入了这个宏定义的分支:
+  // 有进入这个宏定义的分支:
 
   // Set up for collectives if ExecutorsAndKeys declares a key.
   if (executors_and_keys->collective_graph_key !=
       BuildGraphOptions::kNoCollectiveGraphKey) {
-    // 没有进入了这个分支:
+    // 未进入
 
     if (run_options.experimental().collective_graph_key() !=
         BuildGraphOptions::kNoCollectiveGraphKey) {
@@ -1328,9 +1340,15 @@ Status DirectSession::RunInternal(int64 step_id,
 #endif
 
   // Start parallel Executors.
+  const size_t num_executors = executors_and_keys->items.size();
+  // 1.
+  // (gdb) p num_executors
+  // $4 = 2
+  // context: https://docs.google.com/document/d/1FdkOkqexWnymuYKqF3HCNlRUAbDXjTHTjsK8wIdxIRQ/edit
+
+  // 2.
   // executors_and_keys->items 变量说明:
   // std::vector<PerPartitionExecutorsAndLib> items
-  const size_t num_executors = executors_and_keys->items.size();
 
   ExecutorBarrier* barrier = new ExecutorBarrier(
       num_executors,
@@ -1349,6 +1367,14 @@ Status DirectSession::RunInternal(int64 step_id,
 
       }
   );
+  // 1.
+  // run_state 是在上面定义的:
+  // Create a run state and start execution.
+  // RunState run_state(step_id, &devices_);
+
+  // 2.
+  // ExecutorBarrier
+  //
 
   Executor::Args args;
   // 1.
@@ -1382,7 +1408,6 @@ Status DirectSession::RunInternal(int64 step_id,
       (run_state.collective_executor ? run_state.collective_executor->get()
                                      : nullptr);
 
-  // -----------------------------------------------------------------------
   CancellationManager step_cancellation_manager;
   // 1.
   // CancellationManager 构造函数说明:
@@ -1396,7 +1421,6 @@ Status DirectSession::RunInternal(int64 step_id,
   // - next_cancellation_token_: 0
 
   args.cancellation_manager = &step_cancellation_manager;
-  // -----------------------------------------------------------------------
   // 1.
   // class CancellationManager 数据结构
   // tensorflow/core/framework/cancellation.h
@@ -1429,17 +1453,22 @@ Status DirectSession::RunInternal(int64 step_id,
   args.step_container = &run_state.step_container;
   args.sync_on_finish = sync_on_finish_;
 
-  //////////////////////////////////////////////////////////////////////////
+  const bool do_trace = (run_options.trace_level() > RunOptions::NO_TRACE);
+  // 1.
   // 这里决定了是否启动 traing 和收集数据
   // stats_collector 是开关。
-  //////////////////////////////////////////////////////////////////////////
-  const bool do_trace = (run_options.trace_level() > RunOptions::NO_TRACE);
-  //////////////////////////////////////////////////////////////////////////
 
   bool update_cost_model = false;
 
   if (options_.config.graph_options().build_cost_model() > 0) {
     // 如果没开 build_cost_model 的话就不进入！
+
+    // 1.
+    // options_ 是什么?
+    // const SessionOptions options_;
+
+    // 2.
+    // options_.config 是 message type ConfigProto
 
     const int64 build_cost_model_every =
         options_.config.graph_options().build_cost_model();
@@ -1455,10 +1484,8 @@ Status DirectSession::RunInternal(int64 step_id,
     }
   }
 
-  //////////////////////////////////////////////////////////////////////////
   // 这里决定了是否启动 traing 和收集数据
   // stats_collector 是开关。
-  //////////////////////////////////////////////////////////////////////////
   if (do_trace || update_cost_model ||
       run_options.report_tensor_allocations_upon_oom()) {
     // 如果没开 build_cost_model 的话就不进入！
@@ -1467,19 +1494,13 @@ Status DirectSession::RunInternal(int64 step_id,
         new StepStatsCollector(run_metadata->mutable_step_stats()));
     args.stats_collector = run_state.collector.get();
   }
-  //////////////////////////////////////////////////////////////////////////
 
-  // -----------------------------------------------------------------------
   // tracer 是用来 profiling GPU cuda kernel/memcpy 的！！！
   std::unique_ptr<DeviceTracer> tracer;
-  // -----------------------------------------------------------------------
-
   if (run_options.trace_level() >= RunOptions::HARDWARE_TRACE) {
 
-    // -----------------------------------------------------------------------
     // tracer 是用来 profiling GPU cuda kernel/memcpy 的！！！
     tracer = CreateDeviceTracer();
-    // -----------------------------------------------------------------------
 
     // tracer may be NULL on platforms without accelerators.
     if (tracer) {
@@ -1510,7 +1531,15 @@ Status DirectSession::RunInternal(int64 step_id,
   // 1.
   // CancellationToken 数据结构
   // typedef int64 CancellationToken;
+
+  // 1.1
   // tensorflow/core/framework/cancellation.h
+  //
+  // A token that can be used to register and deregister a
+  // CancelCallback with a CancellationManager.
+  //
+  // CancellationToken values must be created by a call to
+  // CancellationManager::get_cancellation_token.
 
   // 2.
   // CancellationManager::get_cancellation_token 函数说明:
@@ -1696,10 +1725,21 @@ Status DirectSession::RunInternal(int64 step_id,
   }
 
   std::unique_ptr<RunHandler> handler;
+  // 1.
+  // RunHandler
+  // tensorflow/core/framework/run_handler.h
+
+  // 1.1
+  // RunHandler can be used to schedule inter-op closures to run on a global pool
+  // shared across all Session::Run(s).
+
+  // 2.
+  // comment: 不过好像没怎么用上.
 
   if (ShouldUseRunHandlerPool(run_options) &&
       run_options.experimental().use_run_handler_pool()) {
-    // 未进入这个分支:
+    // 未进入
+
     VLOG(1) << "Using RunHandler to scheduler inter-op closures.";
     handler = GetOrCreateRunHandlerPool(options_)->Get();
   }
@@ -1711,20 +1751,21 @@ Status DirectSession::RunInternal(int64 step_id,
   Executor::Args::Runner default_runner = nullptr;
 
   if (pool == nullptr) {
-    // 未进入这个分支
+    // 未进入
+
     default_runner = [](Executor::Args::Closure c) { c(); };
   } else if (handler_ptr != nullptr) {
-    // 未进入这个分支
+    // 未进入
+
     default_runner = [handler_ptr](Executor::Args::Closure c) {
       handler_ptr->ScheduleInterOpClosure(std::move(c));
     };
   } else {
-    // 进入这个分支！
-    // -----------------------------------------------------------------------
+    // 进入
+
     default_runner = [this, pool](Executor::Args::Closure c) {
       SchedClosure(pool, std::move(c));
     };
-    // -----------------------------------------------------------------------
   }
 
   // 这里要执行 executor 了
@@ -1738,45 +1779,53 @@ Status DirectSession::RunInternal(int64 step_id,
     // TODO(crk): Investigate usage of RunHandlerPool when using device specific
     // thread pool(s).
     if (!device_thread_pool) {
-      // 注意: 进入的是这个分支！！！
+      // 进入
 
       args.runner = default_runner;
+      // 1.
+      // default_runner
+      // 在上面不远的地方, 具体是
+      // default_runner = [this, pool](Executor::Args::Closure c) {
+      //   SchedClosure(pool, std::move(c));
+      // };
 
     } else {
-      // 未进入这个分支:
+      // 未进入
+
       args.runner = [this, device_thread_pool](Executor::Args::Closure c) {
         SchedClosure(device_thread_pool, std::move(c));
       };
-
     }
 
-
+    item.executor->RunAsync(args, barrier->Get());
+    // 1.
     // 异步执行 executor
     // 重要
-    // -----------------------------------------------------------------------
-    // -----------------------------------------------------------------------
-    item.executor->RunAsync(args, barrier->Get());
-    // -----------------------------------------------------------------------
-    // -----------------------------------------------------------------------
-    // 1.
+
+    // 2.
     // item.executor 变量说明:
     // DirectSession::PerPartitionExecutorsAndLib::executor : std::unique_ptr<Executor>
 
-    // 1.1
+    // 2.1
     // Executor 实际类型:
     // Executor real type is ExecutorImpl
 
-    // 2.
+    // 3.
     // RunAsync 函数说明:
     // ExecutorImpl::RunAsync
     // tensorflow/core/common_runtime/executor.cc
+    //
+    // 具体是:
+    // void ExecutorImpl::RunAsync(const Args& args, DoneCallback done) {
+    //   (new ExecutorState(args, this))->RunAsync(std::move(done));
+    // }
 
-    // 3.
+    // 4.
     // class ExecutorImpl 数据结构
     // tensorflow/core/common_runtime/executor.cc:412
     // class ExecutorImpl : public Executor
 
-    // 4.
+    // 5.
     // args 变量说明:
     // defined above : Executor::Args args;
     // 1.
@@ -1804,7 +1853,18 @@ Status DirectSession::RunInternal(int64 step_id,
     //  };
 
     // 5.
-    // barrier->Get() 函数说明:
+    // barrier->Get() 是什么:
+    // Returns a closure that Executors must call when they are done
+    // computing, passing the status of their execution as an argument.
+    // class ExecutorBarrier::
+    // StatusCallback Get() {
+    //   return std::bind(&ExecutorBarrier::WhenDone, this, std::placeholders::_1);
+    // }
+
+    // 5.1
+    // class ExecutorBarrier::void WhenDone(const Status& s)
+
+    // 5.1
     // Returns a closure that Executors must call when they are done
     // computing, passing the status of their execution as an argument.
     //
@@ -1814,7 +1874,7 @@ Status DirectSession::RunInternal(int64 step_id,
     //   return std::bind(&ExecutorBarrier::WhenDone, this, std::placeholders::_1);
     // }
 
-    // 5.1
+    // 5.2
     // StatusCallback 数据结构
     // tensorflow/core/common_runtime/executor.h:150:
     // typedef std::function<void(const Status&)> StatusCallback;
@@ -2018,18 +2078,22 @@ Status DirectSession::RunInternal(int64 step_id,
   return Status::OK();
 }
 
-
-////////////////////////////////////////////////////////////////////////
-
+// 1.
+// where am I ?
+// #0  tensorflow::DirectSession::Run (this=0x563ad5bf8460, run_options=..., inputs=std::vector of length 2, capacity 2 = {...}, output_names=std::vector of length 1, capacity 1 = {...}, target_nodes=std::vector of length 0, capacity 0, outputs=0x7ffc466a08a0, run_metadata=0x7ffc466a0900) at tensorflow/core/common_runtime/direct_session.cc:2107
+// #1  0x00007f3716b72f8a in tensorflow::SessionRef::Run (this=0x563ad5c02980, run_options=..., inputs=std::vector of length 2, capacity 2 = {...}, output_tensor_names=std::vector of length 1, capacity 1 = {...}, target_node_names=std::vector of length 0, capacity 0, outputs=0x7ffc466a08a0, run_metadata=0x7ffc466a0900) at tensorflow/python/client/session_ref.cc:414
+// #2  0x00007f371b113b96 in TF_Run_Helper (session=0x563ad5c02980, handle=0x0, run_options=0x0, input_pairs=std::vector of length 2, capacity 2 = {...}, output_tensor_names=std::vector of length 1, capacity 1 = {...}, c_outputs=0x7ffc466a0c18, target_oper_names=std::vector of length 0, capacity 0, run_metadata=0x0, status=0x563ad5c04940) at tensorflow/c/c_api.cc:878
+// #3  0x00007f371b11d45e in TF_SessionRun (session=0x563ad5c02aa0, run_options=0x0, inputs=0x563ad5c03470, input_values=0x7ffc466a0bc8, ninputs=2, outputs=0x563ad5c05570, output_values=0x7ffc466a0c18, noutputs=1, target_opers=0x0, ntargets=0, run_metadata=0x0, status=0x563ad5c04940) at tensorflow/c/c_api.cc:2752
+// #4  0x00007f3716b673e1 in tensorflow::TF_SessionRun_wrapper_helper (session=0x563ad5c02aa0, handle=0x0, run_options=0x0, inputs=std::vector of length 2, capacity 2 = {...}, input_ndarrays=std::vector of length 2, capacity 2 = {...}, outputs=std::vector of length 1, capacity 1 = {...}, targets=std::vector of length 0, capacity 0, run_metadata=0x0, out_status=0x563ad5c04940, py_outputs=0x7ffc466a0ea0) at tensorflow/python/client/tf_session_helper.cc:407
+// #5  0x00007f3716b6786d in tensorflow::TF_SessionRun_wrapper (session=0x563ad5c02aa0, run_options=0x0, inputs=std::vector of length 2, capacity 2 = {...}, input_ndarrays=std::vector of length 2, capacity 2 = {...}, outputs=std::vector of length 1, capacity 1 = {...}, targets=std::vector of length 0, capacity 0, run_metadata=0x0, out_status=0x563ad5c04940, py_outputs=0x7ffc466a0ea0) at tensorflow/python/client/tf_session_helper.cc:450
+// #6  0x00007f3716ae75b9 in _wrap_TF_SessionRun_wrapper (args=(<SwigPyObject at remote 0x7f37a824e1e0>, None, {<TF_Output(this=<SwigPyObject at remote 0x7f37e6886450>) at remote 0x7f37e57f2cc0>: <numpy.ndarray at remote 0x7f37d51fe3a0>, <TF_Output(this=<SwigPyObject at remote 0x7f37e6886420>) at remote 0x7f37a8217438>: <numpy.ndarray at remote 0x7f37d51fe300>}, [<TF_Output(this=<SwigPyObject at remote 0x7f37a837b5a0>) at remote 0x7f37a81c1c88>], [], None)) at bazel-out/k8-opt/bin/tensorflow/python/pywrap_tensorflow_internal.cc:21335
 
 Status DirectSession::Run(const RunOptions& run_options, // input
-
                           const NamedTensorList& inputs, // input
-
                           const std::vector<string>& output_names, // input
                           const std::vector<string>& target_nodes, // input
                           std::vector<Tensor>* outputs, // output of the Executor Result
-                          RunMetadata* run_metadata) {// output
+                          RunMetadata* run_metadata) { // output
   // 1.
   // NamedTensorList 数据结构
   // tensorflow/core/common_runtime/direct_session.h:68:
@@ -2042,75 +2106,44 @@ Status DirectSession::Run(const RunOptions& run_options, // input
   // message RunOptions
   // Options for a single Run() call.
   //
-  // message RunOptions {
-  //   // TODO(pbar) Turn this into a TraceOptions proto which allows
-  //   // tracing to be controlled in a more orthogonal manner?
-  //   enum TraceLevel {
-  //     NO_TRACE = 0;
-  //     SOFTWARE_TRACE = 1;
-  //     HARDWARE_TRACE = 2;
-  //     FULL_TRACE = 3;
-  //   }
-  //   TraceLevel trace_level = 1;
-  //
-  //   // Time to wait for operation to complete in milliseconds.
-  //   int64 timeout_in_ms = 2;
-  //
-  //   // The thread pool to use, if session_inter_op_thread_pool is configured.
-  //   // To use the caller thread set this to -1 - this uses the caller thread
-  //   // to execute Session::Run() and thus avoids a context switch. Using the
-  //   // caller thread to execute Session::Run() should be done ONLY for simple
-  //   // graphs, where the overhead of an additional context switch is
-  //   // comparable with the overhead of Session::Run().
-  //   int32 inter_op_thread_pool = 3;
-  //
-  //   // Whether the partition graph(s) executed by the executor(s) should be
-  //   // outputted via RunMetadata.
-  //   bool output_partition_graphs = 5;
-  //
-  //   // EXPERIMENTAL.  Options used to initialize DebuggerState, if enabled.
-  //   DebugOptions debug_options = 6;
-  //
-  //   // When enabled, causes tensor allocation information to be included in
-  //   // the error message when the Run() call fails because the allocator ran
-  //   // out of memory (OOM).
-  //   //
-  //   // Enabling this option can slow down the Run() call.
-  //   bool report_tensor_allocations_upon_oom = 7;
-  //
-  //   // Everything inside Experimental is subject to change and is not subject
-  //   // to API stability guarantees in
-  //   // https://www.tensorflow.org/guide/version_compat.
-  //   message Experimental {
-  //     // If non-zero, declares that this graph is going to use collective
-  //     // ops and must synchronize step_ids with any other graph with this
-  //     // same group_key value (in a distributed computation where tasks
-  //     // run disjoint graphs).
-  //     int64 collective_graph_key = 1;
-  //     // If true, then operations (using the inter-op pool) across all
-  //     // session::run() calls will be centrally scheduled, optimizing for (median
-  //     // and tail) latency.
-  //     // Consider using this option for CPU-bound workloads like inference.
-  //     bool use_run_handler_pool = 2;
-  //   };
-  //
-  //   Experimental experimental = 8;
-  //
-  //   reserved 4;
-  // }
+  // message RunOptions {...}
 
   // 3.
   // RunMetadata 数据结构
   // tensorflow/core/protobuf/config.proto
+
+  // 4.
+  // 打印 signatures:
+  // https://gist.github.com/shizukanaskytree/8685930161fb12c3205f4de6a65ab055
+
+  // 5.
+  // outputs 里面的 Tensor 的构造是在 TF_Run_Helper() 里面
+  //
+  // Thread #1 [python] 17387 [core: 18] (Suspended : Breakpoint)
+  // tensorflow::DirectSession::Run() at direct_session.cc:2,107 0x7f855709241c
+  // tensorflow::SessionRef::Run() at session_ref.cc:414 0x7f8552b72f8a
+  // TF_Run_Helper() 👀 at c_api.cc:878 0x7f8557113b96
+  // TF_SessionRun() at c_api.cc:2,752 0x7f855711d45e
+  // tensorflow::TF_SessionRun_wrapper_helper() at tf_session_helper.cc:407 0x7f8552b673e1
+  // tensorflow::TF_SessionRun_wrapper() at tf_session_helper.cc:450 0x7f8552b6786d
+  // _wrap_TF_SessionRun_wrapper() at pywrap_tensorflow_internal.cc:21,335 0x7f8552ae75b9
 
 
   TF_RETURN_IF_ERROR(CheckNotClosed());
   TF_RETURN_IF_ERROR(CheckGraphCreated("Run()"));
 
   direct_session_runs->GetCell()->IncrementBy(1);
+  // 1.
+  // 是什么?
+  // auto* direct_session_runs = monitoring::Counter<0>::New(
+  //     "/tensorflow/core/direct_session_runs",
+  //     "The number of times DirectSession::Run() has been called.");
 
   // Extract the inputs names for this run of the session.
   std::vector<string> input_tensor_names;
+  // 1.
+  // input_tensor_names 功用:
+  // 这是个参数, 传给 本函数内的 GetOrCreateExecutors() 的.
 
   input_tensor_names.reserve(inputs.size());
 
@@ -2118,60 +2151,79 @@ Status DirectSession::Run(const RunOptions& run_options, // input
     input_tensor_names.push_back(it.first);
   }
 
+  // ✅
   // 逻辑是: 下面对这个 executors_and_keys 变量进行初始化后放入 RunInternal 内执行
 
   ExecutorsAndKeys* executors_and_keys;
   // 1.
+  // executors_and_keys: ExecutorsAndKeys* 功用和意图
+  // 含纳 Executors 和一切执行结果相关的内容
+
+  // 2.
+  // Key 是指什么?
+  // GetOrCreateExecutors 全凭如下的 key !
+  // key =
+  // inputs,->outputs,/target_nodes,/is_partial_run/debug_tensor_watches_summary
+  // const string key = strings::StrCat(
+  //     str_util::Join(inputs, ","),
+  //     "->",
+  //     str_util::Join(outputs, ","),
+  //     "/",
+  //     str_util::Join(target_nodes, ","),
+  //     "/",
+  //     run_state_args->is_partial_run,
+  //     "/",
+  //     debug_tensor_watches_summary);
+
+  // 2.1
+  // e.g.,
+  // (gdb) p key
+  // $7 = "x:0,y:0->MatMul:0//0/"
+  //                        | | |
+  //                       /  |  \
+  //                      /   |   debug_tensor_watches_summary);
+  //          target_nodes    is_partial_run
+
+  // 3.
   // struct ExecutorsAndKeys 数据结构:
   // tensorflow/core/common_runtime/direct_session.h:155:
   // struct ExecutorsAndKeys
-  //    struct ExecutorsAndKeys {
   //
-  //      ExecutorsAndKeys() : step_count(0) {}
-  //
-  //      std::atomic_int_fast64_t step_count;
-  //
-  //      std::unique_ptr<Graph> graph;
-  //
-  //      NameNodeMap name_to_node;
-  //
-  //      std::vector<PerPartitionExecutorsAndLib> items;
-  //
-  //      std::unordered_map<string, size_t> input_name_to_index;
-  //
-  //      std::unordered_map<string, string> input_name_to_rendezvous_key;
-  //
-  //      std::unordered_map<string, size_t> output_name_to_index;
-  //
-  //      std::unordered_map<string, string> output_name_to_rendezvous_key;
-  //
-  //      DataTypeVector input_types;
-  //      DataTypeVector output_types;
-  //
-  //      // message type
-  //      CallableOptions callable_options;
-  //
-  //      int64 collective_graph_key = BuildGraphOptions::kNoCollectiveGraphKey;
-  //    };
+  // struct ExecutorsAndKeys {
+  //   ExecutorsAndKeys() : step_count(0) {}
+  //   std::atomic_int_fast64_t step_count;
+  //   std::unique_ptr<Graph> graph;
+  //   NameNodeMap name_to_node;
+  //   std::vector<PerPartitionExecutorsAndLib>👀 items;
+  //   std::unordered_map<string, size_t> input_name_to_index;
+  //   std::unordered_map<string, string> input_name_to_rendezvous_key;
+  //   std::unordered_map<string, size_t> output_name_to_index;
+  //   std::unordered_map<string, string> output_name_to_rendezvous_key;
+  //   DataTypeVector input_types;
+  //   DataTypeVector output_types;
+  //   // message type
+  //   CallableOptions callable_options;
+  //   int64 collective_graph_key = BuildGraphOptions::kNoCollectiveGraphKey;
+  // };
 
-
-  // Debug 相关的
   RunStateArgs run_state_args(run_options.debug_options());
   run_state_args.collective_graph_key =
       run_options.experimental().collective_graph_key();
+  // 1.
+  // run_state_args 的功用:
+  // 传入 GetOrCreateExecutors()
 
-  // -----------------------------------------------------------------------
   // Check if we already have an executor for these arguments.
   TF_RETURN_IF_ERROR(
     GetOrCreateExecutors(
       input_tensor_names, // input
       output_names, // input
       target_nodes, // input
-
       &executors_and_keys, // output, 主要的构造对象
-
       &run_state_args)); // input and output
-  // -----------------------------------------------------------------------
+  // 1.
+  // 打印 signatures:
+  // https://gist.github.com/shizukanaskytree/8685930161fb12c3205f4de6a65ab055
 
 
   {
@@ -2209,14 +2261,33 @@ Status DirectSession::Run(const RunOptions& run_options, // input
 
   // 3.
   // DataType 数据结构
-  //
-
 
   gtl::InlinedVector<Tensor, 4> feed_args(inputs.size());
+  // 1.
+  // feed_args 功用是:
+  // 输入参数的 Tensor 对象, 输入的 Tensor 实体.
+
+  // 2.
+  // inputs :
+  // const NamedTensorList& inputs 是本函数参数列表的传入参数
+  // (gdb) p inputs
+  // $2 = std::vector of length 2, capacity 2 = {{first = "x:0", second = {shape_ = {<tensorflow::TensorShapeBase<tensorflow::TensorShape>> = {<tensorflow::TensorShapeRep> = {static kMaxRep16 = 65534, static kMaxRep32 = 4294967294, static kUnknownRep16 = 65535, static kUnknownRep32 = 4294967295, static kUnknownRank = 255 '\377', u_ = {buf = "\002\000\005\000\000\000\000\000\377\377\377\377\000\001\002", unused_aligner = 0x50002}, num_elements_ = 10}, static kIsPartial = false}, <No data fields>}, buf_ = 0x563ad5c06520}},
+  //                                             {first = "y:0", second = {shape_ = {<tensorflow::TensorShapeBase<tensorflow::TensorShape>> = {<tensorflow::TensorShapeRep> = {static kMaxRep16 = 65534, static kMaxRep32 = 4294967294, static kUnknownRep16 = 65535, static kUnknownRep32 = 4294967295, static kUnknownRank = 255 '\377', u_ = {buf = "\005\000\003\000\000\000\000\000\377\377\377\377\000\001\002", unused_aligner = 0x30005}, num_elements_ = 15}, static kIsPartial = false}, <No data fields>}, buf_ = 0x563ad5c01a60}}}
+
+  // 3.
+  // InlinedVector 是个啥?
+  // An `absl::InlinedVector` is designed to be a drop-in replacement for
+  // `std::vector` for use cases where the vector's size is sufficiently small
+  // that it can be inlined. If the inlined vector does grow beyond its estimated
+  // capacity, it will trigger an initial allocation on the heap, and will behave
+  // as a `std:vector`. The API of the `absl::InlinedVector` within this file is
+  // designed to cover the same API footprint as covered by `std::vector`.
 
   for (const auto& it : inputs) {
 
     if (it.second.dtype() == DT_RESOURCE) {
+      // 未进入
+      // study case: https://docs.google.com/document/d/1FdkOkqexWnymuYKqF3HCNlRUAbDXjTHTjsK8wIdxIRQ/edit
 
       Tensor tensor_from_handle;
 
@@ -2229,18 +2300,135 @@ Status DirectSession::Run(const RunOptions& run_options, // input
           tensor_from_handle;
 
     } else {
+      // 进入
+      // study case: https://docs.google.com/document/d/1FdkOkqexWnymuYKqF3HCNlRUAbDXjTHTjsK8wIdxIRQ/edit
 
       feed_args[executors_and_keys->input_name_to_index[it.first]] = it.second;
+      // 1.
+      // it.first
+      //
+      // (gdb) ptype it.first
+      // type = std::string
+
+      // 2.
+      // it.second
+      //
+      // (gdb) ptype it.second
+      // type = class tensorflow::Tensor {
+      //   private:
+      //     tensorflow::TensorShape shape_;
+      //     tensorflow::TensorBuffer *buf_;
+      //
+      //   public:
+      //     Tensor(void);
+      //     Tensor(tensorflow::DataType, const tensorflow::TensorShape &);
+      //     Tensor(tensorflow::Allocator *, tensorflow::DataType, const tensorflow::TensorShape &);
+      //     Tensor(tensorflow::Allocator *, tensorflow::DataType, const tensorflow::TensorShape &, const tensorflow::AllocationAttributes &);
+      //     Tensor(tensorflow::DataType);
+      //     Tensor(float);
+      //     Tensor(double);
+      //     Tensor(tensorflow::int32);
+      //     Tensor(tensorflow::uint32);
+      //     Tensor(tensorflow::uint16);
+      //     Tensor(tensorflow::uint8);
+      //     Tensor(tensorflow::int16);
+      //     Tensor(tensorflow::int8);
+      //     Tensor(std::string);
+      //     Tensor(tensorflow::complex64);
+      //     Tensor(tensorflow::complex128);
+      //     Tensor(tensorflow::int64);
+      //     Tensor(tensorflow::uint64);
+      //     Tensor(bool);
+      //     Tensor(tensorflow::qint8);
+      //     Tensor(tensorflow::quint8);
+      //     Tensor(tensorflow::qint16);
+      //     Tensor(tensorflow::quint16);
+      //     Tensor(tensorflow::qint32);
+      //     Tensor(tensorflow::bfloat16);
+      //     Tensor(Eigen::half);
+      //     Tensor(tensorflow::ResourceHandle);
+      //     Tensor(const char *);
+      //     Tensor(const tensorflow::Tensor &);
+      //     Tensor(tensorflow::Tensor &&);
+      //   private:
+      //     Tensor(tensorflow::DataType, const tensorflow::TensorShape &, tensorflow::TensorBuffer *);
+      //   public:
+      //     ~Tensor();
+      //     tensorflow::DataType dtype(void) const;
+      //     const tensorflow::TensorShape & shape(void) const;
+      //     int dims(void) const;
+      //     tensorflow::int64 dim_size(int) const;
+      //     tensorflow::int64 NumElements(void) const;
+      //     bool IsSameSize(const tensorflow::Tensor &) const;
+      //     bool SharesBufferWith(const tensorflow::Tensor &) const;
+      //     bool IsInitialized(void) const;
+      //     size_t TotalBytes(void) const;
+      //     size_t AllocatedBytes(void) const;
+      //     bool IsAligned(void) const;
+      //     tensorflow::Tensor & operator=(const tensorflow::Tensor &);
+      //     tensorflow::Tensor & operator=(tensorflow::Tensor &&);
+      //     bool CopyFrom(const tensorflow::Tensor &, const tensorflow::TensorShape &);
+      //     tensorflow::Tensor Slice(tensorflow::int64, tensorflow::int64) const;
+      //     tensorflow::Tensor SubSlice(tensorflow::int64) const;
+      //     bool FromProto(const tensorflow::TensorProto &);
+      //     bool FromProto(tensorflow::Allocator *, const tensorflow::TensorProto &);
+      //     void AsProtoField(tensorflow::TensorProto *) const;
+      //     void AsProtoTensorContent(tensorflow::TensorProto *) const;
+      //     std::string SummarizeValue(tensorflow::int64, bool) const;
+      //     std::string DebugString(int) const;
+      //     std::string DebugString(void) const;
+      //     std::string DeviceSafeDebugString(void) const;
+      //     void FillDescription(tensorflow::TensorDescription *) const;
+      //     tensorflow::StringPiece tensor_data(void) const;
+      //     tensorflow::Status BitcastFrom(const tensorflow::Tensor &, tensorflow::DataType, const tensorflow::TensorShape &);
+      //     void UnsafeCopyFromInternal(const tensorflow::Tensor &, tensorflow::DataType, const tensorflow::TensorShape &);
+      //   private:
+      //     bool RefCountIsOne(void) const;
+      //     void CheckType(tensorflow::DataType) const;
+      //     void CheckTypeAndIsAligned(tensorflow::DataType) const;
+      //     void CheckIsAlignedAndSingleElement(void) const;
+      //     void set_dtype(tensorflow::DataType);
+      //     static absl::InlinedVector<long long, 4, std::allocator<long long> > ComputeFlatInnerDims(tensorflow::gtl::ArraySlice, tensorflow::int64);
+      //     static absl::InlinedVector<long long, 4, std::allocator<long long> > ComputeFlatOuterDims(tensorflow::gtl::ArraySlice, tensorflow::int64);
+      //     bool CanUseDMA(void) const;
+      //     void set_shape(const tensorflow::TensorShape &);
+      //     void CopyFromInternal(const tensorflow::Tensor &, const tensorflow::TensorShape &);
+      //     tensorflow::ResourceHandle * base<tensorflow::ResourceHandle>(void) const;
+      //   public:
+      //     tensorflow::TTypes<tensorflow::ResourceHandle, 1, long>::ConstScalar scalar<tensorflow::ResourceHandle>(void) const;
+      // }
+
+      // 3.
+      // struct ExecutorsAndKey::std::unordered_map<string, size_t> input_name_to_index;
+      // p executors_and_keys->input_name_to_index
+      // $3 = std::unordered_map with 2 elements = {["y:0"] = 1, ["x:0"] = 0}
+
+      // 4.
+      // 所以
+
+      // 4.1
+      // feed_args[0] = Tensor,
+      // (gdb) p it.second.DebugString()
+      // $4 = "Tensor<type: float shape: [2,5] values: [0.236029387 0.516128182 0.86180079...]...>"
+
+      // 4.2
+      // feed_args[1] = Tensor
+      // $5 = "Tensor<type: float shape: [5,3] values: [0.0663951 0.6421538 0.340471148]...>"
 
     }
   }
 
   const Status s = call_frame.SetArgs(feed_args);
   // 1.
+  // call_frame: (在前面定义的)
+  // FunctionCallFrame call_frame
+
+  // 2.
   // FunctionCallFrame::SetArgs 函数说明:
   // tensorflow/core/framework/function.cc
-  //
+  // 把输入参数的 tenor {x:0} {y:1} 设置给 call_frame
 
+  // 异常检测: 无异常
   if (errors::IsInternal(s)) {
     return errors::InvalidArgument(s.error_message());
   } else if (!s.ok()) {
@@ -2248,14 +2436,15 @@ Status DirectSession::Run(const RunOptions& run_options, // input
   }
 
   const int64 step_id = step_id_counter_.fetch_add(1);
+  // 1.
+  // 功用:
+  // 传给 RunInternal 用的.
 
   if (LogMemory::IsEnabled()) {
     LogMemory::RecordStep(step_id, run_state_args.handle);
   }
 
-
   // 重要:
-  // -----------------------------------------------------------------------
   TF_RETURN_IF_ERROR(
     RunInternal(
       step_id,     // input
@@ -2263,11 +2452,28 @@ Status DirectSession::Run(const RunOptions& run_options, // input
       &call_frame, // input and output(output when it gets retval from call_frame)
       executors_and_keys, // input
       run_metadata));     // output
-  // -----------------------------------------------------------------------
+  // 1.
   // RunInternal 函数说明:
   // tensorflow/core/common_runtime/direct_session.cc
 
-  // -----------------------------------------------------------------------
+  // 2.
+  // run_options: const RunOptions& run_options
+  // 这个是 本函数的传入参数.
+
+  // 3.
+  // call_frame
+  // 主要就是传入 input tensors
+
+  // 4.
+  // executors_and_keys
+  // 传入 带有图的 Executors
+
+  // 4.1
+  // graph within executors_and_keys
+  // (gdb) p executors_and_keys->graph.get()
+  // $3 = (tensorflow::Graph *) 0x0
+  // 所以, 千万别打印
+
   // Receive outputs.
   if (outputs) {
 
@@ -2693,13 +2899,10 @@ Status DirectSession::CheckFetch(const NamedTensorList& feeds,
   return Status::OK();
 }
 
-
-//////////////////////////////////////////////////////////////////////////
+// 1.
 // 这个函数的主要目的是 构造 和 初始化 ExecutorsAndKeys instance ek 的各个 field.
 // std::unique_ptr<ExecutorsAndKeys> ek(new ExecutorsAndKeys);
 
-// QQQ. Executors 内的原始的图在哪里？
-// AAA.
 Status DirectSession::CreateExecutors(
     const CallableOptions& callable_options, // input
     std::unique_ptr<ExecutorsAndKeys>* out_executors_and_keys, // output
@@ -2777,6 +2980,15 @@ Status DirectSession::CreateExecutors(
   // - collective_order
   // - 你可以使用自带的 string DebugString() const; 调试
 
+  // 3.
+  // another study case print:
+  // (gdb) p options.DebugString()
+  // $9 = "Feed endpoints: x:0, y:0, \nFetch endpoints: MatMul:0, \nTarget nodes: \ncollective_order: none"
+  // 即:
+  // Feed endpoints: x:0, y:0,
+  // Fetch endpoints: MatMul:0,
+  // Target nodes:
+  // collective_order: none
 
   // -----------------------------------------------------------------------
   std::unique_ptr<FunctionInfo> func_info(new FunctionInfo);
@@ -3413,10 +3625,6 @@ Status DirectSession::CreateExecutors(
 }
 // DirectSession::CreateExecutors END!
 
-
-/////////////////////////////////////////////////////////////////////////////
-// 关注
-// CreateExecutors
 Status DirectSession::GetOrCreateExecutors(
     gtl::ArraySlice<string> inputs, // input
     gtl::ArraySlice<string> outputs, // input
@@ -3460,6 +3668,19 @@ Status DirectSession::GetOrCreateExecutors(
   }
   */
 
+  // 2.
+  // 为什么 ExecutorsAndKeys** executors_and_keys 是双指针?
+  //
+  // 定义的地方在 DirectSession::Run():
+  // Check if we already have an executor for these arguments.
+  // ExecutorsAndKeys* executors_and_keys;
+  //
+  // DirectSession::Run() 内调用的地方:
+  // TF_RETURN_IF_ERROR(GetOrCreateExecutors(input_tensor_names, output_names,
+  //                                         target_nodes, &executors_and_keys,
+  //                                         &run_state_args));
+  //
+
   int64 handle_name_counter_value = -1;
   // handle_name_counter_value 函数说明
   // 根据下面这个变量是在 (LogMemory::IsEnabled() || run_state_args->is_partial_run) 时被计数增加的。
@@ -3467,7 +3688,11 @@ Status DirectSession::GetOrCreateExecutors(
   //      所以，应该是不重要的。
 
   if (LogMemory::IsEnabled() || run_state_args->is_partial_run) {
+    // 1.
+    // 进入
+
     handle_name_counter_value = handle_name_counter_.fetch_add(1);
+    // 1.
     // handle_name_counter_ 变量说明:
     // For generating unique names for this session instance.
     // std::atomic<int64> edge_name_counter_ = {0};
@@ -3476,6 +3701,8 @@ Status DirectSession::GetOrCreateExecutors(
 
   string debug_tensor_watches_summary;
   if (!run_state_args->debug_options.debug_tensor_watch_opts().empty()) {
+    // 未进入
+
     debug_tensor_watches_summary = SummarizeDebugTensorWatches(
         run_state_args->debug_options.debug_tensor_watch_opts());
   }
@@ -3496,17 +3723,26 @@ Status DirectSession::GetOrCreateExecutors(
       "/",
       debug_tensor_watches_summary);
 
-  /**
-  打印:
-
-  p key
-  $7 = "->out:0//0/"
-  */
+  // 1
+  // e.g.,
+  // (gdb) p key
+  // $7 = "x:0,y:0->MatMul:0//0/"
+  //                        | | |
+  //                       /  |  \
+  //                      /   |   debug_tensor_watches_summary);
+  //          target_nodes    is_partial_run
 
   // Set the handle, if it's needed to log memory or for partial run.
   if (handle_name_counter_value >= 0) {
+    // 进入
+
     run_state_args->handle =
         strings::StrCat(key, ";", handle_name_counter_value);
+    // 1.
+    // p run_state_args->handle
+    // $8 = "x:0,y:0->MatMul:0//0/;0"
+    //                             |
+    //                  handle_name_counter_value
   }
 
   // --------------------------------------------------------------------
@@ -3525,7 +3761,6 @@ Status DirectSession::GetOrCreateExecutors(
     // 打印
     // p executors_
     // $5 = std::unordered_map with 1 element = {["->out:0//0/"] = std::shared_ptr<tensorflow::DirectSession::ExecutorsAndKeys> (use count 1, weak count 0) = {get() = 0x5643efe6ed30}}
-
 
     // 2.
     // it.second 变量说明:
@@ -3565,6 +3800,7 @@ Status DirectSession::GetOrCreateExecutors(
 
 
     if (it != executors_.end()) {
+      // 找到
 
       *executors_and_keys = it->second.get();
       // executors_and_keys 变量说明:
@@ -3576,7 +3812,8 @@ Status DirectSession::GetOrCreateExecutors(
       // ------------------------------
     }
   }
-  // --------------------------------------------------------------------
+
+  // 没找到 executor
 
   // Slow lookup path, the unsorted key missed the cache.
   // Sort the inputs and outputs, and look up with the sorted key in case an
@@ -3595,25 +3832,6 @@ Status DirectSession::GetOrCreateExecutors(
   std::vector<string> tn_sorted(target_nodes.begin(), target_nodes.end());
 
   std::sort(tn_sorted.begin(), tn_sorted.end());
-
-  /**
-  比如说：
-
-  p inputs
-  $2 = {static npos = <optimized out>, ptr_ = 0x0, len_ = 0}
-
-  p outputs
-  $3 = {static npos = <optimized out>, ptr_ = 0x564a25e446c0, len_ = 1}
-
-  p outputs[0]
-  $5 = "out:0"
-
-  p target_nodes
-  $6 = {static npos = <optimized out>, ptr_ = 0x0, len_ = 0}
-
-  p key
-  $7 = "->out:0//0/"
-  */
 
   const string sorted_key = strings::StrCat(
       str_util::Join(inputs_sorted, ","),   // 上面的例子，没有 inputs_sorted
@@ -3651,7 +3869,8 @@ Status DirectSession::GetOrCreateExecutors(
       return Status::OK();
     }
   }
-  // --------------------------------------------------------------------
+
+  // 没找到
 
   /////////////////////////////////////////////////////////////////////////
   // Create Executors
@@ -3691,8 +3910,6 @@ Status DirectSession::GetOrCreateExecutors(
       ->mutable_experimental()
       ->set_collective_graph_key(run_state_args->collective_graph_key);
 
-  // -----------------------------------------------------------------------
-
   /**
   CallableOptions 打印:
 
@@ -3711,11 +3928,9 @@ Status DirectSession::GetOrCreateExecutors(
   ===
 
   比如说:
-
   run_state_args: RunStateArgs*
 
   p *run_state_args
-
   $14= {
     is_partial_run=false,
     handle="->out:0//0/;0",
@@ -3753,8 +3968,6 @@ Status DirectSession::GetOrCreateExecutors(
                       &func_info, // output
                       run_state_args) // input and output
                     );
-  // -----------------------------------------------------------------------
-
 
   // -----------------------------------------------------------------------
   // 保存构造的 executor
@@ -3785,15 +3998,9 @@ Status DirectSession::GetOrCreateExecutors(
   executors_.emplace(key, insert_result.first->second);
 
   *executors_and_keys = insert_result.first->second.get();
-  // -----------------------------------------------------------------------
 
   return Status::OK();
 }
-
-
-
-
-
 
 // [已经整理]
 /**
@@ -3810,20 +4017,16 @@ AAA.
 QQQ. CreateGraphs 最原始的图从哪里输入的？
 AAA. 来自 DirectSession::execution_state_ : std::unique_ptr<GraphExecutionState>
      这个成员变量在 DirectSession::Extend 调用栈系列里面被构造和初始化，包括了 device placement 也弄好了。
-
 */
 Status DirectSession::CreateGraphs(
     const BuildGraphOptions& subgraph_options,  // input
-    //-----------------------------------------------------------------------
-    // string 是表示 GPU 或者 CPU
+
     std::unordered_map<string, std::unique_ptr<Graph>>* outputs, // output
-    //-----------------------------------------------------------------------
+    // string 是表示 GPU 或者 CPU
 
     std::unique_ptr<FunctionLibraryDefinition>* flib_def, // output
 
-    // ------------------------------------
     RunStateArgs* run_state_args, // input and output
-    // ------------------------------------
 
     DataTypeVector* input_types, // output
     DataTypeVector* output_types, // output
@@ -3894,11 +4097,10 @@ Status DirectSession::CreateGraphs(
   // 进入了 execution_state->BuildGraph 分支
   // -------------------------------------------------------------
 
-  // 这个 if 分支不看
-  // p options_.config.graph_options().place_pruned_graph()
-  // $20 = false
   if (options_.config.graph_options().place_pruned_graph()) {
-    // 没有进入这个分支
+    // 未进入
+    // p options_.config.graph_options().place_pruned_graph()
+    // $20 = false
 
     // 1.
     // options_ 变量说明:
@@ -3937,7 +4139,6 @@ Status DirectSession::CreateGraphs(
     prune_options.stateful_placements = stateful_placements_;
     prune_options.session_handle = session_handle_;
 
-    // -----------------------------------------------------------------------
     // Execution_state; used when placing the entire graph.
     TF_RETURN_IF_ERROR(
       GraphExecutionState::MakeForPrunedGraph(
@@ -3947,7 +4148,6 @@ Status DirectSession::CreateGraphs(
         subgraph_options, // input
         &temp_exec_state_holder, // output
         &client_graph)); // output
-    // -----------------------------------------------------------------------
     // 1.
     // execution_state_ 变量说明:
     // DirectSession::execution_state_: std::unique_ptr<GraphExecutionState>
@@ -3994,7 +4194,7 @@ Status DirectSession::CreateGraphs(
     execution_state = temp_exec_state_holder.get();
 
   } else {
-    // 最先是进入了这个分支
+    // 进入
 
     execution_state = execution_state_.get();
     // 1.
@@ -4010,30 +4210,36 @@ Status DirectSession::CreateGraphs(
     // 使用 DirectSession::low_priority_execution_state_ 构造 BuildGraph
     // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-    // -----------------------------------------------------------------------
     TF_RETURN_IF_ERROR(
-        // BuildGraph 用来构造 client graph 的。
+        // BuildGraph 用来构造 client graph
         execution_state->BuildGraph(
           subgraph_options, // input
           &client_graph)); // output : std::unique_ptr<ClientGraph>*
-    // -----------------------------------------------------------------------
   }
   // 到目前为止，没有初始化 op kernel
 
   *collective_graph_key = client_graph->collective_graph_key;
+  // 1.
+  // (gdb) p client_graph->collective_graph_key
+  // $30 = 0
 
   // 异常处理部分，可以不看
   if (subgraph_options.callable_options.feed_size() !=
       client_graph->feed_types.size()) {
+    // 未进入
+
     return errors::Internal(
         "Graph pruning failed: requested number of feed endpoints = ",
         subgraph_options.callable_options.feed_size(),
         " versus number of pruned feed endpoints = ",
         client_graph->feed_types.size());
   }
+
   // 异常处理部分，可以不看
   if (subgraph_options.callable_options.fetch_size() !=
       client_graph->fetch_types.size()) {
+    // 未进入
+
     return errors::Internal(
         "Graph pruning failed: requested number of fetch endpoints = ",
         subgraph_options.callable_options.fetch_size(),
@@ -4057,6 +4263,10 @@ Status DirectSession::CreateGraphs(
   //   ["a/RandomStandardNormal"] = "/job:localhost/replica:0/task:0/device:CPU:0",
   //   ["b/RandomStandardNormal"] = "/job:localhost/replica:0/task:0/device:GPU:0"
   // }
+
+  // 3.
+  // Another case study:
+  // z = x * y 则没有 p stateful_placements_, 0 elements
 
   // Update our current state based on the execution_state's
   // placements.  **If there are any mismatches for a node,
@@ -4116,7 +4326,9 @@ Status DirectSession::CreateGraphs(
   */
 
   // Remember the graph in run state if this is a partial run.
-  if (run_state_args->is_partial_run) { // 这个分支没有进入
+  if (run_state_args->is_partial_run) {
+    // 未进入
+
     // 初始化 run_state_args->graph
     run_state_args->graph.reset(new Graph(flib_def_.get()));
 
@@ -4199,14 +4411,39 @@ Status DirectSession::CreateGraphs(
   // - need_to_record_start_times: bool
   // - start_times: std::vector<Microseconds>
 
-  // ------------------------------------------------------------------------
-  // QQQ. 为什么这个地方 Node to device 已经赋值好了？
-  // AAA. Placer 类负责每个节点的 device 初始化, 所以，每个节点此时都有了被赋值的 device
-  // ------------------------------------------------------------------------
   popts.node_to_loc = [](const Node* node) {
     return node->assigned_device_name();
+    // 1.
+    // QQQ. 为什么这个地方 Node to device 已经赋值好了？
+    // AAA. Placer 类负责每个节点的 device 初始化, 所以，每个节点此时都有了被赋值的 device
+
+    // 2.
+    // example
+    // https://gist.github.com/shizukanaskytree/d6879798b6d288af5c7e45be9fdf766b
+    // 其中,
+    // node: name: "_arg_y_0_1"
+    // node: name: "_retval_MatMul_0_0"
+    // device: "/job:localhost/replica:0/task:0/device:CPU:0"
+    // 都在 CPU 上面, 所以为下面 partition 提供了依据:
+
+    // 3.
+    // 打印:
+    // p node->DebugString()
+    // $5 = "{name:'MatMul' id:2 op device:{/job:localhost/replica:0/task:0/device:GPU:0} def:{{{node MatMul}} = MatMul[T=DT_FLOAT, transpose_a=false, transpose_b=false, _device=\"/job:localhost/replica:0/task:0/device:GPU:0\"](x, y)}}"
+    // (gdb) p node->assigned_device_name()
+    // $6 = "/job:localhost/replica:0/task:0/device:GPU:0"
+
+    // 4.
+    // 如果强行改 _Arg 在 GPU 上的话:
+    // https://gist.github.com/shizukanaskytree/454eba6a09af9af61498e45b2b9f4b80
+    // 完整的例子:
+    // https://gist.github.com/0798112603111ca8987cb2e55148da0a
+    // code:
+    // matmul01: https://gist.github.com/dd37714d6d8943fbc3de0682090ad4b8
+    // matmul02: https://gist.github.com/86b78d3887233a4af39b69c39341559c
+    // launch: https://gist.github.com/5b66584739bdc7a9ad659f3fc1dc0d3e
+
   };
-  // ------------------------------------------------------------------------
 
   popts.new_name = [this](const string& prefix) {
     return strings::StrCat(prefix, "/_", edge_name_counter_.fetch_add(1));
@@ -4229,11 +4466,17 @@ Status DirectSession::CreateGraphs(
 
   popts.control_flow_added = false;
 
-  // -----------------------------------------------------------------------
   std::unordered_map<string, GraphDef> partitions;
   //                    |
   //                 CPU/GPU
-  // -----------------------------------------------------------------------
+  // 1.
+  // 意图: 这是完完全全地在重新造图!
+  // 把新造的图放入了 partitions 里面的 GraphDef
+
+  // 1.
+  // 输入的图
+  // client_graph->graph:
+  // https://gist.github.com/shizukanaskytree/d6879798b6d288af5c7e45be9fdf766b
 
   TF_RETURN_IF_ERROR(
     Partition(popts,  // input
@@ -4250,7 +4493,8 @@ Status DirectSession::CreateGraphs(
 
   // 3.
   // Partition 函数说明
-  // tensorflow/core/graph/graph_partition.h:87:
+  // tensorflow/core/graph/graph_partition.h
+  //
   // Status Partition(const PartitionOptions& opts,
   //                  Graph* input,
   //                  std::unordered_map<string, GraphDef>* partitions);
@@ -4296,7 +4540,6 @@ Status DirectSession::CreateGraphs(
         device_graph.get()));
 
     outputs->emplace(partition.first, std::move(device_graph));
-
   }
 
   GraphOptimizationPassOptions optimization_options;
@@ -4332,10 +4575,6 @@ Status DirectSession::CreateGraphs(
 
   return s;
 } // DirectSession::CreateGraphs END
-
-
-////////////////////////////////////////////////////////////////////////
-
 
 ::tensorflow::Status DirectSession::ListDevices(
     std::vector<DeviceAttributes>* response) {

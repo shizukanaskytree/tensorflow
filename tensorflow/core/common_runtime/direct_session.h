@@ -352,26 +352,21 @@ class DirectSession : public Session {
   struct RunState {
     mutex mu_;
     Status status GUARDED_BY(mu_);
-
     IntraProcessRendezvous* rendez = nullptr;
-
     std::unique_ptr<CollectiveExecutor::Handle> collective_executor;
-
     std::unique_ptr<StepStatsCollector> collector;
-
     Notification executors_done;
-
     std::unordered_map<string, bool> pending_inputs;   // true if fed
     std::unordered_map<string, bool> pending_outputs;  // true if fetched
-
     TensorStore tensor_store;
-
+    ScopedStepContainer step_container;
+    // 1.
     // tensorflow/core/framework/resource_mgr.h:87:
     // class ScopedStepContainer
-    ScopedStepContainer step_container;
 
-    // 为什么要 devices ?
     RunState(int64 step_id, const std::vector<Device*>* devices);
+    // 1.
+    // 为什么要 devices ?
 
     RunState(const std::vector<string>& pending_input_names,
              const std::vector<string>& pending_output_names,
@@ -405,11 +400,6 @@ class DirectSession : public Session {
   // - tensor_store: TensorStore
   // - step_container: ScopedStepContainer
 
-  ///////////////////////////////////////////////////////////////////////////
-
-
-  ///////////////////////////////////////////////////////////////////////////
-
   struct RunStateArgs {
     RunStateArgs(const DebugOptions& options) : debug_options(options) {}
 
@@ -427,9 +417,6 @@ class DirectSession : public Session {
   // - graph: std::unique_ptr<Graph>
   // - debug_options: const DebugOptions&
   // - collective_graph_key: int64, default_value: BuildGraphOptions::kNoCollectiveGraphKey
-
-  ///////////////////////////////////////////////////////////////////////////
-
 
   // Initializes the base execution state given the 'graph',
   // if not already initialized.
