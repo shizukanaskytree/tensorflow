@@ -27,12 +27,12 @@ limitations under the License.
 #include "tensorflow/c/c_api_internal.h"
 #include "tensorflow/c/eager/c_api.h"
 #include "tensorflow/c/eager/c_api_experimental.h"
+#include "tensorflow/c/eager/operation_interface.h"
 #include "tensorflow/c/eager/tensor_handle_interface.h"
 #include "tensorflow/core/common_runtime/device_factory.h"
 #include "tensorflow/core/common_runtime/eager/attr_builder.h"
 #include "tensorflow/core/common_runtime/eager/context.h"
 #include "tensorflow/core/common_runtime/eager/eager_executor.h"
-#include "tensorflow/core/common_runtime/eager/eager_operation.h"
 #include "tensorflow/core/common_runtime/eager/kernel_and_device.h"
 #include "tensorflow/core/common_runtime/eager/tensor_handle.h"
 #include "tensorflow/core/common_runtime/function.h"
@@ -48,7 +48,6 @@ limitations under the License.
 #include "tensorflow/core/lib/monitoring/sampler.h"
 #include "tensorflow/core/platform/mutex.h"
 #include "tensorflow/core/platform/thread_annotations.h"
-#include "tensorflow/core/profiler/lib/profiler_session.h"
 #include "tensorflow/core/public/version.h"
 
 struct TFE_ContextOptions {
@@ -90,24 +89,7 @@ struct TFE_TensorDebugInfo {
 };
 
 struct TFE_Op {
-  tensorflow::EagerOperation operation;
-};
-// 1.
-// 感受 1:
-// 根据 namespace 的学习, 感觉这个 struct 等效于是加了一个 namespace TFE_Op
-// 感受 2:
-// 还是 eclipse 跳来跳去用的爽
-
-// 2.
-// EagerOperation 是什么?
-// tensorflow/core/common_runtime/eager/eager_operation.h
-// class EagerOperation
-//
-
-struct TFE_Profiler {
-  explicit TFE_Profiler() { profiler = tensorflow::ProfilerSession::Create(); }
-
-  std::unique_ptr<tensorflow::ProfilerSession> profiler;
+  std::unique_ptr<AbstractOperationInterface> operation;
 };
 
 struct TFE_MonitoringCounterCell {
@@ -252,6 +234,19 @@ struct TFE_Executor {
 
   std::unique_ptr<tensorflow::EagerExecutor> owned_executor;
   tensorflow::EagerExecutor* unowned_executor;
+};
+
+// An equivalent of a tensorflow::NameAttrList protocol buffer, but used in ways
+// that sometimes do not require serialization.
+struct TFE_OpAttrs {
+  explicit TFE_OpAttrs() : name(nullptr), attributes(nullptr) {}
+
+  explicit TFE_OpAttrs(const tensorflow::AttrBuilder* value,
+                       const char* op_name)
+      : name(op_name), attributes(value) {}
+
+  const char* name;
+  const tensorflow::AttrBuilder* attributes;
 };
 
 #endif  // TENSORFLOW_C_EAGER_C_API_INTERNAL_H_

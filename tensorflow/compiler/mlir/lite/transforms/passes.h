@@ -61,7 +61,7 @@ std::unique_ptr<OpPassBase<ModuleOp>> CreateTrimFunctionsPass(
 
 // Creates an instance of the TensorFlow Lite dialect PrepareCompositeFunctions
 // pass.
-std::unique_ptr<OpPassBase<FuncOp>> CreatePrepareCompositeFunctionsPass();
+std::unique_ptr<OpPassBase<ModuleOp>> CreatePrepareCompositeFunctionsPass();
 
 // Creates an instance of the TensorFlow Lite dialect ExtractOphint pass.
 std::unique_ptr<OpPassBase<ModuleOp>> CreateExtractOphintPass();
@@ -84,6 +84,16 @@ std::unique_ptr<OpPassBase<FuncOp>> CreateDefaultQuantParamsPass(
 // Creates an instance of the TensorFlow Lite dialect pass to convert dense
 // tensor to sparse format.
 std::unique_ptr<OpPassBase<FuncOp>> CreateDenseToSparsePass();
+
+// Creates function pass to legalize TF While to TFL While.
+std::unique_ptr<OpPassBase<FuncOp>> CreateLegalizeTFWhilePass();
+
+// Creates an instance of the TensorFlow Lite dialect WhileOp outline pass.
+std::unique_ptr<OpPassBase<ModuleOp>> CreateWhileOutlinePass();
+
+// Verifies runtime supports types used.
+std::unique_ptr<OpPassBase<FuncOp>> CreateRuntimeTypeVerifyPass();
+
 }  // namespace TFL
 
 }  // namespace mlir

@@ -407,7 +407,8 @@ StatusOr<std::unique_ptr<HloInstruction>> HloInstruction::CreateFromProto(
           std::vector<ReplicaGroup>(proto.replica_groups().begin(),
                                     proto.replica_groups().end()),
           /*constrain_layout=*/proto.constrain_layout(),
-          /*channel_id=*/channel_id);
+          /*channel_id=*/channel_id,
+          /*use_global_device_ids=*/proto.use_global_device_ids());
       break;
     }
     case HloOpcode::kAllToAll: {
@@ -497,9 +498,15 @@ StatusOr<std::unique_ptr<HloInstruction>> HloInstruction::CreateFromProto(
             CreateCustomCall(shape, all_operands(), proto.custom_call_target(),
                              operand_shapes, proto.backend_config());
       } else {
-        instruction =
-            CreateCustomCall(shape, all_operands(), proto.custom_call_target(),
-                             proto.backend_config());
+        if (proto.called_computation_ids_size() == 1) {
+          instruction = CreateCustomCall(shape, all_operands(), computations(0),
+                                         proto.custom_call_target(),
+                                         proto.backend_config());
+        } else {
+          instruction = CreateCustomCall(shape, all_operands(),
+                                         proto.custom_call_target(),
+                                         proto.backend_config());
+        }
       }
       auto custom_call_instr =
           Cast<HloCustomCallInstruction>(instruction.get());
@@ -924,10 +931,10 @@ HloInstruction::CreateReducePrecision(const Shape& shape,
     const Shape& shape, absl::Span<HloInstruction* const> operands,
     HloComputation* reduce_computation,
     const std::vector<ReplicaGroup>& replica_groups, bool constrain_layout,
-    const absl::optional<int64>& channel_id) {
+    const absl::optional<int64>& channel_id, bool use_global_device_ids) {
   return absl::make_unique<HloAllReduceInstruction>(
       shape, operands, reduce_computation, replica_groups, constrain_layout,
-      channel_id);
+      channel_id, use_global_device_ids);
 }
 
 /* static */ std::unique_ptr<HloInstruction> HloInstruction::CreateAllToAll(
@@ -1410,6 +1417,14 @@ bool HloInstruction::HasSideEffect() const {
 
 /* static */ std::unique_ptr<HloInstruction> HloInstruction::CreateCustomCall(
     const Shape& shape, absl::Span<HloInstruction* const> operands,
+    HloComputation* to_apply, absl::string_view custom_call_target,
+    string opaque) {
+  return absl::make_unique<HloCustomCallInstruction>(
+      shape, operands, to_apply, custom_call_target, std::move(opaque));
+}
+
+/* static */ std::unique_ptr<HloInstruction> HloInstruction::CreateCustomCall(
+    const Shape& shape, absl::Span<HloInstruction* const> operands,
     absl::string_view custom_call_target,
     absl::Span<const Shape> operand_shapes_with_layout, string opaque) {
   return absl::make_unique<HloCustomCallInstruction>(
@@ -1647,7 +1662,11 @@ std::unique_ptr<HloInstruction> HloInstruction::CloneWithNewOperands(
   return clone;
 }
 
-HloInstruction::~HloInstruction() {
+void HloInstruction::DetachFromOperandsAndUsers() {
+  if (cleaned_up_) {
+    return;
+  }
+  cleaned_up_ = true;
   // Detach from operands. An instruction may be repeated as an operand. To
   // avoid calling RemoveUser twice on the same operand, check before remove.
   for (int64 operand_num = 0; operand_num < operand_count(); ++operand_num) {
@@ -2150,6 +2169,7 @@ HloComputation* HloInstruction::to_apply() const {
     case HloOpcode::kAllReduce:
     case HloOpcode::kScatter:
     case HloOpcode::kSort:
+    case HloOpcode::kCustomCall:
       CHECK_EQ(called_computations_.size(), 1);
       return called_computations_[0];
     default:
@@ -2170,6 +2190,7 @@ void HloInstruction::set_to_apply(HloComputation* computation) {
     case HloOpcode::kAllReduce:
     case HloOpcode::kScatter:
     case HloOpcode::kSort:
+    case HloOpcode::kCustomCall:
       CHECK_EQ(called_computations_.size(), 1);
       called_computations_[0] = computation;
       break;
@@ -2414,15 +2435,17 @@ string HloInstruction::ToStringWithCanonicalNameMap(
     StrAppend(&result, PrintNameInternal(name(), options), " = ");
   }
 
-  // Print shape.
-  if (options.include_layout_in_shapes()) {
-    StrAppend(&result, ShapeUtil::HumanStringWithLayout(shape()));
-  } else {
-    StrAppend(&result, ShapeUtil::HumanString(shape()));
+  if (options.print_result_shape()) {
+    // Print shape.
+    if (options.include_layout_in_shapes()) {
+      StrAppend(&result, ShapeUtil::HumanStringWithLayout(shape()), " ");
+    } else {
+      StrAppend(&result, ShapeUtil::HumanString(shape()), " ");
+    }
   }
 
   // Print opcode, operand(s).
-  StrAppend(&result, " ", HloOpcodeString(opcode()), "(",
+  StrAppend(&result, HloOpcodeString(opcode()), "(",
             OperandsToStringWithCanonicalNameMap(options, canonical_name_map),
             ")");
 
@@ -2493,7 +2516,9 @@ string HloInstruction::OperandsToStringWithCanonicalNameMap(
 
 std::vector<string> HloInstruction::ExtraAttributesToString(
     const HloPrintOptions& options) const {
-  std::vector<string> extra = ExtraAttributesToStringImpl(options);
+  std::vector<string> extra = options.print_extra_attributes()
+                                  ? ExtraAttributesToStringImpl(options)
+                                  : std::vector<string>();
 
   if (options.print_subcomputation_mode() ==
       HloPrintOptions::PrintSubcomputationMode::kNameOnly) {

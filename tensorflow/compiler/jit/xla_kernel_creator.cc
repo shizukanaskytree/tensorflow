@@ -20,21 +20,17 @@ limitations under the License.
 
 namespace tensorflow {
 
-bool XlaKernelCreator::CanCreateKernel(const FunctionLibraryRuntime& flr,
-                                       const NodeDef& node_def) const {
-  return CanCreateXlaKernel(node_def);
-  // 1.
-  // CanCreateXlaKernel 定义在哪里?
-  // tensorflow/compiler/jit/xla_kernel_creator_util.cc:73
+bool XlaKernelCreator::CanCreateKernel(
+    const FunctionLibraryRuntime& flr,
+    const std::shared_ptr<const NodeProperties>& props) const {
+  return CanCreateXlaKernel(props->node_def);
 }
 
-Status XlaKernelCreator::CreateKernel(FunctionLibraryRuntime* flr,
-                                      const NodeDef& node_def,
-                                      std::unique_ptr<OpKernel>* kernel) const {
-  return CreateXlaKernel(flr, node_def, kernel);
-  // 1.
-  // message NodeDef 定义
-  // tensorflow/core/framework/node_def.proto
+Status XlaKernelCreator::CreateKernel(
+    FunctionLibraryRuntime* flr,
+    const std::shared_ptr<const NodeProperties>& props,
+    std::unique_ptr<OpKernel>* kernel) const {
+  return CreateXlaKernel(flr, props->node_def, kernel);
 }
 
 namespace {

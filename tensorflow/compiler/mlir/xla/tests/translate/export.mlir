@@ -161,6 +161,16 @@ func @main(%arg0: tensor<1xf32>) -> tensor<1x10xf32> {
 // -----
 
 // CHECK:  HloModule
+func @main() -> !xla_hlo.token {
+  %0 = "xla_hlo.create_token"() : () -> !xla_hlo.token
+  return %0 : !xla_hlo.token
+}
+
+// CHECK:  ROOT [[TOKEN:%.*]] = token[] after-all()
+
+// -----
+
+// CHECK:  HloModule
 func @main(%arg0: tensor<4xi32>) -> tensor<4xi32> {
   %0 = call @callee(%arg0, %arg0) : (tensor<4xi32>, tensor<4xi32>) -> tensor<4xi32>
   %1 = call @callee(%0, %0) : (tensor<4xi32>, tensor<4xi32>) -> tensor<4xi32>
@@ -947,6 +957,18 @@ func @main(%input0: tensor<16x16xf32>, %input1: tensor<16x16xi32>) {
 // CHECK: ENTRY %{{.*}} ([[MAIN_ARG0:.*]]: f32[16,16], [[MAIN_ARG1:.*]]: s32[16,16]) -> (f32[16,16], s32[16,16]) {
 // CHECK:   ROOT %{{.*}} = (f32[16,16], s32[16,16]) sort(f32[16,16] %[[MAIN_ARG0]], s32[16,16] %[[MAIN_ARG1]]), dimensions={1}, is_stable=true, to_apply=%[[SORT_CMP]]
 
+
+// -----
+
+// CHECK:  HloModule
+func @main(%arg0: tensor<16x16xf32>) -> tensor<16x16xf32> {
+  %0 = "xla_hlo.custom_call"(%arg0) {backend_config = "", call_target_name = "Sharding", xla_hlo.sharding = "type: OTHER\ntile_assignment_dimensions: 1\ntile_assignment_dimensions: 2\ntile_assignment_devices: 0\ntile_assignment_devices: 1"} : (tensor<16x16xf32>) -> tensor<16x16xf32>
+  return %0 : tensor<16x16xf32>
+}
+
+// CHECK:  ENTRY
+// CHECK:  %[[ARG0:.*]] = f32[16,16] parameter(0)
+// CHECK:  ROOT %[[RESULT:.*]] = f32[16,16] custom-call(f32[16,16] %[[ARG0]]), custom_call_target="Sharding", sharding={devices=[1,2]0,1}
 
 // -----
 
