@@ -17,8 +17,6 @@ limitations under the License.
 
 #include <deque>
 #include <vector>
-//#include <string>
-//#include <iostream>
 
 #include "absl/algorithm/container.h"
 #include "absl/strings/str_cat.h"
@@ -867,17 +865,6 @@ Status FunctionLibraryRuntimeImpl::CreateItem(Item** item) {
     lib_def = (*item)->overlay_lib;
     executor_type = (*item)->executor_type;
   }
-
-  // --debug
-//  std::cout << "FunctionLibraryRuntimeImpl::CreateItem" << std::endl;
-//  if (lib_def) {
-//    std::vector<std::string> lib_def_names;
-//	lib_def_names = lib_def->ListFunctionNames();
-//	for(string name: lib_def_names){
-//	  std::cout << name << std::endl;
-//	}
-//  }
-  // ~~ debug
 
   if (!lib_def) {
     lib_def = base_lib_def_;

@@ -580,11 +580,7 @@ Status GraphExecutionState::InitBaseGraph(const BuildGraphOptions& options) {
   std::unique_ptr<Graph> new_graph(new Graph(OpRegistry::Global()));
   GraphConstructorOptions opts;
 
-  /// How about the new_graph's graph_priority_ ?
   TF_RETURN_IF_ERROR(ConvertGraphDefToGraph(opts, *graph_def, new_graph.get()));
-
-  /// Set new_graph's graph_priority the value of original_graph_def_
-  ///new_graph->SetGraphPriority(original_graph_def_);
 
   if (session_options_ &&
       session_options_->config.graph_options().place_pruned_graph()) {

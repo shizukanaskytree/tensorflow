@@ -110,7 +110,7 @@ struct ThreadPool::Impl : Eigen::ThreadPoolTempl<EigenEnvironment> {
 // -- For low priority threadpool
 // ------------------------------------------------------------------------------
 struct LowPriorityThreadPool::Impl : 
-  Eigen::ThreadPoolLowPriorityTempl<EigenEnvironment>{
+  Eigen::ThreadPoolLowPriorityTempl<EigenEnvironment> {
   // constructor
   Impl(Env* env, const ThreadOptions& thread_options, 
        const string& name, int num_threads, bool low_latency_hint,
@@ -143,7 +143,7 @@ LowPriorityThreadPool::LowPriorityThreadPool(Env* env, const ThreadOptions& thre
 LowPriorityThreadPool::LowPriorityThreadPool(Env* env, 
     const ThreadOptions& thread_options,
     const string& name, int num_threads, bool low_latency_hint,
-      Eigen::Allocator* allocator){
+      Eigen::Allocator* allocator) {
   CHECK_GE(num_threads, 1);
   impl_.reset(new LowPriorityThreadPool::Impl(env, thread_options,
                                         "tf_low_"+name, num_threads,
@@ -152,7 +152,7 @@ LowPriorityThreadPool::LowPriorityThreadPool(Env* env,
 
 LowPriorityThreadPool::~LowPriorityThreadPool() {}
 
-void LowPriorityThreadPool::Schedule(std::function<void()> fn){
+void LowPriorityThreadPool::Schedule(std::function<void()> fn) {
   CHECK(fn != nullptr);
   impl_->Schedule(std::move(fn));
 }
@@ -182,7 +182,6 @@ void LowPriorityThreadPool::SleepAll(){
 void LowPriorityThreadPool::WakeUpAll(){
   impl_->WakeUpAll();
 }
-
 // ------------------------------------------------------------------------------
 // ~~ For low priority threadpool
 // ------------------------------------------------------------------------------

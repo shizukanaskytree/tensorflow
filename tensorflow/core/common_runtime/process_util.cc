@@ -106,6 +106,7 @@ thread::ThreadPool* NewThreadPoolFromSessionOptions(
   return new thread::ThreadPool(options.env, "Compute", num_threads);
 }
 
+// wxf
 thread::LowPriorityThreadPool* NewLowPriorityThreadPoolFromSessionOptions(
     const SessionOptions& options) {
   const int32 num_threads = NumInterOpThreadsFromSessionOptions(options);
@@ -113,6 +114,7 @@ thread::LowPriorityThreadPool* NewLowPriorityThreadPoolFromSessionOptions(
   return new thread::LowPriorityThreadPool(options.env, 
       "Low Priority Compute", num_threads);
 }
+//~wxf
 
 void SchedClosure(std::function<void()> closure) {
   if (!tracing::EventCollector::IsEnabled()) {

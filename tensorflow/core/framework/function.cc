@@ -1000,6 +1000,7 @@ bool FunctionCallFrame::NeedReexecute(){
   }
   return need_reexecute;
 }
+//~wxf
 
 Status FunctionCallFrame::GetArg(int index, Tensor* val) const {
   if (index < 0 || static_cast<size_t>(index) >= args_.size()) {
@@ -1064,24 +1065,6 @@ FunctionLibraryDefinition::FunctionLibraryDefinition(
 }
 
 FunctionLibraryDefinition::~FunctionLibraryDefinition() {}
-
-//////////////////////////////////////////////////////////////
-// wxf: It has bugs
-//void FunctionLibraryDefinition::DebugString(){
-//  if (function_defs_.size() == 0) return;
-//  // please refer http://www.cplusplus.com/reference/unordered_map/unordered_map/begin/
-//  for(auto it = function_defs_.begin(); it != function_defs_.end(); ++it){
-//  //for(auto &fd: function_defs_) {
-//    //std::clog << fd.first << std::endl;
-//    //std::clog << "\n";
-//    //std::clog << fd.second->fdef.DebugString() << "\n";
-//    std::string fd_string = it->first;
-//    std::string fdef_debug_string = it->second->fdef.DebugString();
-//    std::clog << "FunctionLibraryDefinition name" << fd_string << "\n";
-//    std::clog << "FunctionDefAndOpRegistration" << fdef_debug_string << "\ns";
-//  }
-//}
-//////////////////////////////////////////////////////////////
 
 bool FunctionLibraryDefinition::Contains(const string& func) const {
   tf_shared_lock l(mu_);

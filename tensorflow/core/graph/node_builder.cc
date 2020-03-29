@@ -125,7 +125,6 @@ Status NodeBuilder::Finalize(Graph* graph, Node** created_node) const {
   TF_RETURN_IF_ERROR(
       CheckOpDeprecation(def_builder_.op_def(), graph->versions().producer()));
   Status status;
-  /// AllocateNode has already told this Node its parent Graph*
   Node* node = graph->AddNode(node_def, &status);
   if (!status.ok()) return status;
 

@@ -3063,16 +3063,8 @@ class Graph(object):
     # AutomaticControlDependencies context.
     self._add_control_dependencies = False
 
-
-    # Priority of the graph.
-    # 0 is default, low priority; 1 is high 
-    # TODO: pass priority into C++ backend
-    # It has setter and getter function below
-#    self._graph_priority = graph_priority
-    
     # TODO(skyewm): fold as much of the above as possible into the C
     # implementation
-#    self._scoped_c_graph = c_api_util.ScopedTFGraph(self._graph_priority)
     self._scoped_c_graph = c_api_util.ScopedTFGraph()
     
     # The C API requires all ops to have shape functions. Disable this
@@ -5118,18 +5110,6 @@ class Graph(object):
     See the comment for self._group_lock for more info.
     """
     return self._group_lock.group(_SESSION_RUN_LOCK_GROUP)
-  
-#  @property 
-#  def graph_priority(self):
-#      print("Getting graph priority")
-#      return self._graph_priority
-#  
-#  @graph_priority.setter
-#  def graph_priority(self, graph_priority):
-#      if priority < 0:
-#          raise ValueError("Graph priority should be larger than 0")
-#      print("Setting graph priority")
-#      self._graph_priority = graph_priority
 
 # TODO(agarwal): currently device directives in an outer eager scope will not
 # apply to inner graph mode code. Fix that.
@@ -5865,13 +5845,6 @@ def reset_default_graph():
   _default_graph_stack.reset()
 
 
-#@tf_export(v1=["set_default_graph"])
-#def set_default_graph(graph):
-#  """Set the graph as the default one in the beginning
-#  """
-#  _default_graph_stack._global_default_graph = graph
-
-
 @tf_export(v1=["get_default_graph"])
 def get_default_graph():
   """Returns the default graph for the current thread.
@@ -6586,15 +6559,22 @@ def _op_to_colocate_with(v):
 def _is_keras_symbolic_tensor(x):
   return hasattr(x, "graph") and getattr(x.graph, "name", None) == "keras_graph"
 
-
+# wxf
 # The lock used for multiple threads to set execution priority
-_set_execution_priority_lock =threading.Lock()
+_set_execution_priority_lock = threading.Lock()
 
 # Set execution priority of the current tid
 @tf_export(v1=["set_execution_priority"])
 def set_execution_priority(execution_priority=0):
+  """Set the priority level of the tf.Session.
+
+  How to use:
+  The function should be called before DirectSession is created so that the
+  priority number is set.
+  """
   with _set_execution_priority_lock:
     c_api.TF_SetExecutionPriority(execution_priority)
+#~wxf
   
 
 register_tensor_conversion_function(Operation, _operation_conversion_error)

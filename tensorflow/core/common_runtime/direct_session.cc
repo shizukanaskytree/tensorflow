@@ -24,7 +24,6 @@ limitations under the License.
 #include <map>
 #include <regex>
 
-
 #include "tensorflow/core/common_runtime/collective_executor_mgr.h"
 #include "tensorflow/core/common_runtime/collective_param_resolver_local.h"
 #include "tensorflow/core/common_runtime/constant_folding.h"
@@ -140,12 +139,14 @@ thread::ThreadPool* GlobalThreadPool(const SessionOptions& options) {
   return thread_pool;
 }
 
+// wxf
 // Construct a low priority threadpool
 thread::LowPriorityThreadPool* GlobalLowPriorityThreadPool(const SessionOptions& options) {
   static thread::LowPriorityThreadPool* const thread_pool =
       NewLowPriorityThreadPoolFromSessionOptions(options);
   return thread_pool;
 }
+//~wxf
 
 // TODO(vrv): Figure out how to unify the many different functions
 // that generate RendezvousKey, since many of them have to be
@@ -181,15 +182,33 @@ class DirectSessionFactory : public SessionFactory {
 
     DirectSession* session =
         new DirectSession(options, new DeviceMgr(std::move(devices)), this);
-    // wxf: Collect DirectSession instances into DirectSessionsManager
-    direct_sessions_manager_->AddDirectSessionAndPriority(&session);
+
     {
       mutex_lock l(sessions_lock_);
-      /// Set the priority of this DirectSession
+
+      // wxf
+      // Set the DirectSession member variable direct_session_priority_ based on
+      // the user defined priority level number by tf.set_execution_priority 
+      // API from the python side.
       session->SetDirectSessionPriority(
     		  tensorflow::tid_execution_priority_map_[std::this_thread::get_id()]);
+      // 1.
+      // tid_execution_priority_map_ is a map between:
+      //   python tid : priority level number
+      //~wxf
+
       sessions_.push_back(session);
     }
+
+    // wxf
+    // Add all DirectSession instances to the DirectSessionsManager 
+    // direct_sessions_manager_.
+    // Fill the mapping for DirectSessionsManager member
+    // direct_session_priority_map_: {direct_session_address:priority_level_num}
+    // based on the user pre-set priority mapping: {tid : priority_level_num} 
+    direct_sessions_manager_->AddDirectSessionAndPriority(&session);
+    //~wxf
+
     *out_session = session;
     return Status::OK();
   }
@@ -322,6 +341,7 @@ DirectSession::DirectSession(const SessionOptions& options,
     // wxf:
     // Construct a low priority threadpool
     low_priority_thread_pool_ = GlobalLowPriorityThreadPool(options);
+    //~wxf
   }
   // The default value of sync_on_finish will be flipped soon and this
   // environment variable will be removed as well.
@@ -332,7 +352,9 @@ DirectSession::DirectSession(const SessionOptions& options,
   }
   session_handle_ =
       strings::StrCat("direct", strings::FpToString(random::New64()));
+
   int devices_added = 0;
+
   if (options.config.log_device_placement()) {
     const string mapping_str = device_mgr_->DeviceMappingString();
     if (mapping_str.empty()) {
@@ -431,13 +453,10 @@ DirectSession::DirectSession(const SessionOptions& options,
   // Deprecated! 
   // I choose to keep it and skip the 1st one when adding it to the
   // low_priority_device_set_
-  // 
-  // after getting the sorted computation_capability : Device*
-  // we discard the 1st one most powerful GPU and add the following to the
-  // low_priority_device_set_ 
-  //computation_capability_device_map_->erase(
-  //    computation_capability_device_map_->begin());
 
+  // The 1st device is always the most powerful one. The rest are LPU devices.
+  // After getting the sorted computation_capability : Device*
+  // we skip the 1st one most powerful GPU and add the rest to the low_priority_device_set_ 
   int skip = 0;
   // add the left Device* to the low_priority_device_set_ 
   for (auto item: *computation_capability_device_map_){
@@ -446,10 +465,10 @@ DirectSession::DirectSession(const SessionOptions& options,
       continue;
     }
     for (auto e: item.second){
+      // Add the rest  devices to the low_priority_device_set_
       low_priority_device_set_.AddDevice(e);
     }
   }
-  // Done: add second-tier devices to the low_priority_device_set_
 }
 
 DirectSession::~DirectSession() {
@@ -499,20 +518,19 @@ DirectSession::~DirectSession() {
 }
 
 // wxf
-// Set and Get the priority of this DirectSession instance.
-void DirectSession::SetDirectSessionPriority(int priority){
-  // Each instance sets its own priority, no need to set a lock.
+// Set the priority of this DirectSession instance.
+// Each instance will set the priority right after the DirectSession instance 
+// is constructed, no need to set a lock.
+void DirectSession::SetDirectSessionPriority(int priority) {
   direct_session_priority_ = priority;
 }
 
-// wxf
-int DirectSession::GetDirectSessionPriority(){
+// Get the priority of this DirectSession instance.
+int DirectSession::GetDirectSessionPriority() {
   return direct_session_priority_;
 }
 
-
-// wxf
-void DirectSession::TransferGPU2CPUStatefulVars(){
+void DirectSession::TransferGPU2CPUStatefulVars() {
   const uint64 start_time_usecs = Env::Default()->NowMicros();
 
   // GPU resource mgr (src)
@@ -762,8 +780,7 @@ void DirectSession::TransferGPU2CPUStatefulVars(){
   VLOG(0) << "GPU to CPU transfer stateful vars time eclipsed(micro sec): " << gpu2cpu_eclipsed_time;
 }
 
-// wxf
-void DirectSession::TransferCPU2GPUStatefulVars(){
+void DirectSession::TransferCPU2GPUStatefulVars() {
   const uint64 start_time_usecs = Env::Default()->NowMicros();
 
   // Get CPU Resource Mgr (src)
@@ -974,8 +991,7 @@ void DirectSession::TransferCPU2GPUStatefulVars(){
   VLOG(0) << "CPU to GPU transfer stateful vars time eclipsed(micro sec): " << cpu2gpu_eclipsed_time;
 } 
 
-// wxf
-void DirectSession::TransferHPU2LPUStatefulVars(){
+void DirectSession::TransferHPU2LPUStatefulVars() {
   const uint64 start_time_usecs = Env::Default()->NowMicros();
   
   // HPU resource mgr (src)
@@ -1316,8 +1332,7 @@ void DirectSession::TransferHPU2LPUStatefulVars(){
   VLOG(0) << "HPU to LPU transfer stateful vars time eclipsed(micro sec): " << hpu2lpu_eclipsed_time;
 }
 
-// wxf
-void DirectSession::TransferLPU2HPUStatefulVars(){
+void DirectSession::TransferLPU2HPUStatefulVars() {
   const uint64 start_time_usecs = Env::Default()->NowMicros();
 
   // HPU resource mgr (src)
@@ -1655,17 +1670,18 @@ void DirectSession::TransferLPU2HPUStatefulVars(){
   uint64 lpu2hpu_eclipsed_time = Env::Default()->NowMicros() - start_time_usecs;
   VLOG(0) << "LPU to HPU transfer stateful vars time eclipsed(micro sec): " << lpu2hpu_eclipsed_time;
 }
+//~wxf
 
 Status DirectSession::MaybeInitializeExecutionState(
     const GraphDef& graph, bool* out_already_initialized) {
   // If already initialized, do nothing.
   // wxf 
-  if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW){
+  if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW) {
     if (flib_def_ && execution_state_ && low_priority_execution_state_) {
       *out_already_initialized = true;
       return Status::OK();
     }
-  } else if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_HIGH){
+  } else if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_HIGH) {
     if (flib_def_ && execution_state_) {
       *out_already_initialized = true;
       return Status::OK();
@@ -1979,30 +1995,33 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
     };
   } else {
     default_runner = [this, pool](Executor::Args::Closure c) {
+      // wxf
       // Partition threads in the threadpool into two groups, high priority 
       // threads and low priority threads.
-      // Schedule low priority in the range of [0, 1], high: [2: end]
+      // Schedule low priority in the range of [0, 2]
       // If high priority and low priority tasks both exist,
       if (direct_sessions_manager_->
-  	        high_priority_direct_session_count_.load(std::memory_order_relaxed)&&
+  	        high_priority_direct_session_count_.load(std::memory_order_relaxed) &&
           direct_sessions_manager_->
-            low_priority_direct_session_count_.load(std::memory_order_relaxed)){
+            low_priority_direct_session_count_.load(std::memory_order_relaxed)) {
         // For High Priority tasks
-        if (this->GetDirectSessionPriority() == DirectSessionPriority::DIRECTSESSION_PRIORITY_HIGH){
-          // Range: [start , limit)
+        if (this->GetDirectSessionPriority() == DirectSessionPriority::DIRECTSESSION_PRIORITY_HIGH) {
           pool->Schedule(std::move(c));
-        }else if (this->GetDirectSessionPriority() == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW){
+        } else if (this->GetDirectSessionPriority() == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW) {
           // For low priority tasks
-          //low_priority_thread_pool_->SleepAll();
+          // low_priority_thread_pool_->SleepAll();
+          // Range: [start , limit]
+          // TODO: The number can be set by ENV variable from python TF in the future.
           low_priority_thread_pool_->ScheduleWithHint(std::move(c), 0, 2);
 
           // 2019-10-30 test to not use global threadpool when we use HPU and LPU(GPU)
           //pool->Schedule(std::move(c));
         }
-      }else{
+      } else {
         // Either only high or low, use all threads in the threadpool
         pool->Schedule(std::move(c));
       }
+
       //SchedClosure(pool, std::move(c));
     };
   }
@@ -2125,7 +2144,7 @@ Status DirectSession::Run(const RunOptions& run_options,
   // wxf: if high priority task exists, then the low priority task use the low
   // priority executor.
   if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW &&
-      direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)){
+      direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)) {
 //  if (step_id > 20 && step_id < 23) { // wxf: only for debugging one thread task for lower priority for easy developing
     // itself is low priority and high priority exists, then get or create low priority executors
     // Get or Create low priority CPU executors
@@ -2135,6 +2154,9 @@ Status DirectSession::Run(const RunOptions& run_options,
 
     // Start to transfer stateful data from GPU to CPU via device resource mgr.
     if (last_execute_device_ == "" || last_execute_device_ == "HPU"){
+      // N.B.
+      // to test transfer time between CPU to 2080 GPU, use API `TransferGPU2CPUStatefulVars`, `TransferCPU2GPUStatefulVars`.
+      // to test transfer time between 1080 GPU to 2080 GPU, use API `TransferHPU2LPUStatefulVars`, `TransferLPU2HPUStatefulVars`.
       TransferGPU2CPUStatefulVars();
       //TransferHPU2LPUStatefulVars();
     }
@@ -2150,6 +2172,9 @@ Status DirectSession::Run(const RunOptions& run_options,
   
     // Start to transfer stateful data from CPU to GPU via device resource mgr.
     if (last_execute_device_ != "" && last_execute_device_ == "LPU"){
+      // N.B.
+      // to test transfer time between CPU to 2080 GPU, use API `TransferGPU2CPUStatefulVars`, `TransferCPU2GPUStatefulVars`.
+      // to test transfer time between 1080 GPU to 2080 GPU, use API `TransferHPU2LPUStatefulVars`, `TransferLPU2HPUStatefulVars`.
       TransferCPU2GPUStatefulVars();
       //TransferLPU2HPUStatefulVars();
     }
@@ -3716,7 +3741,7 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
   // if high priority task exists, then the low priority task uses the low
   // priority executor.
   if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW &&
-      direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)){
+      direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)) {
 //  if (step_id > 20 && step_id < 23) { // wxf: only for debugging one thread task for lower priority for easy developing
     {
       tf_shared_lock l(callables_lock_);
@@ -3754,6 +3779,9 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
 
     // Start to transfer stateful data from HPU to LPU via device resource mgr.
     if (last_execute_device_ == "" || last_execute_device_ == "HPU"){
+      // N.B.
+      // to test transfer time between CPU to 2080 GPU, use API `TransferGPU2CPUStatefulVars`, `TransferCPU2GPUStatefulVars`.
+      // to test transfer time between 1080 GPU to 2080 GPU, use API `TransferHPU2LPUStatefulVars`, `TransferLPU2HPUStatefulVars`.
       TransferGPU2CPUStatefulVars();
       //TransferHPU2LPUStatefulVars();
     }
@@ -3771,7 +3799,7 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
         RunInternal(step_id, executors_and_keys->callable_options.run_options(),
                     &call_frame, executors_and_keys.get(), run_metadata));
       
-  }else {
+  } else {
     // normal case: original code logic
     // High performance branch:
     {
@@ -3809,6 +3837,9 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
   
     // Start to transfer stateful data from LPU to HPU via device resource mgr.
     if (last_execute_device_ != "" && last_execute_device_ == "LPU"){
+      // N.B.
+      // to test transfer time between CPU to 2080 GPU, use API `TransferGPU2CPUStatefulVars`, `TransferCPU2GPUStatefulVars`.
+      // to test transfer time between 1080 GPU to 2080 GPU, use API `TransferHPU2LPUStatefulVars`, `TransferLPU2HPUStatefulVars`.
       TransferCPU2GPUStatefulVars();
       //TransferLPU2HPUStatefulVars();
     }
@@ -3852,27 +3883,37 @@ DirectSession::Callable::~Callable() {
   function_info.reset();
 }
 
-// -----------------------------------------------------------------------
-// -- class DirectSessionsManager
-// -----------------------------------------------------------------------
 void DirectSessionsManager::AddDirectSessionAndPriority(
     DirectSession** direct_session){
+  // N.B. priority is hardcoded as:
+  // 0: user doesn't set
+  // 1: low
+  // 2: high
 
   add_mu_.lock();
+
+  // Use the tid to retrieve the priority level number stored in the
+  // mapping of {tid : priority_level_num}
   std::thread::id tid = std::this_thread::get_id();
+
   auto iter = tid_execution_priority_map_.find(tid); 
   if (iter == tid_execution_priority_map_.end()){
-    // Priority 0, client doesn't define priority
+    // Priority 0, if the client doesn't define priority by 
+    // python API tf.set_execution_priority
     direct_session_priority_map_.insert({*direct_session, 0});
 	  // -- debug
 	  //std::cout << "Add DirectSession::Pirority (0)" << std::endl;
 	  // ~~ debug
   }else{
+    // Get the priority level number based on tid
     int direct_session_priority = iter->second;
+
     direct_session_priority_map_.insert(
         {*direct_session, direct_session_priority});
+
     // 1 is defined as low priority; 2 is high.
-    if (direct_session_priority == 1) {
+    if (direct_session_priority == 
+          DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW){
       low_priority_direct_session_count_.fetch_add(1, 
           std::memory_order_relaxed);
 
@@ -3883,7 +3924,8 @@ void DirectSessionsManager::AddDirectSessionAndPriority(
 	    // ~~ debug
     }
 
-    if (direct_session_priority == 2){
+    if (direct_session_priority ==
+          DirectSessionPriority::DIRECTSESSION_PRIORITY_HIGH){
       high_priority_direct_session_count_.fetch_add(1,
           std::memory_order_relaxed);
 
@@ -3901,8 +3943,10 @@ void DirectSessionsManager::DeleteDirectSession(DirectSession* direct_session){
   delete_mu_.lock();
   // TODO: Error handling when not found, although it's not possible
   int direct_session_priority = direct_session_priority_map_[direct_session];
-  // 1 is defined as low priority; 2 is high.
-  if(direct_session_priority == 1){
+
+  // 1 is defined as low priority; 
+  if(direct_session_priority == 
+      DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW){
     low_priority_direct_session_count_.fetch_sub(1,
         std::memory_order_relaxed);
 
@@ -3913,7 +3957,9 @@ void DirectSessionsManager::DeleteDirectSession(DirectSession* direct_session){
 	  // ~~ debug
   }
 
-  if(direct_session_priority == 2){
+  // 2 is high.
+  if(direct_session_priority == 
+      DirectSessionPriority::DIRECTSESSION_PRIORITY_HIGH){
     high_priority_direct_session_count_.fetch_sub(1, 
         std::memory_order_relaxed);
     // -- debug
@@ -3923,11 +3969,11 @@ void DirectSessionsManager::DeleteDirectSession(DirectSession* direct_session){
     // ~~ debug
   }
 
-  // --debug
+//  // --debug
 //  if(direct_session_priority == 0){
 //    std::cout << "Delete DirectSession::Default Pirority (0)" << std::endl;
 //  }
-  // ~~debug
+//  // ~~debug
 
   direct_session_priority_map_.erase(direct_session);
   delete_mu_.unlock();
@@ -3937,9 +3983,5 @@ int DirectSessionsManager::InquirePriorityByDirectSession(
     const DirectSession* direct_session){
   return direct_session_priority_map_[const_cast<DirectSession*>(direct_session)];
 }
-
-// -----------------------------------------------------------------------
-// ~~ class DirectSessionsManager
-// -----------------------------------------------------------------------
 
 }  // namespace tensorflow

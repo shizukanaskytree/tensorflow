@@ -499,6 +499,8 @@ class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
 
     eigen_plain_assert(num_threads_ < kMaxThreads);
 
+    // Low priority thread pool with dynamic range of threads setting.
+    // Range is [start_, limit_], default range is [0, num_threads_]
     start_ = 0;
     limit_ = num_threads_;
     sleep_ = false;
@@ -512,7 +514,6 @@ class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
     }
 
   }
-
 
   ~ThreadPoolLowPriorityTempl() {
     done_ = true;
@@ -535,6 +536,7 @@ class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
       thread_data_[i].thread.reset();
   }
 
+  // Low priority thread pool with dynamic range of threads setting.
   void SetActiveThreadsRange(unsigned start, unsigned limit){
     start_ = start;
     limit_ = limit;
@@ -548,7 +550,6 @@ class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
     ScheduleWithHint(std::move(fn), 0, num_threads_);
   }
 
-
   // Create a task encapsulate the fn closure.
   // Push the task into a randomly picked queue within the range.
   void ScheduleWithHint(std::function<void()> fn, int start, 
@@ -557,8 +558,10 @@ class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
     PerThread* pt = GetPerThread();
     eigen_plain_assert(start < limit);
     eigen_plain_assert(limit <= num_threads_);
+
     // Set active threads range for Steal and NonEmptyQueueIndex
     SetActiveThreadsRange(start, limit);
+
     int num_queues = limit - start;
     int rnd = Rand(&pt->rand) % num_queues;
     eigen_plain_assert(start+rnd < limit);
@@ -641,9 +644,8 @@ class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
   EventCount ec_;
   unsigned start_;
   unsigned limit_;
-  /// Flag used to trap all active threads into sleeping.
+  // Flag used to trap all active threads into sleeping.
   bool sleep_; 
-
 
   void WorkerLoop(int thread_id) {
     PerThread* pt = GetPerThread();
@@ -659,10 +661,10 @@ class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
 
     if (num_threads_ == 1) {
       while (!cancelled_) {
-        if (CurrentThreadId() >= start_ && CurrentThreadId() < limit_){
+        if (CurrentThreadId() >= start_ && CurrentThreadId() < limit_) {
           // active threads
           Task t = q.PopFront();
-          for (int i = 0; i < spin_count && !t.f; ++i){
+          for (int i = 0; i < spin_count && !t.f; ++i) {
             if (!cancelled_.load(std::memory_order_relaxed)) {
               t = q.PopFront();
             }
@@ -672,6 +674,11 @@ class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
               return; 
             }
             //-- Trap into sleep 
+            // An interface API for TF upper layer to call to make low priority 
+            // active threads into sleep. Controlled by SleepAll() so even active
+            // threads are going to sleep. In this case, the low priority 
+            // threads are waiting for supporting high priority.
+            // WakeUpAll() is used to wake up active threads by TF upper layer.
             if(sleep_) {
               ec_.Prewait();
               ec_.CommitWait(waiter);
@@ -687,9 +694,13 @@ class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
           ec_.CommitWait(waiter);
         }
       }
-    }else {
-      while(!cancelled_){
-        if (CurrentThreadId() >= start_ && CurrentThreadId() < limit_){
+    } else {
+      while(!cancelled_) {
+        // Split all low priority threads to two streams. The active threads
+        // are doing work. Inactive threads will be woken up but go to the 
+        // branch that make them sleep again. The design is because of the 
+        // limitation of the original design of EventCounter. It is a workaround. 
+        if (CurrentThreadId() >= start_ && CurrentThreadId() < limit_) {
           // active threads
           Task t = q.PopFront();
           if (!t.f) {
@@ -707,7 +718,7 @@ class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
                 spinning_ = false;
               }
               if (!t.f) {
-                if (!WaitForWork(waiter, &t)){
+                if (!WaitForWork(waiter, &t)) {
                   return; 
                 }
                 //-- Trap into sleep 
@@ -722,7 +733,7 @@ class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
           if (t.f) {
             env_.ExecuteTask(t);
           }
-        }else{
+        } else {
           // inactive threads
           ec_.Prewait();
           ec_.CommitWait(waiter);
@@ -772,7 +783,7 @@ class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
     }
     // All active queues are empty or it is an inactive thread case 
     blocked_++;
-    if (done_ && blocked_ == static_cast<unsigned>(num_threads_)){
+    if (done_ && blocked_ == static_cast<unsigned>(num_threads_)) {
       // CancelWait corresponds to Prewait in terms of # of waiters.
       ec_.CancelWait();
       if (NonEmptyQueueIndex() != -1){
@@ -789,7 +800,7 @@ class ThreadPoolLowPriorityTempl : public Eigen::ThreadPoolInterface {
 
   int NonEmptyQueueIndex() {
     PerThread* pt = GetPerThread();
-    for (unsigned i = start_; i < limit_; ++i){
+    for (unsigned i = start_; i < limit_; ++i) {
       if (!thread_data_[i].queue.Empty()){
         return i;
       }

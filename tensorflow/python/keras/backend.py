@@ -212,6 +212,8 @@ def reset_uids():
 @keras_export('keras.backend.clear_only_session')
 def clear_only_session():
     """Only clear session of this thread
+
+    This API is a variant of clear_session() below. 
     """
     global _SESSION
     _SESSION.session.close()

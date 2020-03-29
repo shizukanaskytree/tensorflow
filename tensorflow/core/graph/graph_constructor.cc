@@ -1300,7 +1300,6 @@ Status ImportGraphDef(const ImportGraphDefOptions& opts, const GraphDef& gdef,
   }
 }
 
-// Need some change: Also copy graph priority.
 void CopyGraph(const Graph& src, Graph* dest) {
   for (Node* n : dest->nodes()) {
     CHECK(n->IsSource() || n->IsSink()) << "*dest must be empty";
@@ -1324,9 +1323,6 @@ void CopyGraph(const Graph& src, Graph* dest) {
     Node* dst_copy = node_map[e->dst()];
     dest->AddEdge(src_copy, e->src_output(), dst_copy, e->dst_input());
   }
-
-  // copy graph priority
-//  dest->SetGraphPriority(src.GetGraphPriority());
 }
 
 }  // namespace tensorflow

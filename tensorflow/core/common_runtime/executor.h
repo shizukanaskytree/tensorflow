@@ -72,8 +72,19 @@ limitations under the License.
 #include "tensorflow/core/util/tensor_slice_reader_cache.h"
 #include "tensorflow/core/util/env_var.h"
 
-
 namespace tensorflow {
+
+class StepStatsCollector;
+class ExecutorImpl;
+
+// wxf
+// tid_execution_priority_map_ stores tid and its executors' priority
+extern std::unordered_map<std::thread::id, int> tid_execution_priority_map_;
+//~wxf
+
+typedef gtl::InlinedVector<TensorValue, 4> TensorValueVec;
+typedef gtl::InlinedVector<DeviceContext*, 4> DeviceContextVec;
+typedef gtl::InlinedVector<AllocatorAttributes, 4> AllocatorAttributeVec;
 
 // Creates an Executor that computes the given "graph".
 //
@@ -104,18 +115,6 @@ struct LocalExecutorParams {
   // wxf: low priority
   //std::function<void(OpKernel*)> delete_low_priority_kernel;
 };
-
-/// Declare class ExecutorImpl
-class ExecutorImpl;
-//class ExecutorsPoolManager;
-//class GraphView;
-//class ExecutorState;
-
-// tid_execution_priority_map_ stores tid and its executors' priority
-extern std::unordered_map<std::thread::id, int> tid_execution_priority_map_;
-
-
-class StepStatsCollector;
 
 // Executor runs a graph computation.
 // Example:
@@ -215,8 +214,6 @@ class Executor {
   }
 };
 
-// --------------------------------------------------------------------
-
 struct EdgeInfo {
   int dst_id;
   int output_slot : 31;
@@ -234,7 +231,6 @@ struct KernelTimer {
     return profile_utils::CpuUtils::GetCurrentClockCycle() - start_cycles;
   }
 };
-
 
 struct NodeItem {
   NodeItem() {}
@@ -341,7 +337,6 @@ struct NodeItem {
   TF_DISALLOW_COPY_AND_ASSIGN(NodeItem);
 };
 
-
 // Immutable view of a Graph organized for efficient execution.
 class GraphView {
  public:
@@ -374,52 +369,43 @@ class GraphView {
   TF_DISALLOW_COPY_AND_ASSIGN(GraphView);
 };
 
-
-typedef gtl::InlinedVector<TensorValue, 4> TensorValueVec;
-typedef gtl::InlinedVector<DeviceContext*, 4> DeviceContextVec;
-typedef gtl::InlinedVector<AllocatorAttributes, 4> AllocatorAttributeVec;
-
-
-// -----------------------------------------------------------------------------
-
-// ExecutorImpl Manager
-// QDD
-class ExecutorsPoolManager{
- public:
-  ExecutorsPoolManager():high_priority_executors_ref_count_(0),
-                         low_priority_executors_ref_count_(0) {}
-  ~ExecutorsPoolManager();
-
-  // Do I really need to store all ExecutorImpl?
-  void AddExecutorAndPriority(ExecutorImpl** executor);
-
-  // Delete ExecutorImpl when it deconstructs.
-  void DeleteExecutor(ExecutorImpl* executor);
-
-  // inquire priority by ExecutorImpl pointer
-  int InquirePriorityByExecutorImpl(const ExecutorImpl* executor);
-
-  // The count of ExecutorImpl instances
-  std::atomic<int> high_priority_executors_ref_count_;
-  std::atomic<int> low_priority_executors_ref_count_;
-
- private:
-
-  // mutex to protect multiple threads from accessing executor_priority_map_
-  mutex add_mu_;
-  mutex delete_mu_;
-  mutex read_mu_;
-
-  // A map between ExecutorImpl pointer to its execution priority
-  std::unordered_map<ExecutorImpl*, int> executor_priority_map_;
-
-  // Define two kind of ExecutorsPool:
-  // - HighPriorityExecutorsPool
-  // - LowPriorityExecutorsPool
-  // If there are only two kinds, we only need a FIFO Queue for each of them.
-};
-
-// -----------------------------------------------------------------------------
+//// wxf
+//// ExecutorImpl Manager
+//class ExecutorsPoolManager{
+// public:
+//  ExecutorsPoolManager():high_priority_executors_ref_count_(0),
+//                         low_priority_executors_ref_count_(0) {}
+//  ~ExecutorsPoolManager();
+//
+//  // Do I really need to store all ExecutorImpl?
+//  void AddExecutorAndPriority(ExecutorImpl** executor);
+//
+//  // Delete ExecutorImpl when it deconstructs.
+//  void DeleteExecutor(ExecutorImpl* executor);
+//
+//  // inquire priority by ExecutorImpl pointer
+//  int InquirePriorityByExecutorImpl(const ExecutorImpl* executor);
+//
+//  // The count of ExecutorImpl instances
+//  std::atomic<int> high_priority_executors_ref_count_;
+//  std::atomic<int> low_priority_executors_ref_count_;
+//
+// private:
+//
+//  // mutex to protect multiple threads from accessing executor_priority_map_
+//  mutex add_mu_;
+//  mutex delete_mu_;
+//  mutex read_mu_;
+//
+//  // A map between ExecutorImpl pointer to its execution priority
+//  std::unordered_map<ExecutorImpl*, int> executor_priority_map_;
+//
+//  // Define two kind of ExecutorsPool:
+//  // - HighPriorityExecutorsPool
+//  // - LowPriorityExecutorsPool
+//  // If there are only two kinds, we only need a FIFO Queue for each of them.
+//};
+////~wxf
 
 class ExecutorImpl : public Executor {
  public:
@@ -440,8 +426,10 @@ class ExecutorImpl : public Executor {
       delete fiter.second;
     }
 
-    // update executors_pool_manager_
-    executors_pool_manager_->DeleteExecutor(this);
+//    // wxf
+//    // update executors_pool_manager_
+//    executors_pool_manager_->DeleteExecutor(this);
+//    //~wxf
   }
 
   Status Initialize();
@@ -453,8 +441,10 @@ class ExecutorImpl : public Executor {
 
   void RunAsync(const Args& args, DoneCallback done) override;
 
-  // ExecutorsPoolManager to manager all ExecutorImpl
-  static ExecutorsPoolManager* executors_pool_manager_;
+//  // wxf
+//  // ExecutorsPoolManager to manager all ExecutorImpl
+//  static ExecutorsPoolManager* executors_pool_manager_;
+//  //~wxf
 
  private:
   friend class ExecutorState;
@@ -524,8 +514,6 @@ class ExecutorImpl : public Executor {
 
   TF_DISALLOW_COPY_AND_ASSIGN(ExecutorImpl);
 }; // end of class ExecutorImpl
-
-// -----------------------------------------------------------------------------
 
 // The state associated with one invocation of ExecutorImpl::Run.
 // ExecutorState dispatches nodes when they become ready and keeps
@@ -1055,14 +1043,10 @@ class ExecutorState {
                 TaggedNodeReadyQueue* inline_ready);
 
 
-  /////////////////////////////////////////////////////////////
-  // wxf: I will add some logic inside this function
   // Schedule all the expensive nodes in 'ready', and put all the inexpensive
   // nodes in 'ready' into 'inline_ready'.
   void ScheduleReady(const TaggedNodeSeq& ready,
                      TaggedNodeReadyQueue* inline_ready);
-  /////////////////////////////////////////////////////////////
-
 
   // For debugging/logging only.
   inline void MaybeMarkCompleted(FrameState* frame, int64 iter, int64 id);
@@ -1095,7 +1079,6 @@ class ExecutorState {
     return input_frame->GetIteration(input_iter)->input_tensors;
   }
 };
-
 
 // State kept alive for executing an asynchronous node in another
 // thread.  NOTE: We need to make a copy of p.input,
@@ -1142,8 +1125,6 @@ struct ExecutorState::AsyncState {
     return p;
   }
 };
-
-// -----------------------------------------------------------------------------
 
 ::tensorflow::Status NewLocalExecutor(const LocalExecutorParams& params,
                                       std::unique_ptr<const Graph> graph,
@@ -1193,7 +1174,6 @@ class ExecutorBarrier {
         s.code() != tensorflow::error::OK) {
       s_new.Update(s);
     }
-
     //~wxf
     
     Rendezvous* error_rendez = nullptr;

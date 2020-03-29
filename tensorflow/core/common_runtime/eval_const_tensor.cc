@@ -337,17 +337,9 @@ Status EvaluateConstantTensor(OutputTensor tensor, const ShapeRefiner& refiner,
   TF_RETURN_IF_ERROR(ExtractConstantSubgraph(*src, refiner, cached_values,
                                              &subgraph, &is_constant_graph,
                                              &const_inputs));
-
-  // Not necessarily to set the subgraph's graph priority here since if the
-  // is_constant_graph, it will not affect LocalExecutor.
-
   if (!is_constant_graph) {
     return Status::OK();
   }
-
-  // Set the subgraph's graph priority to be the same as the target_node,
-  // i.e. src : Node* 's parent graph_ priority.
-//  subgraph.SetGraphPriority(src->GetParentGraph()->GetGraphPriority());
 
   const string output_tensor_name =
       strings::StrCat(src->name(), ":", tensor.index);

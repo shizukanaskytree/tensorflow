@@ -45,11 +45,6 @@ class ScopedTFGraph(object):
   def __init__(self):
     self.graph = c_api.TF_NewGraph()
     
-#  def __init__(self, priority):
-#    # set graph priority
-#    self._priority = priority
-#    self.graph = c_api.TF_NewGraph(self._priority)
-
   def __del__(self):
     # Note: when we're destructing the global context (i.e when the process is
     # terminating) we can have already deleted other modules.

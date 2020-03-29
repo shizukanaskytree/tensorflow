@@ -16,7 +16,7 @@ limitations under the License.
 #include "tensorflow/core/profiler/lib/profiler_session.h"
 #include <cstddef>
 #include <string>
-#include <iostream>
+
 #include "tensorflow/core/common_runtime/eager/context.h"
 #include "tensorflow/core/lib/core/error_codes.pb.h"
 #include "tensorflow/core/platform/env.h"
@@ -26,7 +26,6 @@ limitations under the License.
 #include "tensorflow/core/profiler/internal/runtime/eager_profiler.h"
 #include "tensorflow/core/profiler/trace_events.pb.h"
 #include "tensorflow/core/protobuf/config.pb.h"
-#include "tensorflow/core/platform/protobuf.h"
 
 namespace tensorflow {
 
@@ -145,18 +144,6 @@ Status ProfilerSession::SerializeToString(string* content) {
     session_active.store(false);
     active_ = false;
   }
-
-  //-----------------------------------------------------------------------
-  // To export run_metadata as json for analysis
-  //-----------------------------------------------------------------------
-//  std::string json_string;
-//  google::protobuf::util::JsonPrintOptions options;
-//  options.add_whitespace = true;
-//  options.always_print_primitive_fields = true;
-//  options.preserve_proto_field_names = true;
-//  MessageToJsonString(run_metadata, &json_string, options);
-//  std::cout << json_string << std::endl;
-  //-----------------------------------------------------------------------
 
   profiler::Trace trace;
 

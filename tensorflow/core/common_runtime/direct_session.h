@@ -64,6 +64,7 @@ class DirectSession : public Session {
     DIRECTSESSION_PRIORITY_LOW = 1,
     DIRECTSESSION_PRIORITY_HIGH = 2,
   };
+  //~wxf
 
   typedef std::function<void(Session*)> CloseCallback;
 
@@ -132,22 +133,21 @@ class DirectSession : public Session {
   void SetDirectSessionPriority(int priority);
   int GetDirectSessionPriority();
 
-  // wxf
   // Transfer GPU/CPU Stateful variables to CPU/GPU device
   void TransferGPU2CPUStatefulVars(); 
   void TransferCPU2GPUStatefulVars();
 
-  // wxf
   // Transfer HPU <--> LPU Stateful variables to CPU/GPU device
   // HPU: High Performance Processing Unit, e.g., V100 GPU, 2080i GPU.
   // LPU: Low Performance Processing Unit, e.g., low performance GPU, 1080ti
   void TransferHPU2LPUStatefulVars();
   void TransferLPU2HPUStatefulVars();
+  //~wxf
 
-  // -----------------------------------------------------------------------
-  // wxf
-  //static DirectSessionsManager* direct_sessions_manager_;
-  // -----------------------------------------------------------------------
+//  // wxf
+//  // N.B. We create a global variable of direct_sessions_manager_, which is 
+//  // much flexible to program. So, I don't use this actually.
+//  static DirectSessionsManager* direct_sessions_manager_;
 
  private:
   // For access to collective_graph_key_.
@@ -436,8 +436,10 @@ class DirectSession : public Session {
   // is owned.
   std::vector<std::pair<thread::ThreadPool*, bool>> thread_pools_;
 
+  // wxf
   // low priority threadpool 
   thread::LowPriorityThreadPool* low_priority_thread_pool_;
+  //~wxf
 
   Status init_error_;  // Set to an error if construction failed.
 
@@ -545,18 +547,31 @@ class DirectSessionsManager{
 	DirectSessionsManager(): high_priority_direct_session_count_(0),
 	                         low_priority_direct_session_count_(0) {}
 
-	std::atomic<int> high_priority_direct_session_count_;
-	std::atomic<int> low_priority_direct_session_count_;
+  // wxf: define DirectSession Priority
+  // Priority == 0 if the client doesn't define priority by 
+  // python API tf.set_execution_priority
+  enum DirectSessionPriority{
+    DIRECTSESSION_PRIORITY_LOW = 1,
+    DIRECTSESSION_PRIORITY_HIGH = 2,
+  };
+  //~wxf
 
-  // Register all DirectSessions and its priority from its python thread
+  // Add all DirectSession instances and their priority level number 
+  // (according to their python thread tid set by tf.set_execution_priority)
 	void AddDirectSessionAndPriority(DirectSession** direct_session);
+
   // Update count when DirectSession is deleted in ~DirectSession()
 	void DeleteDirectSession(DirectSession* direct_session);
+
 	int InquirePriorityByDirectSession(const DirectSession* direct_session);
 
   // Deem class ExecutorState as friend. So, class ExecutorState can access
   // DirectSessionsManager inner Priority information.   
   friend class ExecutorState; 
+
+	std::atomic<int> high_priority_direct_session_count_;
+	std::atomic<int> low_priority_direct_session_count_;
+
  private:
   mutex add_mu_;
   mutex delete_mu_;
@@ -564,7 +579,7 @@ class DirectSessionsManager{
 
 	std::unordered_map<DirectSession*, int> direct_session_priority_map_;
 };
-
+//~wxf
 
 }  // end namespace tensorflow
 
