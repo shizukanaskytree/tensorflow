@@ -87,23 +87,37 @@ bool ExecutorState::catched_ = false;
 //bool ExecutorState::entered_ = false;
 
 // wxf
-std::vector<ExecutorState::Entry> reuse_entry_inputs;
-std::atomic<bool> matmul01_is_ok(false);
-std::atomic<bool> matmul02_is_ok(false);
+// Test idea by simple examples
+//std::vector<ExecutorState::Entry> reuse_entry_inputs;
+//std::atomic<bool> matmul01_is_ok(false);
+//std::atomic<bool> matmul02_is_ok(false);
+//
+//// wxf: reuse output
+//ExecutorState::Entry reuse_arg_x01_0_0_1;
+//ExecutorState::Entry reuse_arg_y01_0_1_3;
+//std::atomic<bool> reuse_arg_x01_0_0_1_is_ok(false);
+//std::atomic<bool> reuse_arg_y01_0_1_3_is_ok(false);
+//
+//// wxf
+////std::vector<ExecutorState::Entry> reuse_arg_X01_0_0_3;
+////std::vector<ExecutorState::Entry> reuse_arg_y01_0_1_1;
+//ExecutorState::Entry reuse_arg_X01_0_0_3;
+//ExecutorState::Entry reuse_arg_y01_0_1_1;
+//std::atomic<bool> reuse_arg_X01_0_0_3_is_ok(false);
+//std::atomic<bool> reuse_arg_y01_0_1_1_is_ok(false);
 
-// wxf: reuse output
-ExecutorState::Entry reuse_arg_x01_0_0_1;
-ExecutorState::Entry reuse_arg_y01_0_1_3;
-std::atomic<bool> reuse_arg_x01_0_0_1_is_ok(false);
-std::atomic<bool> reuse_arg_y01_0_1_3_is_ok(false);
+// Reuse input design
+bool TF_SET_REUSE_INPUTS_FLAG = false;
+std::vector<string> subsidiary_input_op_names_X;
+std::vector<string> subsidiary_input_op_names_y;
+string master_input_X_name, master_input_y_name;
 
-// wxf
-//std::vector<ExecutorState::Entry> reuse_arg_X01_0_0_3;
-//std::vector<ExecutorState::Entry> reuse_arg_y01_0_1_1;
-ExecutorState::Entry reuse_arg_X01_0_0_3;
-ExecutorState::Entry reuse_arg_y01_0_1_1;
-std::atomic<bool> reuse_arg_X01_0_0_3_is_ok(false);
-std::atomic<bool> reuse_arg_y01_0_1_1_is_ok(false);
+// To reuse input data
+ExecutorState::Entry reuse_arg_X;
+ExecutorState::Entry reuse_arg_y;
+std::atomic<int> token_turn_reuse_X(0);
+std::atomic<int> token_turn_reuse_y(0);
+int num_token_turn = 0;
 
 //namespace {
 
@@ -1086,7 +1100,30 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
           Status s = ProcessOutputs(*state->item, &state->ctx, &outputs, stats);
           
           // wxf
-          // store the graph 01's _Recv output for reuse for a simple matmul example
+          // Get the master input op name from environment var TF_REUSE_INPUT_OPS_NAME_MASTER
+          // only when TF_SET_REUSE_INPUTS_FLAG is set.
+          if (TF_SET_REUSE_INPUTS_FLAG) {
+            // Store the master input if name matches
+            if (str_util::StrContains(state->item->node->name(), master_input_X_name)) {
+              //VLOG(0) << ">>> Before while::Store X::value of token_turn_reuse_X: " << token_turn_reuse_X.load() << "; " << std::this_thread::get_id();
+              while (!((token_turn_reuse_X.load() % num_token_turn) == 0));
+              reuse_arg_X = outputs[0];
+              token_turn_reuse_X.fetch_add(1);
+              //VLOG(0) << ">>> After while::Store X::value of token_turn_reuse_X: " << token_turn_reuse_X.load() << "; " << std::this_thread::get_id();
+              //VLOG(0) << ">>> match X: " << state->item->node->name(); // "_arg_XX01_0_0/_3" 
+            }
+
+            if (str_util::StrContains(state->item->node->name(), master_input_y_name)) {
+              //VLOG(0) << ">>> Before while::Store y::value of token_turn_reuse_y: " << token_turn_reuse_y.load() << "; " << std::this_thread::get_id();
+              while (!((token_turn_reuse_y.load() % num_token_turn) == 0));
+              reuse_arg_y = outputs[0];
+              token_turn_reuse_y.fetch_add(1);
+              //VLOG(0) << ">>> After while::Store y::value of token_turn_reuse_y: " << token_turn_reuse_y.load() << "; " << std::this_thread::get_id();
+              //VLOG(0) << ">>> match Y: " << state->item->node->name(); // "_arg_yy01_0_1/_1"
+            }
+          }
+
+//          // store the graph 01's _Recv output for reuse for a simple matmul example
 //          if (state->item->node->name() == "_arg_x01_0_0/_1") {
 //            reuse_arg_x01_0_0_1 = outputs[0];
 //            reuse_arg_x01_0_0_1_is_ok.store(true);
@@ -1095,47 +1132,47 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
 //            reuse_arg_y01_0_1_3 = outputs[0];
 //            reuse_arg_y01_0_1_3_is_ok.store(true);
 //          }
-          
-          // store the graph 01's _Recv output for reuse for a simple model
-          if (state->item->node->name() == "_arg_X01_0_0/_3") {
-            //for (int i = 0; i < state->item->num_outputs; ++i) {
-            //  Entry temp = outputs[i];
-            //  reuse_arg_X01_0_0_3.push_back(temp);
-            //}
-            //reuse_arg_X01_0_0_3_is_ok.store(true);
+// ===
 
+//          // Store the graph 01's _Recv output for reuse for a simple model
+//          if (state->item->node->name() == "_arg_X01_0_0/_3") {
+//            //for (int i = 0; i < state->item->num_outputs; ++i) {
+//            //  Entry temp = outputs[i];
+//            //  reuse_arg_X01_0_0_3.push_back(temp);
+//            //}
+//            //reuse_arg_X01_0_0_3_is_ok.store(true);
+//
 //            VLOG(0) << "Store input of X to reuse: " << state->item->node->name();
 //            // To get on-device copy time
 //            uint64 start_micros = tensorflow::Env::Default()->NowMicros();
-            
-            reuse_arg_X01_0_0_3 = outputs[0];
-
+//          
+//            reuse_arg_X01_0_0_3 = outputs[0];
+//
 //            uint64 end_micros = tensorflow::Env::Default()->NowMicros();
 //            double secs = (end_micros - start_micros) / 1000000.0;
 //            LOG(INFO) << "Store the graph_01 input _arg_X01_0_0/_3 " << " time: "
 //              << tensorflow::strings::HumanReadableElapsedTime(secs);
-          }
+//          }
           
-          if (state->item->node->name() == "_arg_y01_0_1/_1") {
-            //for (int i = 0; i < state->item->num_outputs; ++i) {
-            //  Entry temp = outputs[i];
-            //  reuse_arg_y01_0_1_1.push_back(temp);
-            //}
-            //reuse_arg_y01_0_1_1_is_ok.store(true);
-
+//          if (state->item->node->name() == "_arg_y01_0_1/_1") {
+//            //for (int i = 0; i < state->item->num_outputs; ++i) {
+//            //  Entry temp = outputs[i];
+//            //  reuse_arg_y01_0_1_1.push_back(temp);
+//            //}
+//            //reuse_arg_y01_0_1_1_is_ok.store(true);
+//
 //            VLOG(0) << "Store input of y to reuse: " << state->item->node->name();
 //            // To get on-device copy time
 //            uint64 start_micros = tensorflow::Env::Default()->NowMicros();
-
-            reuse_arg_y01_0_1_1 = outputs[0];
-
+//
+//            reuse_arg_y01_0_1_1 = outputs[0];
+//
 //            uint64 end_micros = tensorflow::Env::Default()->NowMicros(); 
 //            double secs = (end_micros - start_micros) / 1000000.0;
 //            LOG(INFO) << "Store the graph_01 input _arg_y01_0_0/_1 " << " time: "
 //              << tensorflow::strings::HumanReadableElapsedTime(secs);
-          }
+//          }
           //~wxf
-
 
           nodestats::SetMemory(stats, &state->ctx);
           if (vlog_) {
@@ -1239,7 +1276,43 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
         (first_input + i)->ClearVal();
       }
 
-//      // wxf
+      // wxf
+      // Substitute the subsidiary _arg X and y's inputs and reuse master's inputs
+      if (TF_SET_REUSE_INPUTS_FLAG) {
+        // Reuse master's X input
+        auto it = std::find_if(subsidiary_input_op_names_X.begin(), 
+                    subsidiary_input_op_names_X.end(), 
+                    [&](string & subsidiary_input) {
+                      return str_util::StrContains(node->name(), subsidiary_input);
+                    });
+        if (it != subsidiary_input_op_names_X.end()) {
+          //VLOG(0) << ">>> Before while::Reuse X::value of token_turn_reuse_X: " << token_turn_reuse_X.load() << "; " << std::this_thread::get_id();
+          while ((token_turn_reuse_X.load() % num_token_turn) == 0);
+          outputs[0] = reuse_arg_X;
+          token_turn_reuse_X.fetch_add(1);
+          //VLOG(0) << ">>> After while::Reuse X::value of token_turn_reuse_X: " << token_turn_reuse_X.load() << "; " << std::this_thread::get_id();
+          //VLOG(0) << ">>> " << node->name() << " REUSE master input X";
+        }
+
+        // Reuse master's y input
+        it = std::find_if(subsidiary_input_op_names_y.begin(), 
+                    subsidiary_input_op_names_y.end(), 
+                    [&](string & subsidiary_input) {
+                      return str_util::StrContains(node->name(), subsidiary_input);
+                    });
+        if (it != subsidiary_input_op_names_y.end()) {
+          //VLOG(0) << ">>> Before while::Reuse y::value of token_turn_reuse_y: " << token_turn_reuse_y.load() << "; " << std::this_thread::get_id();
+          while ((token_turn_reuse_y.load() % num_token_turn) == 0);
+          outputs[0] = reuse_arg_y;
+          token_turn_reuse_y.fetch_add(1);
+          //VLOG(0) << ">>> After while::Reuse y::value of token_turn_reuse_y: " << token_turn_reuse_y.load() << "; " << std::this_thread::get_id();
+          //VLOG(0) << ">>> " << node->name() << " REUSE master input y";
+        }
+      }
+      //~wxf
+
+//===
+//      // matmul example
 //      if (node->name() == "matmul01") {
 //        // Don't delete matmul's inputs
 //        //reuse_entry_inputs.clear();
@@ -1250,14 +1323,13 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
 //          (first_input + i)->ClearVal();
 //        }
 //      }
-
+//
 //      if (node->name() == "matmul02") {
 //        reuse_entry_inputs.clear();
 //      }
-//      //~wxf 
+//===
       
-      // wxf
-      // To intercept the graph 02's _Arg op node's output as the previously stored tensor.
+//      // To intercept the graph 02's _Arg op node's output as the previously stored tensor.
 //      if (node->name() == "_arg_x02_0_0") {
 //        while (!reuse_arg_x01_0_0_1_is_ok.load()) {}
 //        outputs[0] = reuse_arg_x01_0_0_1;
@@ -1269,46 +1341,46 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
 //        reuse_arg_y01_0_1_3_is_ok.store(false);
 //      }
 
-      if (node->name() == "_arg_X02_0_0" || node->name() == "_arg_X03_0_0" || node->name() == "_arg_X04_0_0") {
-        //while (!reuse_arg_X01_0_0_3_is_ok.load()) {}
-        //for (int i = 0; i < item.num_outputs; ++i) {
-        //  outputs[i] = reuse_arg_X01_0_0_3[i];
-        //}
-        //reuse_arg_X01_0_0_3_is_ok.store(false);
-        //reuse_arg_X01_0_0_3.clear();
-
+//      if (node->name() == "_arg_X02_0_0" || node->name() == "_arg_X03_0_0" || node->name() == "_arg_X04_0_0") {
+//        //while (!reuse_arg_X01_0_0_3_is_ok.load()) {}
+//        //for (int i = 0; i < item.num_outputs; ++i) {
+//        //  outputs[i] = reuse_arg_X01_0_0_3[i];
+//        //}
+//        //reuse_arg_X01_0_0_3_is_ok.store(false);
+//        //reuse_arg_X01_0_0_3.clear();
+//
 //        VLOG(0) << "Reuse input of X: " << node->name();
 //        // To get on-device copy time
 //        uint64 start_micros = tensorflow::Env::Default()->NowMicros();
-
-        outputs[0] = reuse_arg_X01_0_0_3;
-
+//
+//        outputs[0] = reuse_arg_X01_0_0_3;
+//
 //        uint64 end_micros = tensorflow::Env::Default()->NowMicros();
 //        double secs = (end_micros - start_micros) / 1000000.0;
 //        LOG(INFO) << "Reuse the graph_01 input _arg_X01_0_0/_3 " << " time: "
 //          << tensorflow::strings::HumanReadableElapsedTime(secs);
-
-      }
-
-      if (node->name() == "_arg_y02_0_1" || node->name() == "_arg_y03_0_1" || node->name() == "_arg_y04_0_1") {
-        //while (!reuse_arg_y01_0_1_1_is_ok.load()) {}
-        //for (int i = 0; i < item.num_outputs; ++i) {
-        //  outputs[i] = reuse_arg_y01_0_1_1[i];
-        //}
-        //reuse_arg_y01_0_1_1_is_ok.store(false);
-        //reuse_arg_y01_0_1_1.clear();
-
+//
+//      }
+//
+//      if (node->name() == "_arg_y02_0_1" || node->name() == "_arg_y03_0_1" || node->name() == "_arg_y04_0_1") {
+//        //while (!reuse_arg_y01_0_1_1_is_ok.load()) {}
+//        //for (int i = 0; i < item.num_outputs; ++i) {
+//        //  outputs[i] = reuse_arg_y01_0_1_1[i];
+//        //}
+//        //reuse_arg_y01_0_1_1_is_ok.store(false);
+//        //reuse_arg_y01_0_1_1.clear();
+//
 //        VLOG(0) << "Reuse input of y: " << node->name();
 //        // To get on-device copy time
 //        uint64 start_micros = tensorflow::Env::Default()->NowMicros();
-
-        outputs[0] = reuse_arg_y01_0_1_1;
-
+//
+//        outputs[0] = reuse_arg_y01_0_1_1;
+//
 //        uint64 end_micros = tensorflow::Env::Default()->NowMicros();
 //        double secs = (end_micros - start_micros) / 1000000.0;
 //        LOG(INFO) << "Reuse the graph_01 input _arg_y01_0_1/_1 " << " time: "
 //          << tensorflow::strings::HumanReadableElapsedTime(secs);
-      }
+//      }
       //~wxf
 
       MaybeMarkCompleted(input_frame, input_iter, id);

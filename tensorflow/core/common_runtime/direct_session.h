@@ -56,6 +56,7 @@ class DirectSessionsManager;
 // wxf
 extern DirectSessionsManager* direct_sessions_manager_;
 
+// -----------------------------------------------------------------------------
 
 class DirectSession : public Session {
  public:

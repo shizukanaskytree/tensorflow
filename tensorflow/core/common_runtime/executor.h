@@ -1233,22 +1233,36 @@ Status CreateNonCachedKernel(Device* device, FunctionLibraryRuntime* flib,
 void DeleteNonCachedKernel(OpKernel* kernel);
 
 // wxf
-// global var to reuse input data
-extern std::vector<ExecutorState::Entry> reuse_entry_inputs;
-extern std::atomic<bool> matmul01_is_ok;
-extern std::atomic<bool> matmul02_is_ok;
+// Test the idea by simple examples
+//// global var to reuse input data
+//extern std::vector<ExecutorState::Entry> reuse_entry_inputs;
+//extern std::atomic<bool> matmul01_is_ok;
+//extern std::atomic<bool> matmul02_is_ok;
+//
+//// wxf
+//extern ExecutorState::Entry reuse_arg_x01_0_0_1;
+//extern ExecutorState::Entry reuse_arg_y01_0_1_3;
+//extern std::atomic<bool> reuse_arg_x01_0_0_1_is_ok;
+//extern std::atomic<bool> reuse_arg_y01_0_1_3_is_ok;
+//
+//// wxf
+//extern ExecutorState::Entry reuse_arg_X01_0_0_3;
+//extern ExecutorState::Entry reuse_arg_y01_0_1_1;
+//extern std::atomic<bool> reuse_arg_X01_0_0_3_is_ok;
+//extern std::atomic<bool> reuse_arg_y01_0_1_1_is_ok;
 
-// wxf
-extern ExecutorState::Entry reuse_arg_x01_0_0_1;
-extern ExecutorState::Entry reuse_arg_y01_0_1_3;
-extern std::atomic<bool> reuse_arg_x01_0_0_1_is_ok;
-extern std::atomic<bool> reuse_arg_y01_0_1_3_is_ok;
+// wxf: Reuse input design
+extern bool TF_SET_REUSE_INPUTS_FLAG;
+extern std::vector<string> subsidiary_input_op_names_X;
+extern std::vector<string> subsidiary_input_op_names_y;
+extern string master_input_X_name, master_input_y_name;
 
-// wxf
-extern ExecutorState::Entry reuse_arg_X01_0_0_3;
-extern ExecutorState::Entry reuse_arg_y01_0_1_1;
-extern std::atomic<bool> reuse_arg_X01_0_0_3_is_ok;
-extern std::atomic<bool> reuse_arg_y01_0_1_1_is_ok;
+// To reuse input data
+extern ExecutorState::Entry reuse_arg_X;
+extern ExecutorState::Entry reuse_arg_y;
+extern std::atomic<int> token_turn_reuse_X;
+extern std::atomic<int> token_turn_reuse_y;
+extern int num_token_turn;
 
 }  // end namespace tensorflow
 

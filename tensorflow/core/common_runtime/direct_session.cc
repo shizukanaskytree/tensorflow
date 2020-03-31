@@ -82,7 +82,6 @@ limitations under the License.
 #include "tensorflow/core/util/env_var.h"
 
 namespace tensorflow {
-
 namespace {
 
 auto* direct_session_runs = monitoring::Counter<0>::New(
@@ -3263,20 +3262,99 @@ Status DirectSession::CreateGraphs(
 
   // Partition the graph across devices.
   PartitionOptions popts;
-  popts.node_to_loc = [](const Node* node) {
-    // wxf
-    // test: set _Arg on GPUs
-    //char envname[] = "REUSE_FLAG";
-    //if (getenv(envname) == "1") {
 
-    // graph 02-0N inputs are placed on GPU
-    if (node->name() == "_arg_X02_0_0" || node->name() == "_arg_y02_0_1" || \
-        node->name() == "_arg_X03_0_0" || node->name() == "_arg_y03_0_1" || \
-        node->name() == "_arg_X04_0_0" || node->name() == "_arg_y04_0_1") {
-      //VLOG(0) << "popts.node_to_loc for _Arg nodes: " << node->name();
+  // wxf
+  // set _Arg op node on GPUs
+  char* set_reuse_flag = getenv("TF_SET_REUSE_INPUTS_FLAG");
+  if (set_reuse_flag != NULL) {
+    // true, i.e. SET
+    TF_SET_REUSE_INPUTS_FLAG = strcmp(set_reuse_flag, "1") == 0; 
+    if (TF_SET_REUSE_INPUTS_FLAG) { 
+      //VLOG(0) << ">>> SET_REUSE_INPUTS_FLAG";
+
+      // Master input names
+      // Make sure you set master inputs X and y in the python side.
+      char *master_input_X, *master_input_y;
+      master_input_X = getenv("TF_REUSE_INPUT_OP_NAME_MASTER_X");
+      master_input_y = getenv("TF_REUSE_INPUT_OP_NAME_MASTER_y");
+      if (master_input_X != NULL) {
+        master_input_X_name = string(master_input_X); // "XX01" 
+        VLOG(0) << ">>> getenv master X: " << master_input_X_name;
+      }
+
+      if (master_input_y != NULL) {
+        master_input_y_name = string(master_input_y); // "yy01"
+        VLOG(0) << ">>> getenv master Y: " << master_input_y_name;
+      }
+
+      // Subsidiary input names
+      char *input_ops_name_X, *input_ops_name_y;
+      input_ops_name_X = getenv("TF_REUSE_INPUT_OPS_NAME_SUB_X");
+      input_ops_name_y = getenv("TF_REUSE_INPUT_OPS_NAME_SUB_y");
+      if (input_ops_name_X != NULL) {
+        //VLOG(0) << input_ops_name;
+        subsidiary_input_op_names_X = str_util::Split(input_ops_name_X, ',');
+        // {'X02', ...}
+        
+        for (string& X_name: subsidiary_input_op_names_X) {
+          VLOG(0) << ">>> getenv subsidiary input X: " << X_name;
+        }
+      }
+      if (input_ops_name_y != NULL) {
+        //VLOG(0) << input_ops_name;
+        subsidiary_input_op_names_y = str_util::Split(input_ops_name_y, ',');
+        // {'y02', ...}
+        
+        for (string& y_name: subsidiary_input_op_names_y) {
+          VLOG(0) << ">>> getenv subsidiary input y: " << y_name;
+        }
+      }
+      num_token_turn = 1 + subsidiary_input_op_names_X.size();
+    }
+  }
+  //~wxf
+
+  popts.node_to_loc = [&](const Node* node) {
+    // wxf
+    // Subsidiary inputs X are placed on GPU
+    auto it = std::find_if(subsidiary_input_op_names_X.begin(), 
+                subsidiary_input_op_names_X.end(), 
+                [&](string & subsidiary_input) {
+                  return str_util::StrContains(node->name(), subsidiary_input);
+                });
+    if (it != subsidiary_input_op_names_X.end()) {
+      VLOG(0) << ">>> subsidiary reuse input: " << node->name();
       return string("/job:localhost/replica:0/task:0/device:GPU:0");
     }
-    //~wxf
+
+    // Subsidiary inputs y are placed on GPU
+    it = std::find_if(subsidiary_input_op_names_y.begin(), 
+                subsidiary_input_op_names_y.end(), 
+                [&](string & subsidiary_input) {
+                  return str_util::StrContains(node->name(), subsidiary_input);
+                });
+    if (it != subsidiary_input_op_names_y.end()) {
+      VLOG(0) << ">>> subsidiary reuse input: " << node->name();
+      return string("/job:localhost/replica:0/task:0/device:GPU:0");
+    }
+
+//    if (TF_SET_REUSE_INPUTS_FLAG) {
+//      for (string subsidiary_input_name: subsidiary_input_op_names) {
+//        if (str_util::StrContains(node->name(), subsidiary_input_name)) {
+//          VLOG(0) << ">>> subsidiary reuse input: " << node->name();
+//          return string("/job:localhost/replica:0/task:0/device:GPU:0");
+//        }
+//      }
+//    }
+
+//    // graph 02-0N inputs are placed on GPU
+//    if (node->name() == "_arg_X02_0_0" || node->name() == "_arg_y02_0_1" || 
+//        node->name() == "_arg_X03_0_0" || node->name() == "_arg_y03_0_1" || 
+//        node->name() == "_arg_X04_0_0" || node->name() == "_arg_y04_0_1") {
+//      //VLOG(0) << "popts.node_to_loc for _Arg nodes: " << node->name();
+//      return string("/job:localhost/replica:0/task:0/device:GPU:0");
+//    }
+//    //~wxf
 
     return node->assigned_device_name();
   };
