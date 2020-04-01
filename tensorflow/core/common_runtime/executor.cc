@@ -115,9 +115,11 @@ string master_input_X_name, master_input_y_name;
 // To reuse input data
 ExecutorState::Entry reuse_arg_X;
 ExecutorState::Entry reuse_arg_y;
-std::atomic<int> token_turn_reuse_X(0);
-std::atomic<int> token_turn_reuse_y(0);
-int num_token_turn = 0;
+std::atomic<int> token_turn_reuse(0);
+//std::atomic<int> token_turn_reuse_X(0);
+//std::atomic<int> token_turn_reuse_y(0);
+//int num_token_turn = 0;
+//mutex reuse_lock;
 
 //namespace {
 
@@ -1106,18 +1108,18 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
             // Store the master input if name matches
             if (str_util::StrContains(state->item->node->name(), master_input_X_name)) {
               //VLOG(0) << ">>> Before while::Store X::value of token_turn_reuse_X: " << token_turn_reuse_X.load() << "; " << std::this_thread::get_id();
-              while (!((token_turn_reuse_X.load() % num_token_turn) == 0));
+              //while (!((token_turn_reuse_X.load() % num_token_turn) == 0));
               reuse_arg_X = outputs[0];
-              token_turn_reuse_X.fetch_add(1);
+              //token_turn_reuse_X.fetch_add(1);
               //VLOG(0) << ">>> After while::Store X::value of token_turn_reuse_X: " << token_turn_reuse_X.load() << "; " << std::this_thread::get_id();
               //VLOG(0) << ">>> match X: " << state->item->node->name(); // "_arg_XX01_0_0/_3" 
             }
 
             if (str_util::StrContains(state->item->node->name(), master_input_y_name)) {
               //VLOG(0) << ">>> Before while::Store y::value of token_turn_reuse_y: " << token_turn_reuse_y.load() << "; " << std::this_thread::get_id();
-              while (!((token_turn_reuse_y.load() % num_token_turn) == 0));
+              //while (!((token_turn_reuse_y.load() % num_token_turn) == 0));
               reuse_arg_y = outputs[0];
-              token_turn_reuse_y.fetch_add(1);
+              //token_turn_reuse_y.fetch_add(1);
               //VLOG(0) << ">>> After while::Store y::value of token_turn_reuse_y: " << token_turn_reuse_y.load() << "; " << std::this_thread::get_id();
               //VLOG(0) << ">>> match Y: " << state->item->node->name(); // "_arg_yy01_0_1/_1"
             }
@@ -1287,9 +1289,9 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
                     });
         if (it != subsidiary_input_op_names_X.end()) {
           //VLOG(0) << ">>> Before while::Reuse X::value of token_turn_reuse_X: " << token_turn_reuse_X.load() << "; " << std::this_thread::get_id();
-          while ((token_turn_reuse_X.load() % num_token_turn) == 0);
+          //while ((token_turn_reuse_X.load() % num_token_turn) == 0);
           outputs[0] = reuse_arg_X;
-          token_turn_reuse_X.fetch_add(1);
+          //token_turn_reuse_X.fetch_add(1);
           //VLOG(0) << ">>> After while::Reuse X::value of token_turn_reuse_X: " << token_turn_reuse_X.load() << "; " << std::this_thread::get_id();
           //VLOG(0) << ">>> " << node->name() << " REUSE master input X";
         }
@@ -1302,9 +1304,9 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
                     });
         if (it != subsidiary_input_op_names_y.end()) {
           //VLOG(0) << ">>> Before while::Reuse y::value of token_turn_reuse_y: " << token_turn_reuse_y.load() << "; " << std::this_thread::get_id();
-          while ((token_turn_reuse_y.load() % num_token_turn) == 0);
+          //while ((token_turn_reuse_y.load() % num_token_turn) == 0);
           outputs[0] = reuse_arg_y;
-          token_turn_reuse_y.fetch_add(1);
+          //token_turn_reuse_y.fetch_add(1);
           //VLOG(0) << ">>> After while::Reuse y::value of token_turn_reuse_y: " << token_turn_reuse_y.load() << "; " << std::this_thread::get_id();
           //VLOG(0) << ">>> " << node->name() << " REUSE master input y";
         }

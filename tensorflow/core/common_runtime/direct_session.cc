@@ -352,6 +352,12 @@ DirectSession::DirectSession(const SessionOptions& options,
   session_handle_ =
       strings::StrCat("direct", strings::FpToString(random::New64()));
 
+  // wxf
+  // Add Session unique id to control reuse input token turn step.
+  session_id_ = options_.config.session_id();
+  num_sessions_ = options_.config.num_sessions();
+  //~wxf
+
   int devices_added = 0;
 
   if (options.config.log_device_placement()) {
@@ -2124,6 +2130,25 @@ Status DirectSession::Run(const RunOptions& run_options,
   TF_RETURN_IF_ERROR(CheckGraphCreated("Run()"));
   direct_session_runs->GetCell()->IncrementBy(1);
 
+  // wxf
+  // Get env var TF_SET_REUSE_INPUTS_FLAG
+  char* set_reuse_flag = getenv("TF_SET_REUSE_INPUTS_FLAG");
+  if (set_reuse_flag != NULL) {
+    // true, i.e. SET
+    TF_SET_REUSE_INPUTS_FLAG = strcmp(set_reuse_flag, "1") == 0; 
+    if (TF_SET_REUSE_INPUTS_FLAG) { 
+      //VLOG(0) << "Session ID: " << session_id_ << "; Before while.";
+      while (session_id_ != (token_turn_reuse.load() % num_sessions_));
+      //VLOG(0) << "Session ID: " << session_id_ 
+      //        << "; Num of sesses: " << num_sessions_ 
+      //        << "; token turn: " << token_turn_reuse.load()
+      //        << "; whose turn: " << (token_turn_reuse.load() % num_sessions_)
+      //        << "; TID: " << std::this_thread::get_id() 
+      //        << "; Start sess.run::After while.";
+    }
+  }
+  //~wxf
+
   // Extract the inputs names for this run of the session.
   std::vector<string> input_tensor_names;
   input_tensor_names.reserve(inputs.size());
@@ -2215,6 +2240,14 @@ Status DirectSession::Run(const RunOptions& run_options,
   
   TF_RETURN_IF_ERROR(RunInternal(step_id, run_options, &call_frame,
                                  executors_and_keys, run_metadata));
+  // wxf
+  if (TF_SET_REUSE_INPUTS_FLAG) { 
+    // Increase token by 1 after finishing this sess.run.
+    token_turn_reuse.fetch_add(1);
+    //VLOG(0) << "Session ID: " << session_id_ << "; End sess.run.";
+  }
+  //~wxf
+
   // Receive outputs.
   if (outputs) {
     // wxf:
@@ -3264,58 +3297,53 @@ Status DirectSession::CreateGraphs(
   PartitionOptions popts;
 
   // wxf
-  // set _Arg op node on GPUs
-  char* set_reuse_flag = getenv("TF_SET_REUSE_INPUTS_FLAG");
-  if (set_reuse_flag != NULL) {
-    // true, i.e. SET
-    TF_SET_REUSE_INPUTS_FLAG = strcmp(set_reuse_flag, "1") == 0; 
-    if (TF_SET_REUSE_INPUTS_FLAG) { 
-      //VLOG(0) << ">>> SET_REUSE_INPUTS_FLAG";
+  // Get env vars of master and subsidiary input names
+  if (TF_SET_REUSE_INPUTS_FLAG) {
+    //VLOG(0) << ">>> SET_REUSE_INPUTS_FLAG";
 
-      // Master input names
-      // Make sure you set master inputs X and y in the python side.
-      char *master_input_X, *master_input_y;
-      master_input_X = getenv("TF_REUSE_INPUT_OP_NAME_MASTER_X");
-      master_input_y = getenv("TF_REUSE_INPUT_OP_NAME_MASTER_y");
-      if (master_input_X != NULL) {
-        master_input_X_name = string(master_input_X); // "XX01" 
-        VLOG(0) << ">>> getenv master X: " << master_input_X_name;
-      }
+    // Master input names
+    // Make sure you set master inputs X and y in the python side.
+    char *master_input_X, *master_input_y;
+    master_input_X = getenv("TF_REUSE_INPUT_OP_NAME_MASTER_X");
+    master_input_y = getenv("TF_REUSE_INPUT_OP_NAME_MASTER_y");
+    if (master_input_X != NULL) {
+      master_input_X_name = string(master_input_X); // "XX01" 
+      VLOG(0) << ">>> getenv master X: " << master_input_X_name;
+    }
 
-      if (master_input_y != NULL) {
-        master_input_y_name = string(master_input_y); // "yy01"
-        VLOG(0) << ">>> getenv master Y: " << master_input_y_name;
-      }
+    if (master_input_y != NULL) {
+      master_input_y_name = string(master_input_y); // "yy01"
+      VLOG(0) << ">>> getenv master Y: " << master_input_y_name;
+    }
 
-      // Subsidiary input names
-      char *input_ops_name_X, *input_ops_name_y;
-      input_ops_name_X = getenv("TF_REUSE_INPUT_OPS_NAME_SUB_X");
-      input_ops_name_y = getenv("TF_REUSE_INPUT_OPS_NAME_SUB_y");
-      if (input_ops_name_X != NULL) {
-        //VLOG(0) << input_ops_name;
-        subsidiary_input_op_names_X = str_util::Split(input_ops_name_X, ',');
-        // {'X02', ...}
-        
-        for (string& X_name: subsidiary_input_op_names_X) {
-          VLOG(0) << ">>> getenv subsidiary input X: " << X_name;
-        }
+    // Subsidiary input names
+    char *input_ops_name_X, *input_ops_name_y;
+    input_ops_name_X = getenv("TF_REUSE_INPUT_OPS_NAME_SUB_X");
+    input_ops_name_y = getenv("TF_REUSE_INPUT_OPS_NAME_SUB_y");
+    if (input_ops_name_X != NULL) {
+      //VLOG(0) << input_ops_name;
+      subsidiary_input_op_names_X = str_util::Split(input_ops_name_X, ',');
+      // {'X02', ...}
+      
+      for (string& X_name: subsidiary_input_op_names_X) {
+        VLOG(0) << ">>> getenv subsidiary input X: " << X_name;
       }
-      if (input_ops_name_y != NULL) {
-        //VLOG(0) << input_ops_name;
-        subsidiary_input_op_names_y = str_util::Split(input_ops_name_y, ',');
-        // {'y02', ...}
-        
-        for (string& y_name: subsidiary_input_op_names_y) {
-          VLOG(0) << ">>> getenv subsidiary input y: " << y_name;
-        }
+    }
+    if (input_ops_name_y != NULL) {
+      //VLOG(0) << input_ops_name;
+      subsidiary_input_op_names_y = str_util::Split(input_ops_name_y, ',');
+      // {'y02', ...}
+      
+      for (string& y_name: subsidiary_input_op_names_y) {
+        VLOG(0) << ">>> getenv subsidiary input y: " << y_name;
       }
-      num_token_turn = 1 + subsidiary_input_op_names_X.size();
     }
   }
   //~wxf
 
   popts.node_to_loc = [&](const Node* node) {
     // wxf
+    // set _Arg op node on GPUs
     // Subsidiary inputs X are placed on GPU
     auto it = std::find_if(subsidiary_input_op_names_X.begin(), 
                 subsidiary_input_op_names_X.end(), 
@@ -3334,7 +3362,7 @@ Status DirectSession::CreateGraphs(
                   return str_util::StrContains(node->name(), subsidiary_input);
                 });
     if (it != subsidiary_input_op_names_y.end()) {
-      VLOG(0) << ">>> subsidiary reuse input: " << node->name();
+      VLOG(0) << ">>> subsidiary input: " << node->name() << " will reuse master input";
       return string("/job:localhost/replica:0/task:0/device:GPU:0");
     }
 

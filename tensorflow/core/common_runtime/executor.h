@@ -1260,10 +1260,11 @@ extern string master_input_X_name, master_input_y_name;
 // To reuse input data
 extern ExecutorState::Entry reuse_arg_X;
 extern ExecutorState::Entry reuse_arg_y;
-extern std::atomic<int> token_turn_reuse_X;
-extern std::atomic<int> token_turn_reuse_y;
-extern int num_token_turn;
-
+extern std::atomic<int> token_turn_reuse;
+//extern std::atomic<int> token_turn_reuse_X;
+//extern std::atomic<int> token_turn_reuse_y;
+//extern int num_token_turn;
+//extern mutex reuse_lock;
 }  // end namespace tensorflow
 
 #endif  // TENSORFLOW_CORE_COMMON_RUNTIME_EXECUTOR_H_

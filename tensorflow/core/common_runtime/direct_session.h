@@ -387,6 +387,14 @@ class DirectSession : public Session {
   int direct_session_priority_;
 
   // wxf
+  // Add Session unique id to control reuse input token turn step.
+  int session_id_;
+
+  // wxf
+  // Total number of sessions set by user via tf.ConfigProto 
+  int num_sessions_;
+
+  // wxf
   // Meaning of last_execute_device_: The current DirectSession's last execution devie type.
   // 1. last_execute_device_ stores the device type for next sess.run 's reference.
   //    So, next sess.run knows whether it needs to transfer stateful vars or not.
