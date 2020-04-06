@@ -1198,6 +1198,15 @@ const FunctionDef* FunctionLibraryDefinition::Find(const string& func) const {
 std::shared_ptr<FunctionLibraryDefinition::FunctionDefAndOpRegistration>
 FunctionLibraryDefinition::FindHelper(const string& func) const {
   auto iter = function_defs_.find(func);
+  // 1.
+  // function_defs_ 是什么?
+  // function_defs_: gtl::FlatMap<string, std::shared_ptr<FunctionDefAndOpRegistration>>
+
+  // 2.
+  // case study
+  // p func
+  // $39 = "XTimesY"
+
   if (iter == function_defs_.end()) {
     return nullptr;
   } else {
@@ -1213,9 +1222,28 @@ Status FunctionLibraryDefinition::AddFunctionDef(const FunctionDef& fdef) {
 
 Status FunctionLibraryDefinition::AddFunctionDefHelper(const FunctionDef& fdef,
                                                        bool* added) {
+  // 1.
+  // Description:
+  // Add fdef into FunctionLibraryDefinition::function_defs_
+
+  // 2.
+  // 输入输出
+  // fdef: input
+  // added: output
+
   *added = false;
   std::shared_ptr<FunctionDefAndOpRegistration>& entry =
       function_defs_[fdef.signature().name()];
+  // 1.
+  // fdef.signature().name() 打印
+  // case study
+  // p fdef.signature().name()
+  // $14 = "cluster_0"
+
+  // 2.
+  // entry "代理"了 function_defs_[fdef.signature().name()] 对应的这个函数
+  // entry 在下面赋值, 指向了新构造的 std::make_shared<FunctionDefAndOpRegistration>(fdef);
+
   if (entry) {
     if (!FunctionDefsEqual(entry->fdef, fdef)) {
       return errors::InvalidArgument(
@@ -1366,6 +1394,55 @@ Status FunctionLibraryDefinition::AddLibrary(
 
 Status FunctionLibraryDefinition::AddLibrary(
     const FunctionDefLibrary& lib_def) {
+
+  // 1.
+  // Description:
+  // 把 输入变量 const FunctionDefLibrary& lib_def 的 FunctionDef 添加到
+  // FunctionLibraryDefinition::function_defs_ 内. 其次就是添加 GradientDef.
+
+  // 2.
+  // 输入输出:
+  // const FunctionDefLibrary& lib_def: input
+
+  // 3.
+  // lib_def
+  //
+  // case study
+  // function {
+  //   signature {
+  //     name: "cluster_0"
+  //     output_arg {
+  //       name: "out"
+  //       type: DT_FLOAT
+  //     }
+  //   }
+  //   node_def {
+  //     name: "one"
+  //     op: "Const"
+  //     attr {
+  //       key: "dtype"
+  //       value {
+  //         type: DT_FLOAT
+  //       }
+  //     }
+  //     attr {
+  //       key: "value"
+  //       value {
+  //         tensor {
+  //           dtype: DT_FLOAT
+  //           tensor_shape {
+  //           }
+  //           float_val: 1
+  //         }
+  //       }
+  //     }
+  //   }
+  //   ret {
+  //     key: "out"
+  //     value: "out:output:0"
+  //   }
+  // }
+
   // Remember the funcs and grads that we added successfully so that
   // we can roll them back on error.
   mutex_lock l(mu_);
@@ -1374,7 +1451,53 @@ Status FunctionLibraryDefinition::AddLibrary(
   Status s;
   bool added;
   for (const FunctionDef& fdef : lib_def.function()) {
+    // 1.
+    // fdef
+    // case study: compilation_passes_test
+    //
+    // signature {
+    //   name: "cluster_0"
+    //   output_arg {
+    //     name: "out"
+    //     type: DT_FLOAT
+    //   }
+    // }
+    // node_def {
+    //   name: "one"
+    //   op: "Const"
+    //   attr {
+    //     key: "dtype"
+    //     value {
+    //       type: DT_FLOAT
+    //     }
+    //   }
+    //   attr {
+    //     key: "value"
+    //     value {
+    //       tensor {
+    //         dtype: DT_FLOAT
+    //         tensor_shape {
+    //         }
+    //         float_val: 1
+    //       }
+    //     }
+    //   }
+    // }
+    // ret {
+    //   key: "out"
+    //   value: "out:output:0"
+    // }
+
     s = AddFunctionDefHelper(fdef, &added);
+    // 1.
+    // Description:
+    // Add fdef into FunctionLibraryDefinition::function_defs_
+
+    // 2.
+    // 输入输出
+    // fdef: input
+    // added: output
+
     if (!s.ok()) {
       Remove(funcs, funcs_with_grads);
       return s;
@@ -1538,8 +1661,23 @@ FunctionDefLibrary FunctionLibraryDefinition::ToProto() const {
 template <typename T>
 Status FunctionLibraryDefinition::GetAttr(const NodeDef& ndef,
                                           const string& attr, T* value) const {
+  // 1.
+  // 输入输出
+  // ndef: input
+  // attr: output
+  // value: output
+
   const FunctionDef* fdef = GetAttrImpl(ndef);
   if (fdef && TryGetNodeAttr(AttrSlice(&fdef->attr()), attr, value)) {
+    // 1.
+    // case study
+    // p attr
+    // $47 = "_XlaCompile"
+
+    // 2.
+    // (gdb) p *value
+    // $51 = true
+
     return Status::OK();
   }
   return errors::InvalidArgument("Attr ", attr, " is not defined.");
@@ -1772,6 +1910,35 @@ FunctionDef FunctionDefHelper::Create(
     gtl::ArraySlice<Node> node_def,
     gtl::ArraySlice<std::pair<string, string>> ret_def,
     gtl::ArraySlice<std::pair<string, string>> control_ret_def) {
+
+  // 1.
+  // Description:
+  // 通过函数的输入构造并初始化 FunctionDef, 并返回
+
+  // 2.
+  // const string& function_name: input
+  // gtl::ArraySlice<string> in_def: input
+  // gtl::ArraySlice<string> out_def: input
+  // gtl::ArraySlice<string> attr_def: input
+  // gtl::ArraySlice<Node> node_def: input
+  // gtl::ArraySlice<std::pair<string, string>> ret_def: input
+  // gtl::ArraySlice<std::pair<string, string>> control_ret_def: input
+
+  // 3.
+  // Return: a FunctionDef instance
+
+  // 4.
+  // case study:
+  // tensorflow/compiler/jit/build_xla_ops_pass_test.cc
+  //
+  // FunctionDef func = FunctionDefHelper::Create(
+  //     /*function_name=*/name,
+  //     /*in_def=*/{},
+  //     /*out_def=*/{"out: float"},
+  //     /*attr_def*/{},
+  //     /*node_def=*/{FunctionDefHelper::Const("one", 1.0f)},
+  //     /*ret_def=*/{{"out", "out:output:0"}});
+
   FunctionDef fdef;
 
   // Signature
@@ -1831,6 +1998,10 @@ FunctionDef FunctionDefHelper::Define(const string& name,
                                       gtl::ArraySlice<string> ret_def,
                                       gtl::ArraySlice<string> attr_def,
                                       gtl::ArraySlice<Node> node_def) {
+  // 1.
+  // Node 在这里的类型是
+  // class FunctionDefHelper::struct Node
+
   FunctionDef fdef;
   OpDefBuilder b(name);
   for (const auto& a : arg_def) b.Input(a);
@@ -1846,6 +2017,9 @@ FunctionDef FunctionDefHelper::Define(const string& name,
   for (const auto& a : fdef.signature().input_arg()) {
     ret_index[a.name()] = a.name();
   }
+  // 1.
+  // p ret_index
+  // $2 = std::unordered_map with 2 elements = {["y"] = "y", ["x"] = "x"}
 
   // For looking up OpDefs
   auto* op_def_registry = OpRegistry::Global();
@@ -1871,6 +2045,7 @@ FunctionDef FunctionDefHelper::Define(const string& name,
     // Add the outputs of this node to ret_index.
     const OpDef* op_def = nullptr;
     TF_CHECK_OK(op_def_registry->LookUpOpDef(n->op(), &op_def)) << n->op();
+
     CHECK(op_def != nullptr) << n->op();
     NameRangeMap output_names;
     TF_CHECK_OK(NameRangesForNode(*n, *op_def, nullptr, &output_names));

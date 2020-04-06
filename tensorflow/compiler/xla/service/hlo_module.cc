@@ -342,6 +342,15 @@ StatusOr<std::unique_ptr<HloModule>> HloModule::CreateFromProto(
         std::unique_ptr<HloComputation> computation,
         HloComputation::CreateFromProto(computation_proto, computation_map,
                                         prohibit_empty_literal));
+        // 1.
+        // Description:
+
+        // 2.
+        // Input Output
+        // computation_proto: input
+        // computation_map: output
+        // prohibit_empty_literal:
+
     CHECK_NE(computation.get(), nullptr);
     int64 computation_id = computation_proto.id();
     TF_RET_CHECK(computation_id != -1);

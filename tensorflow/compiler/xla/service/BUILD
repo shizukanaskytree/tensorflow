@@ -21,6 +21,33 @@ package(
     default_visibility = [":friends"],
     licenses = ["notice"],  # Apache 2.0
 )
+# 1.
+# Every rule in this package has the visibility only to members of package_group of
+# //tensorflow/compiler/xla/service:friends
+
+# 2.
+# visibility 定义:
+# The visibility controls whether the rule can be used by other packages.
+# 这里的 other packages 即为 //tensorflow/compiler/xla/service:friends
+#
+# Rules are always visible to other rules declared in the same package.
+#
+# 说明: 这里的 rule 可以被 //tensorflow/compiler/xla/service:friends 所使用.
+#
+# 读成
+# Rules in this package are visible to //tensorflow/compiler/xla/service:friends, 读法
+# Rules in this package can be used by //tensorflow/compiler/xla/service:friends, 本质
+# "//tensorflow/compiler/xla/service:friends" who can access rules in this package.
+
+# 2.1
+# visibility 语法的例子:
+# https://docs.bazel.build/versions/master/be/common-definitions.html#common.visibility
+
+# 2.2
+# default_visibility 有什么特别的吗?
+# The default visibility of the **rules** in this package.
+# Every rule in this package has the visibility specified in this attribute,
+# unless otherwise specified in the visibility attribute of the rule.
 
 package_group(
     name = "friends",
@@ -29,6 +56,22 @@ package_group(
     ],
     packages = ["//learning/brain/experimental/tf_runtime/..."],
 )
+# 1.
+# 1.1
+# package_group::includes 参数说明:
+# Other package groups that are included in this one. 同为 package_group 的 instance.
+
+# 1.2
+# package_group::packages 参数说明:
+# A complete enumeration of packages in this group.
+
+# 1.3
+# package_group 语法
+# https://docs.bazel.build/versions/master/be/functions.html#package_group
+
+# 2.
+# /... 的含义:
+# //learning/brain/experimental/tf_runtime and any subpackage of //learning/brain/experimental/tf_runtime.
 
 tf_proto_library_cc(
     name = "hlo_proto",

@@ -99,6 +99,38 @@ static void StacktraceHandler(int sig, siginfo_t *si, void *v) {
 
 void InstallStacktraceHandler() {
   int handled_signals[] = {SIGSEGV, SIGABRT, SIGBUS, SIGILL, SIGFPE};
+  // 1.
+  // SIGSEGV 是啥?
+  // SigSegV means a signal for memory access violation, trying to read or
+  // write from/to a memory area that your process does not have access to.
+  // These are not C or C++ exceptions and you can't catch signals.
+
+  // 2.
+  // SIGABRT
+  // When does a process get SIGABRT (signal 6)?
+  // abort() sends the calling process the SIGABRT signal, this is how abort() basically works.
+  // https://stackoverflow.com/questions/3413166/when-does-a-process-get-sigabrt-signal-6
+
+  // 3.
+  // SIGBUS
+  // SIGBUS (bus error) is a signal that happens when you try to access memory
+  // that has not been physically mapped. This is different to a SIGSEGV
+  // (segmentation fault) in that a segfault happens when an address is invalid,
+  // while a bus error means the address is valid but we failed to read/write.
+
+  // 4.
+  // SIGILL
+  // The SIGILL signal is raised when an attempt is made to execute an invalid,
+  // privileged, or ill-formed instruction. SIGILL is usually caused by a program
+  // error that overlays code with data or by a call to a function that is not
+  // linked into the program load module.
+
+  // 5.
+  // SIGFPE.
+  // The SIGFPE signal is sent to a process when it executes an erroneous
+  // arithmetic operation, such as division by zero.
+  //  Although the name is derived from “floating-point exception”,
+  // this signal actually covers all arithmetic errors,
 
   for (int i = 0; i < sizeof(handled_signals) / sizeof(int); i++) {
     int sig = handled_signals[i];
@@ -106,6 +138,11 @@ void InstallStacktraceHandler() {
     struct sigaction osa;
 
     sigemptyset(&sa.sa_mask);
+    // 1.
+    // sigemptyset 是什么?
+    // sigemptyset - initialise and empty a signal set
+    // sigemptyset(3): POSIX signal set operations - Linux man page
+
     sa.sa_flags = SA_SIGINFO | SA_RESETHAND;
     sa.sa_sigaction = &StacktraceHandler;
     if (sigaction(sig, &sa, &osa) != 0) {

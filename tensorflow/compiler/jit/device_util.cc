@@ -49,10 +49,21 @@ bool DeviceSet::IsEmpty() const {
 }
 
 xla::StatusOr<DeviceId> DeviceInfoCache::GetIdFor(absl::string_view name) {
+
+  // 1.
+  // Description:
+  //
+
+  // 2.
+  // p name
+  // $7 = {static npos = 18446744073709551615, static kMaxSize = 9223372036854775807, ptr_ = 0x555585df6d80 "/job:worker/replica:0/task:0/device:XLA_CPU:0", length_ = 45}
+
   TF_RET_CHECK(!name.empty());
 
   auto it = name_to_id_.find(name);
   if (it != name_to_id_.end()) {
+    // 未进入
+
     return it->second;
   }
 
@@ -61,6 +72,14 @@ xla::StatusOr<DeviceId> DeviceInfoCache::GetIdFor(absl::string_view name) {
   id_to_device_type_.push_back(absl::make_unique<DeviceType>(""));
   DeviceType* device_type = id_to_device_type_.back().get();
   TF_RETURN_IF_ERROR(DeviceNameToDeviceType(names_.back(), device_type));
+  // 1.
+  // Description:
+  // 根据 Device Name 解析出 Device Type, 然后通过 device_type 返回
+
+  // 2.
+  // 输入输出:
+  // names_.back(): input
+  // device_type: output
 
   is_cpu_.push_back(device_type->type_string() == DEVICE_CPU);
   is_gpu_.push_back(device_type->type_string() == DEVICE_GPU);

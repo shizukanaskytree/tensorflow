@@ -66,7 +66,22 @@ REGISTER_XLA_OP(Name("DummyDuplicateOp").TypeConstraint("T", DT_FLOAT),
 // should have type INT32 while all other kernels should have type FLOAT.
 TEST(XlaOpRegistryTest, XlaOpRegistrationWithOverride) {
   XlaOpRegistry::RegisterCompilationKernels();
+  // 1.
+  // case study 打印
+  // 2020-03-22 20:34:06.917482: I tensorflow/compiler/tf2xla/xla_op_registry.cc:319]
+  //   XLA op registration: device: XLA_CPU_JIT op: DummyDuplicateOp
+  // 2020-03-22 22:08:02.167893: I tensorflow/compiler/tf2xla/xla_op_registry.cc:319]
+  //   XLA op registration: device: XLA_GPU_JIT op: DummyDuplicateOp
+  //
+  // 因为 RegisterCompilationKernels() 这里面添加了 DummyDuplicateOp
+  //
+  // 注意: 只有上面两条输出, 没有其他的 op 输出了, 说明绕过了其他的 default ops.
+
   auto registered_kernels = GetAllRegisteredKernels().kernel();
+  // 1.
+  // registered_kernels 类型:
+  // KernelList
+  
   for (const auto& kernels : registered_kernels) {
     if (kernels.op() == "DummyDuplicateOp") {
       EXPECT_EQ(kernels.constraint_size(), 1);

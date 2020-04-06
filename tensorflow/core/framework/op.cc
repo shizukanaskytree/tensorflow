@@ -42,10 +42,24 @@ OpRegistryInterface::~OpRegistryInterface() {}
 
 Status OpRegistryInterface::LookUpOpDef(const string& op_type_name,
                                         const OpDef** op_def) const {
+
+  // 1.
+  // 输入输出:
+  // op_type_name: input
+  // op_def: output
+
   *op_def = nullptr;
   const OpRegistrationData* op_reg_data = nullptr;
   TF_RETURN_IF_ERROR(LookUp(op_type_name, &op_reg_data));
+  // 1.
+  // 输入输出:
+  // op_type_name: input
+  // op_reg_data: output
+
   *op_def = &op_reg_data->op_def;
+  // 1.
+  // 你传给我一个二级指针, 通过实操数据, 我要把这个一级指针给它赋出去
+
   return Status::OK();
 }
 
@@ -110,6 +124,14 @@ const OpRegistrationData* OpRegistry::LookUpSlow(
     mutex_lock lock(mu_);
     first_call = MustCallDeferred();
     res = gtl::FindWithDefault(registry_, op_type_name, nullptr);
+    // 1.
+    // registry_ 类型:
+    // class OpRegistry : public OpRegistryInterface :: registry_: std::unordered_map<string, const OpRegistrationData*>
+
+    // 2.
+    // op_type_name
+    // p op_type_name
+    // $19 = "ReadVariableOp"
 
     static bool unregistered_before = false;
     first_unregistered = !unregistered_before && (res == nullptr);
@@ -211,6 +233,15 @@ bool OpRegistry::MustCallDeferred() const {
   if (initialized_) return false;
   initialized_ = true;
   for (size_t i = 0; i < deferred_.size(); ++i) {
+    // 1.
+    // p deferred_.size()
+    // $17 = 1325
+
+    // 2.
+    // deferred_
+    // ptype deferred_
+    // type = std::vector<std::function<tensorflow::Status(tensorflow::OpRegistrationData*)>>
+
     TF_QCHECK_OK(RegisterAlreadyLocked(deferred_[i]));
   }
   deferred_.clear();

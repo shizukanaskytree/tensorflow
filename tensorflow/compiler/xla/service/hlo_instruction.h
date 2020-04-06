@@ -1019,6 +1019,11 @@ class HloInstruction {
 
   // Returns the vector of operands of this instruction.
   using InstructionVector = absl::InlinedVector<HloInstruction*, 2>;
+  // 1.
+  // What's the difference between using and typedef?
+  // https://stackoverflow.com/questions/10747810/what-is-the-difference-between-typedef-and-using-in-c11
+  // 几乎一样, using 比 typedef 在 template 时更通用
+
   const InstructionVector& operands() const { return operands_; }
 
   // Returns the vector of unique operands, in the same order they are found
@@ -1973,6 +1978,9 @@ class HloInstruction {
 
   // Instruction operands.
   InstructionVector operands_;
+  // 1.
+  // operands_ 意思是:
+  // the number on which an operation is to be done 操作数；运算数；（台）运算元
 
   // The set of control predecessors of this instruction.
   // Note that the order of the instructions in the vector influences the order
@@ -1980,6 +1988,9 @@ class HloInstruction {
   // influence the result of the compilation by changing the scheduling. We are
   // not sure if it matters.
   std::vector<HloInstruction*> control_predecessors_;
+  // 1.
+  // predecessors 的意思:
+  // a thing, such as a machine, that has been followed or replaced by sth else 原先的东西；被替代的事物
 
   // The users of this instruction. Users are HLOs where this instruction is an
   // operand. The vector users_ and the map user_map_ contain identical members.

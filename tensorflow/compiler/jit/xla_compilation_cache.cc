@@ -124,6 +124,21 @@ xla::StatusOr<XlaCompilationCache::Signature>
 XlaCompilationCache::BuildSignature(
     const NameAttrList& function,
     absl::Span<const XlaCompiler::Argument> args) {
+
+  // 1.
+  // Description:
+  //
+
+  // 2.
+  // 输入输出
+  // const NameAttrList& function: input
+  // absl::Span<const XlaCompiler::Argument> args: input
+
+  // 3.
+  // Return:
+  // xla::StatusOr<XlaCompilationCache::Signature>,
+  // i.e. a instance of Signature signature
+
   Signature signature;
   signature.name = Canonicalize(function.name(), AttrSlice(&function.attr()));
 
@@ -150,6 +165,21 @@ Status XlaCompilationCache::BuildExecutable(
     const XlaCompiler::Options& options,
     const XlaCompiler::CompilationResult& result,
     std::unique_ptr<xla::LocalExecutable>* executable) {
+
+  // 1.
+  // Description
+
+  // 2.
+  // Input Output
+  //
+  // const XlaCompiler::Options& options: input
+  // const XlaCompiler::CompilationResult& result: output
+  // std::unique_ptr<xla::LocalExecutable>* executable: output
+
+    // 3.
+  // Return
+  // Status
+
   VLOG(2) << "Compiling to local executable";
 
   std::vector<const xla::Shape*> argument_layouts(
@@ -180,17 +210,59 @@ Status XlaCompilationCache::Compile(
     CompileMode compile_mode,
     const XlaCompiler::CompilationResult** out_compilation_result,
     xla::LocalExecutable** out_executable) {
+
+  // 1.
+  // Description
+
+  // 2.
+  // Input Output
+  //
+  // const XlaCompiler::Options& options: input
+  // const NameAttrList& function: input
+  // absl::Span<const XlaCompiler::Argument> args: input
+  // const XlaCompiler::CompileOptions& compile_options: input
+  // CompileMode compile_mode: input
+  // const XlaCompiler::CompilationResult** out_compilation_result: output
+  // xla::LocalExecutable** out_executable: output
+
+  // 3.
+  // Return
+
   absl::optional<int64> compile_threshold;
   if (compile_mode == CompileMode::kLazy) {
     compile_threshold = kDefaultCompilationThreshold;
   }
   auto compile_fn = [&](XlaCompiler* compiler,
                         XlaCompiler::CompilationResult* result) {
+    // 1.
+    // Description
+    // Do the Compilation and return the result from XlaCompiler::CompilationResult* result.
+
+    // 2.
+    // Input Output
+    //
+    // XlaCompiler* compiler: input
+    // XlaCompiler::CompilationResult* result: output
+
+    // 3.
+    // Return
+    // Status
+
     return compiler->CompileFunction(compile_options, function, args, result);
   };
   return CompileImpl(options, function, args, compile_fn,
                      /*compile_threshold=*/compile_threshold,
                      out_compilation_result, out_executable);
+  // 1.
+  // Input Output
+  //
+  // const XlaCompiler::Options& options: input, options
+  // const NameAttrList& function: input, function
+  // absl::Span<const XlaCompiler::Argument> args: input, args
+  // const std::function<Status(XlaCompiler* compiler, XlaCompiler::CompilationResult*)>& compile_fn: input, compile_fn
+  // absl::optional<int64> compile_threshold: input, compile_threshold
+  // const XlaCompiler::CompilationResult** out_compilation_result: output, out_compilation_result
+  // xla::LocalExecutable** out_executable: output, out_executable
 }
 
 static bool ShouldBeMegamorphic(int64 compile_count, int64 execution_count) {
@@ -303,6 +375,26 @@ Status XlaCompilationCache::CompileImpl(
     absl::optional<int64> compile_threshold,
     const XlaCompiler::CompilationResult** out_compilation_result,
     xla::LocalExecutable** out_executable) {
+
+  // 1.
+  // Description
+  // Compile
+
+  // 2.
+  // Input Output
+  //
+  // const XlaCompiler::Options& options: input
+  // const NameAttrList& function: input
+  // absl::Span<const XlaCompiler::Argument> args: input
+  // const std::function<Status(XlaCompiler* compiler, XlaCompiler::CompilationResult*)>& compile_fn: input
+  // absl::optional<int64> compile_threshold: input
+  // const XlaCompiler::CompilationResult** out_compilation_result: output
+  // xla::LocalExecutable** out_executable: output
+
+  // 3.
+  // Return
+  // Status
+
   DCHECK_NE(out_executable, nullptr);
   VLOG(2) << "XlaCompilationCache::Compile " << DebugString();
 
@@ -319,6 +411,12 @@ Status XlaCompilationCache::CompileImpl(
   // The outer lock protects the existence of the cache entry. It does not
   // protect the contents of the cache entry.
   Entry* entry;
+  // 1.
+  // Entry* entry 的功用:
+  // 承载了这个函数所 target 的两个输出变量:
+  // const XlaCompiler::CompilationResult** out_compilation_result: output
+  // xla::LocalExecutable** out_executable: output
+
   {
     mutex_lock lock(compile_cache_mu_);
     // Find or create a cache entry.
@@ -420,10 +518,27 @@ Status XlaCompilationCache::CompileImpl(
 
     entry->compilation_status =
         compile_fn(&compiler, &entry->compilation_result);
+    // 1.
+    // 回调, GOTO callstack previous level
+    // in XlaCompilationCache::Compile::compile_fn
+    // (函数同在本文件中)
+
+    // 1.1
+    // auto compile_fn = [&](XlaCompiler* compiler,
+    //                       XlaCompiler::CompilationResult* result) {
+    //   return compiler->CompileFunction(compile_options, function, args, result);
+    // };
+
     TF_RETURN_IF_ERROR(entry->compilation_status);
     CHECK_EQ(entry->executable.get(), nullptr);
     entry->compilation_status =
         BuildExecutable(options, entry->compilation_result, &entry->executable);
+    // 1.
+    // Input Output
+    //
+    // const XlaCompiler::Options& options: input
+    // const XlaCompiler::CompilationResult& result: output
+    // std::unique_ptr<xla::LocalExecutable>* executable: output
 
     const uint64 compile_end_us = env->NowMicros();
     const uint64 compile_time_us = compile_end_us - compile_start_us;

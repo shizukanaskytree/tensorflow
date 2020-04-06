@@ -373,6 +373,11 @@ StatusOr<XlaComputation> XlaBuilder::Build(int64 root_id,
         GetFullName(instruction.name(), kNameSeparator, instruction.id()));
     entry.add_instructions()->Swap(&instruction);
   }
+  // 1.
+  // 打印 entry
+  // name: "cluster_5[_XlaCompiledKernel=true,_XlaHasReferenceVars=false,_XlaNumConstantArgs=1,_XlaNumResourceArgs=4].46"
+  // https://gist.github.com/shizukanaskytree/82f3838f3646bcddc18d391c21efb2c9
+  // 详情: module_0001.after_optimizations.txt
 
   XlaComputation computation(entry.id());
   HloModuleProto* module = computation.mutable_proto();

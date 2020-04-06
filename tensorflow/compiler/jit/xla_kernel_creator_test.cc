@@ -99,6 +99,10 @@ TEST_F(XlaKernelCreatorTest, OneFloatOneResourceArgument) {
   FunctionDef fdef = XTimesY();
   (*fdef.mutable_attr())["_XlaMustCompile"] = BoolAttr(true);
   Init({fdef});
+  // 1.
+  // {fdef} 解释
+  // 这里是 vector 的意思, 这个 {} 所代表的就是数组这个意思.
+
   XlaKernelCreator xla_kernel_creator;
   auto callsite =
       ToNodeProperties(R"pb(

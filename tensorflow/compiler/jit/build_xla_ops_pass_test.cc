@@ -57,7 +57,63 @@ using ::testing::_;
 
 Status BuildXlaOps(const Scope& s, const FunctionDefLibrary& fdef_lib,
                    std::unique_ptr<Graph>* result) {
+
+  // 1.
+  // Description:
+  // 把 std::unique_ptr<Graph>* result 图里面的 Node 替换成 Xla Node, 呼应了 Build Xla Ops 函数名.
+
+  // 2.
+  // 输入输出:
+  // const Scope& s: input
+  // const FunctionDefLibrary& fdef_lib: input
+  // std::unique_ptr<Graph>* result: output
+
+  // 3.
+  // case study:
+  // (gdb) p fdef_lib.Utf8DebugString()
+  // fdef_lib
+  // function {
+  //   signature {
+  //     name: "cluster_0"
+  //     output_arg {
+  //       name: "out"
+  //       type: DT_FLOAT
+  //     }
+  //   }
+  //   node_def {
+  //     name: "one"
+  //     op: "Const"
+  //     attr {
+  //       key: "dtype"
+  //       value {
+  //         type: DT_FLOAT
+  //       }
+  //     }
+  //     attr {
+  //       key: "value"
+  //       value {
+  //         tensor {
+  //           dtype: DT_FLOAT
+  //           tensor_shape {
+  //           }
+  //           float_val: 1
+  //         }
+  //       }
+  //     }
+  //   }
+  //   ret {
+  //     key: "out"
+  //     value: "out:output:0"
+  //   }
+  // }
+
   auto graph = absl::make_unique<Graph>(OpRegistry::Global());
+  // 1.
+  // 此刻的图:
+  // https://gist.github.com/shizukanaskytree/194d08fdc605ba69ff2bcddf6ee7c033
+
+  //
+
   TF_RETURN_IF_ERROR(s.ToGraph(graph.get()));
   FunctionLibraryDefinition flib_def(graph->op_registry(), fdef_lib);
 
@@ -88,6 +144,19 @@ Status BuildXlaOps(const Scope& s, const FunctionDefLibrary& fdef_lib,
 Status MakeXlaCompiledKernel(Graph* graph, const string& callee_name,
                              const string& node_name, int num_constant_args,
                              int num_resource_args, Node** result) {
+
+  // 1.
+  // Description: 往 graph 里 AddNode(...), 这个 node_name 是 这个测试定义的
+
+  // 2.
+  // 输入输出
+  // graph: input
+  // callee_name: input
+  // node_name: input
+  // num_constant_args: input
+  // num_resource_args: input
+  // result: output
+
   NodeDef call_node;
   call_node.set_name(node_name);
   call_node.set_op(callee_name);
@@ -96,17 +165,176 @@ Status MakeXlaCompiledKernel(Graph* graph, const string& callee_name,
   AddNodeAttr(kXlaNumResourceArgsAttr, num_resource_args, &call_node);
   Status s;
   *result = graph->AddNode(call_node, &s);
+  // 1.
+  // 加了这个节点后的图是这样的
+  // p graph->ToGraphDefDebug().Utf8DebugString()
+  //
+  // node {
+  //   name: "C"
+  //   op: "cluster_0"
+  //   attr {
+  //     key: "_XlaCompiledKernel"
+  //     value {
+  //       b: true
+  //     }
+  //   }
+  //   attr {
+  //     key: "_XlaNumConstantArgs"
+  //     value {
+  //       i: 0
+  //     }
+  //   }
+  //   attr {
+  //     key: "_XlaNumResourceArgs"
+  //     value {
+  //       i: 0
+  //     }
+  //   }
+  // }
+  // library {
+  //   function {
+  //     signature {
+  //       name: "cluster_0"
+  //       output_arg {
+  //         name: "out"
+  //         type: DT_FLOAT
+  //       }
+  //     }
+  //     node_def {
+  //       name: "one"
+  //       op: "Const"
+  //       attr {
+  //         key: "dtype"
+  //         value {
+  //           type: DT_FLOAT
+  //         }
+  //       }
+  //       attr {
+  //         key: "value"
+  //         value {
+  //           tensor {
+  //             dtype: DT_FLOAT
+  //             tensor_shape {
+  //             }
+  //             float_val: 1
+  //           }
+  //         }
+  //       }
+  //     }
+  //     ret {
+  //       key: "out"
+  //       value: "out:output:0"
+  //     }
+  //   }
+  // }
+  // versions {
+  //   producer: 175
+  //   min_consumer: 12
+  // }
+
   return s;
 }
 
 Status MakeXlaCompiledKernel(Graph* graph, const string& callee_name,
                              const string& node_name, Node** result) {
+
+  // 1.
+  // Description: 往 graph 里 AddNode(...), 这个 node_name 是 这个测试定义的.
+
+  // 2.
+  // 输入输出
+  // Graph* graph: input
+  // const string& callee_name: input
+  // const string& node_name: input
+  // Node** result: output
+
   return MakeXlaCompiledKernel(graph, callee_name, node_name,
                                /*num_constant_args=*/0, /*num_resource_args=*/0,
                                result);
+
+  // 1.
+  // result: Node**
+  // 传指针的目的是修改所在的数据.
+
+  // 2.
+  // case study
+  // Thread #1 [compilation_pas] 39142 [core: 60] (Suspended : Breakpoint)
+  // 	tensorflow::(anonymous namespace)::MakeXlaCompiledKernel at build_xla_ops_pass_test.cc:106 0x555555fb4c3b
+  // 	tensorflow::(anonymous namespace)::BuildXlaOpsTest_ControlDepsPreserved_Test::TestBody at build_xla_ops_pass_test.cc:152 0x555555fb5e9a
+  // 	testing::internal::HandleSehExceptionsInMethodIfSupported<testing::Test, void>() at gtest.cc:2,424 0x7fff82e67c76
+  // 	testing::internal::HandleExceptionsInMethodIfSupported<testing::Test, void>() at gtest.cc:2,460 0x7fff82e632ed
+  // 	testing::Test::Run() at gtest.cc:2,499 0x7fff82e5164e
+  // 	testing::TestInfo::Run() at gtest.cc:2,675 0x7fff82e51fe3
+  // 	testing::TestSuite::Run() at gtest.cc:2,803 0x7fff82e5267f
+  // 	testing::internal::UnitTestImpl::RunAllTests() at gtest.cc:5,241 0x7fff82e5dcef
+  // 	testing::internal::HandleSehExceptionsInMethodIfSupported<testing::internal::UnitTestImpl, bool>() at gtest.cc:2,424 0x7fff82e68cf9
+  // 	testing::internal::HandleExceptionsInMethodIfSupported<testing::internal::UnitTestImpl, bool>() at gtest.cc:2,460 0x7fff82e641ef
+  // 	<...more frames...>
+
+  // 执行这个函数之前的 graph 是什么?
+  // (gdb) p graph->ToGraphDefDebug().Utf8DebugString()
+  // library {
+  //   function {
+  //     signature {
+  //       name: "cluster_0"
+  //       output_arg {
+  //         name: "out"
+  //         type: DT_FLOAT
+  //       }
+  //     }
+  //     node_def {
+  //       name: "one"
+  //       op: "Const"
+  //       attr {
+  //         key: "dtype"
+  //         value {
+  //           type: DT_FLOAT
+  //         }
+  //       }
+  //       attr {
+  //         key: "value"
+  //         value {
+  //           tensor {
+  //             dtype: DT_FLOAT
+  //             tensor_shape {
+  //             }
+  //             float_val: 1
+  //           }
+  //         }
+  //       }
+  //     }
+  //     ret {
+  //       key: "out"
+  //       value: "out:output:0"
+  //     }
+  //   }
+  // }
+  // versions {
+  //   producer: 175
+  //   min_consumer: 12
+  // }
+
+  // 3.
+  // (gdb) p callee_name
+  // $21 = "cluster_0"
+
+  // 4.
+  // (gdb) p node_name
+  // $22 = "C"
 }
 
 Node* MakeWrite(const Scope& scope, Output value_to_write, const string& id) {
+
+  // 1.
+  // Description:
+  // 构造一个 AssignVariableOp Node*, 然后返回.
+
+  // 2.
+  // 输入输出:
+  // const Scope& scope: input
+  // Output value_to_write: input
+  // const string& id: input
+
   Output var_handle = ops::VarHandleOp(scope.WithOpName("Var_" + id), DT_FLOAT,
                                        TensorShape({}));
   ops::AssignVariableOp assign_op(scope.WithOpName("Assignee_" + id),
@@ -115,17 +343,38 @@ Node* MakeWrite(const Scope& scope, Output value_to_write, const string& id) {
 }
 
 Node* MakeWrite(const Scope& scope, const string& id) {
+
+  // 1.
+  // Description:
+  // 构造一个 AssignVariableOp Node*, 然后返回.
+
+  // 2.
+  // 输入输出:
+  // const Scope& scope: input
+  // const string& id: input
+
   return MakeWrite(
       scope, ops::Const(scope.WithOpName("ValueToAssign" + id), 1.0f), id);
 }
 
 FunctionDefLibrary CreateFunctionDefLibWithConstFunction(const string& name) {
+
+  // 1.
+  // Description:
+  //
+
+  // 2.
+  // 输入输出
+  // const string& name: input
+  // Return: a FunctionDefLibrary instance
+
   FunctionDefLibrary fdef_lib;
   FunctionDef func = FunctionDefHelper::Create(
       /*function_name=*/name, /*in_def=*/{}, /*out_def=*/{"out: float"},
       /*attr_def*/
       {}, /*node_def=*/{FunctionDefHelper::Const("one", 1.0f)},
       /*ret_def=*/{{"out", "out:output:0"}});
+
   *fdef_lib.add_function() = std::move(func);
   return fdef_lib;
 }
@@ -144,20 +393,52 @@ FunctionDefLibrary CreateFunctionDefLibWithInt32Input(const string& name) {
 TEST_F(BuildXlaOpsTest, ControlDepsPreserved) {
   const char* kXlaDeviceName = "/job:worker/replica:0/task:0/device:XLA_CPU:0";
   Scope root = Scope::NewRootScope().WithDevice(kXlaDeviceName).ExitOnError();
+  // 1.
+  // Scope
+  // Description: 把图等信息 cache 一份, 这样就可以通过 scope 方便地读取了.
 
   FunctionDefLibrary fdef_lib =
       CreateFunctionDefLibWithConstFunction("cluster_0");
   TF_ASSERT_OK(root.graph()->AddFunctionLibrary(fdef_lib));
   Node* call;
   TF_ASSERT_OK(MakeXlaCompiledKernel(root.graph(), "cluster_0", "C", &call));
+  // 1.
+  // Description: 往 root.graph() 里 AddNode(...), 这个 node_name 是 "C".
+
+  // 2.
+  // MakeXlaCompiledKernel 输入输出
+  // graph: input, i.e., root.graph()
+  // callee_name: input, i.e., "cluster_0"
+  // node_name: input, i.e., "C"
+  // Node** result: output, i.e., call
+
   call->AddAttr(kXlaHasReferenceVarsAttr, false);
+  // 1.
+  // p kXlaHasReferenceVarsAttr
+  // $26 = 0x7fffc7cd5c92 "_XlaHasReferenceVars"
+
   call->set_requested_device(kXlaDeviceName);
   Node* write_op = MakeWrite(root, "write");
+  // 1.
+  // MakeWrite Description:
+  // 构造一个 AssignVariableOp Node*, 然后返回, 叫做 Node* write_op.
+
+  // 2.
+  // 输入输出:
+  // const Scope& scope: input, root
+  // const string& id: input, "write"
+
   write_op->AddAttr(kXlaHasReferenceVarsAttr, false);
   root.graph()->AddControlEdge(call, write_op);
+  // 1.
+  // AddControlEdge
+  // tensorflow/core/graph/graph.cc
 
   std::unique_ptr<Graph> graph;
   TF_ASSERT_OK(BuildXlaOps(root, fdef_lib, &graph));
+  // 1.
+  // Description:
+  // 把 std::unique_ptr<Graph>* result 图里面的 Node 替换成 Xla Node, 呼应了 Build Xla Ops 函数名.
 
   Node* write_op_new = FindNodeByName(graph.get(), write_op->name());
   ASSERT_NE(write_op_new, nullptr);

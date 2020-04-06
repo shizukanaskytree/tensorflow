@@ -9,6 +9,9 @@ package(
     default_visibility = ["//tensorflow:internal"],
     licenses = ["notice"],  # Apache 2.0
 )
+# 1.
+# package function  表示这个 package (xla/BUILD) 下的所有 declaration are visible
+# only to members of "//tensorflow:internal". 👀.
 
 package_group(
     name = "friends",

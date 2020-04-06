@@ -174,6 +174,13 @@ XlaOpRegistry::~XlaOpRegistry() = default;
 }
 
 void XlaOpRegistry::RegisterCompilationKernels() {
+
+  // 1.
+  // Description:
+
+  // 2.
+  //
+
   XlaOpRegistry& registry = Instance();
   mutex_lock lock(registry.mutex_);
 
@@ -190,14 +197,35 @@ void XlaOpRegistry::RegisterCompilationKernels() {
   // 2. Process op registration without device whitelists:
   //      this pass registers the kernels for all the other supported backends.
   for (auto& ops : registry.ops_) {
+    // 1.
+    // registry.ops_ 打印:
+    // https://gist.github.com/shizukanaskytree/fe4d9f983040c8c8dbfec3cfb5b7b332
+
     const string& op_name = ops.first;
+    // 1.
+    // p op_name
+    // $5 = "XlaWhile"
+
     std::vector<std::unique_ptr<OpRegistration>>& op_registrations = ops.second;
+    // 1.
+    // ops.second 是什么?
+    // ops.second 是 ["XlaWhile"] = std::vector of length 1 中的 "std::vector of length 1" 这部分
+
     // Partition the op registration so that the ones with device whitelists
     // precede the one without device whitelist.
     std::partition(op_registrations.begin(), op_registrations.end(),
                    [](const std::unique_ptr<OpRegistration>& op_reg) {
                      return op_reg->has_device_whitelist;
                    });
+    // 1.
+    // std::partition 规则
+    // Reorders the elements in the range [first, last) in such a way that all
+    // elements for which the predicate p returns true precede the elements for
+    // which predicate p returns false.
+
+    // 2.
+    // comment:
+    // op_registrations.begin(), op_registrations.end()  一共才一个, 怎么可能 partition.
 
     // Collect a set of backend registered by ops with device whitelists.
     // The op registration without whitelists will register a generic kernel
@@ -205,6 +233,8 @@ void XlaOpRegistry::RegisterCompilationKernels() {
     std::unordered_set<string> whitelisted_backend;
     for (auto& op_registration : op_registrations) {
       if (op_registration->has_device_whitelist) {
+        // 未进入
+
         whitelisted_backend.insert(op_registration->device_whitelist.begin(),
                                    op_registration->device_whitelist.end());
       }
@@ -224,13 +254,31 @@ void XlaOpRegistry::RegisterCompilationKernels() {
 
       std::unordered_set<string> type_attrs;
       for (const OpDef::AttrDef& attr_def : op_def->attr()) {
+        // 1.
+        // attr_def 是什么?
+        // (gdb) p attr_def.Utf8DebugString()
+        // $10 = "name: \"body\"\ntype: \"func\"\ndescription: \"A function that takes a list of tensors and returns another\\nlist of tensors. Both lists have the same types as specified by T.\"\n"
+
         if (attr_def.type() == "type" || attr_def.type() == "list(type)") {
+          // 进入
+
           type_attrs.insert(attr_def.name());
+          // 1.
+          // attr_def.name() 是什么?
+          // case study
+          // p attr_def.name()
+          // $6 = "T"
+
+          // 2.
+          // type_attrs 用一句人话概括: 收集从 op_def->attr() 中关于 "type" 或者 "list(type)" 的内容
+
         }
       }
 
       // Checks there are no type constraints referring to unknown attributes.
       for (const auto& constraint : op_registration->type_constraints) {
+        // 未进入
+
         if (type_attrs.find(constraint.first) == type_attrs.end()) {
           LOG(FATAL) << "Unknown type attribute " << constraint.first
                      << " in XLA op registration for " << op_name;
@@ -238,11 +286,18 @@ void XlaOpRegistry::RegisterCompilationKernels() {
       }
 
       for (auto& backend : registry.backends_) {
+        // 1.
+        // registry.backends_ 是什么?
+        // https://gist.github.com/shizukanaskytree/080ecd597ef8c92ff377ef46f56bbda4
+
         // If the operator has a device whitelist, only register on whitelisted
         // devices.
         if (op_registration->has_device_whitelist &&
             op_registration->device_whitelist.find(backend.first) ==
                 op_registration->device_whitelist.end()) {
+          // 1.
+          // 未进入
+
           continue;
         }
 
@@ -251,12 +306,57 @@ void XlaOpRegistry::RegisterCompilationKernels() {
         if (!op_registration->has_device_whitelist &&
             whitelisted_backend.find(backend.first) !=
                 whitelisted_backend.end()) {
+          // 1.
+          // 未进入
+
           continue;
         }
 
         std::unique_ptr<KernelDef> kdef(new KernelDef);
         kdef->set_op(op_registration->name);
+        // 1.
+        // p op_registration->name
+        // $12 = "XlaWhile"
+
         kdef->set_device_type(backend.first);
+        // 1.
+        // p backend.first
+        // $13 = "XLA_GPU_JIT"
+
+        // 2.
+        // backend 是什么?
+        // ptype backend
+        // type = struct std::pair<std::string const, tensorflow::XlaOpRegistry::Backend>
+        //
+        // p backend
+        // {
+        //   first = "XLA_GPU_JIT", second = {
+        //     supported_types = std::set with 18 elements = {
+        //       [0] = tensorflow::DT_FLOAT,
+        //       [1] = tensorflow::DT_DOUBLE,
+        //       [2] = tensorflow::DT_INT32,
+        //       [3] = tensorflow::DT_UINT8,
+        //       [4] = tensorflow::DT_INT16,
+        //       [5] = tensorflow::DT_INT8,
+        //       [6] = tensorflow::DT_COMPLEX64,
+        //       [7] = tensorflow::DT_INT64,
+        //       [8] = tensorflow::DT_BOOL,
+        //       [9] = tensorflow::DT_QINT8,
+        //       [10] = tensorflow::DT_QUINT8,
+        //       [11] = tensorflow::DT_QINT32,
+        //       [12] = tensorflow::DT_BFLOAT16,
+        //       [13] = tensorflow::DT_UINT16,
+        //       [14] = tensorflow::DT_COMPLEX128,
+        //       [15] = tensorflow::DT_HALF,
+        //       [16] = tensorflow::DT_UINT32,
+        //       [17] = tensorflow::DT_UINT64
+        //     },
+        //     op_filter = 0x7fffc1715f19 < tensorflow::GpuOpFilter(tensorflow::KernelDef * ) > ,
+        //     kernel_defs = std::vector of length 0,
+        //     capacity 0
+        //   }
+        // }
+
         kdef->set_label(op_registration->label);
 
         // Constrain each type attribute to the intersection of:
@@ -265,6 +365,13 @@ void XlaOpRegistry::RegisterCompilationKernels() {
         // c) the type constraints.
         bool unsatisfiable_type_constraint = false;
         for (const string& type_attr : type_attrs) {
+          // 1.
+          // type_attrs
+          // type_attrs 用一句人话概括: 收集从 op_def->attr() 中关于 "type" 或者 "list(type)" 的内容
+          // study case
+          // p type_attrs
+          // $15 = std::unordered_set with 1 element = {[0] = "T"}
+
           KernelDef::AttrConstraint* attr_constraint = kdef->add_constraint();
           attr_constraint->set_name(type_attr);
           auto* allowed_values =
@@ -320,14 +427,45 @@ void XlaOpRegistry::RegisterCompilationKernels() {
         }
         VLOG(2) << "XLA op registration: device: " << backend.first
                 << " op: " << op_name;
+        // 1.
+        // case study:
+        // 2020-03-20 18:09:20.052295: I tensorflow/compiler/tf2xla/xla_op_registry.cc:319] XLA op registration: device: XLA_GPU_JIT op: XlaWhile
+
         registry.kernel_registrars_.emplace_back(
             new kernel_factory::OpKernelRegistrar(
                 new KernelDef(*kdef), "XlaJitOp", op_registration->factory));
+        // 1.
+        // registry 类型
+        // class tensorflow::XlaOpRegistry
+
+        // 2.
+        // registry.kernel_registrars_ 类型是什么?
+        // ptype registry.kernel_registrars_
+        // type = std::vector<std::unique_ptr<tensorflow::kernel_factory::OpKernelRegistrar>>
+
         backend.second.kernel_defs.push_back(std::move(kdef));
+        // 1.
+        // backend 是什么?
+        // for (auto& backend : registry.backends_)
+        // backend 是 registry.backends_ 的 "代理"
       }
     }
   }
 }
+// 1.
+// where am I ?
+// Thread #1 [xla_kernel_crea] 40107 [core: 2] (Suspended : Step)
+// 	tensorflow::XlaOpRegistry::RegisterCompilationKernels() at xla_op_registry.cc:242 0x7fffc16fdbfc
+// 	tensorflow::CreateXlaKernel() at xla_kernel_creator_util.cc:159 0x7ffff22df7f0
+// 	tensorflow::XlaKernelCreator::CreateKernel() at xla_kernel_creator.cc:30 0x7ffff34eec88
+// 	tensorflow::XlaKernelCreatorTest_OneFloatOneResourceArgument_Test::TestBody() at xla_kernel_creator_test.cc:106 0x555555f14816
+// 	testing::internal::HandleSehExceptionsInMethodIfSupported<testing::Test, void>() at gtest.cc:2,424 0x7fffad262c76
+// 	testing::internal::HandleExceptionsInMethodIfSupported<testing::Test, void>() at gtest.cc:2,460 0x7fffad25e2ed
+// 	testing::Test::Run() at gtest.cc:2,499 0x7fffad24c64e
+// 	testing::TestInfo::Run() at gtest.cc:2,675 0x7fffad24cfe3
+// 	testing::TestSuite::Run() at gtest.cc:2,803 0x7fffad24d67f
+// 	testing::internal::UnitTestImpl::RunAllTests() at gtest.cc:5,241 0x7fffad258cef
+// 	<...more frames...>
 
 std::vector<const KernelDef*> XlaOpRegistry::DeviceKernels(
     const string& compilation_device_name,

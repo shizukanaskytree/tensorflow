@@ -805,21 +805,56 @@ StatusOr<std::unique_ptr<Executable>> Service::BuildExecutable(
     std::unique_ptr<HloModuleConfig> module_config, Backend* backend,
     se::StreamExecutor* executor, se::DeviceMemoryAllocator* device_allocator) {
   // 1.
+  // Description
+
+  // 2.
+  // Input Output
+  //
+  // const HloModuleProto& module_proto: input
+  // std::unique_ptr<HloModuleConfig> module_config: input
+  // Backend* backend: input
+  // se::StreamExecutor* executor: input
+  // se::DeviceMemoryAllocator* device_allocator: input
+
+  // 3.
+  // Return
+  // StatusOr<std::unique_ptr<Executable>>
+
+  // 4.
   // 被调用:
   // tensorflow/compiler/xla/service/local_service.cc
+  //
+  // Thread #236 [python] 9538 [core: 55] (Suspended : Breakpoint)
+  // xla::Service::BuildExecutable() at service.cc:811 0x7f1c190f1e7d
+  // xla::LocalService::CompileExecutable() at local_service.cc:182 0x7f1c187786e5
+  // xla::LocalClient::Compile() at local_client.cc:272 0x7f1c1876c136
+  // tensorflow::XlaCompilationCache::BuildExecutable() at xla_compilation_cache.cc:167 0x7f1c0fdc764f
+  // tensorflow::XlaCompilationCache::CompileImpl() at xla_compilation_cache.cc:376 0x7f1c0fdc9b86
+  // tensorflow::XlaCompilationCache::Compile() at xla_compilation_cache.cc:192 0x7f1c0fdc7942
+  // tensorflow::CompileToLocalExecutable() at xla_ops.cc:344 0x7f1c0fd920cf
+  // tensorflow::XlaCompileOp::Compute() at xla_ops.cc:505 0x7f1c0fd94327
+  // tensorflow::BaseGPUDevice::Compute() at gpu_device.cc:510 0x7f1c030ab226
+  // tensorflow::(anonymous namespace)::ExecutorState::Process at executor.cc:1,895 0x7f1c03146298
+  // tensorflow::(anonymous namespace)::ExecutorState::<lambda()>::operator()(void) const at executor.cc:2,317 0x7f1c031482fc
+  // std::_Function_handler<void(), tensorflow::(anonymous namespace)::ExecutorState::ScheduleReady(const TaggedNodeSeq&, tensorflow::(anonymous namespace)::ExecutorState::TaggedNodeReadyQueue*)::<lambda()> >::_M_invoke at std_function.h:316 0x7f1c03152658
+  // std::function<void ()>::operator()() const at std_function.h:706 0x7f1c02873050
+  // tensorflow::thread::EigenEnvironment::ExecuteTask() at threadpool.cc:85 0x7f1c0329ea55
+  // Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop() at NonBlockingThreadPool.h:326 0x7f1c032a20ed
+  // Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::ThreadPoolTempl(int, bool, tensorflow::thread::EigenEnvironment)::{lambda()#1}::operator()() const at NonBlockingThreadPool.h:58 0x7f1c032a06b8
+  // std::_Function_handler<void (), Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::ThreadPoolTempl(int, bool, tensorflow::thread::EigenEnvironment)::{lambda()#1}>::_M_invoke at std_function.h:316 0x7f1c032a3a7e
+  // std::function<void ()>::operator()() const at std_function.h:706 0x7f1c02873050
+  // tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}::operator()() const at threadpool.cc:62 0x7f1c0329e770
+  // std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke at std_function.h:316 0x7f1c032a13f7
 
   VLOG(1) << StrFormat(
       "BuildExecutable on service %p with serialized module proto: %s", this,
       module_proto.name());
   // 1.
-  // 2020-02-21 21:57:58.696487: I tensorflow/compiler/xla/service/service.cc:807]
-  // BuildExecutable on service 0x55c744bd43e0 with serialized module proto:
-  // cluster_5[_XlaCompiledKernel=true,_XlaHasReferenceVars=false,_XlaNumConstantArgs=1,_XlaNumResourceArgs=4].46
-
+  // log:
+  // 2020-04-06 08:55:03.579886: I tensorflow/compiler/xla/service/service.cc:807] BuildExecutable on service 0x555918c4fdc0 with serialized module proto: cluster_5[_XlaCompiledKernel=true,_XlaHasReferenceVars=false,_XlaNumConstantArgs=1,_XlaNumResourceArgs=4].46
 
   TF_ASSIGN_OR_RETURN(std::unique_ptr<HloModule> module,
                       CreateModuleFromProto(module_proto, *module_config));
-
 
   DumpHloModuleIfEnabled(*module, kBeforeOptimizationsDumpName);
 

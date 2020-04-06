@@ -523,6 +523,18 @@ void Graph::RecycleEdge(const Edge* e) {
 
 const Edge* Graph::AddControlEdge(Node* source, Node* dest,
                                   bool allow_duplicates) {
+
+  // 1.
+  // Description:
+  // 从 Node* source 到 Node* dest 构建一条 Control Edge, 然后返回此边 const Edge*.
+
+  // 2.
+  // 输入输出:
+  // Node* source: input
+  // Node* dest: input
+  // bool allow_duplicates: input
+  // Return: const Edge*
+
   if (!allow_duplicates) {
     for (const Edge* edge : dest->in_edges()) {
       if (edge->IsControlEdge() && edge->src() == source) {

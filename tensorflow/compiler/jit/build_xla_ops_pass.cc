@@ -226,6 +226,16 @@ Output IncomingEdgeAsOutput(const Edge* e) {
 }
 
 Status GetXlaClusterInfo(Node* n, XlaClusterInfo* result) {
+
+  // 1.
+  // Description:
+  // 讲 Node 内的信息赋值给 XlaClusterInfo* result, 然后传出去.
+
+  // 2.
+  // 输入输出:
+  // Node* n: input
+  // XlaClusterInfo* result: output
+
   int num_constant_inputs, num_resource_inputs;
   TF_RETURN_IF_ERROR(
       GetNodeAttr(n->attrs(), kXlaNumConstantArgsAttr, &num_constant_inputs));
@@ -342,6 +352,22 @@ xla::StatusOr<Node*> ReplaceFunctionCallWithPartitionedCall(
 xla::StatusOr<jit::DeviceId> InferDeviceForCluster(
     jit::DeviceInfoCache* device_info_cache, Node* n,
     const string& function_name, const FunctionLibraryDefinition& flib_def) {
+
+  // 1.
+  // Description:
+  //
+
+  // 2.
+  // 输入输出:
+  // jit::DeviceInfoCache* device_info_cache:
+  // Node* n
+  // const string& function_name
+  // const FunctionLibraryDefinition& flib_def
+
+  // 3.
+  // (gdb) p function_name
+  // $5 = "cluster_0"
+
   const FunctionDef* func_def = flib_def.Find(function_name);
   TF_RET_CHECK(func_def) << "Could not find " << function_name;
 
@@ -349,7 +375,32 @@ xla::StatusOr<jit::DeviceId> InferDeviceForCluster(
 
   for (const NodeDef& ndef : func_def->node_def()) {
     VLOG(3) << ndef.DebugString();
+    // 1.
+    // case study
+    //
+    // 2020-03-21 18:30:45.899773: I tensorflow/compiler/jit/build_xla_ops_pass.cc:351] name: "one"
+    // op: "Const"
+    // attr {
+    //   key: "dtype"
+    //   value {
+    //     type: DT_FLOAT
+    //   }
+    // }
+    // attr {
+    //   key: "value"
+    //   value {
+    //     tensor {
+    //       dtype: DT_FLOAT
+    //       tensor_shape {
+    //       }
+    //       float_val: 1
+    //     }
+    //   }
+    // }
+
     if (!ndef.device().empty()) {
+      // 进入
+
       TF_ASSIGN_OR_RETURN(jit::DeviceId device_id,
                           device_info_cache->GetIdFor(ndef.device()));
       device_set.Insert(device_id);
@@ -465,8 +516,30 @@ Status ReplaceNodeWithXlaCompileAndXlaRun(
     const GraphOptimizationPassOptions& options,
     const FunctionLibraryDefinition& flib_def, bool lazy_compilation_enabled,
     const DebuggingOpts& debugging_opts, Graph* g, Node* n) {
+
+  // 1.
+  // Description:
+  // 替换图 Graph* g 中的 Node* n, 换上 Xla Node.
+
+  // 2.
+  // jit::DeviceInfoCache* device_info_cache: input and output
+  // const GraphOptimizationPassOptions& options: input
+  // const FunctionLibraryDefinition& flib_def: input
+  // bool lazy_compilation_enabled: input
+  // const DebuggingOpts& debugging_opts: input
+  // Graph* g: input
+  // Node* n: input
+
   XlaClusterInfo cluster_info;
   TF_RETURN_IF_ERROR(GetXlaClusterInfo(n, &cluster_info));
+  // 1.
+  // Description:
+  // 讲 Node 内的信息赋值给 XlaClusterInfo* result, 然后传出去.
+
+  // 2.
+  // 输入输出:
+  // Node* n: input
+  // XlaClusterInfo* result: output
 
   TF_ASSIGN_OR_RETURN(
       jit::DeviceId device,
@@ -506,6 +579,8 @@ Status ReplaceNodeWithXlaCompileAndXlaRun(
       GetXlaRunArgs(root, cluster_info, debugging_opts);
 
   if (requires_compilation) {
+    // 进入
+
     // "Strict" compilation:  every _XlaCompile invocation must compile the
     // cluster.
     ops::_XlaRun xla_run(root.WithOpName("xla_run"), xla_run_args,
@@ -514,6 +589,10 @@ Status ReplaceNodeWithXlaCompileAndXlaRun(
     MoveOutgoingEdges(g, /*old_node=*/n,
                       /*new_node=*/xla_run.operation.node());
     g->RemoveNode(n);
+    // 1.
+    // comment:
+    // remove old_node
+
   } else {
     // "Lazy" compilation: an _XlaCompile invocation may decide not to compile
     // the cluster based on profitability heuristics.
@@ -581,11 +660,17 @@ Status BuildXlaOpsPass::Run(const GraphOptimizationPassOptions& options) {
                     // compilation-marking pass (via 'attr_name').
                     return IsXlaCompiledKernel(*n);
                   });
+  // 1.
+  // Description:
+  // lambda 里面是 true 的则 insert back 到 xla_compiled_kernels 这里面去.
 
   bool lazy_compilation_enabled =
       enable_lazy_compilation_
           ? *enable_lazy_compilation_
           : GetBuildXlaOpsPassFlags()->tf_xla_enable_lazy_compilation;
+  // 1.
+  // p lazy_compilation_enabled
+  // $3 = true
 
   jit::DeviceInfoCache device_info_cache;
   const BuildXlaOpsPassFlags& flags = *GetBuildXlaOpsPassFlags();
@@ -605,11 +690,29 @@ Status BuildXlaOpsPass::Run(const GraphOptimizationPassOptions& options) {
     TF_RETURN_IF_ERROR(ReplaceNodeWithXlaCompileAndXlaRun(
         &device_info_cache, options, *options.flib_def,
         lazy_compilation_enabled, debugging_opts, graph, n));
+
+    // 1.
+    // Description:
+    // 替换图 Graph* g 中的 Node* n, 换上 Xla Node.
+
+    // 2.
+    // jit::DeviceInfoCache* device_info_cache: input and output
+    // const GraphOptimizationPassOptions& options: input
+    // const FunctionLibraryDefinition& flib_def: input
+    // bool lazy_compilation_enabled: input
+    // const DebuggingOpts& debugging_opts: input
+    // Graph* g: input
+    // Node* n: input
   }
 
   if (VLOG_IS_ON(1)) {
     DumpGraphToFile("build_xla_ops", *graph, options.flib_def);
   }
+  // 1.
+  // study case:
+  // tensorflow/compiler/jit/build_xla_ops_pass_test.cc
+  // 此刻的图:
+  // https://gist.github.com/shizukanaskytree/61e9bad8536af8101b3bce0980f3cb01
 
   return Status::OK();
 }

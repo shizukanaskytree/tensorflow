@@ -281,6 +281,29 @@ static Status CompileToLocalExecutable(
     std::map<int, OptionalTensor>* variables,
     const XlaCompiler::CompilationResult** kernel,
     xla::LocalExecutable** executable) {
+  // 1.
+  // Description
+  // Compile To Local Executable
+
+  // 2.
+  // Input Output
+  //
+  // OpKernelContext* ctx: input
+  // const NameAttrList& function: input
+  // bool has_ref_vars: input
+  // const XlaPlatformInfo& platform_info: input
+  // absl::Span<const int> resources: input
+  // absl::Span<const int> constants: input
+  // bool lazy: input
+  // xla::LocalClient** client: output
+  // std::map<int, OptionalTensor>* variables: output
+  // const XlaCompiler::CompilationResult** kernel: output
+  // xla::LocalExecutable** executable: output
+
+  // 3.
+  // Return
+  // static Status
+
   // We store information about the JIT-compiled XLA computation
   // in the ResourceMgr.
   ResourceMgr* rm = ctx->resource_manager();
@@ -342,6 +365,15 @@ static Status CompileToLocalExecutable(
                         lazy ? XlaCompilationCache::CompileMode::kLazy
                              : XlaCompilationCache::CompileMode::kStrict,
                         kernel, executable);
+  // 1.
+  // Description
+
+  // 2.
+  // Input Output
+
+  // 3.
+  // Return
+
 }
 
 void XlaLocalLaunchBase::Compute(OpKernelContext* ctx) {
@@ -530,7 +562,23 @@ void XlaCompileOp::Compute(OpKernelContext* ctx) {
         ctx, function_, has_ref_vars_, platform_info_, resources_, constants_,
         /*lazy=*/!must_compile_, &client, &variables, &kernel, &executable);
     // 1.
+    // Description
+    // Compile To Local Executable
+
+    // 2.
+    // Input Output
     //
+    // OpKernelContext* ctx: input, ctx
+    // const NameAttrList& function: input, function_
+    // bool has_ref_vars: input, has_ref_vars_
+    // const XlaPlatformInfo& platform_info: input, platform_info_
+    // absl::Span<const int> resources: input, resources_
+    // absl::Span<const int> constants: input, constants_
+    // bool lazy: input, must_compile_
+    // xla::LocalClient** client: output, client
+    // std::map<int, OptionalTensor>* variables: output, variables
+    // const XlaCompiler::CompilationResult** kernel: output, kernel
+    // xla::LocalExecutable** executable: output, executable
 
     if (must_compile_ || status.code() != error::UNIMPLEMENTED) {
       OP_REQUIRES_OK(ctx, status);
@@ -555,6 +603,9 @@ void XlaCompileOp::Compute(OpKernelContext* ctx) {
   Allocator* cpu_allocator = ctx->device()->GetAllocator(host_alloc_attrs);
 
   if (!executable) {
+    // 1.
+    // 挂了的情况, 一般不进入
+
     DCHECK(!must_compile_);
     Tensor compilation_key(cpu_allocator, DT_STRING, TensorShape({}));
 

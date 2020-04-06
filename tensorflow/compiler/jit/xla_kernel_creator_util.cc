@@ -152,11 +152,23 @@ Status GetBodyAndConstantsAndResources(FunctionLibraryRuntime* flr,
 
 Status CreateXlaKernel(FunctionLibraryRuntime* flr, const NodeDef& node_def,
                        std::unique_ptr<OpKernel>* kernel) {
+
+  // 1.
+  // 输入输出:
+  // flr: input
+  // node_def: input
+  // kernel: output
+
   if (!CanCreateXlaKernel(node_def)) {
     return errors::Internal("Invalid node: ", node_def.ShortDebugString());
   }
 
   VLOG(3) << "Attempting to create XlaLaunchOp for " << node_def.DebugString();
+  // 1.
+  // 2020-03-20 17:13:35.078858: I tensorflow/compiler/jit/xla_kernel_creator_util.cc:156] Attempting to create XlaLaunchOp for name: "XTimesY"
+  // op: "XTimesY"
+  // input: "a"
+  // input: "b"
 
   // Make sure that kernels have been registered on the JIT device.
   XlaOpRegistry::RegisterCompilationKernels();

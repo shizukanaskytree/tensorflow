@@ -129,17 +129,20 @@ LocalService::CompileExecutables(
     const absl::Span<const Shape* const> argument_layouts,
     const ExecutableBuildOptions& build_options) {
   // 1.
-  // input:
-  //  computation
-  //  argument_layouts
-  //  build_options
-  // output:
+  // Description
+
+  // 2.
+  // Input Output
   //
+  // const XlaComputation& computation: input
+  // const absl::Span<const Shape* const> argument_layouts: input
+  // const ExecutableBuildOptions& build_options: input
+
+  // 3.
+  // Return
+  // StatusOr<std::vector<std::unique_ptr<Executable>>>
 
   const HloModuleProto& proto = computation.proto();
-  // 1.
-  // proto: const HloModuleProto&
-  // ?
 
   TF_RET_CHECK(proto.has_host_program_shape());
   ProgramShape program_shape(proto.host_program_shape());
@@ -153,9 +156,6 @@ LocalService::CompileExecutables(
   // p program_shape.ToString()
   // $9 = "(arg0: f32[256,32,32,3], arg1: f32[32], arg2: f32[3,3,3,32], arg3: f32[32], arg4: f32[3,3,32,32]) -> (f32[256,32,32,32], f32[3,3,32,32], f32[256,32,15,15], f32[256,32,30,30], f32[256,3,32,32], s32[4])"
 
-  // 1.2
-  //
-
   // Validate incoming layouts.
   if (argument_layouts.size() != program_shape.parameters_size()) {
     return InvalidArgument(
@@ -166,11 +166,12 @@ LocalService::CompileExecutables(
   for (int i = 0; i < argument_layouts.size(); ++i) {
     // 1.
     // argument_layouts.size() == 5
-    //
 
     const Shape& argument_shape = *argument_layouts[i];
     TF_RETURN_IF_ERROR(
         ShapeUtil::ValidateShapeWithOptionalLayout(argument_shape));
+    // 1.
+    // log:
     // 2020-02-21 16:15:16.239217: I tensorflow/compiler/xla/shape_util.cc:714] Validating shape size: f32[256,32,32,3]
     // 2020-02-21 16:15:16.239290: I tensorflow/compiler/xla/shape_util.cc:744] Shape size is valid: 3145728
     // 2020-02-21 16:15:21.503430: I tensorflow/compiler/xla/shape_util.cc:714] Validating shape size: f32[32]
@@ -228,7 +229,6 @@ LocalService::CompileExecutables(
   // 1.
   // 打印:
   // 2020-02-21 16:22:56.795771: I tensorflow/compiler/xla/service/local_service.cc:175] Computation Layout: (f32[256,32,32,3]{3,2,1,0}, f32[32]{0}, f32[3,3,3,32]{3,2,1,0}, f32[32]{0}, f32[3,3,32,32]{3,2,1,0}) => (f32[256,32,32,32]{3,2,1,0}, f32[3,3,32,32]{3,2,1,0}, f32[256,32,15,15]{3,2,1,0}, f32[256,32,30,30]{3,2,1,0}, f32[256,3,32,32]{3,2,1,0}, s32[4]{0})
-
 
   TF_ASSIGN_OR_RETURN(
       se::StreamExecutor * executor,

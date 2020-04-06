@@ -66,6 +66,45 @@ StatusOr<std::unique_ptr<HloInstruction>> HloInstruction::CreateFromProto(
     const absl::flat_hash_map<int64, HloInstruction*>& instruction_map,
     const absl::flat_hash_map<int64, HloComputation*>& computation_map,
     bool prohibit_empty_literal) {
+  // 1.
+  // Description:
+  // Create HloInstruction From HloInstructionProto.
+
+  // 2.
+  // Input Output
+  //
+  // const HloInstructionProto& proto: input
+  // const absl::flat_hash_map<int64, HloInstruction*>& instruction_map: output
+  // const absl::flat_hash_map<int64, HloComputation*>& computation_map: output
+  // bool prohibit_empty_literal
+
+  // 3.
+  // Return:
+  // StatusOr<std::unique_ptr<HloInstruction>>
+
+  // 4.
+  // p proto.DebugString()
+  //
+  // Study Case 01:
+  // name: "constant.26"
+  // opcode: "constant"
+  // shape {
+  //     element_type: S32
+  //     layout {
+  //       format: DENSE
+  //     }
+  // }
+  // literal {
+  //     shape {
+  //         element_type: S32
+  //         layout {
+  //           format: DENSE
+  //         }
+  //     }
+  //     s32s: 256
+  // }
+  // id: 26
+
   TF_RET_CHECK(!proto.opcode().empty());
   HloOpcode opcode;
   auto opcode_or = StringToHloOpcode(proto.opcode());
@@ -303,6 +342,32 @@ StatusOr<std::unique_ptr<HloInstruction>> HloInstruction::CreateFromProto(
     case HloOpcode::kConstant: {
       // TODO(b/110214922): Revert this to CHECK(proto.has_literal()).
       if (proto.has_literal()) {
+        // 1.
+        // 进入
+
+        // 2.
+        // p proto.DebugString()
+        //
+        // Study Case 01:
+        // name: "constant.26"
+        // opcode: "constant"
+        // shape {
+        //     element_type: S32
+        //     layout {
+        //       format: DENSE
+        //     }
+        // }
+        // literal {                  这个参数确实存在
+        //     shape {
+        //         element_type: S32
+        //         layout {
+        //           format: DENSE
+        //         }
+        //     }
+        //     s32s: 256
+        // }
+        // id: 26
+
         TF_ASSIGN_OR_RETURN(
             auto literal,
             Literal::CreateFromProto(proto.literal(), prohibit_empty_literal));
@@ -684,6 +749,10 @@ StatusOr<std::unique_ptr<HloInstruction>> HloInstruction::CreateFromProto(
   }
 
   for (const int64 predecessor_id : proto.control_predecessor_ids()) {
+    // 1.
+    // 未进入 study case: HloConstantInstruction
+    // "name: \"constant.26\"\nopcode: \"constant\"\nshape {\n  element_type: S32\n  layout {\n    format: DENSE\n  }\n}\nliteral {\n  shape {\n    element_type: S32\n    layout {\n      format: DENSE\n    }\n  }\n  s32s: 256\n}\nid: 26\n"
+
     TF_RET_CHECK(ContainsKey(instruction_map, predecessor_id))
         << "No instruction with id " << predecessor_id;
     TF_RETURN_IF_ERROR(instruction_map.at(predecessor_id)

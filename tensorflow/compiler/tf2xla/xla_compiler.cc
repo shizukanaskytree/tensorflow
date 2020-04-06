@@ -248,6 +248,36 @@ Status BuildComputation(
     std::vector<XlaCompiler::OutputDescription>* outputs,
     std::vector<XlaCompiler::ResourceUpdate>* resource_updates,
     xla::Shape* output_shape) {
+  // 1.
+  // Description
+
+  // 2.
+  // Input Output
+  //
+  // const std::vector<XlaCompiler::Argument>& args: input
+  // const std::vector<XlaExpression>& retvals: input
+  // const std::map<int, xla::OpSharding>& arg_shardings: input
+  // const std::map<int, xla::OpSharding>& retval_shardings: input
+  // const std::vector<std::unique_ptr<XlaResource>>& resources: input
+  // std::unique_ptr<xla::XlaOp> token_output: input
+  // const XlaCompiler::ShapeRepresentationFn& shape_representation_fn: input
+  // bool is_entry_computation: input
+  // bool return_updated_values_for_all_resources: input
+  // bool always_return_tuple: input
+  // bool use_tuple_arg: input
+  // bool alias_resource_update: input
+  // xla::XlaBuilder* builder: input
+  // xla::XlaComputation* computation: output
+  // int* num_computation_outputs: output
+  // int* num_nonconst_outputs: output
+  // std::vector<XlaCompiler::OutputDescription>* outputs: output
+  // std::vector<XlaCompiler::ResourceUpdate>* resource_updates: output
+  // xla::Shape* output_shape: output
+
+  // 3.
+  // Return
+  // Status
+
   // Attach a common operator name as metadata. This has no semantic effect — it
   // merely makes the HLO graph more readable when visualized via TensorBoard,
   // since TensorBoard forms groups out of operators with similar names.
@@ -740,9 +770,49 @@ Status XlaCompiler::CompileFunction(
     const NameAttrList& fn_name_attrs,
     absl::Span<const XlaCompiler::Argument> args,
     XlaCompiler::CompilationResult* result) {
+  // 1.
+  // Description
+
+  // 2.
+  // Input Output
+  //
+  // const XlaCompiler::CompileOptions& options: input
+  // const NameAttrList& fn_name_attrs: input
+  // absl::Span<const XlaCompiler::Argument> args: input
+  // XlaCompiler::CompilationResult* result: output
+
+  // 3.
+  // Return
+
+  // 4.
+  // (gdb) p args.size()
+  // $6 = 6
+
+  // 4.1
+  // HumanString()
+
+  // 4.2
+  // (gdb) p args[0].HumanString()
+  // $8 = "kind=constant type=int32 shape=[4] is_same_data_across_replicas=0 value=Tensor<type: int32 shape: [4] values: 0 3 1...>"
+  // (gdb) p args[1].HumanString()
+  // $9 = "kind=parameter type=float shape=[256,32,32,3] is_same_data_across_replicas=0"
+  // (gdb) p args[2].HumanString()
+  // $10 = "kind=resource name=_AnonymousVar15 type=float shape=[32] is_same_data_across_replicas=0 resource_kind=variable initialized=1 is_fast_mem=0"
+  // (gdb) p args[3].HumanString()
+  // $11 = "kind=resource name=_AnonymousVar14 type=float shape=[3,3,3,32] is_same_data_across_replicas=0 resource_kind=variable initialized=1 is_fast_mem=0"
+  // (gdb) p args[4].HumanString()
+  // $12 = "kind=resource name=_AnonymousVar17 type=float shape=[32] is_same_data_across_replicas=0 resource_kind=variable initialized=1 is_fast_mem=0"
+  // (gdb) p args[5].HumanString()
+  // $13 = "kind=resource name=_AnonymousVar16 type=float shape=[3,3,32,32] is_same_data_across_replicas=0 resource_kind=variable initialized=1 is_fast_mem=0"
+
+
   const string function_id =
       Canonicalize(fn_name_attrs.name(), AttrSlice(&fn_name_attrs.attr()));
   VLOG(1) << "XlaCompiler::CompileFunction " << function_id;
+  // 1.
+  // 打印 function_id:
+  // Study Case
+  // cluster_5[_XlaCompiledKernel=true,_XlaHasReferenceVars=false,_XlaNumConstantArgs=1,_XlaNumResourceArgs=4
 
   const std::vector<XlaCompiler::Argument> arg_vector(args.begin(), args.end());
   auto it = cache_.find({function_id, arg_vector});
@@ -752,6 +822,16 @@ Status XlaCompiler::CompileFunction(
   }
 
   const FunctionBody* fbody;
+  // 1.
+  // struct FunctionBody
+  // tensorflow/core/common_runtime/function.h
+
+  // 1.1
+  // Description of FunctionBody
+  // FunctionLibraryRuntime::GetFunctionBody returns a description of an
+  // instantiated function that is represented as a Graph with arg/ret
+  // nodes annotated.
+
   TF_RETURN_IF_ERROR(FindFunctionBody(fn_name_attrs, &fbody));
 
   TF_RETURN_WITH_CONTEXT_IF_ERROR(
@@ -811,6 +891,9 @@ Status XlaCompiler::CompileFunction(
             << DumpGraphToFile(
                    absl::StrCat("xla_compile_function_", function_id), *graph);
   }
+  // 1.
+  // 可视化 graph: xla_compile_graph_cluster_5__XlaCompiledKernel=true,_XlaHasReferenceVars=false,_XlaNumConstantArgs=1,_XlaNumResourceArgs=4_.pbtxt
+  // https://keep.google.com/u/1/#NOTE/1DpDmDmyRLrDmxFdkHT48ByNTlsJWB9QlF9xUkXLLmvlpDyBUWTaC93t2klOSVw
 
   VLOG(1) << "====================================================";
   TF_RETURN_IF_ERROR(
@@ -1269,6 +1352,27 @@ Status XlaCompiler::CompileGraph(
     const XlaCompiler::CompileOptions& options, string const& name,
     std::unique_ptr<Graph> graph, absl::Span<const XlaCompiler::Argument> args,
     CompilationResult* result) {
+
+  // 1.
+  // Description
+
+  // 2.
+  // Input Output
+  //
+  // const XlaCompiler::CompileOptions& options: input
+  // string const& name:
+  // std::unique_ptr<Graph> graph
+  // absl::Span<const XlaCompiler::Argument> args
+  // CompilationResult* result
+
+  // 3.
+  // Return
+  // Status
+
+  // 4.
+  // name 打印:
+  //  "cluster_5[_XlaCompiledKernel=true,_XlaHasReferenceVars=false,_XlaNumConstantArgs=1,_XlaNumResourceArgs=4]"
+
   VLOG(1) << "Executing graph symbolically to populate XlaBuilder.: " << name;
 
   TF_RETURN_IF_ERROR(PropagateConstIntoFunctionalNodes(
@@ -1368,6 +1472,7 @@ Status XlaCompiler::CompileGraph(
   result->outputs.resize(context->retvals().size());
   std::vector<XlaExpression> retvals = context->retvals();
   ConvertConstantsToExpressions(&builder, absl::Span<XlaExpression>(retvals));
+
   TF_RETURN_IF_ERROR(BuildComputation(
       real_args, retvals, arg_shardings, retval_shardings, context->resources(),
       std::move(token_output),
@@ -1379,11 +1484,27 @@ Status XlaCompiler::CompileGraph(
       options.alias_resource_update, &builder, result->computation.get(),
       &num_computation_outputs, &num_nonconst_outputs, &result->outputs,
       &result->resource_updates, &result->xla_output_shape));
+  // 1.
+  // Description
+  // tensorflow/compiler/tf2xla/xla_compiler.cc
+  //
+
+  // 2.
+  // Input Output
+
+  // 3.
+  // Return
 
   VLOG(2) << "Outputs: total: " << context->retvals().size()
           << " nonconstant: " << num_nonconst_outputs;
   VLOG(2) << "XLA output shape: "
           << xla::ShapeUtil::HumanStringWithLayout(result->xla_output_shape);
+  // 1.
+  // 打印
+  // Case Study:
+  // 2020-04-05 18:24:32.865856: I tensorflow/compiler/tf2xla/xla_compiler.cc:1389] Outputs: total: 6 nonconstant: 5
+  // 2020-04-05 18:24:32.866008: I tensorflow/compiler/tf2xla/xla_compiler.cc:1391] XLA output shape: (f32[256,32,32,32]{3,2,1,0}, f32[3,3,32,32]{3,2,1,0}, f32[256,32,15,15]{3,2,1,0}, f32[256,32,30,30]{3,2,1,0}, f32[256,3,32,32]{3,2,1,0})
+
   return Status::OK();
 }
 

@@ -194,6 +194,9 @@ Status CloneConstantsForBetterClusteringPass::Run(
   // creating more nodes.
   for (Node* n : nodes) {
     TF_RETURN_IF_ERROR(CloneSmallHostConstantInputs(g, name_set, n));
+    // 1.
+    // 开窍
+    // 遍历图里面的节点, 遍历节点相关的一切, 替换相关的一切到目的的一切, 就这样解决了.
   }
   return Status::OK();
 }

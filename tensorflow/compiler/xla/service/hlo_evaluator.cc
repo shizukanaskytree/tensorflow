@@ -235,6 +235,10 @@ StatusOr<Literal> HloEvaluator::Evaluate(
   CHECK(computation.parent() != nullptr);
   XLA_VLOG_LINES(
       2, "HloEvaluator::Evaluate computation:\n" + computation.ToString());
+  // 1.
+  // 打印 Study Case:
+  // cluster_5__XlaCompiledKernel_true__XlaHasReferenceVars_false__XlaNumConstantArgs_1__XlaNumResourceArgs_4__compute_constant.39 () -> s32[4]
+  // https://gist.github.com/shizukanaskytree/1343d19033faf040576ae123de845829
 
   if (arg_literals.size() != computation.num_parameters()) {
     return InvalidArgument(
@@ -2504,6 +2508,13 @@ Status HloEvaluator::Preprocess(HloInstruction* hlo) {
 Status HloEvaluator::Postprocess(HloInstruction* hlo) {
   VLOG(2) << "Finished visiting " << hlo->ToString()
           << "; evaluated value is: " << GetEvaluatedLiteralFor(hlo).ToString();
+  // 1.
+  // 打印
+  // study case: https://gist.github.com/shizukanaskytree/1343d19033faf040576ae123de845829
+  // cluster_5__XlaCompiledKernel_true__XlaHasReferenceVars_false__XlaNumConstantArgs_1__XlaNumResourceArgs_4__compute_constant.39 () -> s32[4]
+  // https://gist.github.com/shizukanaskytree/3cbe93f238b58398e41b962536a2993a
+  // const evaluation 的主要都是 shape, e.g., dropout/dropout/Shape
+
   // Out of convenience the literal may have been produced with a different
   // layout. Relayout as indicated by the HLO instruction.
   if (!Layout::Equal().MinorToMajorOnly()(

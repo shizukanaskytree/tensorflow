@@ -654,6 +654,20 @@ HloComputation::CreateFromProto(
                         HloInstruction::CreateFromProto(
                             instruction_proto, instruction_map, computation_map,
                             prohibit_empty_literal));
+    // 1.
+    // Description:
+
+    // 2.
+    // Input Output:
+    // instruction_proto: input
+    // instruction_map: output
+    // computation_map: output
+    // prohibit_empty_literal
+
+    // 3.
+    // Return:
+    // std::unique_ptr<HloInstruction> instruction
+
     if (instruction->opcode() == HloOpcode::kParameter) {
       parameter_count++;
     }

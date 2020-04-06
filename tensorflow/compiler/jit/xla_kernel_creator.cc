@@ -30,6 +30,13 @@ Status XlaKernelCreator::CreateKernel(
     FunctionLibraryRuntime* flr,
     const std::shared_ptr<const NodeProperties>& props,
     std::unique_ptr<OpKernel>* kernel) const {
+
+  // 1.
+  // 输入输出:
+  // flr: input
+  // props: input
+  // kernel: output
+
   return CreateXlaKernel(flr, props->node_def, kernel);
 }
 

@@ -32,7 +32,6 @@ message DebugOptions {
   // 如何使用?
   // os.environ['XLA_FLAGS'] = "--xla_hlo_profile --xla_dump_hlo_as_text --xla_dump_hlo_as_dot --xla_dump_hlo_as_html --xla_dump_hlo_as_proto --xla_dump_to=/tmp/xla_dump_20200219"
 
-
   // List of HLO passes to disable/enable. These names must exactly match the
   // pass names as specified by the HloPassInterface::name() method.
   //

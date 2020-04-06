@@ -270,6 +270,11 @@ class OpDefBuilderWrapper<true> {
 
  private:
   mutable ::tensorflow::OpDefBuilder builder_;
+  // 1.
+  // mutable 解释
+  // The keyword mutable is mainly used to allow a particular data member of const object to be modified.
+  // https://www.geeksforgeeks.org/c-mutable-keyword/
+  // 我的理解: const object/instance 任然想改它内部的 member 就用 mutable 给修饰一下.
 };
 
 // Template specialization that turns all calls into no-ops.
@@ -310,6 +315,16 @@ struct OpDefBuilderReceiver {
       TF_ATTRIBUTE_UNUSED =                                                  \
           ::tensorflow::register_op::OpDefBuilderWrapper<SHOULD_REGISTER_OP( \
               name)>(name)
+// 1.
+// static 变量是什么时候被初始化的?
+// They're initialized before the program starts (i.e. before main is entered). When there are
+// two or more definitions (of static data) in a single CPP file, then they're initialized in
+// the sequence in which they're defined in the file (the one defined earlier/higher in the
+// file is initialized before the next one is).
+
+// 2.
+// 通过学习 xla_op_registry_test.cc 我知道这个在进入 main 之前, 那些 REGISTER_OP(...)
+// op 就已经被构造放入了 registry 里面.
 
 // The `REGISTER_SYSTEM_OP()` macro acts as `REGISTER_OP()` except
 // that the op is registered unconditionally even when selective

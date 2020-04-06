@@ -40,6 +40,9 @@ HloProto MakeHloProto(const HloModule& module) {
 StatusOr<std::unique_ptr<HloModule>> CreateModuleFromProto(
     const HloModuleProto& proto, const HloModuleConfig& module_config) {
   VLOG(4) << proto.ShortDebugString();
+  // 1.
+  // 打印 HloModuleProto proto
+  // https://gist.github.com/shizukanaskytree/87bea992761280a7807349094bd03d71
 
   TF_ASSIGN_OR_RETURN(std::unique_ptr<HloModule> module,
                       HloModule::CreateFromProto(proto, module_config));

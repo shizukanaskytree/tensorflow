@@ -179,6 +179,11 @@ REGISTER_XLA_OP(Name("DummyDuplicateOp").Device(DEVICE_GPU_XLA_JIT),
 
 // Tests compilation and execution of an empty graph.
 TEST_F(XlaCompilerTest, EmptyReturnValues) {
+
+  // 1.
+  // comment:
+  // 这个例子很好
+  
   XlaCompiler compiler(DefaultOptions());
 
   std::unique_ptr<Graph> graph(new Graph(OpRegistry::Global()));

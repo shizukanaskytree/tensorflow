@@ -120,6 +120,14 @@ class Scanner {
   // returned will end at the position at the time this was called.
   Scanner& StopCapture() {
     capture_end_ = cur_.data();
+    // 1.
+    // capture_end_ 目前是什么:
+    // ": resource"
+
+    // 2.
+    // capture_end_ 之前是什么:
+    // "y: resource"
+
     return *this;
   }
 

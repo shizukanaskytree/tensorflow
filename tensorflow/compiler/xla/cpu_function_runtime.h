@@ -134,6 +134,8 @@ class BufferInfo {
   tensorflow::uint64 size_ : 62;
   tensorflow::int64 entry_param_number_;
 };
+// 1.
+//
 
 // Align to 64-bytes, to mimic tensorflow::Allocator::kAllocatorAlignment.
 constexpr size_t kAlign = 64;

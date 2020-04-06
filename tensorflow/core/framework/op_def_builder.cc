@@ -282,6 +282,10 @@ bool ConsumeInOutName(StringPiece* sp, StringPiece* out) {
       .OneLiteral(":")
       .AnySpace()
       .GetResult(sp, out);
+
+  // 1.
+  // class Scanner
+  //
 }
 
 bool ConsumeInOutRefOpen(StringPiece* sp) {
@@ -337,6 +341,14 @@ bool ConsumeControlOutName(StringPiece* sp, StringPiece* out) {
 
 void FinalizeInputOrOutput(StringPiece spec, bool is_output, OpDef* op_def,
                            std::vector<string>* errors) {
+
+  // 1.
+  // 输入输出
+  // spec: input
+  // is_output: input
+  // op_def: output
+  // errors: std::vector<string>*
+
   OpDef::ArgDef* arg =
       is_output ? op_def->add_output_arg() : op_def->add_input_arg();
 
@@ -356,6 +368,14 @@ void FinalizeInputOrOutput(StringPiece spec, bool is_output, OpDef* op_def,
     StringPiece first, second, type_or_attr;
     VERIFY(ConsumeInOutNameOrType(&spec, &first),
            "Trouble parsing either a type or an attr name at '", spec, "'");
+    // 1.
+    // p first
+    // "resource"
+
+    // 2.
+    // spec 是什么? warm-up
+    // spec is the input, e.g., "y: resource"
+
     if (ConsumeInOutTimesType(&spec, &second)) {
       arg->set_number_attr(first.data(), first.size());
       type_or_attr = second;
@@ -634,6 +654,25 @@ OpDefBuilder& OpDefBuilder::SetShapeFn(OpShapeInferenceFn fn) {
 }
 
 Status OpDefBuilder::Finalize(OpRegistrationData* op_reg_data) const {
+
+  // 1.
+  // op_reg_data: output
+
+  // 2.
+  // where am I :
+  // Thread #1 [xla_kernel_crea] 31989 [core: 3] (Suspended : Step)
+  // 	tensorflow::OpDefBuilder::Finalize() at op_def_builder.cc:645 0x7ffff6286eb0
+  // 	tensorflow::FunctionDefHelper::Define() at function.cc:1,830 0x7ffff621f986
+  // 	tensorflow::XTimesY() at xla_kernel_creator_test.cc:54 0x555555f13c80
+  // 	tensorflow::XlaKernelCreatorTest_OneFloatOneResourceArgument_Test::TestBody() at xla_kernel_creator_test.cc:97 0x555555f1461f
+  // 	testing::internal::HandleSehExceptionsInMethodIfSupported<testing::Test, void>() at gtest.cc:2,424 0x7fffad262c76
+  // 	testing::internal::HandleExceptionsInMethodIfSupported<testing::Test, void>() at gtest.cc:2,460 0x7fffad25e2ed
+  // 	testing::Test::Run() at gtest.cc:2,499 0x7fffad24c64e
+  // 	testing::TestInfo::Run() at gtest.cc:2,675 0x7fffad24cfe3
+  // 	testing::TestSuite::Run() at gtest.cc:2,803 0x7fffad24d67f
+  // 	testing::internal::UnitTestImpl::RunAllTests() at gtest.cc:5,241 0x7fffad258cef
+  // 	<...more frames...>
+
   std::vector<string> errors = errors_;
   *op_reg_data = op_reg_data_;
 
@@ -643,6 +682,15 @@ Status OpDefBuilder::Finalize(OpRegistrationData* op_reg_data) const {
   }
   for (StringPiece input : inputs_) {
     FinalizeInputOrOutput(input, false, op_def, &errors);
+
+    // 1.
+    // 输入输出:
+    // input: input
+    // is_output: input, false
+    // op_def: output
+    // errors: std::vector<string>*
+
+    // 2.
   }
   for (StringPiece output : outputs_) {
     FinalizeInputOrOutput(output, true, op_def, &errors);

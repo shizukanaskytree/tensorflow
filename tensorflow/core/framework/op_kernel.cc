@@ -1497,16 +1497,50 @@ void LogAllRegisteredKernels() {
 }
 
 KernelList GetAllRegisteredKernels() {
+
+  // 1.
+  // Description:
+  // 从 GlobalKernelRegistryTyped 中把符合的 KernelDef kernel_def 存入 KernelList kernel_list, 然后返回.
+
   return GetFilteredRegisteredKernels([](const KernelDef& k) { return true; });
 }
 
 KernelList GetFilteredRegisteredKernels(
     const std::function<bool(const KernelDef&)>& predicate) {
+
+  // 1.
+  // Description:
+  // 根据 predicate lambda 函数把符合的 KernelDef kernel_def 存入 KernelList kernel_list, 然后返回.
+
+  // 2.
+  // 输入输出:
+  // std::function<bool(const KernelDef&)>& predicate : input
+
+  // 3.
+  // Return:
+  // an instance of KernelList kernel_list.
+
+  // 4.
+  // KernelList 类型:
+  // class tensorflow::KernelList : public google::protobuf::Message
+
   KernelRegistry* const typed_registry = GlobalKernelRegistryTyped();
   KernelList kernel_list;
   tf_shared_lock lock(typed_registry->mu);
   kernel_list.mutable_kernel()->Reserve(typed_registry->registry.size());
   for (const auto& p : typed_registry->registry) {
+    // 1.
+    // typed_registry->registry 类型:
+    // type = std::unordered_multimap<std::string, tensorflow::KernelRegistration>
+
+    // 2.
+    // p typed_registry->registry.size()
+    // $4 = 20
+
+    // 3.
+    // 打印 typed_registry->registry
+    // https://gist.github.com/shizukanaskytree/f6cc5004f086c7e56d3d91acb1db9382
+
     const KernelDef& kernel_def = p.second.def;
     if (predicate(kernel_def)) {
       *kernel_list.add_kernel() = kernel_def;
@@ -1656,6 +1690,11 @@ Status ValidateKernelRegistrations(const OpRegistryInterface& op_registry) {
     const KernelDef& kernel_def(key_registration.second.def);
     const OpRegistrationData* op_reg_data;
     const Status status = op_registry.LookUp(kernel_def.op(), &op_reg_data);
+    // 1.
+    // 输入输出:
+    // kernel_def.op(): input
+    // op_reg_data: output
+
     if (!status.ok()) {
       // TODO(josh11b): Make this a hard error.
       LOG(ERROR) << "OpKernel ('" << kernel_def.ShortDebugString()
