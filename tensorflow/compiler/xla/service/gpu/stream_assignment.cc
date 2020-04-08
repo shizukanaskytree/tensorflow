@@ -65,7 +65,8 @@ inline bool IsStreamNumValid(int stream_num) {
 int ComputeStreamToAssign(
     const HloInstruction& hlo, const StreamAssignment& stream_assignment,
     const HloReachabilityMap& reachability,
-    const std::vector<const HloInstruction*>& seen_gemms) {
+    const std::vector<const HloInstruction*>& seen_gemms,
+    const std::vector<const HloInstruction*>& seen_convs) {
   if (hlo.opcode() == HloOpcode::kParameter ||
       hlo.opcode() == HloOpcode::kConstant) {
     // kParameter and kConstant do not need a thunk.
@@ -79,7 +80,8 @@ int ComputeStreamToAssign(
     return 0;
   }
 
-  if (!(IsCublasGemm(hlo) || IsMatrixMultiplication(hlo))) {
+  if (!(IsCublasGemm(hlo) || IsMatrixMultiplication(hlo) || IsCustomCallToDnnBatchNorm(hlo) || IsCustomCallToDnnConvolution(hlo))) {
+//  if (!(IsCublasGemm(hlo) || IsMatrixMultiplication(hlo))) {
     // If `hlo` is not implemented as a GEMM, keep it close to its operands to
     // avoid excessive synchronization.
     int stream_num = -1;
@@ -87,9 +89,14 @@ int ComputeStreamToAssign(
       if (stream_assignment.HasStreamAssigned(*operand)) {
         stream_num = std::max(stream_num,
                               stream_assignment.StreamNumberForHlo(*operand));
+        // wxf: If operand has assigned stream, then use the same stream num as
+        // the operand. I.e. not using -1.
       }
     }
     if (!IsStreamNumValid(stream_num)) {
+      // wxf: If the stream num of the hlo is not defined, i.e., still -1 after
+      // comparing with its operands'. In the end, the stream of this hlo is
+      // defined as 0. Otherwise, use the the same stream num as the operand.
       stream_num = 0;
     }
     return stream_num;
@@ -108,6 +115,19 @@ int ComputeStreamToAssign(
     }
   }
 
+  // wxf
+  // Assign different streams to concurrent Convs.
+  for (const auto* seen_conv: seen_convs) {
+	int stream_num = stream_assignment.StreamNumberForHlo(*seen_conv);
+    if (!forbidden_stream_numbers.contains(stream_num) &&
+        CanRunConcurrently(*seen_conv, hlo, reachability)) {
+      // If the seen conv can run concurrently with the hlo, please forbid using
+      // the stream number of the seen conv. So, allocate a new one for hlo.
+      forbidden_stream_numbers.insert(stream_num);
+    }
+  }
+  //~wxf
+
   for (int stream_num = 0; stream_num < stream_assignment.StreamCount();
        ++stream_num) {
     if (!forbidden_stream_numbers.contains(stream_num)) {
@@ -125,6 +145,11 @@ std::unique_ptr<StreamAssignment> AssignStreams(const HloModule& module) {
   std::unique_ptr<HloReachabilityMap> reachability =
       HloReachabilityMap::Build(&computation);
   std::vector<const HloInstruction*> seen_gemms;
+
+  // wxf
+  std::vector<const HloInstruction*> seen_convs;
+  //~wxf
+
   // The execution of different RNG Hlo instructions in the same module updates
   // a common global variable. To avoid a race condition, we simply assign all
   // RNG kernels to the same stream to make them run sequentially.
@@ -132,14 +157,38 @@ std::unique_ptr<StreamAssignment> AssignStreams(const HloModule& module) {
   // TODO(b/111791052): If we remove such a common variable, we will need to
   // clean up the code here.
   int stream_num_for_rng = kInvalidStreamNum;
+
+//  // wxf
+//  // Print if hlo is Conv op
+//  VLOG(0) << ">>> HloModule: " << module.ToString();
+//  //~wxf
+
   for (const auto* hlo : computation.MakeInstructionPostOrder()) {
+//    // wxf
+//    if (IsMatrixMultiplication(*hlo)) {
+//      VLOG(0) << ">>> IsMatrixMultiplication: " << hlo->ToString();
+//    }
+//
+//    if (IsCublasGemm(*hlo)) {
+//      VLOG(0) << ">>> IsCublasGemm: " << hlo->ToString();
+//    }
+//
+//    if (IsCustomCallToDnnBatchNorm(*hlo)) {
+//      VLOG(0) << ">>> IsCustomCallToDnnBatchNorm: " << hlo->ToString();
+//    }
+//
+//    if (IsCustomCallToDnnConvolution(*hlo)) {
+//      VLOG(0) << ">>> IsCustomCallToDnnConvolution: " << hlo->ToString();
+//    }
+//    //~wxf
+
     // If we ever enable fusion of RNG instructions, we will need to extend this
     // code to look inside a fused instruction.
     int stream_num = (hlo->opcode() == HloOpcode::kRng &&
                       IsStreamNumValid(stream_num_for_rng))
                          ? stream_num_for_rng
                          : ComputeStreamToAssign(*hlo, *stream_assignment,
-                                                 *reachability, seen_gemms);
+                                                 *reachability, seen_gemms, seen_convs);
     if (IsStreamNumValid(stream_num)) {
       stream_assignment->AssignStreamToHlo(hlo, stream_num);
       if (hlo->opcode() == HloOpcode::kRng &&
@@ -149,6 +198,9 @@ std::unique_ptr<StreamAssignment> AssignStreams(const HloModule& module) {
     }
     if (IsCublasGemm(*hlo) || IsMatrixMultiplication(*hlo)) {
       seen_gemms.push_back(hlo);
+    }
+    if (IsCustomCallToDnnBatchNorm(*hlo) || IsCustomCallToDnnConvolution(*hlo)) {
+      seen_convs.push_back(hlo);
     }
   }
   return stream_assignment;
