@@ -353,9 +353,22 @@ DirectSession::DirectSession(const SessionOptions& options,
       strings::StrCat("direct", strings::FpToString(random::New64()));
 
   // wxf
-  // Add Session unique id to control reuse input token turn step.
-  session_id_ = options_.config.session_id();
-  num_sessions_ = options_.config.num_sessions();
+  // Get env var TF_SET_REUSE_INPUTS_FLAG
+  char* set_reuse_flag = getenv("TF_SET_REUSE_INPUTS_FLAG");
+  if (set_reuse_flag != NULL) {
+    // true, i.e. SET
+    TF_SET_REUSE_INPUTS_FLAG = strcmp(set_reuse_flag, "1") == 0; 
+    if (TF_SET_REUSE_INPUTS_FLAG) { 
+      // Add Session unique id to control reuse input token turn step.
+      session_id_ = options_.config.session_id();
+      num_sessions_ = options_.config.num_sessions();
+
+      // Example Usage in TF python code:
+      // config = tf.ConfigProto(inter_op_parallelism_threads=self.inter_op_threads_num,
+      //                         session_id=graph_session_id[self.graph_name],
+      //                         num_sessions=num_sessions)
+    }
+  }
   //~wxf
 
   int devices_added = 0;
@@ -3351,7 +3364,7 @@ Status DirectSession::CreateGraphs(
                   return str_util::StrContains(node->name(), subsidiary_input);
                 });
     if (it != subsidiary_input_op_names_X.end()) {
-      VLOG(0) << ">>> subsidiary reuse input: " << node->name();
+      VLOG(0) << ">>> subsidiary input: " << node->name() << " will reuse master input";
       return string("/job:localhost/replica:0/task:0/device:GPU:0");
     }
 
