@@ -1020,6 +1020,21 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
 //        << "TID: " << std::this_thread::get_id() << " "
 //        << node->DebugString();
 //    }
+    if (step_id_ > 19 && step_id_ < 23) {
+      if (node->name() == "_SOURCE" || 
+          node->def().op() == "_Send" || 
+          node->def().op() == "_Recv" || 
+          node->def().op() == "IteratorGetNext" || 
+          node->def().op() == "_Retval") {
+        VLOG(0) << "WU:" <<  " "
+          << "step " << step_id_ << " " 
+          << "START:" << " "
+          << "node def: " << node->def().op() << " "
+          << "node name: " << node->name() << " "
+          << "Process node id: " << id << " "
+          << node->DebugString();
+      }
+    }
     //~wxf
 
     Entry* input_tensors = GetInputTensors(input_frame, input_iter);
@@ -1122,24 +1137,28 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
           // only when TF_SET_REUSE_INPUTS_FLAG is set.
           if (TF_SET_REUSE_INPUTS_FLAG) {
             // Store the master input if name matches
-            if (str_util::StrContains(state->item->node->name(), master_input_X_name)) {
+            if (str_util::StrContains(state->item->node->name(), master_input_X_name) && master_input_X_name != "") {
               //VLOG(0) << ">>> Before while::Store X::value of token_turn_reuse_X: " << token_turn_reuse_X.load() << "; " << std::this_thread::get_id();
               //while (!((token_turn_reuse_X.load() % num_token_turn) == 0));
               reuse_arg_X = outputs[0];
               //token_turn_reuse_X.fetch_add(1);
               //VLOG(0) << ">>> After while::Store X::value of token_turn_reuse_X: " << token_turn_reuse_X.load() << "; " << std::this_thread::get_id();
               //VLOG(0) << ">>> match X: " << state->item->node->name(); // "_arg_XX01_0_0/_3" 
+
+              // Used to double check catch x node name by TF_REUSE_INPUT_OP_NAME_MASTER_X
               VLOG(0) << "Async catch X node: " << state->item->node->name() << " "
             		  << "master input X name is : " << master_input_X_name;
             }
 
-            if (str_util::StrContains(state->item->node->name(), master_input_y_name)) {
+            if (str_util::StrContains(state->item->node->name(), master_input_y_name) && master_input_y_name != "") {
               //VLOG(0) << ">>> Before while::Store y::value of token_turn_reuse_y: " << token_turn_reuse_y.load() << "; " << std::this_thread::get_id();
               //while (!((token_turn_reuse_y.load() % num_token_turn) == 0));
               reuse_arg_y = outputs[0];
               //token_turn_reuse_y.fetch_add(1);
               //VLOG(0) << ">>> After while::Store y::value of token_turn_reuse_y: " << token_turn_reuse_y.load() << "; " << std::this_thread::get_id();
               //VLOG(0) << ">>> match Y: " << state->item->node->name(); // "_arg_yy01_0_1/_1"
+              
+              // Used to double check catch y node name by TF_REUSE_INPUT_OP_NAME_MASTER_y
               VLOG(0) << "Async catch y node: " << state->item->node->name() << " "
             		  << "master input y name is : " << master_input_y_name;
             }
@@ -1339,6 +1358,8 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
           //token_turn_reuse_X.fetch_add(1);
           //VLOG(0) << ">>> After while::Reuse X::value of token_turn_reuse_X: " << token_turn_reuse_X.load() << "; " << std::this_thread::get_id();
           //VLOG(0) << ">>> " << node->name() << " REUSE master input X";
+          
+          // Used to catch subsidiary input X has reused master's X
           VLOG(0) << "subsidiary input X reuse master's X (catch)";
         }
 
@@ -1355,6 +1376,8 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
           //token_turn_reuse_y.fetch_add(1);
           //VLOG(0) << ">>> After while::Reuse y::value of token_turn_reuse_y: " << token_turn_reuse_y.load() << "; " << std::this_thread::get_id();
           //VLOG(0) << ">>> " << node->name() << " REUSE master input y";
+          
+          // Used to catch subsidiary input y has reused master's y
           VLOG(0) << "subsidiary input y reuse master's y (catch)";
         }
       }
