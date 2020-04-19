@@ -866,9 +866,8 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
   // wxf
   // useful to test terminal of graph
   // ===
-  //VLOG(0) << "Process node: " << tagged_node.node->id() << " step " << step_id_ << " ";
-  // ~~~
-//         << SummarizeNode(*(tagged_node.node));
+  //VLOG(0) << "Process node: " << tagged_node.node->id() << " step " << step_id_ << " "
+  //        << SummarizeNode(*(tagged_node.node));
 
 // // python step id ==2 //  0, 1, "2"
 // if (step_id_ == 11 && tagged_node.node->id() == 25) {
@@ -1006,6 +1005,23 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
               << " device: " << device->name();
     }
 
+    // wxf: Break down time
+//    VLOG(0) << ">>> Process node: " << id << " step " << step_id_ << " "
+//            << "Node name: " << node->name() << " "
+//            << SummarizeNode(*node) << (tagged_node.is_dead ? " is dead" : "")
+//            << " device: " << device->name();
+
+//    if (step_id_ > 19 && step_id_ < 23) {
+//      VLOG(0) << "WU:" <<  " "
+//        << "step " << step_id_ << " " 
+//        << "START:" << " "
+//        << "node def: " << node->def().op() << " "
+//        << "Process node id: " << id << " "
+//        << "TID: " << std::this_thread::get_id() << " "
+//        << node->DebugString();
+//    }
+    //~wxf
+
     Entry* input_tensors = GetInputTensors(input_frame, input_iter);
     Entry* first_input = input_tensors + item.input_start;
     outputs.clear();
@@ -1113,6 +1129,8 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
               //token_turn_reuse_X.fetch_add(1);
               //VLOG(0) << ">>> After while::Store X::value of token_turn_reuse_X: " << token_turn_reuse_X.load() << "; " << std::this_thread::get_id();
               //VLOG(0) << ">>> match X: " << state->item->node->name(); // "_arg_XX01_0_0/_3" 
+              VLOG(0) << "Async catch X node: " << state->item->node->name() << " "
+            		  << "master input X name is : " << master_input_X_name;
             }
 
             if (str_util::StrContains(state->item->node->name(), master_input_y_name)) {
@@ -1122,6 +1140,8 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
               //token_turn_reuse_y.fetch_add(1);
               //VLOG(0) << ">>> After while::Store y::value of token_turn_reuse_y: " << token_turn_reuse_y.load() << "; " << std::this_thread::get_id();
               //VLOG(0) << ">>> match Y: " << state->item->node->name(); // "_arg_yy01_0_1/_1"
+              VLOG(0) << "Async catch y node: " << state->item->node->name() << " "
+            		  << "master input y name is : " << master_input_y_name;
             }
           }
 
@@ -1197,8 +1217,33 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
           TaggedNodeSeq ready;
           if (s.ok()) {
             PropagateOutputs(state->tagged_node, state->item, &outputs, &ready);
+
+            // wxf: Print successors of the current node
+//            if (step_id_ > 19 && step_id_ < 23) {
+//              VLOG(0) << ">>> Current Async node: " << state->tagged_node.node->name() << " has " << ready.size() << " successor nodes: ";
+//              string successor_nodes_names;
+//              for (int i = 0; i < ready.size(); ++i) {
+//                successor_nodes_names += ready[i].node->name();
+//                successor_nodes_names += "\n";
+//              }
+//              VLOG(0) << successor_nodes_names;
+//            }
+            //~wxf
           }
           outputs.clear();
+
+          // wxf: To breakdown nodes op time 
+//          if (step_id_ > 19 && step_id_ < 23) {
+//            VLOG(0) << "WU:" <<  " "
+//              << "step " << step_id_ << " " 
+//              << "END:" << " "
+//              << "async node def: " << state->tagged_node.node->def().op() << " "
+//              << "Process node id: " << id << " "
+//              << "TID: " << std::this_thread::get_id() << " "
+//              << state->tagged_node.node->DebugString();
+//          }
+          //~wxf
+
           if (s.ok() && impl_->device_record_tensor_accesses_) {
             // Get the list of all tensors accessed during the execution
             TensorReferenceVector accessed;
@@ -1294,6 +1339,7 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
           //token_turn_reuse_X.fetch_add(1);
           //VLOG(0) << ">>> After while::Reuse X::value of token_turn_reuse_X: " << token_turn_reuse_X.load() << "; " << std::this_thread::get_id();
           //VLOG(0) << ">>> " << node->name() << " REUSE master input X";
+          VLOG(0) << "subsidiary input X reuse master's X (catch)";
         }
 
         // Reuse master's y input
@@ -1309,6 +1355,7 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
           //token_turn_reuse_y.fetch_add(1);
           //VLOG(0) << ">>> After while::Reuse y::value of token_turn_reuse_y: " << token_turn_reuse_y.load() << "; " << std::this_thread::get_id();
           //VLOG(0) << ">>> " << node->name() << " REUSE master input y";
+          VLOG(0) << "subsidiary input y reuse master's y (catch)";
         }
       }
       //~wxf
@@ -1389,8 +1436,33 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
       // Propagates outputs.
       if (s.ok()) {
         PropagateOutputs(tagged_node, &item, &outputs, &ready);
+
+        // wxf: Print successors of the current node
+//        if (step_id_ > 19 && step_id_ < 23) {
+//          VLOG(0) << ">>> Current Sync node: " << tagged_node.node->name() << " has " << ready.size() << " successor nodes: ";
+//          string successor_nodes_names;
+//          for (int i = 0; i < ready.size(); ++i) {
+//            successor_nodes_names += ready[i].node->name();
+//            successor_nodes_names += "\n";
+//          }
+//          VLOG(0) << successor_nodes_names;
+//        }
+        //~wxf
       }
       outputs.clear();
+
+      // wxf: To breakdown nodes op time 
+//      if (step_id_ > 19 && step_id_ < 23) {
+//        VLOG(0) << "WU:" <<  " "
+//          << "step " << step_id_ << " " 
+//          << "END:" << " "
+//          << "sync node def: " << tagged_node.node->def().op() << " "
+//          << "Process node id: " << id << " "
+//          << "TID: " << std::this_thread::get_id() << " "
+//          << tagged_node.node->DebugString();
+//      }
+      //~wxf
+
       if (!accessed_tensors.empty()) {
         nodestats::SetReferencedTensors(stats, accessed_tensors);
         // device_context is set above in synchronous computes
@@ -1910,11 +1982,57 @@ void ExecutorState::ScheduleReady(const TaggedNodeSeq& ready,
   const TaggedNode* curr_expensive_node = nullptr;
   for (auto& tagged_node : ready) {
     const NodeItem& item = *gview.node(tagged_node.node->id());
-    if (tagged_node.is_dead || !item.kernel->IsExpensive()) {
+
+//    // wxf:
+//    string node_def_name = tagged_node.node->def().op();
+//    if (node_def_name == "VarHandleOp" || node_def_name == "ReadVariableOp" || node_def_name == "Switch" 
+//        || node_def_name == "ArgMax" || node_def_name == "PlaceholderWithDefault") {
+//      // use new thread to run
+//      runner_(std::bind(&ExecutorState::Process, this, tagged_node, scheduled_nsec));
+//    } else if (tagged_node.is_dead || !item.kernel->IsExpensive()) {
+
+    if (tagged_node.is_dead || !item.kernel->IsExpensive()) { // original
+
+//      if (step_id_ > 19 && step_id_ < 23) {
+//        VLOG(0) << ">>> TID: " << std::this_thread::get_id() << " "
+//          << "Node def op: " << tagged_node.node->def().op() << " "
+//          << "inexpensive node" << " "
+//          << "step: " << step_id_ << " "
+//          << "current node: " << tagged_node.node->name() << " "
+//          << tagged_node.node->DebugString();
+//      }
+
+//        VLOG(0) << ">>> TID: " << std::this_thread::get_id() << " "
+//          << "Node Class" << 
+//          << "inexpensive node" << " "
+//          << "step: " << step_id_ << " "
+//          << "current node: " << tagged_node.node->name() << " "
+//          << tagged_node.node->DebugString();
+//      }
+      //~wxf
+
       // Inline this inexpensive node.
       inline_ready->push_back(tagged_node);
     } else {
       if (curr_expensive_node) {
+        // wxf
+//        if (step_id_ > 19 && step_id_ < 23) {
+//          VLOG(0) << ">>> TID: " << std::this_thread::get_id() << " "
+//            << "Node def op: " << tagged_node.node->def().op() << " "
+//            << "expensive node" << " "
+//            << "step: " << step_id_ << " "
+//            << "current node: " << tagged_node.node->name() << " "
+//            << tagged_node.node->DebugString();
+//        }
+        //if (step_id_ > 19 && step_id_ < 23) {
+        //  VLOG(0) << ">>> TID: " << std::this_thread::get_id() << " "
+        //    << "expensive node" << " "
+        //    << "step: " << step_id_ << " "
+        //    << "current node: " << tagged_node.node->name() << " "
+        //    << tagged_node.node->DebugString();
+        //}
+        //~wxf
+
         // Dispatch to another thread since there is plenty of work to
         // do for this thread.
         runner_(std::bind(&ExecutorState::Process, this, *curr_expensive_node,
@@ -1925,9 +2043,29 @@ void ExecutorState::ScheduleReady(const TaggedNodeSeq& ready,
   }
   if (curr_expensive_node) {
     if (inline_ready->empty()) {
+      // wxf
+//      if (step_id_ > 19 && step_id_ < 23) {
+//        VLOG(0) << ">>> TID: " << std::this_thread::get_id() << " "
+//          << "expensive node push back" << " "
+//          << "step: " << step_id_ << " "
+//          << "current node: " << curr_expensive_node->node->name() << " "
+//          << curr_expensive_node->node->DebugString();
+//      }
+      //~wxf
+
       // Tail recursion optimization
       inline_ready->push_back(*curr_expensive_node);
     } else {
+      // wxf
+//      if (step_id_ > 19 && step_id_ < 23) {
+//        VLOG(0) << ">>> TID: " << std::this_thread::get_id() << " "
+//          << "expensive node" << " "
+//          << "step: " << step_id_ << " "
+//          << "current node: " << curr_expensive_node->node->name() << " "
+//          << curr_expensive_node->node->DebugString();
+//      }
+      //~wxf
+
       // There are inline nodes to run already. We dispatch this expensive
       // node to other thread.
       runner_(std::bind(&ExecutorState::Process, this, *curr_expensive_node,
