@@ -797,6 +797,26 @@ void ExecutorImpl::InitializePending(const Graph* graph,
 
 void ExecutorState::RunAsync(Executor::DoneCallback done) {
   const Graph* graph = impl_->graph_.get();
+
+  // wxf: Print node names for reuse design
+  if (step_id_ > 0 && step_id_ < 10) {
+    for (const Node* node : graph->nodes()) {
+      if (
+          node->def().op() == "_Send" ||
+          node->def().op() == "_Recv" ||
+          node->def().op() == "IteratorGetNext" 
+         ) {
+        VLOG(0) << "WU:" <<  " "
+          << "step " << step_id_ << " "
+          << "ExecutorState::RunAsync:" << " "
+          << "node def: " << node->def().op() << " "
+          << "node name: " << node->name() << " "
+          << node->DebugString();
+      }
+    }
+  }
+  //~wxf
+
   TaggedNodeSeq ready;
 
   // Ask the device to fill in the device context map.
@@ -1006,22 +1026,9 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
     }
 
     // wxf: Break down time
-//    VLOG(0) << ">>> Process node: " << id << " step " << step_id_ << " "
-//            << "Node name: " << node->name() << " "
-//            << SummarizeNode(*node) << (tagged_node.is_dead ? " is dead" : "")
-//            << " device: " << device->name();
-
-//    if (step_id_ > 19 && step_id_ < 23) {
-//      VLOG(0) << "WU:" <<  " "
-//        << "step " << step_id_ << " " 
-//        << "START:" << " "
-//        << "node def: " << node->def().op() << " "
-//        << "Process node id: " << id << " "
-//        << "TID: " << std::this_thread::get_id() << " "
-//        << node->DebugString();
-//    }
     if (step_id_ > 19 && step_id_ < 23) {
       if (node->name() == "_SOURCE" || 
+          node->def().op() == "_SINK" || 
           node->def().op() == "_Send" || 
           node->def().op() == "_Recv" || 
           node->def().op() == "IteratorGetNext" || 
@@ -1252,15 +1259,22 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
           outputs.clear();
 
           // wxf: To breakdown nodes op time 
-//          if (step_id_ > 19 && step_id_ < 23) {
-//            VLOG(0) << "WU:" <<  " "
-//              << "step " << step_id_ << " " 
-//              << "END:" << " "
-//              << "async node def: " << state->tagged_node.node->def().op() << " "
-//              << "Process node id: " << id << " "
-//              << "TID: " << std::this_thread::get_id() << " "
-//              << state->tagged_node.node->DebugString();
-//          }
+          const Node* node = state->tagged_node.node;
+          if (step_id_ > 19 && step_id_ < 23) {
+            if (node->name() == "_SOURCE" || 
+                node->def().op() == "_Send" || 
+                node->def().op() == "_Recv" || 
+                node->def().op() == "IteratorGetNext" || 
+                node->def().op() == "_Retval") {
+              VLOG(0) << "WU:" <<  " "
+                << "step " << step_id_ << " " 
+                << "END:" << " "
+                << "node def: " << node->def().op() << " "
+                << "node name: " << node->name() << " "
+                << "Process node id: " << id << " "
+                << node->DebugString();
+            }
+          }
           //~wxf
 
           if (s.ok() && impl_->device_record_tensor_accesses_) {
@@ -1475,15 +1489,23 @@ void ExecutorState::Process(TaggedNode tagged_node, int64 scheduled_nsec) {
       outputs.clear();
 
       // wxf: To breakdown nodes op time 
-//      if (step_id_ > 19 && step_id_ < 23) {
-//        VLOG(0) << "WU:" <<  " "
-//          << "step " << step_id_ << " " 
-//          << "END:" << " "
-//          << "sync node def: " << tagged_node.node->def().op() << " "
-//          << "Process node id: " << id << " "
-//          << "TID: " << std::this_thread::get_id() << " "
-//          << tagged_node.node->DebugString();
-//      }
+      const Node* node = tagged_node.node;
+      if (step_id_ > 19 && step_id_ < 23) {
+        if (node->name() == "_SOURCE" || 
+            node->def().op() == "_SINK" || 
+            node->def().op() == "_Send" || 
+            node->def().op() == "_Recv" || 
+            node->def().op() == "IteratorGetNext" || 
+            node->def().op() == "_Retval") {
+          VLOG(0) << "WU:" <<  " "
+            << "step " << step_id_ << " " 
+            << "END:" << " "
+            << "node def: " << node->def().op() << " "
+            << "node name: " << node->name() << " "
+            << "Process node id: " << id << " "
+            << node->DebugString();
+        }
+      }
       //~wxf
 
       if (!accessed_tensors.empty()) {
