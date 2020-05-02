@@ -3861,6 +3861,9 @@ void ExecutorState::Process(
           MaybeMarkCompleted(input_frame, input_iter, id);
 
           TaggedNodeSeq ready;
+          // 1.
+          // ready 功能:
+          // 构建临时变量 ready 用于通过 PropagateOutputs fn 后得到 outputs edges 得到的 后继节点们.
 
           // Propagate Outputs
           if (s.ok()) {
