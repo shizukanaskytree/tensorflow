@@ -97,7 +97,7 @@ def _rdc_copts():
     # The global functions can not have a lower register count than the
     # device functions. This is enforced by setting a fixed register count.
     # https://github.com/NVIDIA/nccl/blob/f93fe9bfd94884cec2ba711897222e0df5569a53/makefiles/common.mk#L48
-    maxrregcount = "-maxrregcount=96"
+    maxrregcount = "-maxrregcount=80"
 
     return cuda_default_copts() + select({
         "@local_config_cuda//cuda:using_nvcc": [

@@ -22,15 +22,15 @@ HARD_FP_FLAGS_IF_APPLICABLE = select({
 NEON_FLAGS_IF_APPLICABLE = select({
     ":arm": [
         "-O3",
-        "-mfpu=neon",
+        #"-mfpu=neon", # from: https://forums.developer.nvidia.com/t/building-tensorflow-1-13-on-jetson-xavier/75966
     ],
     ":armeabi-v7a": [
         "-O3",
-        "-mfpu=neon",
+        #"-mfpu=neon",
     ],
     ":armv7a": [
         "-O3",
-        "-mfpu=neon",
+        #"-mfpu=neon",
     ],
     "//conditions:default": [
         "-O3",
@@ -172,6 +172,7 @@ cc_library(
     srcs = [],
     hdrs = [
         "common.h",
+        "optimized/depthwiseconv_3x3_filter_common.h",
         "optimized/depthwiseconv_float.h",
         "optimized/depthwiseconv_uint8.h",
         "optimized/depthwiseconv_uint8_3x3_filter.h",
@@ -206,6 +207,7 @@ cc_library(
     srcs = [],
     hdrs = [
         "common.h",
+        "optimized/depthwiseconv_3x3_filter_common.h",
         "optimized/depthwiseconv_float.h",
         "optimized/depthwiseconv_uint8.h",
         "optimized/depthwiseconv_uint8_3x3_filter.h",
