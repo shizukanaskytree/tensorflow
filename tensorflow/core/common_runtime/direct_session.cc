@@ -2149,9 +2149,11 @@ Status DirectSession::Run(const RunOptions& run_options,
   if (set_reuse_flag != NULL) {
     // true, i.e. SET
     TF_SET_REUSE_INPUTS_FLAG = strcmp(set_reuse_flag, "1") == 0; 
-    if (TF_SET_REUSE_INPUTS_FLAG) { 
+    // only consider checking session taking turns when we start real train or inference steps for sess.run
+    // for other unobvious sess.run, we don't stop it in while loop.
+    if (TF_SET_REUSE_INPUTS_FLAG && run_options.real_step_start()) { 
       //VLOG(0) << "Session ID: " << session_id_ << "; Before while.";
-      while (session_id_ != (token_turn_reuse.load() % num_sessions_));
+      while (session_id_ != (token_turn_reuse.load(std::memory_order_relaxed) % num_sessions_));
       //VLOG(0) << "Session ID: " << session_id_ 
       //        << "; Num of sesses: " << num_sessions_ 
       //        << "; token turn: " << token_turn_reuse.load()
@@ -2253,11 +2255,16 @@ Status DirectSession::Run(const RunOptions& run_options,
   
   TF_RETURN_IF_ERROR(RunInternal(step_id, run_options, &call_frame,
                                  executors_and_keys, run_metadata));
-  // wxf
-  if (TF_SET_REUSE_INPUTS_FLAG) { 
-    // Increase token by 1 after finishing this sess.run.
-    token_turn_reuse.fetch_add(1);
-    //VLOG(0) << "Session ID: " << session_id_ << "; End sess.run.";
+  // wxf: To get the real train or inference step from RunOptions& run_options.
+  if (TF_SET_REUSE_INPUTS_FLAG) {
+    // only when starting real training and inference steps, we tik-tok token steps.
+    if (run_options.real_step_start()) {
+      // initial value of token_turn_reuse is -1; starting from 0, 1, 2...
+      // master will take the lead and use token 0 at first.
+      token_turn_reuse.fetch_add(1);
+    }
+    // set the real step from sess.run when doing training and inference.
+    //token_turn_reuse.store(run_options.real_step, std::memory_order_relaxed);
   }
   //~wxf
 

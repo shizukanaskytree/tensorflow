@@ -512,6 +512,9 @@ message RunOptions {
   Experimental experimental = 8;
 
   reserved 4;
+
+  // wxf: to pass real train or infer step to tf sess run internal
+  bool real_step_start = 9;
 }
 
 // Metadata output (i.e., non-Tensor) for a single Run() call.
