@@ -46,6 +46,10 @@ limitations under the License.
 #include "tensorflow/lite/string_util.h"
 #include "tensorflow/lite/tools/evaluation/utils.h"
 
+#if defined(__ANDROID__)
+#include "tensorflow/lite/delegates/gpu/delegate.h"
+#endif
+
 #define LOG(x) std::cerr
 
 namespace tflite {
@@ -103,11 +107,7 @@ TfLiteDelegatePtrMap GetDelegates(Settings* s) {
   }
 
   if (s->xnnpack_delegate) {
-    TfLiteXNNPackDelegateOptions xnnpack_options =
-        TfLiteXNNPackDelegateOptionsDefault();
-    xnnpack_options.num_threads = s->number_of_threads;
-
-    auto delegate = evaluation::CreateXNNPACKDelegate(&xnnpack_options);
+    auto delegate = evaluation::CreateXNNPACKDelegate(s->number_of_threads);
     if (!delegate) {
       LOG(INFO) << "XNNPACK acceleration is unsupported on this platform.";
     } else {
@@ -146,7 +146,7 @@ void PrintProfilingInfo(const profiling::ProfileEvent* e,
                         uint32_t subgraph_index, uint32_t op_index,
                         TfLiteRegistration registration) {
   // output something like
-  // time (ms) , Node xxx, OpCode xxx, symblic name
+  // time (ms) , Node xxx, OpCode xxx, symbolic name
   //      5.352, Node   5, OpCode   4, DEPTHWISE_CONV_2D
 
   LOG(INFO) << std::fixed << std::setw(10) << std::setprecision(3)
@@ -382,7 +382,7 @@ int Main(int argc, char** argv) {
   Settings s;
 
   int c;
-  while (1) {
+  while (true) {
     static struct option long_options[] = {
         {"accelerated", required_argument, nullptr, 'a'},
         {"old_accelerated", required_argument, nullptr, 'd'},

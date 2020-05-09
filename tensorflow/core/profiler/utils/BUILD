@@ -13,6 +13,15 @@ package_group(
 )
 
 cc_library(
+    name = "errors",
+    srcs = ["errors.cc"],
+    hdrs = ["errors.h"],
+    deps = [
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
     name = "event_span",
     srcs = ["event_span.cc"],
     hdrs = ["event_span.h"],
@@ -137,6 +146,19 @@ cc_library(
     ],
 )
 
+tf_cc_test(
+    name = "xplane_builder_test",
+    size = "small",
+    srcs = ["xplane_builder_test.cc"],
+    deps = [
+        ":xplane_builder",
+        ":xplane_visitor",
+        "//tensorflow/core:test",
+        "//tensorflow/core:test_main",
+        "//tensorflow/core/profiler/protobuf:xplane_proto_cc",
+    ],
+)
+
 cc_library(
     name = "xplane_schema",
     srcs = ["xplane_schema.cc"],
@@ -219,6 +241,7 @@ cc_library(
     hdrs = ["group_events.h"],
     visibility = [":friends"],
     deps = [
+        ":tf_op_utils",
         ":tf_xplane_visitor",
         ":xplane_schema",
         ":xplane_utils",
@@ -313,5 +336,21 @@ cc_library(
         "//tensorflow/core:lib",
         "//tensorflow/core/profiler/protobuf:kernel_stats_proto_cc",
         "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "tfstreamz_utils",
+    srcs = ["tfstreamz_utils.cc"],
+    hdrs = ["tfstreamz_utils.h"],
+    deps = [
+        ":xplane_builder",
+        "//tensorflow/core:lib",
+        "//tensorflow/core:lib_internal",
+        "//tensorflow/core/profiler/protobuf:tfstreamz_proto_cc",
+        "//tensorflow/core/profiler/protobuf:xplane_proto_cc",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )

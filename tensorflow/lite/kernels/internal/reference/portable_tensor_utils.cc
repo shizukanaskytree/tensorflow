@@ -24,8 +24,8 @@ limitations under the License.
 #include "tensorflow/lite/kernels/cpu_backend_context.h"
 #include "tensorflow/lite/kernels/internal/common.h"
 #include "tensorflow/lite/kernels/internal/compatibility.h"
+#include "tensorflow/lite/kernels/internal/cppmath.h"
 #include "tensorflow/lite/kernels/internal/reference/portable_tensor_utils_impl.h"
-#include "tensorflow/lite/kernels/internal/round.h"
 
 #if defined(_MSC_VER)
 #define __restrict__ __restrict
@@ -196,6 +196,11 @@ void PortableMatrixBatchVectorMultiplyAccumulate(
     int n_batch, float* __restrict__ result, const float* per_channel_scale,
     const int32_t* input_offset, int32_t* scratch, int32_t* row_sums,
     bool* compute_row_sums, CpuBackendContext* context) {
+  if (input_offset == nullptr) {
+    PortableMatrixBatchVectorMultiplyAccumulate(
+        matrix, m_rows, m_cols, vectors, scaling_factors, n_batch, result);
+    return;
+  }
   if (!compute_row_sums || *compute_row_sums) {
     memset(row_sums, 0, sizeof(int32_t) * m_rows);
     PortableReductionSumVector(matrix, row_sums, m_rows, m_cols);
@@ -227,6 +232,30 @@ void PortableMatrixBatchVectorMultiplyAccumulate(
       ++result;
     }  // for row
   }    // for batch
+}
+
+void PortableSparseMatrixBatchVectorMultiplyAccumulate1x4(
+    const float* __restrict__ matrix, const int32_t* __restrict__ segments,
+    const int32_t* __restrict__ indices, int m_rows, int m_cols,
+    const float* __restrict__ vector, int n_batch, float* __restrict__ result) {
+  const int kBlockSize = 4;
+  TFLITE_DCHECK_EQ(m_cols % kBlockSize, 0);
+  for (int batch = 0; batch < n_batch; batch++) {
+    const float* matrix_ptr = matrix;
+    for (int row = 0; row < m_rows; row++) {
+      float dot_prod = 0.0f;
+      const float* vector_in_batch = vector + batch * m_cols;
+      for (int i = segments[row]; i < segments[row + 1]; i++) {
+        const int block_start_index = indices[i] * kBlockSize;
+        const float* vector_block_in_batch_ptr =
+            vector_in_batch + block_start_index;
+        for (int c = 0; c < kBlockSize; c++) {
+          dot_prod += *matrix_ptr++ * *vector_block_in_batch_ptr++;
+        }
+      }
+      result[batch * m_rows + row] += dot_prod;
+    }
+  }
 }
 
 void PortableSparseMatrixBatchVectorMultiplyAccumulate(

@@ -65,6 +65,15 @@ void MatrixBatchVectorMultiplyAccumulate(const float* matrix, int m_rows,
                                          int m_cols, const float* vector,
                                          int n_batch, float* result);
 
+// Same as the function above, but the matrix is a sparse tensor with block
+// pattern 1x4.
+// This function assumes that m_cols is a multiple of the block size (4 in this
+// case) so that there's no incomplete block.
+void SparseMatrixBatchVectorMultiplyAccumulate1x4(
+    const float* __restrict__ matrix, const int32_t* __restrict__ segments,
+    const int32_t* __restrict__ indices, int m_rows, int m_cols,
+    const float* __restrict__ vector, int n_batch, float* __restrict__ result);
+
 // Same as the function above, but the matrix is stored in block compressed
 // sparse row format with block pattern 1x16 which consists of two arrays:
 //   1. A matrix array stores non-zero blocks of the matrix in row major.
@@ -161,8 +170,8 @@ void SparseMatrixBatchVectorMultiplyAccumulate(
 //     - multiplier and shift combined gives the scale.
 //     - assumes input zero point is 0.
 //     - scratch is created for optimization purpose only.
-//       TODO(jianlijianli): this can be removed if some furture optimization
-//       work makes it unnecesssary.
+//       TODO(b/152066492): this can be removed if some future optimization
+//       work makes it unnecessary.
 void MatrixBatchVectorMultiplyAccumulate(
     const int8_t* input, const int32_t* bias,
     const int8_t* input_to_gate_weights, int32_t multiplier, int32_t shift,
@@ -192,8 +201,8 @@ void MatrixBatchVectorMultiplyAccumulate(
 //     - multiplier and shift combined gives the scale.
 //     - assumes input zero point is 0.
 //     - scratch is created for optimization purpose only.
-//       TODO(jianlijianli): this can be removed if some furture optimization
-//       work makes it unnecesssary.
+//       TODO(b/152066492): this can be removed if some future optimization
+//       work makes it unnecessary.
 void MatrixBatchVectorMultiplyAccumulate(
     const int8_t* input, const int32_t* bias,
     const int8_t* input_to_gate_weights, int32_t multiplier, int32_t shift,
@@ -231,7 +240,7 @@ void MatrixBatchVectorMultiply(const int16_t* hidden,
 //     - output: the 32bit output
 // Note: We do not need saturation because the int8 * int8 is safe from overflow
 // in (2^31-1) / (2^14) = 131072, which is bigger than the n_row. Non-zero
-// initial output value is not exceiptionally large.
+// initial output value is not exceptionally large.
 void MatrixScalarMultiplyAccumulate(const int8_t* matrix, int32_t scalar,
                                     int32_t n_row, int32_t n_col,
                                     int32_t* output);
@@ -372,7 +381,7 @@ inline void VectorVectorCwiseProduct(const T* __restrict__ vector1,
   }
 }
 
-// Cwise product and accumulate of two vectors. Since it's a MAC opertation, the
+// Cwise product and accumulate of two vectors. Since it's a MAC operation, the
 // assumption here is that result array is initialized to valid values.
 template <typename T>
 inline void VectorVectorCwiseProductAccumulate(const T* __restrict__ vector1,

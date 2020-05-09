@@ -17,10 +17,8 @@ limitations under the License.
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/node_hash_map.h"
-#include "tensorflow/core/lib/core/errors.h"
-#include "tensorflow/core/lib/gtl/cleanup.h"
-#include "tensorflow/core/lib/hash/hash.h"
 #include "tensorflow/core/platform/env.h"
+#include "tensorflow/core/platform/errors.h"
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/platform/mem.h"
@@ -106,14 +104,23 @@ const char *getActivityUnifiedMemoryKindString(
   return "<UNKNOWN>";
 }
 
+// CUPTI_ERROR_INSUFFICIENT_PRIVILEGES is introduced at CUDA 10.1.
+#if CUDA_VERSION <= 10000
+#define CUPTI_ERROR_INSUFFICIENT_PRIVILEGES 35
+#endif
+
 #define RETURN_IF_CUPTI_ERROR(expr)                                         \
   do {                                                                      \
     CUptiResult status = expr;                                              \
-    if (status != CUPTI_SUCCESS) {                                          \
+    if (ABSL_PREDICT_FALSE(status != CUPTI_SUCCESS)) {                      \
       const char *errstr = "";                                              \
       cupti_interface_->GetResultString(status, &errstr);                   \
       LOG(ERROR) << "function " << #expr << "failed with error " << errstr; \
-      return errors::Internal(absl::StrCat("cutpi call error", errstr));    \
+      if (status == CUPTI_ERROR_INSUFFICIENT_PRIVILEGES) {                  \
+        return errors::PermissionDenied("CUPTI need root access!");         \
+      } else {                                                              \
+        return errors::Internal("CUPTI call error", errstr);                \
+      }                                                                     \
     }                                                                       \
   } while (false)
 
@@ -277,19 +284,14 @@ void CUPTIAPI FreeCuptiActivityBuffer(CUcontext context, uint32_t stream_id,
           << reinterpret_cast<uintptr_t>(buffer) << std::dec
           << " size: " << size << " valid_size: " << valid_size;
 
-  // Ensure buffer is free when this function returns.
-  auto buffer_cleanup =
-      gtl::MakeCleanup([buffer] { port::AlignedFree(buffer); });
+  if (valid_size > 0) {
+    VLOG(3) << "Activity profile for stream " << stream_id;
 
-  if (valid_size <= 0) {
-    return;
+    CuptiTracer *cupti_tracer = CuptiTracer::GetCuptiTracerSingleton();
+    cupti_tracer->ProcessActivityBuffer(context, stream_id, buffer, valid_size)
+        .IgnoreError();
   }
-
-  VLOG(3) << "Activity profile for stream " << stream_id;
-
-  CuptiTracer *cupti_tracer = CuptiTracer::GetCuptiTracerSingleton();
-  cupti_tracer->ProcessActivityBuffer(context, stream_id, buffer, valid_size)
-      .IgnoreError();
+  port::AlignedFree(buffer);
 }
 
 void AddKernelEventUponApiExit(CuptiTraceCollector *collector, uint32 device_id,
@@ -975,7 +977,7 @@ class CudaEventRecorder {
   using StreamKey = std::pair<CUcontext, CUstream>;
 
   absl::node_hash_map<CUcontext, ContextInfo> context_infos_;
-  absl::flat_hash_map<StreamKey, StreamInfo, hash<StreamKey>> stream_infos_;
+  absl::flat_hash_map<StreamKey, StreamInfo> stream_infos_;
 };
 
 // This hook uses cuda events to measure device side activities.
@@ -1348,7 +1350,7 @@ absl::string_view AnnotationMap::LookUp(uint32 device_id,
 }
 
 bool CuptiTracer::IsAvailable() const {
-  return !activity_tracing_enabled_ && !api_tracing_enabled_;
+  return NumGpus() && !activity_tracing_enabled_ && !api_tracing_enabled_;
 }
 
 int CuptiTracer::NumGpus() {
@@ -1379,7 +1381,10 @@ void CuptiTracer::Enable(const CuptiTracerOptions &option,
         option, cupti_interface_, collector));
   }
 
-  EnableApiTracing().IgnoreError();
+  Status status = EnableApiTracing();
+  need_root_access_ |= status.code() == error::PERMISSION_DENIED;
+  if (!status.ok()) return;
+
   if (option_->enable_activity_api) {
     EnableActivityTracing().IgnoreError();
   }
@@ -1401,11 +1406,14 @@ void CuptiTracer::Disable() {
 
 Status CuptiTracer::EnableApiTracing() {
   if (api_tracing_enabled_) return Status::OK();
-  api_tracing_enabled_ = true;
 
   VLOG(1) << "Enable subscriber";
+  // Subscribe can return CUPTI_ERROR_MAX_LIMIT_REACHED.
+  // The application which calls CUPTI APIs cannot be used with Nvidia tools
+  // like nvprof, Nvidia Visual Profiler, Nsight Compute, Nsight Systems.
   RETURN_IF_CUPTI_ERROR(cupti_interface_->Subscribe(
       &subscriber_, (CUpti_CallbackFunc)ApiCallback, this));
+  api_tracing_enabled_ = true;
 
   if (!option_->cbids_selected.empty()) {
     for (auto cbid : option_->cbids_selected) {
@@ -1519,7 +1527,7 @@ Status CuptiTracer::HandleCallback(CUpti_CallbackDomain domain,
   RETURN_IF_CUPTI_ERROR(
       cupti_interface_->GetDeviceId(cbdata->context, &device_id));
   if (device_id >= num_gpus_) {
-    return errors::Internal(absl::StrCat("Invalid device id:", device_id));
+    return errors::Internal("Invalid device id:", device_id);
   }
 
   if (cbdata->callbackSite == CUPTI_API_ENTER) {
@@ -1629,6 +1637,17 @@ Status CuptiTracer::ProcessActivityBuffer(CUcontext context, uint32_t stream_id,
     collector_->OnEventsDropped("CUpti activity buffer", dropped);
   }
   return Status::OK();
+}
+
+/*static*/ std::string CuptiTracer::ErrorIfAny() {
+  if (CuptiTracer::NumGpus() == 0) {
+    return "No GPU detected.";
+  } else if (CuptiTracer::GetCuptiTracerSingleton()->NeedRootAccess()) {
+    return "Insufficient privilege to run libcupti (you need root permission).";
+  } else if (CuptiTracer::GetTimestamp() == 0) {
+    return "Failed to load libcupti (is it installed and accessible?)";
+  }
+  return "";
 }
 
 }  // namespace profiler

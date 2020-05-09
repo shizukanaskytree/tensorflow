@@ -48,13 +48,14 @@ typedef struct {
     } lstm;
     struct {
       bool half_pixel_centers;
-    } resize_bilinear;
+    } resize;
     struct {
       int32_t num_dims;
-    } strided_slice;
+    } single_input_op;
     struct {
       int32_t num_dims;
-    } space_batch;
+      bool need_broadcast;
+    } broadcast;
   } options;
 } OpSignature;
 

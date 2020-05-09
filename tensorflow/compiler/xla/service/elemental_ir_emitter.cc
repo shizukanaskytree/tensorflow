@@ -461,6 +461,8 @@ StatusOr<llvm::Value*> ElementalIrEmitter::EmitFloatUnaryOp(
       return EmitSqrt(op->shape().element_type(), operand_value);
     case HloOpcode::kRsqrt:
       return EmitRsqrt(op->shape().element_type(), operand_value);
+    case HloOpcode::kCbrt:
+      return EmitCbrt(op->shape().element_type(), operand_value);
     case HloOpcode::kFloor:
       return llvm_ir::EmitCallToIntrinsic(llvm::Intrinsic::floor,
                                           {operand_value},
@@ -787,6 +789,9 @@ StatusOr<llvm::Value*> ElementalIrEmitter::EmitComplexUnaryOp(
     case HloOpcode::kRsqrt: {
       return EmitComplexRsqrt(op, component_type, operand_value);
     }
+    case HloOpcode::kCbrt: {
+      return EmitComplexCbrt(op, component_type, operand_value);
+    }
     case HloOpcode::kNegate:
       return EmitComposeComplex(op, FNeg(EmitExtractReal(operand_value)),
                                 FNeg(EmitExtractImag(operand_value)));
@@ -1079,6 +1084,19 @@ StatusOr<llvm::Value*> ElementalIrEmitter::EmitComplexRsqrt(
   }
 
   return EmitComposeComplex(op, real_part, imag_part);
+}
+
+//
+// Using EmitComplexPower with c=1.0/3.0 and d=0
+StatusOr<llvm::Value*> ElementalIrEmitter::EmitComplexCbrt(
+    const HloInstruction* op, PrimitiveType prim_type,
+    llvm::Value* operand_value) {
+  auto type = llvm_ir::PrimitiveTypeToIrType(prim_type, module_);
+  auto third = llvm::ConstantFP::get(type, 1.0 / 3.0);
+  auto zero = llvm::ConstantFP::get(type, 0);
+  llvm::Value* a = EmitExtractReal(operand_value);
+  llvm::Value* b = EmitExtractImag(operand_value);
+  return EmitComplexPower(op, a, b, third, zero);
 }
 
 // (a+bi)^(c+di) =
@@ -1390,6 +1408,19 @@ StatusOr<llvm::Value*> ElementalIrEmitter::EmitPow(PrimitiveType prim_type,
                                                    llvm::Value* rhs) {
   return llvm_ir::EmitCallToIntrinsic(llvm::Intrinsic::pow, {lhs, rhs},
                                       {lhs->getType()}, b_);
+}
+
+StatusOr<llvm::Value*> ElementalIrEmitter::EmitCbrt(PrimitiveType prim_type,
+                                                    llvm::Value* value) {
+  auto type = llvm_ir::PrimitiveTypeToIrType(prim_type, module_);
+  auto third = llvm::ConstantFP::get(type, 1.0 / 3.0);
+  auto abs_value =
+      llvm_ir::EmitCallToIntrinsic(llvm::Intrinsic::fabs, {value}, {type}, b_);
+  TF_ASSIGN_OR_RETURN(llvm::Value * abs_res,
+                      EmitPow(prim_type, abs_value, third));
+  auto signed_res = llvm_ir::EmitCallToIntrinsic(llvm::Intrinsic::copysign,
+                                                 {abs_res, value}, {type}, b_);
+  return signed_res;
 }
 
 StatusOr<llvm::Value*> ElementalIrEmitter::EmitAtan2(PrimitiveType prim_type,
@@ -1854,8 +1885,17 @@ StatusOr<llvm::Value*> ElementalIrEmitter::EmitElementalGather(
   }
 
   auto add_to_operand_index = [&](llvm::Value* index_component, int64 dim) {
-    llvm::Value* gather_dim_component_extended =
-        SExtOrTrunc(index_component, index_type);
+    auto index_component_type = index_component->getType();
+    auto extended_type = index_component_type->getScalarSizeInBits() >=
+                                 index_type->getScalarSizeInBits()
+                             ? index_component_type
+                             : index_type;
+    // Possibly extend the value at the beginning to ensure clamping logic stays
+    // in bounds.
+    auto maybe_extended_index =
+        index_component_type != extended_type
+            ? b_->CreateSExt(index_component, extended_type)
+            : index_component;
     int64 operand_dim = dim_numbers.start_index_map(dim);
     int64 output_dim = operand_to_output_dim[operand_dim];
     // If 'output_dim' is -1, it means 'operand_dim' is an elided window dim.
@@ -1868,18 +1908,21 @@ StatusOr<llvm::Value*> ElementalIrEmitter::EmitElementalGather(
     CHECK_GE(largest_valid_start_index, 0);
 
     // Clamp the gather index so that the gather region fits in the operand.
-    // gather_dim_component_extended_inbound =
+    // clamped_index =
     //     clamp(gather_dim_component_extended, 0, largest_valid_start_index);
     bool is_signed = ShapeUtil::ElementIsSigned(indices_shape);
-    auto gather_dim_component_extended_inbound = EmitIntegralMin(
-        index.GetConstantWithIndexType(largest_valid_start_index),
-        EmitIntegralMax(index.GetConstantWithIndexType(0),
-                        gather_dim_component_extended, is_signed),
+    auto clamped_index = EmitIntegralMin(
+        llvm::ConstantInt::get(extended_type, largest_valid_start_index),
+        EmitIntegralMax(llvm::ConstantInt::get(extended_type, 0),
+                        maybe_extended_index, is_signed),
         is_signed);
+    // Truncate at the end to the optimized index size
+    auto maybe_truncated_clamped_index = extended_type != index_type
+                                             ? Trunc(clamped_index, index_type)
+                                             : clamped_index;
 
     operand_multi_index[operand_dim] =
-        Add(operand_multi_index[operand_dim],
-            gather_dim_component_extended_inbound);
+        Add(operand_multi_index[operand_dim], maybe_truncated_clamped_index);
   };
 
   if (indices_shape.dimensions_size() == dim_numbers.index_vector_dim()) {
@@ -2169,6 +2212,7 @@ llvm_ir::ElementGenerator ElementalIrEmitter::MakeElementGenerator(
     case HloOpcode::kSign:
     case HloOpcode::kSin:
     case HloOpcode::kSqrt:
+    case HloOpcode::kCbrt:
     case HloOpcode::kTanh:
       return [this, hlo, &operand_to_generator](
                  const IrArray::Index& index) -> StatusOr<llvm::Value*> {
@@ -2364,7 +2408,7 @@ llvm_ir::ElementGenerator ElementalIrEmitter::MakeElementGenerator(
               &operand_to_generator](const IrArray::Index& target_index) {
         return operand_to_generator.at(hlo->operand(0))(
             target_index.SourceIndexOfTranspose(
-                hlo->shape(), hlo->operand(0)->shape(), hlo->dimensions(), b_));
+                hlo->shape(), hlo->operand(0)->shape(), hlo->dimensions()));
       };
     case HloOpcode::kPad:
       return [this, hlo, &operand_to_generator](

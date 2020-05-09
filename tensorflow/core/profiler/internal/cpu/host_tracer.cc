@@ -17,9 +17,9 @@ limitations under the License.
 
 #include "absl/strings/str_split.h"
 #include "tensorflow/core/framework/step_stats.pb.h"
-#include "tensorflow/core/lib/core/errors.h"
-#include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/platform/env_time.h"
+#include "tensorflow/core/platform/errors.h"
+#include "tensorflow/core/platform/status.h"
 #include "tensorflow/core/profiler/internal/cpu/host_tracer_utils.h"
 #include "tensorflow/core/profiler/internal/profiler_factory.h"
 #include "tensorflow/core/profiler/internal/profiler_interface.h"
@@ -54,8 +54,6 @@ class HostTracer : public ProfilerInterface {
   Status CollectData(RunMetadata* run_metadata) override;
 
   Status CollectData(XSpace* space) override;
-
-  DeviceType GetDeviceType() override { return DeviceType::kCpu; }
 
  private:
   // Level of host tracing.
@@ -154,9 +152,9 @@ Status HostTracer::CollectData(XSpace* space) {
 
 // Not in anonymous namespace for testing purposes.
 std::unique_ptr<ProfilerInterface> CreateHostTracer(
-    const profiler::ProfilerOptions& options) {
-  if (options.host_tracer_level == 0) return nullptr;
-  return absl::make_unique<HostTracer>(options.host_tracer_level);
+    const ProfileOptions& options) {
+  if (options.host_tracer_level() == 0) return nullptr;
+  return absl::make_unique<HostTracer>(options.host_tracer_level());
 }
 
 auto register_host_tracer_factory = [] {

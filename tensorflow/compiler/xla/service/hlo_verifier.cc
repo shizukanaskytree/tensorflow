@@ -210,6 +210,29 @@ static Status CheckReplicaGroups(HloInstruction* hlo) {
           hlo->ToString());
     }
   }
+
+  // When the channel_id() or use_global_device_ids() is set, device ids in
+  // ReplicaGroup config no longer only mean replica ids. So we skip the check
+  // on the replica count.
+  if (auto channel_instr = DynCast<HloChannelInstruction>(hlo)) {
+    if (channel_instr->channel_id()) {
+      return Status::OK();
+    }
+  }
+  if (auto all_reduce = DynCast<HloAllReduceInstruction>(hlo)) {
+    if (all_reduce->use_global_device_ids()) {
+      return Status::OK();
+    }
+  }
+
+  int64 replica_count = hlo->GetModule()->config().replica_count();
+  if (!replicas_seen.empty() && replicas_seen.size() != replica_count) {
+    return InternalError(
+        "Replica count in HloModuleConfig is %d, but ReplicaGroup config "
+        "contains %d replicas: %s",
+        replica_count, replicas_seen.size(), hlo->ToString());
+  }
+
   return Status::OK();
 }
 
@@ -674,11 +697,7 @@ Status ShapeVerifier::HandleFusion(HloInstruction* fusion) {
   }
   for (HloInstruction* fused_param : fused_parameters) {
     int64 param_no = fused_param->parameter_number();
-    // Since fusion buffers aren't materialized, fusion parameters will not have
-    // the same memory space as the fusion operand.
-    if (!ShapesSame(fused_param->shape(), fusion->operand(param_no)->shape(),
-                    /*minor_to_major_only=*/false,
-                    /*ignore_memory_space=*/true)) {
+    if (!ShapesSame(fused_param->shape(), fusion->operand(param_no)->shape())) {
       return InternalError(
           "Shape mismatch between parameter number %d and its operand in "
           "%s.",

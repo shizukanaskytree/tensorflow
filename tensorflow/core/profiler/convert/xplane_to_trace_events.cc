@@ -72,15 +72,21 @@ void ConvertXSpaceToTraceEvents(const XSpace& xspace, Trace* trace) {
     xplane.ForEachLine([&](const XLineVisitor& xline) {
       int64 resource_id = xline.Id();  // Either thread id or CUDA stream id.
       xline.ForEachEvent([&](const XEventVisitor& xevent) {
+        int64 event_type =
+            xevent.Type().value_or(HostEventType::kUnknownHostEventType);
+        if (event_type == HostEventType::kMemoryAllocation ||
+            event_type == HostEventType::kMemoryDeallocation) {
+          return;
+        }
         auto* event = trace->add_trace_events();
         auto& args = *event->mutable_args();
         event->set_device_id(device_id);
         event->set_resource_id(resource_id);
         if (xevent.HasDisplayName()) {
-          event->set_name(string(xevent.DisplayName()));
-          args["long_name"] = string(xevent.Name());
+          event->set_name(std::string(xevent.DisplayName()));
+          args["long_name"] = std::string(xevent.Name());
         } else {
-          event->set_name(string(xevent.Name()));
+          event->set_name(std::string(xevent.Name()));
         }
         event->set_timestamp_ps(xevent.TimestampPs());
         event->set_duration_ps(xevent.DurationPs());
@@ -88,7 +94,7 @@ void ConvertXSpaceToTraceEvents(const XSpace& xspace, Trace* trace) {
         xevent.ForEachStat([&](const XStatVisitor& stat) {
           if (stat.ValueCase() == XStat::VALUE_NOT_SET) return;
           if (IsInternalStat(stat.Type())) return;
-          args[string(stat.Name())] = stat.ToString();
+          args[std::string(stat.Name())] = stat.ToString();
         });
       });
     });
@@ -98,6 +104,13 @@ void ConvertXSpaceToTraceEvents(const XSpace& xspace, Trace* trace) {
   // events to avoid loading failure for trace viewer.
   constexpr uint64 kMaxEvents = 1000000;
   MaybeDropEventsForTraceViewer(trace, kMaxEvents);
+}
+
+void ConvertXSpaceToTraceEventsString(const XSpace& xspace,
+                                      std::string* content) {
+  Trace trace;
+  ConvertXSpaceToTraceEvents(xspace, &trace);
+  trace.SerializeToString(content);
 }
 
 }  // namespace profiler

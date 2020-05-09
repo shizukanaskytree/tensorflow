@@ -76,14 +76,14 @@ Status RemoteMgr::GetMirroredResourceShape(
 Status RemoteMgr::GetRemoteTensorHandle(const tensorflow::TensorHandle* handle,
                                         int64* op_id, int32* output_num) {
   // TODO(allenl): Consider supporting remote handles on custom devices.
-  absl::variant<Device*, CustomDevice*> device = handle->device();
+  VariantDevice device = handle->device();
   if (VariantDeviceIsCustom(device)) {
     return errors::Unimplemented(
         "Custom devices and remote execution are currently not supported "
         "together.");
   }
-  TF_RETURN_IF_ERROR(
-      handle->RemoteAddress(absl::get<Device*>(device), op_id, output_num));
+  TF_RETURN_IF_ERROR(handle->RemoteAddressUntilReady(absl::get<Device*>(device),
+                                                     op_id, output_num));
   tensorflow::TensorHandle* h;
   TF_RETURN_IF_ERROR(
       GetTensorHandleImpl(RemoteTensorHandleInternal(*op_id, *output_num), &h));
@@ -124,7 +124,7 @@ Status RemoteMgr::SerializeRemoteTensorHandle(
     const string& device_name, const bool serialize_resource_dtype_and_shape) {
   int64 op_id;
   int32 output_num;
-  if (!in->RemoteAddress(device, &op_id, &output_num).ok()) {
+  if (!in->RemoteAddressUntilReady(device, &op_id, &output_num).ok()) {
     tf_shared_lock l(remote_tensor_handle_mu_);
     TF_RETURN_IF_ERROR(GetRemoteTensorHandle(in, &op_id, &output_num));
   }
@@ -162,8 +162,8 @@ Status RemoteMgr::DeserializeRemoteTensorHandle(const RemoteTensorHandle& in,
         in.op_device().empty() ? in.device() : in.op_device();
     TF_RETURN_IF_ERROR(
         parent_->FindDeviceFromName(device_name.c_str(), &device));
-    TF_RETURN_IF_ERROR(TensorHandle::CreateLazyRemoteHandle(
-        in.op_id(), in.output_num(), in.dtype(), device, parent_, out));
+    *out = TensorHandle::CreateLazyRemoteHandle(in.op_id(), in.output_num(),
+                                                in.dtype(), device, parent_);
     TensorHandle::ResourceHandleInfo resource_handle_info;
     std::vector<DtypeAndPartialTensorShape>* dtypes_and_shapes =
         &resource_handle_info.dtypes_and_shapes;

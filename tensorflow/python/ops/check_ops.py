@@ -1634,8 +1634,8 @@ def assert_shapes_v2(shapes, data=None, summarize=None, message=None,
   prefix) are both treated as having a single dimension of size one.
 
   Args:
-    shapes: dictionary with (`Tensor` to shape) items. A shape must be an
-      iterable.
+    shapes: dictionary with (`Tensor` to shape) items, or a list of
+      (`Tensor`, shape) tuples. A shape must be an iterable.
     data: The tensors to print out if the condition is False.  Defaults to error
       message and first few entries of the violating tensor.
     summarize: Print this many entries of the tensor.
@@ -1658,14 +1658,27 @@ def assert_shapes(shapes, data=None, summarize=None, message=None, name=None):
 
   Example:
 
-  ```python
-  tf.assert_shapes([
-    (x, ('N', 'Q')),
-    (y, ('N', 'D')),
-    (param, ('Q',)),
-    (scalar, ())
-  ])
-  ```
+  >>> n = 10
+  >>> q = 3
+  >>> d = 7
+  >>> x = tf.zeros([n,q])
+  >>> y = tf.ones([n,d])
+  >>> param = tf.Variable([1.0, 2.0, 3.0])
+  >>> scalar = 1.0
+  >>> tf.debugging.assert_shapes([
+  ...  (x, ('N', 'Q')),
+  ...  (y, ('N', 'D')),
+  ...  (param, ('Q',)),
+  ...  (scalar, ()),
+  ... ])
+
+  >>> tf.debugging.assert_shapes([
+  ...   (x, ('N', 'D')),
+  ...   (y, ('N', 'D'))
+  ... ])
+  Traceback (most recent call last):
+  ...
+  ValueError: ...
 
   Example of adding a dependency to an operation:
 
@@ -1693,8 +1706,8 @@ def assert_shapes(shapes, data=None, summarize=None, message=None, name=None):
   prefix) are both treated as having a single dimension of size one.
 
   Args:
-    shapes: dictionary with (`Tensor` to shape) items. A shape must be an
-      iterable.
+    shapes: dictionary with (`Tensor` to shape) items, or a list of
+      (`Tensor`, shape) tuples. A shape must be an iterable.
     data: The tensors to print out if the condition is False.  Defaults to error
       message and first few entries of the violating tensor.
     summarize: Print this many entries of the tensor.
@@ -1832,7 +1845,12 @@ def assert_shapes(shapes, data=None, summarize=None, message=None, name=None):
                 'Specified by tensor %s dimension %d' %
                 (tensor_name(specified_by_y), specified_at_dim))
 
-          actual_size = sizes.actual_sizes[tensor_dim]
+          # This is extremely subtle. If actual_sizes is dynamic, we must
+          # make sure a control dependency is inserted here so that this slice
+          # can not execute until the rank is asserted to be enough for the
+          # slice to not fail.
+          with ops.control_dependencies(rank_assertions):
+            actual_size = sizes.actual_sizes[tensor_dim]
           if _has_known_value(actual_size) and _has_known_value(specified_size):
             if int(actual_size) != int(specified_size):
               raise ValueError(
@@ -1858,12 +1876,17 @@ def assert_shapes(shapes, data=None, summarize=None, message=None, name=None):
           size_assertions.append(
               control_flow_ops.Assert(condition, data_, summarize=summarize))
         else:
-          size = sizes.actual_sizes[tensor_dim]
+          # Not sure if actual_sizes is a constant, but for safety, guard
+          # on rank. See explanation above about actual_sizes need for safety.
+          with ops.control_dependencies(rank_assertions):
+            size = sizes.actual_sizes[tensor_dim]
           size_specifications[size_symbol] = (size, sizes.x, tensor_dim)
 
-    with ops.control_dependencies(rank_assertions):
-      shapes_assertion = control_flow_ops.group(size_assertions)
-    return shapes_assertion
+  # Ensure both assertions actually occur.
+  with ops.control_dependencies(rank_assertions):
+    shapes_assertion = control_flow_ops.group(size_assertions)
+
+  return shapes_assertion
 
 
 # pylint: disable=line-too-long
@@ -2134,32 +2157,84 @@ def assert_scalar(tensor, name=None, message=None):
 def ensure_shape(x, shape, name=None):
   """Updates the shape of a tensor and checks at runtime that the shape holds.
 
-  For example:
-  ```python
-  x = tf.compat.v1.placeholder(tf.int32)
-  print(x.shape)
-  ==> TensorShape(None)
-  y = x * 2
-  print(y.shape)
-  ==> TensorShape(None)
+  With eager execution this is a shape assertion, that returns the input:
 
-  y = tf.ensure_shape(y, (None, 3, 3))
-  print(y.shape)
-  ==> TensorShape([Dimension(None), Dimension(3), Dimension(3)])
+  >>> x = tf.constant([1,2,3])
+  >>> print(x.shape)
+  (3,)
+  >>> x = tf.ensure_shape(x, [3])
+  >>> x = tf.ensure_shape(x, [5])
+  Traceback (most recent call last):
+  ...
+  tf.errors.InvalidArgumentError: Shape of tensor dummy_input [3] is not
+    compatible with expected shape [5]. [Op:EnsureShape]
 
-  with tf.compat.v1.Session() as sess:
-    # Raises tf.errors.InvalidArgumentError, because the shape (3,) is not
-    # compatible with the shape (None, 3, 3)
-    sess.run(y, feed_dict={x: [1, 2, 3]})
+  Inside a `tf.function` or `v1.Graph` context it checks both the buildtime and
+  runtime shapes. This is stricter than `tf.Tensor.set_shape` which only
+  checks the buildtime shape.
 
-  ```
-
-  NOTE: This differs from `Tensor.set_shape` in that it sets the static shape
+  Note: This differs from `tf.Tensor.set_shape` in that it sets the static shape
   of the resulting tensor and enforces it at runtime, raising an error if the
   tensor's runtime shape is incompatible with the specified shape.
-  `Tensor.set_shape` sets the static shape of the tensor without enforcing it
+  `tf.Tensor.set_shape` sets the static shape of the tensor without enforcing it
   at runtime, which may result in inconsistencies between the statically-known
   shape of tensors and the runtime value of tensors.
+
+  For example, of loading images of a known size:
+
+  >>> @tf.function
+  ... def decode_image(png):
+  ...   image = tf.image.decode_png(png, channels=3)
+  ...   # the `print` executes during tracing.
+  ...   print("Initial shape: ", image.shape)
+  ...   image = tf.ensure_shape(image,[28, 28, 3])
+  ...   print("Final shape: ", image.shape)
+  ...   return image
+
+  When tracing a function, no ops are being executed, shapes may be unknown.
+  See the [Concrete Functions Guide](https://www.tensorflow.org/guide/concrete_function)
+  for details.
+
+  >>> concrete_decode = decode_image.get_concrete_function(
+  ...     tf.TensorSpec([], dtype=tf.string))
+  Initial shape:  (None, None, 3)
+  Final shape:  (28, 28, 3)
+
+  >>> image = tf.random.uniform(maxval=255, shape=[28, 28, 3], dtype=tf.int32)
+  >>> image = tf.cast(image,tf.uint8)
+  >>> png = tf.image.encode_png(image)
+  >>> image2 = concrete_decode(png)
+  >>> print(image2.shape)
+  (28, 28, 3)
+
+  >>> image = tf.concat([image,image], axis=0)
+  >>> print(image.shape)
+  (56, 28, 3)
+  >>> png = tf.image.encode_png(image)
+  >>> image2 = concrete_decode(png)
+  Traceback (most recent call last):
+  ...
+  tf.errors.InvalidArgumentError:  Shape of tensor DecodePng [56,28,3] is not
+    compatible with expected shape [28,28,3].
+
+  Caution: if you don't use the result of `tf.ensure_shape` the check may not
+  run.
+
+  >>> @tf.function
+  ... def bad_decode_image(png):
+  ...   image = tf.image.decode_png(png, channels=3)
+  ...   # the `print` executes during tracing.
+  ...   print("Initial shape: ", image.shape)
+  ...   # BAD: forgot to use the returned tensor.
+  ...   tf.ensure_shape(image,[28, 28, 3])
+  ...   print("Final shape: ", image.shape)
+  ...   return image
+
+  >>> image = bad_decode_image(png)
+  Initial shape:  (None, None, 3)
+  Final shape:  (None, None, 3)
+  >>> print(image.shape)
+  (56, 28, 3)
 
   Args:
     x: A `Tensor`.

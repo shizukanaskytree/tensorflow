@@ -25,16 +25,15 @@ limitations under the License.
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
-#include "mlir/Analysis/LoopAnalysis.h"  // TF:llvm-project
-#include "mlir/Dialect/StandardOps/IR/Ops.h"  // TF:llvm-project
-#include "mlir/IR/Attributes.h"  // TF:llvm-project
-#include "mlir/IR/OpImplementation.h"  // TF:llvm-project
-#include "mlir/IR/PatternMatch.h"  // TF:llvm-project
-#include "mlir/IR/StandardTypes.h"  // TF:llvm-project
-#include "mlir/Pass/Pass.h"  // TF:llvm-project
-#include "mlir/Support/Functional.h"  // TF:llvm-project
-#include "mlir/Support/LLVM.h"  // TF:llvm-project
-#include "mlir/Support/LogicalResult.h"  // TF:llvm-project
+#include "mlir/Analysis/LoopAnalysis.h"  // from @llvm-project
+#include "mlir/Dialect/StandardOps/IR/Ops.h"  // from @llvm-project
+#include "mlir/IR/Attributes.h"  // from @llvm-project
+#include "mlir/IR/OpImplementation.h"  // from @llvm-project
+#include "mlir/IR/PatternMatch.h"  // from @llvm-project
+#include "mlir/IR/StandardTypes.h"  // from @llvm-project
+#include "mlir/Pass/Pass.h"  // from @llvm-project
+#include "mlir/Support/LLVM.h"  // from @llvm-project
+#include "mlir/Support/LogicalResult.h"  // from @llvm-project
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_ops.h"
 #include "tensorflow/core/util/matmul_bcast.h"
 
@@ -43,7 +42,8 @@ namespace TF {
 
 namespace {
 // Replace TF BatchMatMul by TF Einsum
-struct BatchMatMulToEinsumPass : public FunctionPass<BatchMatMulToEinsumPass> {
+struct BatchMatMulToEinsumPass
+    : public PassWrapper<BatchMatMulToEinsumPass, FunctionPass> {
   void runOnFunction() override;
 };
 
@@ -54,13 +54,13 @@ void BatchMatMulToEinsumPass::runOnFunction() {
   patterns.insert<ConvertTFBatchMatMulToEinsumOp<TF::BatchMatMulOp>,
                   ConvertTFBatchMatMulToEinsumOp<TF::BatchMatMulV2Op>>(
       &getContext());
-  applyPatternsGreedily(func, patterns);
+  applyPatternsAndFoldGreedily(func, patterns);
 }
 
 }  // namespace
 
 template <typename BatchMatMulOpType>
-PatternMatchResult
+LogicalResult
 ConvertTFBatchMatMulToEinsumOp<BatchMatMulOpType>::matchAndRewrite(
     BatchMatMulOpType op, PatternRewriter& rewriter) const {
   Value input_lhs = op.x();
@@ -68,18 +68,18 @@ ConvertTFBatchMatMulToEinsumOp<BatchMatMulOpType>::matchAndRewrite(
 
   if (!input_lhs.getType().isa<RankedTensorType>()) {
     // LHS must be a ranked tensor type
-    return this->matchFailure();
+    return failure();
   }
   if (!input_rhs.getType().isa<RankedTensorType>()) {
     // RHS must be a ranked tensor type
-    return this->matchFailure();
+    return failure();
   }
 
   auto lhs_type = input_lhs.getType().dyn_cast<RankedTensorType>();
   auto rhs_type = input_rhs.getType().dyn_cast<RankedTensorType>();
 
   if (!lhs_type || !rhs_type) {
-    return this->matchFailure();
+    return failure();
   }
 
   auto lhs_shape = lhs_type.getShape();
@@ -92,7 +92,7 @@ ConvertTFBatchMatMulToEinsumOp<BatchMatMulOpType>::matchAndRewrite(
   const int dims_b = rhs_shape.size();
   if (dims_a < 2 || dims_b < 2) {
     // Both inputs must have rank >= 2
-    return this->matchFailure();
+    return failure();
   }
 
   // einsum equation for batchmatmul
@@ -110,14 +110,14 @@ ConvertTFBatchMatMulToEinsumOp<BatchMatMulOpType>::matchAndRewrite(
                                             /*inputs=*/ValueRange(inputs),
                                             /*equation=*/equation);
 
-  return this->matchSuccess();
+  return success();
 }
 
 static PassRegistration<BatchMatMulToEinsumPass> pass(
     "tf-batch-matmul-to-tf-einsum",
     "Replace TF BatchMatMul op by TF Einsum op.");
 
-std::unique_ptr<OpPassBase<FuncOp>> CreateBatchMatMulToEinsumPass() {
+std::unique_ptr<OperationPass<FuncOp>> CreateBatchMatMulToEinsumPass() {
   return std::make_unique<BatchMatMulToEinsumPass>();
 }
 
