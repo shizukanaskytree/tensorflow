@@ -447,7 +447,13 @@ message ConfigProto {
 
   Experimental experimental = 16;
 
-  // Next: 17
+  // wxf
+  // Add Session unique id to control reuse input token turn step.
+  int32 session_id = 17;
+  // Total number of sessions set by user via tf.ConfigProto 
+  int32 num_sessions = 18;
+  //~wxf
+  // Next: 19
 };
 
 // Options for a single Run() call.
@@ -506,6 +512,9 @@ message RunOptions {
   Experimental experimental = 8;
 
   reserved 4;
+
+  // wxf: to pass real train or infer step to tf sess run internal
+  bool real_step_start = 9;
 }
 
 // Metadata output (i.e., non-Tensor) for a single Run() call.
