@@ -353,6 +353,17 @@ DirectSession::DirectSession(const SessionOptions& options,
   session_handle_ =
       strings::StrCat("direct", strings::FpToString(random::New64()));
 
+  // wxf: GPU executors take turns to execute.
+  char* set_executors_take_turns_flag = getenv("TF_SET_EXECUTORS_TAKE_TURNS_FLAG");
+  if (set_executors_take_turns_flag != NULL) {
+    TF_SET_EXECUTORS_TAKE_TURNS_FLAG = strcmp(set_executors_take_turns_flag, "1") == 0;
+    if (TF_SET_EXECUTORS_TAKE_TURNS_FLAG) {
+      session_id_ = options_.config.session_id();
+      num_sessions_ = options_.config.num_sessions();
+    }
+  }
+  //~wxf
+
   int devices_added = 0;
 
   if (options.config.log_device_placement()) {
@@ -3264,19 +3275,19 @@ Status DirectSession::CreateGraphs(
   // Partition the graph across devices.
   PartitionOptions popts;
   popts.node_to_loc = [](const Node* node) {
-    // wxf
-    // test: set _Arg on GPUs
-    //char envname[] = "REUSE_FLAG";
-    //if (getenv(envname) == "1") {
-
-    // graph 02-0N inputs are placed on GPU
-    if (node->name() == "_arg_X02_0_0" || node->name() == "_arg_y02_0_1" || \
-        node->name() == "_arg_X03_0_0" || node->name() == "_arg_y03_0_1" || \
-        node->name() == "_arg_X04_0_0" || node->name() == "_arg_y04_0_1") {
-      //VLOG(0) << "popts.node_to_loc for _Arg nodes: " << node->name();
-      return string("/job:localhost/replica:0/task:0/device:GPU:0");
-    }
-    //~wxf
+//    // wxf
+//    // test: set _Arg on GPUs
+//    //char envname[] = "REUSE_FLAG";
+//    //if (getenv(envname) == "1") {
+//
+//    // graph 02-0N inputs are placed on GPU
+//    if (node->name() == "_arg_X02_0_0" || node->name() == "_arg_y02_0_1" || \
+//        node->name() == "_arg_X03_0_0" || node->name() == "_arg_y03_0_1" || \
+//        node->name() == "_arg_X04_0_0" || node->name() == "_arg_y04_0_1") {
+//      //VLOG(0) << "popts.node_to_loc for _Arg nodes: " << node->name();
+//      return string("/job:localhost/replica:0/task:0/device:GPU:0");
+//    }
+//    //~wxf
 
     return node->assigned_device_name();
   };
