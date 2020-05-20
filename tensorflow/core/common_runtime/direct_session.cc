@@ -2036,6 +2036,14 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
       //SchedClosure(pool, std::move(c));
     };
   }
+  
+  // wxf: sort by CPU then GPU: executors_and_keys->items
+  std::sort(executors_and_keys->items.begin(), executors_and_keys->items.end(),
+    [](PerPartitionExecutorsAndLib &item_a, PerPartitionExecutorsAndLib &item_b) {
+      return item_a.device->device_type() < item_b.device->device_type();
+      // "CPU" < "GPU"; So, sort by CPU, then GPU order.
+    }
+  );
 
   for (const auto& item : executors_and_keys->items) {
     // TODO(azaks): support partial run.
@@ -2052,7 +2060,35 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
         SchedClosure(device_thread_pool, std::move(c));
       };
     }
-    item.executor->RunAsync(args, barrier->Get());
+
+    // wxf: GPU executors take turns to execute.
+    char* set_executors_take_turns_flag = getenv("TF_SET_EXECUTORS_TAKE_TURNS_FLAG");
+    if (set_executors_take_turns_flag != NULL) {
+      TF_SET_EXECUTORS_TAKE_TURNS_FLAG = strcmp(set_executors_take_turns_flag, "1") == 0;
+      if (TF_SET_EXECUTORS_TAKE_TURNS_FLAG && run_options.real_step_start()) {
+        VLOG(0) << "wu: executor take turns flag set; real step start!";
+        if (item.device->device_type() == "GPU") {
+          // GPU device case: wait for each user and take turns to run
+          VLOG(0) << "wu: enter gpu executor launch; before while";
+          while (session_id_ != (executors_token_turns.load(std::memory_order_relaxed) % num_sessions_));
+          VLOG(0) << "wu: after while wait; session id = " << session_id_  
+                  << "; whose turn start run = " << (executors_token_turns.load(std::memory_order_relaxed) % num_sessions_);
+          item.executor->RunAsync(args, barrier->Get());
+        } else {
+          // CPU device: execute without restrictions
+          VLOG(0) << "wu: enter cpu executor launch;";
+          item.executor->RunAsync(args, barrier->Get());
+        }
+      } else {
+        item.executor->RunAsync(args, barrier->Get());
+      }
+    } else {
+      // original logic
+      item.executor->RunAsync(args, barrier->Get());
+    }
+    //~wxf
+
+    //item.executor->RunAsync(args, barrier->Get());
   }
 
   WaitForNotification(&run_state, &step_cancellation_manager,

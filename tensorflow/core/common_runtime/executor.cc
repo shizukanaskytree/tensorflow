@@ -2030,6 +2030,17 @@ void ExecutorState::Finish() {
   CHECK(done_cb != nullptr);
   Device* device = impl_->params_.device;
 
+  // wxf
+  if (device && device->device_type() == "GPU") {
+    VLOG(0) << "wu: device in ExecutorState::Finish() = " << device->device_type();
+    VLOG(0) << "wu: GPU executor token ++ ==> " << executors_token_turns.load(std::memory_order_relaxed);
+    executors_token_turns.fetch_add(1);
+  }
+  //} else {
+  //  VLOG(0) << "wu: device in ExecutorState::Finish() = " << device->device_type();
+  //}
+  //~wxf
+
   // There are several potential race conditions below. To name a few:
   // 1. Even if the device's status is OK at the precise moment when
   // num_deferred_ops_ reaches 0, it could go bad before device->RefreshStatus()
