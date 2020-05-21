@@ -197,6 +197,10 @@ class Executor {
     // So, it can be used to indicate which device type the current 
     // DirectSession's Executor/ExecutorImpl/ExecutoState is executing on.
     string device_type_executing_on = "";
+
+    // wxf: real_step_start for indicating 
+    // sess.run(..., options=tf.RunOptions(real_step_start=True)) executor
+    bool real_step_start;
   };
   typedef std::function<void(const Status&)> DoneCallback;
   virtual void RunAsync(const Args& args, DoneCallback done) = 0;
@@ -550,6 +554,10 @@ class ExecutorState {
   // Tell the ExecutorState which device type it is running on now.
   // It is used to construct the ExecutorState instances.
   string device_type_executing_on_;
+
+  // wxf: real_step_start for indicating 
+  // sess.run(..., options=tf.RunOptions(real_step_start=True)) executor
+  bool real_step_start_;
 
  public: // wxf
   // Either a tensor pointer (pass-by-reference) or a tensor (pass-by-value).

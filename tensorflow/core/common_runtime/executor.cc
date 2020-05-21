@@ -650,6 +650,10 @@ ExecutorState::ExecutorState(const Executor::Args& args, ExecutorImpl* impl)
       // It is used to construct the ExecutorState instances.
       device_type_executing_on_(args.device_type_executing_on),
 
+      // wxf: real_step_start for indicating 
+      // sess.run(..., options=tf.RunOptions(real_step_start=True)) executor
+      real_step_start_(args.real_step_start),
+
       vlog_(VLOG_IS_ON(1)),
       log_memory_(LogMemory::IsEnabled()),
       step_id_(args.step_id),
@@ -2031,7 +2035,7 @@ void ExecutorState::Finish() {
   Device* device = impl_->params_.device;
 
   // wxf
-  if (device && device->device_type() == "GPU") {
+  if (device && device->device_type() == "GPU" && real_step_start_) {
     VLOG(0) << "wu: device in ExecutorState::Finish() = " << device->device_type();
     VLOG(0) << "wu: GPU executor token ++ ==> " << executors_token_turns.load(std::memory_order_relaxed);
     executors_token_turns.fetch_add(1);

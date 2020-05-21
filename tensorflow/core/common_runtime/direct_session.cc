@@ -1897,6 +1897,12 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
   // It is used to construct the ExecutorState instances.
   args.device_type_executing_on = last_execute_device_;
   //~wxf
+  
+  // wxf: Denote executor real step start in sess.run: 
+  // tf.RunOptions(real_step_start=True); So, executor knows real sess.run 
+  // starts.
+  args.real_step_start = run_options.real_step_start(); 
+  //~wxf
 
   args.step_id = step_id;
   args.call_frame = call_frame;
