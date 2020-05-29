@@ -126,7 +126,6 @@ class Executor {
     n.WaitForNotification();
     return ret;
   }
-
 };
 
 // Creates an Executor that computes the given "graph".
@@ -215,17 +214,18 @@ class ExecutorBarrier {
       // =======================================================================
       // 1.
       // pending_ 变量说明
-      // 如果有 2 个 executors, 则 pending_ 为 2, 所以我苦苦未能找到的答案，为什么不能 call 这个
-      // done_cb_ 也就是 tensorflow/core/common_runtime/direct_session.cc 里面的原因就在这里。
+      // 如果有 2 个 executors, 则 pending_ 为 2,
+      // 所以我苦苦未能找到的答案，为什么不能 call 这个 done_cb_ 也就是
+      // tensorflow/core/common_runtime/direct_session.cc 里面的原因就在这里。
       // [&run_state](const Status& ret) {
       //   {
       //     mutex_lock l(run_state.mu_);
       //     run_state.status.Update(ret);
       //   }
-      //   run_state.executors_done.Notify(); // 核心 notify 去唤醒 sleep 的 main 函数
+      //   run_state.executors_done.Notify(); // 核心 notify 去唤醒 sleep 的
+      //   main 函数
       // }
       //
-
     }
 
     if (error_rendez != nullptr) {
@@ -244,8 +244,6 @@ class ExecutorBarrier {
   // tensorflow/core/common_runtime/executor.h
   // 概述:
   // 更新 Status, 然后如果 !s.ok() 就 StartAbort 否则 就 执行 callback done 函数
-
-
 
   TF_DISALLOW_COPY_AND_ASSIGN(ExecutorBarrier);
 };
@@ -269,8 +267,6 @@ class ExecutorBarrier {
 // 重要接口:
 // - WhenDone(const Status& s)
 // - StatusCallback Get()
-
-
 
 // A few helpers to facilitate create/delete kernels.
 

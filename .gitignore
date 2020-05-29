@@ -39,3 +39,4 @@ xcuserdata/**
 *.iml
 local.properties
 gradleBuild
+default.profraw
