@@ -40,6 +40,11 @@ namespace xla {
 // transitive. That the graph be transitive is thus not an invariant of this
 // class, but it is required for the name of the class and its methods to make
 // sense.
+
+// 1.
+// adjacency matrix in graph
+// https://www.youtube.com/watch?v=9C2cpQZVRBA
+
 class HloReachabilityMap {
  public:
   // Sets up a graph with no edges and where the nodes correspond to the given

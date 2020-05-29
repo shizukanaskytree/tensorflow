@@ -503,6 +503,8 @@ void BaseGPUDevice::Compute(OpKernel* op_kernel, OpKernelContext* context) {
   op_kernel->Compute(context);
   if (context->status().ok()) {
     if (sync_every_op_) {
+      // 未进入
+
       // Note: GPUUtil::Sync() only syncs the default stream.
       // We need to either sync the stream used by this op, or
       // all streams.  Given that this flag is typically used for
@@ -513,8 +515,13 @@ void BaseGPUDevice::Compute(OpKernel* op_kernel, OpKernelContext* context) {
                 << ComputeOpKernelDebugString(*op_kernel, stream_id);
       }
     } else if (vlog_1) {
+      // 进入
+
       VLOG(1) << "GpuDevice::ComputeHelper scheduled "
               << ComputeOpKernelDebugString(*op_kernel, stream_id);
+      // 1.
+      // log:
+      // 2020-04-07 11:26:06.302392: I tensorflow/core/common_runtime/gpu/gpu_device.cc:523] GpuDevice::ComputeHelper scheduled cluster_5_1/xla_compile op _XlaCompile on GPU 0 stream[0]
     }
     if (kernel_tracker_) {
       GPUKernelTracker* tracker = kernel_tracker_.get();

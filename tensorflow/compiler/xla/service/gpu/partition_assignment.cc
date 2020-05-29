@@ -82,6 +82,12 @@ LaunchDimensions CalculateLaunchDimensions(
   // TODO(jlebar): Investigate this further, and tune this heuristic so we can
   // run faster on the few benchmarks where smaller block size helps.
   int64 threads_per_block = ThreadsPerBlockLimit(device_desc);
+  // 1.
+  // Maximum number of threads per block: 1024
+  // read more:
+  // https://stackoverflow.com/questions/31735138/cuda-threads-per-block-limitation
+  // https://en.wikipedia.org/wiki/Thread_block_(CUDA_programming)
+
   // We unroll kernels to make use of vectorized loads/stores. This means we
   // need more registers to hold intermediate values. Reduce the number of
   // blocks per thread to increase the number of registers available to ptxas.
@@ -90,6 +96,9 @@ LaunchDimensions CalculateLaunchDimensions(
       RoundUpToNearest(threads_per_block / unroll_factor, int64{32});
   if (num_elements < threads_per_block) {
     threads_per_block = num_elements;
+    // 1.
+    // 如果 number of elements 少于 上面设定的线程数量, 那么该小点, 犯不着设置那么多的线程数
+    // 因为不必要, 线程数多了, 多余了
     VLOG(2) << "Update # of threads per block to the element count ("
             << threads_per_block << ") because the latter is smaller.";
   }

@@ -152,6 +152,23 @@ bool GraphCycles::HasEdge(int32 x, int32 y) const {
 }
 
 void GraphCycles::RemoveEdge(int32 x, int32 y) {
+  // 1.
+  // Description
+  // x-->y
+  // 把 node id 为 x 的输出边 (y 的输入边) 删除
+  // 图示
+  // https://keep.google.com/u/1/#NOTE/1bSX4v-PInSa3jJoayXQSu1JpFQNozJJ2MbCfDFbEa9AfXNbUPbUqGp-GX8yv
+
+  // 2.
+  // int32 x: src
+  // int32 y: dst
+  //
+  // case study:
+  // x: 174 y: 176
+
+  // 3.
+  // Return
+  // void
   rep_->nodes_[x]->out.Erase(y);
   rep_->nodes_[y]->in.Erase(x);
   // No need to update the rank assignment since a previous valid
@@ -369,6 +386,48 @@ bool GraphCycles::CanContractEdge(int32 a, int32 b) {
 }
 
 absl::optional<int32> GraphCycles::ContractEdge(int32 a, int32 b) {
+  // 1.
+  // Description
+  // a --> b ==> (a,b)
+  // Contract Edge   其他 nodes ---> (a,b) --> 其他 nodes
+  // 消灭 a, b 之间的 edges, 把 b 的输入边都送给 a, 把 b 的外出边都送给 a, 把 b 内化到 a 里面
+  // 形成 (a,b) 集合态.
+
+  // 2.
+  // Input Output
+  // int32 a: input
+  // int32 b: input
+
+  // 3.
+  // Return
+  // a: absl::optional<int32>
+
+  // 4.
+  // absl::optional 语法
+  //
+  // https://github.com/abseil/abseil-cpp/blob/master/absl/types/optional.h
+  //
+  // This header file defines the `absl::optional` type for holding a value which
+  // may or may not be present. This type is useful for providing value semantics
+  // for operations that may either wish to return or hold "something-or-nothing".
+  //
+  // Example:
+  //
+  //   // A common way to signal operation failure is to provide an output
+  //   // parameter and a bool return type:
+  //   bool AcquireResource(const Input&, Resource * out);
+  //
+  //   // Providing an absl::optional return type provides a cleaner API:
+  //   absl::optional<Resource> AcquireResource(const Input&);
+  //
+  // `absl::optional` is a C++11 compatible version of the C++17 `std::optional`
+  // abstraction and is designed to be a drop-in replacement for code compliant
+  // with C++17.
+
+  // 5.
+  // 教材
+  // http://www.cs.cmu.edu/afs/cs/academic/class/15210-f12/www/lectures/lecture16.pdf
+
   CHECK(HasEdge(a, b));
   RemoveEdge(a, b);
 
@@ -387,27 +446,69 @@ absl::optional<int32> GraphCycles::ContractEdge(int32 a, int32 b) {
   Node* nb = rep_->nodes_[b];
   OrderedNodeSet out = std::move(nb->out);
   OrderedNodeSet in = std::move(nb->in);
+  // 1.
+  // 意图:
+  // 得到 node b 的 in edges 和 out edges
+
   for (int32 y : out.GetSequence()) {
     rep_->nodes_[y]->in.Erase(b);
+    // 1.
+    // 意图:
+    // 把围绕 b 的 out edges 全部删去
   }
   for (int32 y : in.GetSequence()) {
     rep_->nodes_[y]->out.Erase(b);
+    // 1.
+    // 意图:
+    // 把围绕 b 的 in edges 全部删去
   }
   rep_->free_nodes_.push_back(b);
 
   rep_->nodes_[a]->out.Reserve(rep_->nodes_[a]->out.Size() + out.Size());
+  // 1.
+  // 意图:
+  // a node reserves 总共 a 的 num of out edges 外加 b 的 num of out edges.
+
   for (int32 y : out.GetSequence()) {
     InsertEdge(a, y);
+    // 1.
+    // 意图:
+    // 把 a --> b.out_edges_nodes 连起来
+    // 说明 b 折叠刀了 a 里面, 被 a 内化了, 被 a 吸收了.
   }
 
   rep_->nodes_[a]->in.Reserve(rep_->nodes_[a]->in.Size() + in.Size());
+  // 1.
+  // 意图:
+  // a node reserves 总共 a 的 num of in edges 外加 b 的 num of in edges.
+
   for (int32 y : in.GetSequence()) {
     InsertEdge(y, a);
+    // 1.
+    // 意图:
+    // 把从其他 nodes --> a,b 节点 都连起来.
   }
 
   // Note, if the swap happened it might be what originally was called "b".
   return a;
 }
+// 1.
+// Callstack:
+//
+// Thread #1 [python] 33112 [core: 22] (Suspended : Step)
+// 	tensorflow::GraphCycles::ContractEdge() at graphcycles.cc:384 0x7f470aa4ce08
+// 	tensorflow::(anonymous namespace)::MarkForCompilationPassImpl::MergeClusters at mark_for_compilation_pass.cc:390 0x7f470217c149
+// 	tensorflow::(anonymous namespace)::MarkForCompilationPassImpl::TryToContractEdge at mark_for_compilation_pass.cc:1,354 0x7f4702183151
+// 	tensorflow::(anonymous namespace)::MarkForCompilationPassImpl::<lambda(tensorflow::(anonymous namespace)::MarkForCompilationPassImpl::Cluster*, tensorflow::(anonymous namespace)::MarkForCompilationPassImpl::Cluster*)>::operator()(tensorflow::(anonymous namespace)::MarkForCompilationPassImpl::Cluster *, tensorflow::(anonymous namespace)::MarkForCompilationPassImpl::Cluster *) const at mark_for_compilation_pass.cc:736 0x7f470217df2b
+// 	tensorflow::(anonymous namespace)::MarkForCompilationPassImpl::ForEachEdgeInPostOrder<tensorflow::(anonymous namespace)::MarkForCompilationPassImpl::RunEdgeContractionLoop()::<lambda(tensorflow::(anonymous namespace)::MarkForCompilationPassImpl::Cluster*, tensorflow::(anonymous namespace)::MarkForCompilationPassImpl::Cluster*)> > at mark_for_compilation_pass.cc:649 0x7f470218819d
+// 	tensorflow::(anonymous namespace)::MarkForCompilationPassImpl::RunEdgeContractionLoop at mark_for_compilation_pass.cc:736 0x7f470217e39d
+// 	tensorflow::(anonymous namespace)::MarkForCompilationPassImpl::Run at mark_for_compilation_pass.cc:1,372 0x7f4702183484
+// 	tensorflow::(anonymous namespace)::MarkForCompilation at mark_for_compilation_pass.cc:1,646 0x7f47021868f7
+// 	tensorflow::MarkForCompilationPass::Run() at mark_for_compilation_pass.cc:1,709 0x7f4702186cc1
+// 	tensorflow::OptimizationPassRegistry::RunGrouping() at optimization_registry.cc:44 0x7f46f549bd37
+// 	<...more frames...>
+
+
 
 absl::Span<const int32> GraphCycles::Successors(int32 node) const {
   return rep_->nodes_[node]->out.GetSequence();

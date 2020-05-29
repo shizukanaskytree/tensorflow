@@ -145,6 +145,8 @@ std::unique_ptr<llvm::TargetMachine> GetTargetMachine(
   // GetCodeGenOptLevel in //third_party/llvm/llvm/tools/opt/opt.cpp.
   CodeGenOpt::Level codegen_opt_level;
   switch (hlo_module_config.debug_options().xla_backend_optimization_level()) {
+    // 进入
+
     case 1:
       codegen_opt_level = CodeGenOpt::Less;
       break;
@@ -152,6 +154,7 @@ std::unique_ptr<llvm::TargetMachine> GetTargetMachine(
       codegen_opt_level = CodeGenOpt::Default;
       break;
     case 3:
+      // 进入
       codegen_opt_level = CodeGenOpt::Aggressive;
       break;
     default:
@@ -210,6 +213,18 @@ void EmitBitcodeToFile(const Module& module, absl::string_view filename) {
 // Emits the given module to PTX. target_machine is an initialized TargetMachine
 // for the NVPTX target.
 string EmitModuleToPTX(Module* module, llvm::TargetMachine* target_machine) {
+  // 1.
+  // Description
+
+  // 2.
+  // Input Output
+  // Module* module: input
+  // llvm::TargetMachine* target_machine: input
+
+  // 3.
+  // Return
+  // ptx: string
+
   std::string ptx;  // need a std::string instead of a ::string.
   {
     llvm::raw_string_ostream stream(ptx);
@@ -224,10 +239,6 @@ string EmitModuleToPTX(Module* module, llvm::TargetMachine* target_machine) {
     // ./xla/service/gpu/llvm_gpu_backend/dump_ir_pass.h:30:
     // class IrDumpingPassManager : public llvm::legacy::PassManager
 
-    // 2.
-    
-
-
     codegen_passes.add(new llvm::TargetLibraryInfoWrapperPass(
         llvm::Triple(module->getTargetTriple())));
 
@@ -237,6 +248,26 @@ string EmitModuleToPTX(Module* module, llvm::TargetMachine* target_machine) {
   }
 
   return ptx;
+  // 1.
+  // (gdb) p module->getModuleIdentifier()
+  // $6 = "cluster_5__XlaCompiledKernel_true__XlaHasReferenceVars_false__XlaNumConstantArgs_1__XlaNumResourceArgs_4_.46"
+
+  // 2.
+  // (gdb) p module->getSourceFileName()
+  // $7 = "cluster_5__XlaCompiledKernel_true__XlaHasReferenceVars_false__XlaNumConstantArgs_1__XlaNumResourceArgs_4_.46"
+
+  // 3.
+  // (gdb) p module->getDataLayoutStr()
+  // $8 = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"
+
+  // 4.
+  // (gdb) p module->getTargetTriple()
+  // $9 = "nvptx64-nvidia-cuda"
+
+  // 5.
+  // p module->getModuleInlineAsm()
+  // $10 = ""
+  // 为什么?
 }
 
 // LLVM has an extensive flags mechanism of its own, which is only accessible
@@ -498,6 +529,21 @@ namespace nvptx {
 StatusOr<string> CompileToPtx(llvm::Module* module, GpuVersion gpu_version,
                               const HloModuleConfig& hlo_module_config,
                               const string& libdevice_dir_path) {
+  // 1.
+  // Description
+
+  // 2.
+  // Input Output
+  //
+  // llvm::Module* module: input
+  // GpuVersion gpu_version: input
+  // const HloModuleConfig& hlo_module_config: input
+  // const string& libdevice_dir_path: input
+
+  // 3.
+  // Return
+  // ptx: StatusOr<string>
+
   static absl::once_flag backend_init_flag;
   absl::call_once(backend_init_flag, NVPTXBackendInit, hlo_module_config);
 
@@ -544,6 +590,13 @@ StatusOr<string> CompileToPtx(llvm::Module* module, GpuVersion gpu_version,
     ptx = EmitModuleToPTX(module, target_machine.get());
   }
   return ptx;
+  // 1.
+  // 打印 ptx
+  // https://gist.github.com/shizukanaskytree/b847adbe9811c6ee698adc13b158e499
+
+  // 2.
+  // (gdb) p module->getModuleIdentifier()
+  // $6 = "cluster_5__XlaCompiledKernel_true__XlaHasReferenceVars_false__XlaNumConstantArgs_1__XlaNumResourceArgs_4_.46"
 }
 
 }  // namespace nvptx

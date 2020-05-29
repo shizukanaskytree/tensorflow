@@ -67,6 +67,21 @@ int ComputeStreamToAssign(
     const HloInstruction& hlo, const StreamAssignment& stream_assignment,
     const HloReachabilityMap& reachability,
     const std::vector<const HloInstruction*>& seen_gemms) {
+  // 1.
+  // Description
+
+  // 2.
+  // Input Output
+  //
+  // const HloInstruction& hlo: input
+  // const StreamAssignment& stream_assignment: input, output
+  // const HloReachabilityMap& reachability: input
+  // const std::vector<const HloInstruction*>& seen_gemms: input
+
+  // 3.
+  // Return
+  // int, num_stream, or stream_assignment.StreamCount();
+
   if (hlo.opcode() == HloOpcode::kParameter ||
       hlo.opcode() == HloOpcode::kConstant) {
     // kParameter and kConstant do not need a thunk.
@@ -158,6 +173,31 @@ std::unique_ptr<StreamAssignment> AssignStreams(const HloModule& module) {
   }
   return stream_assignment;
 }
+// 1.
+// CallStack:
+// Thread #218 [python] 34318 [core: 17] (Suspended : Breakpoint)
+// xla::gpu::AssignStreams() at stream_assignment.cc:123 0x7f446a2acfd7
+// xla::gpu::GpuCompiler::RunBackend() at gpu_compiler.cc:341 0x7f4469fc6d56
+// xla::Service::BuildExecutable() at service.cc:819 0x7f4469f2f0a7
+// xla::LocalService::CompileExecutable() at local_service.cc:182 0x7f44695b56e5
+// xla::LocalClient::Compile() at local_client.cc:272 0x7f44695a9136
+// tensorflow::XlaCompilationCache::BuildExecutable() at xla_compilation_cache.cc:167 0x7f4460c0464f
+// tensorflow::XlaCompilationCache::CompileImpl() at xla_compilation_cache.cc:376 0x7f4460c06b86
+// tensorflow::XlaCompilationCache::Compile() at xla_compilation_cache.cc:192 0x7f4460c04942
+// tensorflow::CompileToLocalExecutable() at xla_ops.cc:344 0x7f4460bcf0cf
+// tensorflow::XlaCompileOp::Compute() at xla_ops.cc:505 0x7f4460bd1327
+// tensorflow::BaseGPUDevice::Compute() at gpu_device.cc:510 0x7f4453ee8226
+// tensorflow::(anonymous namespace)::ExecutorState::Process at executor.cc:1,895 0x7f4453f83298
+// tensorflow::(anonymous namespace)::ExecutorState::<lambda()>::operator()(void) const at executor.cc:2,317 0x7f4453f852fc
+// std::_Function_handler<void(), tensorflow::(anonymous namespace)::ExecutorState::ScheduleReady(const TaggedNodeSeq&, tensorflow::(anonymous namespace)::ExecutorState::TaggedNodeReadyQueue*)::<lambda()> >::_M_invoke at std_function.h:316 0x7f4453f8f658
+// std::function<void ()>::operator()() const at std_function.h:706 0x7f44536b0050
+// tensorflow::thread::EigenEnvironment::ExecuteTask() at threadpool.cc:85 0x7f44540dba55
+// Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop() at NonBlockingThreadPool.h:326 0x7f44540df0ed
+// Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::ThreadPoolTempl(int, bool, tensorflow::thread::EigenEnvironment)::{lambda()#1}::operator()() const at NonBlockingThreadPool.h:58 0x7f44540dd6b8
+// std::_Function_handler<void (), Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::ThreadPoolTempl(int, bool, tensorflow::thread::EigenEnvironment)::{lambda()#1}>::_M_invoke at std_function.h:316 0x7f44540e0a7e
+// std::function<void ()>::operator()() const at std_function.h:706 0x7f44536b0050
+// <...more frames...>
+//
 
 }  // namespace gpu
 }  // namespace xla

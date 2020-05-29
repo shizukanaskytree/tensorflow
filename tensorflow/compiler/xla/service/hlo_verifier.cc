@@ -1763,6 +1763,16 @@ StatusOr<bool> HloVerifier::Run(HloModule* module) {
   TF_RET_CHECK(!module->name().empty());
 
   if (module->entry_computation()->IsFusionComputation()) {
+    // 未进入
+
+    // 1.
+    // module->entry_computation() 是什么?
+    // p module->entry_computation()->ToString()
+    // https://gist.github.com/shizukanaskytree/68dac85a93bb9cf197869d74d7567412
+
+    // 2.
+    // entry_computation 是指第一个执行的计算模块吗?
+
     return InvalidArgument(
         "Module entry computation cannot be a fusion computation");
   }
@@ -1784,6 +1794,14 @@ StatusOr<bool> HloVerifier::Run(HloModule* module) {
 
   // If the module has a schedule, it must be valid.
   if (module->has_schedule()) {
+    // 1.
+    // module->has_schedule():
+    //
+    // The HloSchedule of the module. The schedule if it exists contains a
+    // sequential order of instructions for each non-fusion computation in the
+    // module.
+    // absl::optional<HloSchedule> schedule_;
+
     TF_RETURN_IF_ERROR(module->schedule().Verify());
   }
 

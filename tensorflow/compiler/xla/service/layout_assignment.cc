@@ -1038,6 +1038,13 @@ LayoutAssignment::LayoutAssignment(
   }
   VLOG(1) << "Entry computation layout given to layout assignment: "
           << entry_computation_layout_->ToString();
+  // 1.
+  // 打印:
+  // 2020-04-08 18:05:50.788627: I tensorflow/compiler/xla/service/layout_assignment.cc:1021]
+  // Entry computation layout given to layout assignment:
+  // (f32[256,32,32,3]{3,2,1,0}, f32[32]{0}, f32[3,3,3,32]{3,2,1,0}, f32[32]{0}, f32[3,3,32,32]{3,2,1,0}) => (f32[256,32,32,32]{3,2,1,0}, f32[3,3,32,32]{3,2,1,0}, f32[256,32,15,15]{3,2,1,0}, f32[256,32,30,30]{3,2,1,0}, f32[256,3,32,32]{3,2,1,0})
+
+  // 2020-04-08 18:05:50.788665: I tensorflow/compiler/xla/service/hlo_pass_pipeline.cc:145] Running HLO pass pipeline on module cluster_5__XlaCompiledKernel_true__XlaHasReferenceVars_false__XlaNumConstantArgs_1__XlaNumResourceArgs_4_.46: layout assignment
 }
 
 std::unique_ptr<Layout> LayoutAssignment::ChooseOperandLayoutFromOutputLayout(

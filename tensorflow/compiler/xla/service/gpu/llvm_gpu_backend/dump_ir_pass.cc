@@ -80,7 +80,27 @@ class DumpIrPass : public llvm::FunctionPass {
 char DumpIrPass::id_ = 0;
 
 void IrDumpingPassManager::run(llvm::Module &module) {
+  // 1.
+  // Description
+
+  // 2.
+  // Input Output
+  // llvm::Module &module: input and output
+
+  // 3.
+  // Return
+  // void
+
+  // 4.
+  // (gdb) p module->getModuleIdentifier()
+  // $6 = "cluster_5__XlaCompiledKernel_true__XlaHasReferenceVars_false__XlaNumConstantArgs_1__XlaNumResourceArgs_4_.46"
+
   for (int i = 0; i < passes_.size(); ++i) {
+    // 1.
+    // passes_.size() 大小
+    // (gdb) p passes_.size()
+    // $3 = 74
+
     llvm::Pass *P = passes_[i];
     if (dump_ir_) {
       const llvm::PassInfo *PI =

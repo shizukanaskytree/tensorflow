@@ -35,8 +35,23 @@ template <typename HloT>
 Status HloPassPipeline::RunInvariantCheckers(
     HloT* hlo, absl::string_view after_pass_name) {
   for (auto& invariant_checker : invariant_checkers_) {
+    // 1.
+    // invariant_checkers_ 定义
+    // std::vector<std::unique_ptr<HloPassInterface>> invariant_checkers_;
+
+    // 2.
+    // (gdb) p invariant_checkers_.size()
+    // $3 = 1
+
     VLOG(1) << "    Invariant checker " << invariant_checker->name();
+    // 1.
+    // 打印
+    // Invariant checker verifier
+
     StatusOr<bool> changed_status = RunHelper(invariant_checker.get(), hlo);
+    // 1.
+    //
+
     VLOG(1) << "    Invariant checker done " << invariant_checker->name();
     if (!changed_status.ok()) {
       VLOG(2) << "Failed invariant check:";

@@ -313,6 +313,9 @@ std::unique_ptr<CallGraph> CallGraph::Build(const HloModule* module) {
   call_graph->SetNodeDepths();
 
   XLA_VLOG_LINES(2, call_graph->ToString());
+  // 1.
+  // 打印 call_graph->ToString()
+  // https://gist.github.com/shizukanaskytree/45ef5fdc9cdf1a5985feacdae815603a
 
   return call_graph;
 }

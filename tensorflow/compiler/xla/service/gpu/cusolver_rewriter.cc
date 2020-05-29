@@ -154,11 +154,19 @@ StatusOr<bool> CusolverRewriter::RunOnComputation(HloComputation* computation) {
   std::vector<HloInstruction*> cusolver_calls;
   for (auto* hlo : computation->instructions()) {
     if (hlo->opcode() == HloOpcode::kCholesky) {
+      // 1.
+      // kCholesky
+      // The Cholesky decomposition or Cholesky factorization is a decomposition of a Hermitian, positive-definite matrix into the product of a lower triangular matrix and its conjugate transpose. The Cholesky decomposition is roughly twice as efficient as the LU decomposition for solving systems of linear equations.
+      // https://www.geeksforgeeks.org/cholesky-decomposition-matrix-decomposition/
+      // 图很好
+
       cusolver_calls.push_back(hlo);
     }
   }
 
   if (cusolver_calls.empty()) {
+    // 进入
+
     return false;
   }
 
@@ -178,6 +186,18 @@ CusolverRewriter::CusolverRewriter() = default;
 StatusOr<bool> CusolverRewriter::Run(HloModule* module) {
   bool changed = false;
   for (HloComputation* computation : module->MakeNonfusionComputations()) {
+    // 1.
+    // 打印
+    // ptype module->MakeNonfusionComputations()
+    // type = std::vector<xla::HloComputation*>
+    //
+    // (gdb) p module->MakeNonfusionComputations().size()
+    // $16 = 2
+
+    // 2.
+    // p computation->ToString() // 第一个
+    // "%max_F32.21 (lhs.22: f32[], rhs.23: f32[]) -> f32[] {\n  %lhs.22 = f32[] parameter(0)\n  %rhs.23 = f32[] parameter(1)\n  ROOT %maximum.24 = f32[] maximum(f32[] %lhs.22, f32[] %rhs.23)\n}"
+
     TF_ASSIGN_OR_RETURN(bool result, RunOnComputation(computation));
     changed |= result;
   }

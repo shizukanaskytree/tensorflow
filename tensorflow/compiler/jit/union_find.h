@@ -54,6 +54,10 @@ void UnionFind<T>::Merge(UnionFind* other) {
   UnionFind<T>* b = other->FindRoot();
   if (a == b) return;
   if (a->rank_ > b->rank_) {
+    // 1.
+    // What is rank in union find?
+    // https://en.wikipedia.org/wiki/Disjoint-set_data_structure
+
     b->parent_ = a;
     a->size_ += b->size_;
     return;
@@ -73,6 +77,10 @@ UnionFind<T>* UnionFind<T>::FindRoot() {
   // Path compression: update intermediate nodes to point to the root of the
   // equivalence class.
   parent_ = parent_->FindRoot();
+  // 1.
+  // parent_ type:
+  // https://gist.github.com/shizukanaskytree/92067fe5dbaf487f8f56a4a57383ced9
+
   return parent_;
 }
 

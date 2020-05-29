@@ -106,6 +106,21 @@ string GetLibdeviceDir(const HloModuleConfig& hlo_module_config) {
 Status NVPTXCompiler::OptimizeHloConvolutionCanonicalization(
     HloModule* hlo_module, se::StreamExecutor* stream_exec,
     se::DeviceMemoryAllocator* device_allocator) {
+
+  // 1.
+  // Description
+
+  // 2.
+  // Input Output
+  //
+  // HloModule* hlo_module: input
+  // se::StreamExecutor* stream_exec: input
+  // se::DeviceMemoryAllocator* device_allocator: input
+
+  // 3.
+  // Return
+  // Status
+
   // Convert convolutions into CustomCalls to cudnn, then canonicalize them
   // (GpuConvPaddingLegalization). Also expand cuSolver calls.
   HloPassPipeline pipeline("conv_canonicalization");
@@ -327,7 +342,7 @@ NVPTXCompiler::CompileTargetBinary(const HloModule* module,
   string ptx;
   if (!MaybeLoadPtxFromFile(module, &ptx)) {
     // 1.
-    // 进入了
+    // 进入
 
     XLA_SCOPED_LOGGING_TIMER(
         "NVPTXCompiler::CompileTargetBinary - CompileToPtx");
@@ -337,6 +352,9 @@ NVPTXCompiler::CompileTargetBinary(const HloModule* module,
   }
 
   llvm_ir::DumpIrIfEnabled(*module, *llvm_module, /*optimized=*/true);
+  // 1.
+  // 打印的 DumpIrIfEnabled
+  // https://gist.github.com/691fe0624c352730fde8073338acedb2
 
   if (user_post_optimization_hook_) {
     user_post_optimization_hook_(*llvm_module);

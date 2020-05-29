@@ -346,6 +346,12 @@ class MarkForCompilationPassImpl {
   // Returns nullptr if `n` is not a compilation candidate.
   Cluster* GetClusterForNode(Node* n) {
     return cluster_for_node_[n->id()].Get();
+    // 1.
+    // Get() 是 union find 的 Get()
+    // tensorflow/compiler/jit/union_find.h
+    //
+    // T& Get() { return FindRoot()->value_; }
+    // Each cluster has an associated value. Retrieves the value associated with this cluster.
   }
 
   // Returns the cluster for a node in `cycles_graph_`.  This uses the same
@@ -646,6 +652,24 @@ template <typename FnTy>
 StatusOr<bool> MarkForCompilationPassImpl::ForEachEdgeInPostOrder(FnTy fn) {
   bool changed = false;
   for (int32 node : cycles_graph_.AllNodesInPostOrder()) {
+    // 1.
+    // cycles_graph_ 打印, p cycles_graph_.DebugString()
+    // https://gist.github.com/shizukanaskytree/8146e8263651e4272bcc6aa35461c819
+
+    // 2.
+    // 绘制图
+    // ~/Documents/temp_blob/graphviz$dot -Tpng graph.gv -o graph.png
+
+    // 3.
+    // p cycles_graph_.AllNodesInPostOrder()
+    // $7 = std::vector of length 366, capacity 366 = {1, 355, 356, 353, 352, 354, 172, 107, 361, 351, 360, 189, 185, 350, 349, 348, 347, 346, 345, 344, 343, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 330, 329, 328, 327, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 310, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 223, 222, 221, 220, 219, 218, 217, 216, 215, 214, 213, 212, 211, 210, 209, 208, 207, 206, 205, 204, 203, 202, 201, 200, 199, 198, 197, 196, 195, 194, 193, 192, 191, 190, 184, 188, 187, 186, 182, 180, 183, 179, 181, 177, 176, 178, 174, 171, 175, 169, 166, 173, 170, 365, 92, 168, 364, 167, 165, 164, 163, 162, 161, 160, 159, 158, 157, 156, 155, 154, 153, 152, 151, 150, 149, 148, 147, 145, 146, 363, 144, 143, 142, 141, 140, 139, 138, 137, 136, 135, 134, 133, 132, 131, 130, 129, 128, 127, 126, 125, 124, 362, 123, 122, 121, 120, 119, 118, 117, 116, 115, 114, 113, 112, 110, 111, 108, 109, 359, 91, 106, 105, 104, 103, 102, 101, 100, 99, 98, 97, 96, 95, 94, 93, 358, 90, 357, 89, 88, 87, 86, 85, 84, 83, 82, 81, 80, 79, 78, 77, 76, 75, 74, 73, 72, 71, 70, 69, 68, 67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55, 54, 53, 52, 51, 50, 49, 48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 0}
+    // 对着图 graph.png 看!
+
+    // 4.
+    // (gdb) p cycles_graph_.AllNodesInPostOrder().size()
+    // $8 = 366
+    // 整个图是 366 这么多节点.
+
     Cluster* cluster_from = GetClusterForCyclesGraphNode(node);
     if (!cluster_from) {
       continue;
@@ -655,6 +679,9 @@ StatusOr<bool> MarkForCompilationPassImpl::ForEachEdgeInPostOrder(FnTy fn) {
     // TryToContractEdge.
     std::vector<int32> successors_copy =
         cycles_graph_.SuccessorsCopy(cluster_from->cycles_graph_node_id());
+    // 1.
+    // Successors 是什么?
+    // cluster id 的 out nodes 
 
     for (int to : successors_copy) {
       iteration_count_++;
@@ -725,6 +752,20 @@ bool MarkForCompilationPassImpl::IsScalarIntegerResourceOperation(
 }
 
 Status MarkForCompilationPassImpl::RunEdgeContractionLoop() {
+  // 1.
+  // Description
+  // Contracts as many edges as possible to create XLA clusters.  After this
+  // finishes the clustering decisions made are implicitly stored in
+  // `clusters_`.
+
+  // 2.
+  // Input Output
+  // void
+
+  // 3.
+  // Return
+  // Status
+
   TF_RET_CHECK(initialized_ && !edges_contracted_ && !clusters_created_);
   edges_contracted_ = true;
 
@@ -740,6 +781,13 @@ Status MarkForCompilationPassImpl::RunEdgeContractionLoop() {
   // chance of all most important edges to be contracted.
   //
   // An example of where this might occur is with a digraph:
+
+  // 1.
+  // digraph 是什么? / what is digraph in graph theory?
+  // A directed graph (or digraph) is a graph that is made up of a set of
+  // vertices connected by edges, where the edges have a direction associated
+  // with them.
+
   // {A -> B, B -> C, A -> X, X -> C} where B is a Size operation and X is
   // not-compilable. In this case, the valid clusterings are {A,B} or {B,C}. B
   // should be clustered with A because it will prevent a potentially large
@@ -749,6 +797,9 @@ Status MarkForCompilationPassImpl::RunEdgeContractionLoop() {
   // graph in post-order, where each such iteration is called a "phase".
 
   // Phase 0: contract metadata operations with their producer.
+  // 1.
+  // contract MEANING:
+  // decrease in size, number, or range.
 
   VLOG(4) << "Running phase 0";
   TF_RETURN_IF_ERROR(
@@ -1375,6 +1426,12 @@ StatusOr<bool> MarkForCompilationPassImpl::TryToContractEdge(Cluster* from,
   // Don't exceed the maximum cluster size.
   if (from->cluster_size() + to->cluster_size() >
       debug_options_.max_cluster_size) {
+    // 1.
+    // debug_options_.max_cluster_size
+    // 默认情况下, 这个值是超不过的
+    // p debug_options_.max_cluster_size
+    // $2 = 2147483647
+
     return LogNotContractableAndReturnFalse(
         from, to, "the new cluster will be larger than the max cluster size");
   }
@@ -1695,6 +1752,9 @@ Status MarkForCompilation(
   // See explanation on `kXlaAlreadyClustered`.
   for (Node* n : graph->nodes()) {
     if (n->attrs().Find(kXlaAlreadyClustered)) {
+      // 1.
+      // 初次, 未进入
+
       return Status::OK();
     }
   }
@@ -1755,20 +1815,54 @@ bool IsCompilable(FunctionLibraryRuntime* flr, const NodeDef& ndef,
 Status MarkForCompilationPass::Run(
     const GraphOptimizationPassOptions& options) {
 
+  // 1.
+  // Description
+  // 把图聚类, 形成几个 cluster
+
+  // 2.
+  // Input Output
+  // const GraphOptimizationPassOptions& options: input
+
+  // 3.
+  // Return
+  // Status
+
   MarkForCompilationPassFlags* flags = GetMarkForCompilationPassFlags();
   // 1.
-  // flag 选项在 
+  // flag 选项在
   // tensorflow/compiler/jit/flags.h
 
+  // 2.
+  // 目的:
+  // flag 是给 debug_options 赋值的.
+
   MarkForCompilationPassImpl::DebugOptions debug_options;
+
   debug_options.ignore_deadness_checks =
       flags->tf_xla_disable_deadness_safety_checks_for_debugging;
+
   debug_options.ignore_resource_variable_checks =
       flags->tf_xla_disable_resource_variable_safety_checks_for_debugging;
+
   debug_options.ignore_xla_compile_attr = false;
+
   debug_options.max_cluster_size = flags->tf_xla_max_cluster_size;
+  // 1.
+  // tf_xla_max_cluster_size 是什么?
+  // Maximum number of operators in an XLA compilation.
+
   debug_options.min_cluster_size = flags->tf_xla_min_cluster_size;
+  // 1.
+  // tf_xla_min_cluster_size 是什么?
+  // Minimum number of operators in an XLA compilation. Ignored for operators
+  // placed on an XLA device or operators explicitly marked for compilation.
+
   debug_options.fuel = GetPointerToFuel(flags->tf_xla_clustering_fuel);
+  // 1.
+  // tf_xla_clustering_fuel 是什么?
+  // "Compiler fuel" for clustering.  Only this many ops will be marked as
+  // eligible for clustering.
+
   debug_options.dump_graphs = flags->tf_xla_clustering_debug;
 
   return MarkForCompilation(options, debug_options);

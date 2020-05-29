@@ -586,6 +586,18 @@ StatusOr<std::unique_ptr<Executable>> GpuCompiler::RunBackend(
     DumpToFileInDirOrStdout(*module, "", "thunk_schedule",
                             thunk_schedule->ToString());
   }
+  // 1.
+  // 打印
+  // *** Begin module_0001.thunk_schedule ***
+  // Total order:
+  // kKernel     	%copy.4 = f32[3,3,3,32]{1,0,2,3} copy(f32[3,3,3,32]{3,2,1,0} %arg2.3), metadata={op_name="XLA_Args"}
+  // kKernel     	%copy.5 = f32[3,3,32,32]{1,0,2,3} copy(f32[3,3,32,32]{3,2,1,0} %copy.7), metadata={op_name="XLA_Args"}
+  // kKernel     	%fusion = f32[256,3,32,32]{3,2,1,0} fusion(f32[256,32,32,3]{3,2,1,0} %arg0.1), kind=kLoop, calls=%fused_computation, metadata={op_type="Transpose" op_name="Conv2DBackpropFilter_3-0-TransposeNHWCToNCHW-LayoutOptimizer"}
+  // kConvolution	%custom-call.4 = (f32[256,32,32,32]{3,2,1,0}, u8[6152]{0}) custom-call(f32[256,3,32,32]{3,2,1,0} %fusion, f32[3,3,3,32]{1,0,2,3} %copy.4, f32[32]{0} %arg1.2), window={size=3x3 pad=1_1x1_1}, dim_labels=bf01_01io->bf01, custom_call_target="__cudnn$convBiasActivationForward", metadata={op_type="Conv2D" op_name="sequential/conv2d/Conv2D"}, backend_config="{\"algorithm\":\"1\",\"tensorOpsEnabled\":true,\"activationMode\":\"2\",\"convResultScale\":1}"
+  // kConvolution	%custom-call.5 = (f32[256,32,30,30]{3,2,1,0}, u8[102528]{0}) custom-call(f32[256,32,32,32]{3,2,1,0} %get-tuple-element.4, f32[3,3,32,32]{1,0,2,3} %copy.5, f32[32]{0} %arg3.4), window={size=3x3}, dim_labels=bf01_01io->bf01, custom_call_target="__cudnn$convBiasActivationForward", metadata={op_type="Conv2D" op_name="sequential/conv2d_1/Conv2D"}, backend_config="{\"algorithm\":\"6\",\"tensorOpsEnabled\":true,\"activationMode\":\"2\",\"convResultScale\":1}"
+  // kKernel     	%reduce-window.25 = f32[256,32,15,15]{3,2,1,0} reduce-window(f32[256,32,30,30]{3,2,1,0} %get-tuple-element.5, f32[] %constant_20), window={size=1x1x2x2 stride=1x1x2x2}, to_apply=%max_F32.21, metadata={op_type="MaxPool" op_name="sequential/max_pooling2d/MaxPool"}
+  // Dependencies:
+  // ** End module_0001.thunk_schedule ***
 
   std::unique_ptr<HloProfileIndexMap> profile_index_map;
   std::unique_ptr<HloProfilePrinterData> profile_printer;
@@ -598,7 +610,18 @@ StatusOr<std::unique_ptr<Executable>> GpuCompiler::RunBackend(
     VLOG(1) << "HLO memory read+written: "
             << tensorflow::strings::HumanReadableNumBytes(
                    cost_analysis.bytes_accessed());
+    // 1.
+    // log:
+    // 2020-04-08 22:28:30.974963: I tensorflow/compiler/xla/service/gpu/gpu_compiler.cc:424] HLO memory read+written: 41.30MiB
+
     if (module->config().hlo_profiling_enabled()) {
+      // 1.
+      // p module->config().hlo_profiling_enabled()
+      // $15 = false
+
+      // 2.
+      // 怎么设置打开?
+
       profile_index_map = absl::make_unique<HloProfileIndexMap>(*module);
       profile_printer = CreateHloProfilePrinterData(
           *profile_index_map, cost_analysis, entry_computation->name());
@@ -611,6 +634,8 @@ StatusOr<std::unique_ptr<Executable>> GpuCompiler::RunBackend(
       std::move(buffer_assignment), std::move(profile_printer),
       std::move(profile_index_map));
   if (embed_ir_in_executable) {
+    // 未进入
+
     DCHECK_NE("", ir_module_string_before_opt);
     gpu_executable->set_ir_module_string(ir_module_string_before_opt);
   }

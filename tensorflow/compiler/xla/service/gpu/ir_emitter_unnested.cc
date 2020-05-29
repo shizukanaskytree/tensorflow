@@ -121,6 +121,11 @@ void UpdateLaunchDimensions(const LaunchDimensions& launch_dims, Thunk* thunk,
 
   // Add __launch_bounds__ to metadata. This limits registers per thread to
   // avoid out-of-resources launching errors.
+
+  // 1.
+  // __launch_bounds__ 是什么?
+  // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#launch-bounds
+
   llvm::NamedMDNode* nvvm_annotations_node =
       llvm_module->getOrInsertNamedMetadata("nvvm.annotations");
   llvm::Function* ir_kernel =

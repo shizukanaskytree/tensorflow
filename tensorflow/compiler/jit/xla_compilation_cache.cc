@@ -563,13 +563,20 @@ Status XlaCompilationCache::CompileImpl(
       // 1.
       // 打印:
       // 2020-02-21 16:46:21.067446: I tensorflow/compiler/jit/xla_compilation_cache.cc:386]
-      // compiled cluster_5 1 times, compile time: 13825801074 us, cumulative: 13825801074 us (3.84 h / 3.84 h)
+      // compiled cluster_5
+      // 1 times,
+      // compile time: 13825801074 us,
+      // cumulative: 13825801074 us (3.84 h / 3.84 h)
+
+      // 1.1
+      // function.name(): cluster_5
 
       // 2.
       // cluster_name: "cluster_5"
 
       // 3.
-      // 后续有:
+      // 后续有 gpu/gpu_device.cc: 523:
+      // tensorflow::BaseGPUDevice::Compute() at gpu_device.cc
       // 2020-02-21 16:53:25.850570: I tensorflow/core/common_runtime/gpu/gpu_device.cc:523] GpuDevice::ComputeHelper scheduled cluster_5_1/xla_compile op _XlaCompile on GPU 0 stream[0]
 
       XlaJitCompilationActivity jit_compilation_activity;

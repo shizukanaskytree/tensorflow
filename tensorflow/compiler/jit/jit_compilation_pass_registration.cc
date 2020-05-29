@@ -33,6 +33,9 @@ namespace tensorflow {
 // xla.compile() Python code into XlaLaunch nodes.
 REGISTER_OPTIMIZATION(OptimizationPassRegistry::PRE_PLACEMENT, 36,
                       EncapsulateXlaComputationsPass);
+// 1.
+// Tutorial
+// https://www.slideshare.net/ssuser479fa3/tensorflow-xla-xla
 
 REGISTER_OPTIMIZATION(OptimizationPassRegistry::PRE_PLACEMENT, 35,
                       IntroduceFloatingPointJitterPass);
