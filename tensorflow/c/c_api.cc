@@ -19,6 +19,7 @@ limitations under the License.
 #include <limits>
 #include <memory>
 #include <vector>
+#include <iostream>
 
 // Required for IS_MOBILE_PLATFORM
 #include "tensorflow/core/platform/platform.h"  // NOLINT
@@ -762,6 +763,21 @@ bool ExtendSessionGraphHelper(TF_Session* session, TF_Status* status) {
     session->graph->mu.lock();
     mutex_lock session_lock(session->mu);
     const Graph& graph = session->graph->graph;
+    
+    // wxf: print all nodes device placement of the graph 
+    // int num_nodes = graph.num_nodes();
+    // for (int i = 0; i < num_nodes; i++) {
+
+    // }
+    for (Node* node: graph.nodes()) {
+      // TODO
+      std::cout << "assigned_device_name: " << graph.get_assigned_device_name(*node) << std::endl;
+      if (node) {
+        std::cout << "requested device: " << node->requested_device() << std::endl;
+        std::cout << "assigned_device_name: " << node->assigned_device_name() << std::endl;
+      }
+    }
+    //~wxf
 
     const string& mutation_warning = session->graph->sessions[session];
     if (!mutation_warning.empty()) {
