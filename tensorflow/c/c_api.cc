@@ -769,14 +769,15 @@ bool ExtendSessionGraphHelper(TF_Session* session, TF_Status* status) {
     // for (int i = 0; i < num_nodes; i++) {
 
     // }
-    for (Node* node: graph.nodes()) {
-      // TODO
-      std::cout << "assigned_device_name: " << graph.get_assigned_device_name(*node) << std::endl;
-      if (node) {
-        std::cout << "requested device: " << node->requested_device() << std::endl;
-        std::cout << "assigned_device_name: " << node->assigned_device_name() << std::endl;
-      }
-    }
+
+    //c// for (Node* node: graph.nodes()) {
+    //c//   // TODO
+    //c//   std::cout << "assigned_device_name: " << graph.get_assigned_device_name(*node) << std::endl;
+    //c//   if (node) {
+    //c//     std::cout << "requested device: " << node->requested_device() << std::endl;
+    //c//     std::cout << "assigned_device_name: " << node->assigned_device_name() << std::endl;
+    //c//   }
+    //c// }
     //~wxf
 
     const string& mutation_warning = session->graph->sessions[session];
