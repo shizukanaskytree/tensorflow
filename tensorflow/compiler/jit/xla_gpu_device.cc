@@ -57,8 +57,14 @@ class XlaGpuDeviceFactory : public DeviceFactory {
  public:
   Status CreateDevices(const SessionOptions& options, const string& name_prefix,
                        std::vector<std::unique_ptr<Device>>* devices) override;
+  
+  // new api: create devices according to  the selected_dev.
+  Status CreateSelectedDevices(const SessionOptions& options, const string& name_prefix,
+                               int selected_dev,
+                               std::vector<std::unique_ptr<Device>>* devices) override;
 };
 
+// 这个考虑一下 CreateSelectedDevices(options, name_prefix, selected_dev, devices))
 Status XlaGpuDeviceFactory::CreateDevices(
     const SessionOptions& session_options, const string& name_prefix,
     std::vector<std::unique_ptr<Device>>* devices) {
@@ -79,10 +85,15 @@ Status XlaGpuDeviceFactory::CreateDevices(
     VLOG(1) << "Failed to create XLA_GPU device: " << platform.status();
     return Status::OK();
   }
+
+  // 这个应该是不会设置的
   string allowed_gpus =
       session_options.config.gpu_options().visible_device_list();
+
   absl::optional<std::set<int>> gpu_ids =
       ParseVisibleDeviceList(allowed_gpus).ValueOrDie();
+  
+  // 以 visible devices 作为全部总是不合理的, 这个地方要改.
   if (!gpu_ids) {
     gpu_ids.emplace();
     // Fill the gpu_ids set with all devices if config string is empty.
@@ -90,6 +101,82 @@ Status XlaGpuDeviceFactory::CreateDevices(
       gpu_ids->insert(i);
     }
   }
+
+  // 新的函数里面, 这里要改的呢
+  for (int i : *gpu_ids) {
+    XlaDevice::Options options;
+    options.platform = platform.ValueOrDie();
+    options.device_name_prefix = name_prefix;
+    options.device_name = DEVICE_XLA_GPU;
+    options.device_ordinal = i;
+    options.compilation_device_name = DEVICE_GPU_XLA_JIT;
+    options.use_multiple_streams = true;
+    options.allowed_devices = gpu_ids;
+    auto device = absl::make_unique<XlaDevice>(session_options, options);
+
+    Status status = device->UseGpuDeviceInfo();
+    if (!status.ok()) {
+      errors::AppendToMessage(&status, "while setting up ", DEVICE_GPU_XLA_JIT,
+                              " device number ", i);
+      return status;
+    }
+
+    devices->push_back(std::move(device));
+  }
+  return Status::OK();
+}
+
+Status XlaGpuDeviceFactory::CreateSelectedDevices(
+    const SessionOptions& session_options, const string& name_prefix,
+    int selected_dev,
+    std::vector<std::unique_ptr<Device>>* devices) {
+  // if selected_dev is -1, it means only cpu and xla_cpu.
+  if (selected_dev == -1) {
+    return Status::OK();
+  }
+
+  // *
+  XlaOpRegistry::DeviceRegistration registration;
+  registration.compilation_device_name = DEVICE_GPU_XLA_JIT;
+  registration.autoclustering_policy =
+      XlaOpRegistry::AutoclusteringPolicy::kAlways;
+  registration.compile_all_resource_ops = true;
+  XlaOpRegistry::RegisterCompilationDevice(DEVICE_XLA_GPU, registration);
+
+  //bug// static XlaDeviceOpRegistrations* registrations =
+  //bug//     RegisterXlaDeviceKernels(DEVICE_XLA_GPU, DEVICE_GPU_XLA_JIT);
+  //bug// (void)registrations;
+  // 因为之前已经注册过了, 再注册就会重复.
+
+  auto platform = se::MultiPlatformManager::PlatformWithName("CUDA");
+  if (!platform.ok()) {
+    // Treat failures as non-fatal; there might not be a GPU in the machine.
+    VLOG(1) << "Failed to create XLA_GPU device: " << platform.status();
+    return Status::OK();
+  }
+
+  // 这个应该是不会设置的, 所以是空的, allowed_gpus 是空的.
+  string allowed_gpus =
+      session_options.config.gpu_options().visible_device_list();
+
+  // 以 visible devices 作为全部总是不合理的, 这个地方要改.
+  absl::optional<std::set<int>> gpu_ids =
+      ParseVisibleDeviceList(allowed_gpus).ValueOrDie();
+  
+  if (!gpu_ids) {
+    gpu_ids.emplace();
+    // Fill the gpu_ids set with all devices if config string is empty.
+    for (int i = 0; i < platform.ValueOrDie()->VisibleDeviceCount(); ++i) {
+      // ************************************************************************
+      // 限定 selected_dev, 这里我觉得呢, 因为我默认了一个 selected_dev
+      // ************************************************************************
+      if (selected_dev == i) {
+        gpu_ids->insert(i);
+      }
+    }
+  }
+
+  // 新的函数里面, 这里要改的呢
   for (int i : *gpu_ids) {
     XlaDevice::Options options;
     options.platform = platform.ValueOrDie();

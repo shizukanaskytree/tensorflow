@@ -33,6 +33,12 @@ Worker::Worker(WorkerEnv* env) : env_(env) {}
 void Worker::GetStatusAsync(const GetStatusRequest* request,
                             GetStatusResponse* response, StatusCallback done) {
   DeviceMgr* dm = env_->device_mgr;
+  //code// VLOG(0) << "Worker::GetStatusAsync: " << dm->DebugString();
+  // Worker::GetStatusAsync: 
+  // /job:worker/replica:0/task:0/device:CPU:0
+  // /job:worker/replica:0/task:0/device:XLA_CPU:0
+  // /job:worker/replica:0/task:0/device:GPU:0
+
   std::vector<DeviceAttributes> devices;
   dm->ListDeviceAttributes(&devices);
   response->mutable_device_attributes()->Reserve(devices.size());

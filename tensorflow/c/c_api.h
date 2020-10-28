@@ -1752,6 +1752,14 @@ TF_CAPI_EXPORT extern TF_Server* TF_NewServer(const void* proto,
 // Starts an in-process TensorFlow server.
 TF_CAPI_EXPORT extern void TF_ServerStart(TF_Server* server, TF_Status* status);
 
+// Restarts an in-process TensorFlow server.
+TF_CAPI_EXPORT extern void TF_ServerRestart(TF_Server* server, int selected_dev, 
+                                            TF_Status* status);
+
+// Shutdown the server.
+TF_CAPI_EXPORT extern void TF_ServerShutdown(TF_Server* server, int selected_dev, 
+                                             TF_Status* status);
+
 // Stops an in-process TensorFlow server.
 TF_CAPI_EXPORT extern void TF_ServerStop(TF_Server* server, TF_Status* status);
 

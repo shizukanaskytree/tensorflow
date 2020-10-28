@@ -41,6 +41,12 @@ class DeviceFactory {
   static Status AddDevices(const SessionOptions& options,
                            const string& name_prefix,
                            std::vector<std::unique_ptr<Device>>* devices);
+  
+  // AddVisibleDevices
+  static Status AddSelectedDevices(const SessionOptions& options,
+                           const string& name_prefix,
+                           int selected_dev,
+                           std::vector<std::unique_ptr<Device>>* devices);
 
   // Helper for tests.  Create a single device of type "type".  The
   // returned device is always numbered zero, so if creating multiple
@@ -53,6 +59,17 @@ class DeviceFactory {
   virtual Status CreateDevices(
       const SessionOptions& options, const string& name_prefix,
       std::vector<std::unique_ptr<Device>>* devices) = 0;
+  
+  // Create selected devices is only implemented by GPU devices.
+  // It is not required to be implemented by other types of devices.
+  // Implmentation is in tensorflow/core/common_runtime/gpu/gpu_device.cc
+  // Called in tensorflow/core/common_runtime/device_factory.cc
+  virtual Status CreateSelectedDevices(
+      const SessionOptions& options, const string& name_prefix,
+      int selected_dev,
+      std::vector<std::unique_ptr<Device>>* devices) {
+    return Status::OK();
+  }
 
   // Return the device priority number for a "device_type" string.
   //

@@ -65,6 +65,13 @@ class GpuDriver {
   // http://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__INITIALIZE.html#group__CUDA__INITIALIZE_1g0a2f1517e1bd8502c7194c3a8c134bc3
   static port::Status Init();
 
+  // re-init after delete devices
+  static port::Status ReInit();
+
+  // Destroy all allocations and reset all state on the current device in the current process.
+  // https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__DEVICE.html
+  static port::Status DeviceReset();
+
   // Returns the device associated with the given context.
   // device is an outparam owned by the caller, must not be null.
   // http://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__CTX.html#group__CUDA__CTX_1g4e84b109eba36cdaaade167f34ae881e

@@ -1191,6 +1191,33 @@ MasterSession::MasterSession(
   VLOG(1) << "Session " << handle_ << " #local " << env->local_devices.size()
           << " #remote " << remote_devs_->size();
 
+  //code// VLOG(0) << "Master Session " << handle_ << " #local device: " << env->local_devices.size()
+  //code//         << " #remote devices: " << remote_devs_->size();
+
+  //code// VLOG(0) << "Master Session, local devs: ";
+  //code// for (auto& lv: env->local_devices) {
+  //code//   VLOG(0) << lv->DebugString();
+  //code// }
+
+  //code// VLOG(0) << "Master Session, remote devs: ";
+  //code// //std::vector<std::unique_ptr<Device>> r_v = 
+  //code// for (auto& rv: *(remote_devs_)) {
+  //code//   VLOG(0) << rv->DebugString();
+  //code// }
+
+  // local devs: 3, remote devs: 5
+  // e.g.,
+  // local devs: {CPU, XLA_CPU, GPU} worker, task 0; {CPU, XLA_CPU} ps;
+  // remote devs: {CPU, XLA_CPU, GPU} worker, task 1.
+
+  // devices_, std::vector<Device*>& devices()
+  //code// VLOG(0) << "Master Session, devices_: ";
+  //code// std::vector<Device*> devs = devices_->devices();
+  //code// for (auto& d: devs) {
+  //code//   VLOG(0) << d->DebugString();
+  //code// }
+  // devices_: 同上, 就是我所定义的那些.
+
   LOG(INFO) << "Start master session " << handle_
             << " with config: " << session_opts_.config.ShortDebugString();
 }
@@ -1219,6 +1246,8 @@ Status MasterSession::Create(GraphDef* graph_def,
   }
 
   GraphExecutionStateOptions execution_options;
+
+  // MasterSession 里面的 devices_ 是怎么回事? 为什么会出现那么多?
   execution_options.device_set = devices_.get();
   execution_options.session_options = &session_opts_;
   {
@@ -1376,6 +1405,9 @@ Status MasterSession::ListDevices(ListDevicesResponse* resp) const {
     // Mark the "client_device" as the sole local device.
     const Device* client_device = devices_->client_device();
     for (const Device* dev : devices_->devices()) {
+      
+      VLOG(0) << "MasterSession::ListDevices: " << dev->DebugString();
+
       if (dev != client_device) {
         *(resp->add_remote_device()) = dev->attributes();
       }

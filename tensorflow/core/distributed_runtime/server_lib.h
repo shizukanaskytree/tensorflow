@@ -42,6 +42,12 @@ class ServerInterface {
   // returns an error.
   virtual Status Start() = 0;
 
+  // Restart the server.
+  virtual Status Restart(int selected_dev) { return Status::OK(); };
+  
+  // Shutdown the server.
+  virtual Status Shutdown(int selected_dev) { return Status::OK(); }
+
   // Stops the server asynchronously. Returns OK on success, otherwise returns
   // an error.
   //

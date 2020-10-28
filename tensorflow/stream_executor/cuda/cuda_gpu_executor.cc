@@ -141,6 +141,8 @@ port::Status GpuExecutor::Init(int device_ordinal,
     return status;
   }
 
+  VLOG(0) << "GpuExecutor::Init: " << device_ordinal;
+
   status = GpuDriver::CreateContext(device_ordinal_, device_, device_options,
                                     &context_);
   if (!status.ok()) {

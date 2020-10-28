@@ -308,6 +308,7 @@ static port::Status InternalInit() {
   if (FLAGS_gpuexec_cuda_driver_inject_init_error) {
     LOG(ERROR) << "injecting CUDA init error; initialization will fail";
   } else {
+    VLOG(0) << "cuInit";
     res = cuInit(0 /* = flags */);
   }
 
@@ -338,6 +339,30 @@ static port::Status InternalInit() {
 
   return init_retval;
 }
+
+/* static */ port::Status GpuDriver::ReInit() {
+  // Cached return value from calling InternalInit(), as cuInit need only be
+  // called once, but GpuDriver::Init may be called many times.
+  static port::Status init_retval;
+  static mutex* init_mu = new mutex;
+  mutex_lock lock(*init_mu);
+
+  init_retval = InternalInit();
+  return init_retval;
+}
+
+// /* static */ port::Status GpuDriver::DeviceReset() {
+//   // no cuda runtime 
+//   // pending...
+// 
+//   cudaError_t err = cudaDeviceReset();
+//   if (err != cudaSuccess) {
+//     return port::Status(
+//         port::error::INTERNAL, "failed call to cudaDeviceReset");
+//   } else {
+//     return port::Status::OK();
+//   }
+// }
 
 /* static */ port::Status GpuDriver::GetDevice(int device_ordinal,
                                                CUdevice* device) {
@@ -827,6 +852,8 @@ GpuDriver::ContextGetSharedMemConfig(GpuContext* context) {
   if (bytes == 0) {
     return nullptr;
   }
+
+  VLOG(0) << " === GpuDriver::DeviceAllocate === ";
 
   ScopedActivateContext activated{context};
   CUdeviceptr result = 0;

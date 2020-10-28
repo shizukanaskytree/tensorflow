@@ -122,7 +122,13 @@ class GrpcWorkerServiceThread {
       mutex_lock lock(shutdown_mu_);
       is_shutdown_ = true;
     }
+
     cq_->Shutdown();
+    // drain cq_ that was created
+    void* ignored_tag;
+    bool ignored_ok;
+
+    while (cq_->Next(&ignored_tag, &ignored_ok)) { }
   }
 
  private:

@@ -97,9 +97,10 @@ void NewRemoteDevices(Env* env, WorkerCacheInterface* worker_cache,
         // TODO(b/37868888): Simplify when legacy device name formats removed.
         if (device_name_parsed.job == worker_name_parsed.job &&
             device_name_parsed.replica == worker_name_parsed.replica &&
-            device_name_parsed.task == worker_name_parsed.task) {
+            device_name_parsed.task == worker_name_parsed.task) {              
           auto d = new RemoteDevice(env, da);
           remote_devices.push_back(d);
+          //code// VLOG(0) << "NewRemoteDevices, remote: " << d->DebugString();
         } else {
           DeviceAttributes da_rewritten = da;
           da_rewritten.set_name(DeviceNameUtils::FullName(

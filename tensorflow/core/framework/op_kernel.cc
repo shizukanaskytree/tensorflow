@@ -1074,6 +1074,14 @@ void OpKernelRegistrar::InitInternal(const KernelDef* kernel_def,
         Key(kernel_def->op(), DeviceType(kernel_def->device_type()),
             kernel_def->label());
 
+    //code// VLOG(0) << "-------------------------------------------------------------";
+    //code// VLOG(0) << "OpKernelRegistrar::InitInternal: " << ProtoShortDebugString(*kernel_def);
+
+    //code// if (key == "Add:XLA_GPU:") {
+    //code//   VLOG(0) << "hit Add:XLA_GPU:";
+    //code// }
+    //code// VLOG(0) << "=============================================================";
+
     // To avoid calling LoadDynamicKernels DO NOT CALL GlobalKernelRegistryTyped
     // here.
     // InitInternal gets called by static initializers, so it ends up executing
@@ -1111,11 +1119,21 @@ Status FindKernelRegistration(const DeviceType& device_type,
 
   const string key = Key(node_def.op(), device_type, label);
   auto regs = GlobalKernelRegistryTyped()->equal_range(key);
+  
+  int num_regs = 0;
+  for (auto iter = regs.first; iter != regs.second; ++iter) {
+    num_regs += 1;
+  }
+  //code// VLOG(0) << "FindKernelRegistration regs number:" << num_regs;
+  
   for (auto iter = regs.first; iter != regs.second; ++iter) {
     // If there is a kernel registered for the op and device_type,
     // check that the attrs match.
     bool match;
     TF_RETURN_IF_ERROR(KernelAttrsMatch(iter->second.def, node_def, &match));
+    
+    //code// VLOG(0) << "ProtoShortDebugString(iter->second.def): " << ProtoShortDebugString(iter->second.def);
+
     if (match) {
       if (*reg != nullptr) {
         return errors::InvalidArgument(

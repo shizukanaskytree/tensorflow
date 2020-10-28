@@ -228,6 +228,12 @@ void LocalMaster::Register(const string& target, Master* master,
 }
 
 /* static */
+void LocalMaster::Erase(const string& target) {
+  mutex_lock l(*get_local_master_registry_lock());
+  local_master_registry()->erase(target);
+} 
+
+/* static */
 std::unique_ptr<LocalMaster> LocalMaster::Lookup(const string& target) {
   std::unique_ptr<LocalMaster> ret;
   mutex_lock l(*get_local_master_registry_lock());

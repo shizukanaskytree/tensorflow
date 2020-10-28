@@ -117,6 +117,95 @@ Status DeviceFactory::AddDevices(
   return Status::OK();
 }
 
+Status DeviceFactory::AddSelectedDevices(
+    const SessionOptions& options, const string& name_prefix,
+    int selected_dev,
+    std::vector<std::unique_ptr<Device>>* devices) {
+  // CPU first. A CPU device is required.
+  auto cpu_factory = GetFactory("CPU");
+  // 涉及 GPU 的都要单独考虑了.
+  auto gpu_factory = GetFactory("GPU");
+  auto xla_gpu_factory = GetFactory("XLA_GPU");
+
+  if (!cpu_factory) {
+    return errors::NotFound(
+        "CPU Factory not registered.  Did you link in threadpool_device?");
+  }
+  size_t init_size = devices->size();
+  TF_RETURN_IF_ERROR(cpu_factory->CreateDevices(options, name_prefix, devices));
+  if (devices->size() == init_size) {
+    return errors::NotFound("No CPU devices are available in this process");
+  }
+
+  //if (selected_dev == -1) {
+    // CPU only now. 提前返回, 不对不对, 还缺了 
+    //
+    // /job:ps/replica:0/task:0/device:CPU:0
+    // /job:ps/replica:0/task:0/device:XLA_CPU:0
+    // /job:ps/replica:0/task:0/device:GPU:0
+    // /job:ps/replica:0/task:0/device:GPU:1
+    // /job:ps/replica:0/task:0/device:GPU:2
+    // /job:ps/replica:0/task:0/device:GPU:3
+    // /job:ps/replica:0/task:0/device:XLA_GPU:0
+    // /job:ps/replica:0/task:0/device:XLA_GPU:1
+    // /job:ps/replica:0/task:0/device:XLA_GPU:2
+    // /job:ps/replica:0/task:0/device:XLA_GPU:3 
+    //
+  //  return Status::OK();
+  //}
+
+  VLOG(0) << "selected_dev: " << selected_dev;
+
+  // Then the rest (including GPU).
+  mutex_lock l(*get_device_factory_lock());
+  for (auto& p : device_factories()) {
+    auto factory = p.second.factory.get();
+    // gpu is special now.
+    
+    // 不构建 xla gpu 了, 有问题目前, 不知道为什么
+    //if (factory == gpu_factory) {
+    if (factory == gpu_factory || factory == xla_gpu_factory) {
+      // Pass: 把删选条件放到 CreateSelectedDevices 里面吧.
+      TF_RETURN_IF_ERROR(
+        factory->CreateSelectedDevices(options, name_prefix, 
+          selected_dev, devices));
+      // 因为这个函数的变化所以导致我需要大面积重复这个 AddSelectedDevices 函数.
+    }
+    if (factory != cpu_factory && factory != gpu_factory && 
+        factory != xla_gpu_factory) {
+      TF_RETURN_IF_ERROR(factory->CreateDevices(options, name_prefix, devices));
+    }
+  }
+
+  return Status::OK();
+}
+
+// 应该说是要分配 Devices 而不是如 AddDevices 那样去找!
+// c++ 调整 device visibility, environment var, 然后再
+//c// Status DeviceFactory::ChangeVisibleDevices(
+//c//   const SessionOptions& options, const string& name_prefix,
+//c//   std::vector<std::unique_ptr<Device>>* devices) {
+//c//   
+//c//   // 调整 visibility 
+//c//   // set env var:
+//c//   // https://stackoverflow.com/questions/899517/set-local-environment-variables-in-c
+//c//   // CPU first. A CPU device is required.
+//c// 
+//c//   
+//c//   auto cpu_factory = GetFactory("CPU");
+//c//   if (!cpu_factory) {
+//c//     return errors::NotFound(
+//c//         "CPU Factory not registered.  Did you link in threadpool_device?");
+//c//   }
+//c//   size_t init_size = devices->size();
+//c//   TF_RETURN_IF_ERROR(cpu_factory->CreateDevices(options, name_prefix, devices));
+//c//   if (devices->size() == init_size) {
+//c//     return errors::NotFound("No CPU devices are available in this process");
+//c//   }
+//c// 
+//c// 
+//c// }
+
 std::unique_ptr<Device> DeviceFactory::NewDevice(const string& type,
                                                  const SessionOptions& options,
                                                  const string& name_prefix) {

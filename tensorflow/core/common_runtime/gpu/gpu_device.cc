@@ -989,6 +989,10 @@ Status BaseGPUDeviceFactory::CreateDevices(
   }
 
   size_t num_gpus_to_use = INT_MAX;
+  // 1.
+  // cmt:
+  // make it flexible here! like only use 1, 2, or 3
+
   auto iter = options.config.device_count().find("GPU");
   if (iter != options.config.device_count().end()) {
     num_gpus_to_use = iter->second;
@@ -1003,9 +1007,16 @@ Status BaseGPUDeviceFactory::CreateDevices(
   if (num_gpus_to_use > 0) {
     TF_RETURN_IF_ERROR(ParseVisibleDeviceList(gpu_options.visible_device_list(),
                                               &visible_gpu_order));
+    // 1.
+    // cmt: visible_gpu_order 有多少用多少, 不可取. 要调控
+
     TF_RETURN_IF_ERROR(
         GetValidDeviceIds(visible_gpu_order, &valid_platform_gpu_ids));
+    // 可以 get 那么多, 可是要过滤一下
   }
+
+  // 我觉得在这里过滤刚刚好. 因为涉及到 num_gpus_to_use 要定义是几个了.
+
   if (num_gpus_to_use > valid_platform_gpu_ids.size()) {
     num_gpus_to_use = valid_platform_gpu_ids.size();
   }
@@ -1158,6 +1169,272 @@ Status BaseGPUDeviceFactory::CreateDevices(
   return Status::OK();
 }
 
+Status BaseGPUDeviceFactory::CreateSelectedDevices(
+    const SessionOptions& options, const string& name_prefix,
+    int selected_dev,
+    std::vector<std::unique_ptr<Device>>* devices) {
+  // 设计的思路是
+  // 在 SessionOptions 里面指定 device , 限定 device
+
+  // if selected_dev is -1, devices are only cpu and xla_cpu.
+  if (selected_dev == -1) {
+    return Status::OK();
+  }
+
+  TF_RETURN_IF_ERROR(ValidateGPUMachineManager());
+  se::Platform* gpu_manager = GPUMachineManager();
+  if (gpu_manager == nullptr) {
+    return Status::OK();
+  }
+  
+  // 通常都是 4 个 GPUs 全部可见的.
+  // If there are no GPUs visible, do nothing.
+  if (gpu_manager->VisibleDeviceCount() <= 0) {
+    return Status::OK();
+  }
+
+  size_t num_gpus_to_use = INT_MAX;
+
+  // 无视这个选项
+  // 默认我不去设置这个选项!
+  auto iter = options.config.device_count().find("GPU");
+  if (iter != options.config.device_count().end()) {
+    num_gpus_to_use = iter->second;
+    // 无视这个选项
+    // 默认我不去设置这个选项!
+  }
+
+  const auto& gpu_options = options.config.gpu_options();
+
+  // visible gpu is a fact 
+  std::vector<PlatformGpuId> visible_gpu_order;
+
+  // valid gpu is selected by myself.
+  std::vector<PlatformGpuId> valid_platform_gpu_ids;
+
+  // If we aren't going to use any GPUs, don't initialize them.
+  // We don't want to call ParseVisibleDeviceList if num_gpus_to_use is 0,
+  // because it treats an empty gpu_options.visible_device_list as 'all GPUs are
+  // visible'.
+  if (num_gpus_to_use > 0) {
+    // 这对我来说没用, 因为我是忽略这个选项的
+    // 而且隐藏的是 visible_gpu_order 是全部 devices
+    TF_RETURN_IF_ERROR(ParseVisibleDeviceList(gpu_options.visible_device_list(),
+                                              &visible_gpu_order));
+    // 虽然说 visible_gpu_order 是可见的.
+    // 但是不要全部用啊.
+
+    TF_RETURN_IF_ERROR(
+        GetValidDeviceIds(visible_gpu_order, &valid_platform_gpu_ids));
+  }
+
+  // ********************************************************************
+  // 我觉得在这里过滤刚刚好. 因为涉及到 num_gpus_to_use 要定义是几个了.
+  // selected gpu after applying selected__dev id
+  VLOG(0) << "selected_dev GPU: " << selected_dev;
+  valid_platform_gpu_ids.assign(valid_platform_gpu_ids.begin() + selected_dev, 
+                                valid_platform_gpu_ids.begin() + selected_dev + 1);
+  // 
+  //      0 1 2 3
+  // 0:   N Y Y Y
+  // 1:   Y N Y Y
+  // 2:   Y Y N Y
+  // 3:   Y Y Y N
+  //
+  // 结果是其中的某一个 id as platform_gpu_ids.
+  // ********************************************************************
+  VLOG(0) << "Selected platform gpu id: "; 
+  for (auto& id: valid_platform_gpu_ids) {
+    VLOG(0) << id.value();
+  }
+
+  if (num_gpus_to_use > valid_platform_gpu_ids.size()) {
+    num_gpus_to_use = valid_platform_gpu_ids.size();
+    VLOG(0) << "num of gpus to use is expected 1: " << num_gpus_to_use;
+  }
+
+  if (!valid_platform_gpu_ids.empty()) {
+    // Save the original device.
+    int original_device = 0;
+#if GOOGLE_CUDA
+    cudaError_t err = cudaGetDevice(&original_device);
+    // 1.
+    // tensorflow/stream_executor/cuda/cudart_stub.cc
+    if (err != cudaSuccess) {
+      return errors::Internal("cudaGetDevice() failed. Status: ",
+                              cudaGetErrorString(err));
+    }
+#elif TENSORFLOW_USE_ROCM
+    hipError_t err = hipGetDevice(&original_device);
+    if (err != hipSuccess) {
+      return errors::Internal("hipGetDevice() failed. Status: ",
+                              hipGetErrorString(err));
+    }
+#endif
+    // Force to implicitly initialize CUDA runtime on each valid GPU before
+    // CreateGPUDevice().
+    for (PlatformGpuId platform_gpu_id : valid_platform_gpu_ids) {
+#if GOOGLE_CUDA
+
+      VLOG(0) << "platform_gpu_id: " << platform_gpu_id.value(); 
+
+      err = cudaSetDevice(platform_gpu_id.value());
+      if (err != cudaSuccess) {
+        return errors::Internal(
+            "cudaSetDevice() on GPU:", platform_gpu_id.value(),
+            " failed. Status: ", cudaGetErrorString(err));
+      }
+      err = cudaFree(nullptr);
+      if (err != cudaSuccess) {
+        return errors::Internal("CUDA runtime implicit initialization on GPU:",
+                                platform_gpu_id.value(),
+                                " failed. Status: ", cudaGetErrorString(err));
+      }
+#elif TENSORFLOW_USE_ROCM
+      err = hipSetDevice(platform_gpu_id.value());
+      if (err != hipSuccess) {
+        return errors::Internal(
+            "hipSetDevice() on GPU:", platform_gpu_id.value(),
+            " failed. Status: ", hipGetErrorString(err));
+      }
+      err = hipFree(nullptr);
+      if (err != hipSuccess) {
+        return errors::Internal("ROCm runtime implicit initialization on GPU:",
+                                platform_gpu_id.value(),
+                                " failed. Status: ", hipGetErrorString(err));
+      }
+#endif
+    }
+    // Reset to the original device.
+#if GOOGLE_CUDA
+    err = cudaSetDevice(original_device);
+    if (err != cudaSuccess) {
+      return errors::Internal("cudaSetDevice() on GPU:", original_device,
+                              " failed. Status: ", cudaGetErrorString(err));
+    }
+#elif TENSORFLOW_USE_ROCM
+    err = hipSetDevice(original_device);
+    if (err != hipSuccess) {
+      return errors::Internal("hipSetDevice() on GPU:", original_device,
+                              " failed. Status: ", hipGetErrorString(err));
+    }
+#endif
+  }
+
+  std::vector<InterconnectMap> interconnect_maps;
+  TF_RETURN_IF_ERROR(
+      GetInterconnectMaps(visible_gpu_order, gpu_manager, &interconnect_maps));
+
+  // Print each interconnect map to the log.
+  for (const InterconnectMap& im : interconnect_maps) {
+    LOG(INFO) << "Device interconnect " << im.name << " with strength "
+              << im.strength << " edge matrix:";
+    string line_buf = "     ";
+    for (int i = 0; i < visible_gpu_order.size(); ++i) {
+      strings::StrAppend(&line_buf, visible_gpu_order[i].value(), " ");
+    }
+    LOG(INFO) << line_buf;
+    for (int i = 0; i < visible_gpu_order.size(); ++i) {
+      line_buf = strings::StrCat(visible_gpu_order[i].value(), ":   ");
+      PlatformGpuId gpu_id_i = visible_gpu_order[i];
+      for (int j = 0; j < visible_gpu_order.size(); ++j) {
+        PlatformGpuId gpu_id_j = visible_gpu_order[j];
+        if (im.directed_links.find({gpu_id_i, gpu_id_j}) !=
+            im.directed_links.end()) {
+          line_buf.append("Y ");
+        } else {
+          line_buf.append("N ");
+        }
+      }
+      LOG(INFO) << line_buf;
+    }
+  }
+ 
+  // 这个通常都没人设置的, 默认不看了.
+  const auto& virtual_devices = gpu_options.experimental().virtual_devices();
+  if (!virtual_devices.empty()) {
+    TF_RETURN_IF_ERROR(VerifyVirtualDeviceSettings(num_gpus_to_use, gpu_options,
+                                                   visible_gpu_order,
+                                                   valid_platform_gpu_ids));
+    // We've verified that num_gpus_to_use >= virtual_devices.size().
+    num_gpus_to_use = virtual_devices.size();
+    CHECK(gpu_options.visible_device_list().empty() ||
+          valid_platform_gpu_ids == visible_gpu_order);
+  }
+
+  // 需要写这个否则会报错. 起初的 mapping 是 
+  // 起初的是 TfToPlatformGpuIdMap: 0-0, 1-1, 2-2, 3-3
+  // ~~新的可能是 比如 TfToPlatformGpuId, process 0 是 0-1, process 1 是 0-2.~~
+  // 新的我希望保持 0-0, 1-1, 2-2, 3-3 这种对应关系.
+  // virtual tf gpu to solid virtual gpu.
+  //t// GpuIdManager::TestOnlyReset(); 
+  // 这个可能不能删除, 因为会找不到, 为什么呢, 因为全局来看, worker_1 0-0 时也需要 work_2 的 2-2.
+
+  // tf_gpu 是 virtual 的 gpu
+  // platform_gpu 是 physical 的 gpu
+  int next_tf_gpu_id = 0;
+
+  std::vector<int64> memory_limit_bytes;
+  for (int i = 0; i < num_gpus_to_use; ++i) {
+    const PlatformGpuId platform_gpu_id = valid_platform_gpu_ids[i];
+    if (virtual_devices.empty() ||
+        virtual_devices.Get(i).memory_limit_mb_size() == 0) {
+      int64 single_virtual_device_memory_limit = 0;
+      TF_RETURN_IF_ERROR(SingleVirtualDeviceMemoryLimit(
+          gpu_options, platform_gpu_id, &single_virtual_device_memory_limit));
+      memory_limit_bytes.push_back(single_virtual_device_memory_limit);
+    } else {
+      const auto& memory_limit_mb = virtual_devices.Get(i).memory_limit_mb();
+      std::transform(memory_limit_mb.begin(), memory_limit_mb.end(),
+                     std::back_inserter(memory_limit_bytes), [](float mb) {
+                       return static_cast<int64>(mb) * (1ll << 20);
+                     });
+    }
+    while (next_tf_gpu_id < memory_limit_bytes.size()) {
+      //ori// TfGpuId tf_gpu_id(next_tf_gpu_id);
+      // 无非是 0, 1, 2, 3
+      TfGpuId tf_gpu_id(platform_gpu_id.value());
+      // 那它的意义在哪里? num_tf_gpus 的计数.
+      ++next_tf_gpu_id;
+
+      // 这里是从全局出发看待 0-0, 1-1, 2-2, 3-3 这样的对应关系, 而不是让 tf_gpu 从 0 开始
+      TF_RETURN_IF_ERROR(
+          GpuIdManager::InsertTfPlatformGpuIdPair(tf_gpu_id, platform_gpu_id));
+          // 1.
+          // see tensorflow/core/common_runtime/gpu/gpu_id.h
+    }
+  }
+
+  const int num_tf_gpus = next_tf_gpu_id;
+
+  LocalityMap device_localities;
+  TF_RETURN_IF_ERROR( // 这个函数有问题.
+      GetSelectedDeviceLocalities(num_tf_gpus, selected_dev,
+      interconnect_maps, &device_localities)); // 这里有问题, num_tf_gpus 不对
+
+  // Build the GPUDevices
+  CHECK_EQ(next_tf_gpu_id, memory_limit_bytes.size());
+  //for (int di = 0; di < num_tf_gpus; ++di) {
+    // 这里是简化处理的, 就一个 selected device 
+    int di = selected_dev;
+    TfGpuId tf_gpu_id(di); // 这里是错的, selected_dev
+    int64 bytes = memory_limit_bytes[di];
+    auto it = device_localities.find(tf_gpu_id);
+    if (it == device_localities.end()) {
+      return errors::Internal("Failed to find DeviceLocality for GPU device ",
+                              tf_gpu_id.value());
+    }
+
+    // 这个地方是有问题的...
+    // 因为 tf_gpu_id 应该是 selected_dev 而不是 从 0 开始, 那么就要冲突了.
+    // 之前出问题是因为这个地方的 tf_gpu_id 从 0 开始, 对于 process 0 和 process 1 而言
+    // 它们都从 0 开始去 allocate, 可能导致了 物理 GPU_0 的 out-of-memory.
+    TF_RETURN_IF_ERROR(CreateGPUDevice(options, name_prefix, tf_gpu_id, bytes,
+                                       it->second, devices));
+  //}
+  return Status::OK();
+}
+
 static string GetShortDeviceDescription(PlatformGpuId platform_gpu_id,
                                         const se::DeviceDescription& desc) {
 #if GOOGLE_CUDA
@@ -1183,6 +1460,10 @@ Status BaseGPUDeviceFactory::CreateGPUDevice(
     const SessionOptions& options, const string& name_prefix, TfGpuId tf_gpu_id,
     int64 memory_limit, const DeviceLocality& dev_locality,
     std::vector<std::unique_ptr<Device>>* devices) {
+  // ? 
+  // 为什么没有释放掉 GPU 呢?
+  // 在哪里 allocate GPU 的呢? 
+
   CHECK_GE(tf_gpu_id.value(), 0);
   const string device_name =
       strings::StrCat(name_prefix, "/device:GPU:", tf_gpu_id.value());
@@ -1278,9 +1559,9 @@ Status BaseGPUDeviceFactory::GetDeviceLocalities(
   std::vector<TfGpuId> all_tf_gpu_ids;
   all_tf_gpu_ids.reserve(num_tf_gpus);
   for (int i = 0; i < num_tf_gpus; ++i) {
-    all_tf_gpu_ids.push_back(TfGpuId(i));
+    all_tf_gpu_ids.push_back(TfGpuId(i)); // 这里可以改进/修改成塞入实际我选定的 device.
   }
-  for (TfGpuId tf_gpu_id : all_tf_gpu_ids) {
+  for (TfGpuId tf_gpu_id : all_tf_gpu_ids) { // 这里又是从 0 开始的, 不对!, 1-1, 2-2, 3-3 就找不到!
     PlatformGpuId platform_gpu_id;
     TF_RETURN_IF_ERROR(
         GpuIdManager::TfToPlatformGpuId(tf_gpu_id, &platform_gpu_id));
@@ -1310,7 +1591,7 @@ Status BaseGPUDeviceFactory::GetDeviceLocalities(
 
     // Set LocalLinks from InterconnectMaps.
     LocalLinks* links = dev_locality.mutable_links();
-    for (const InterconnectMap& imap : interconnects) {
+    for (const InterconnectMap& imap : interconnects) { // 这里又是从 0 开始的, 也不符合我的设计
       for (TfGpuId tf_gpu_dst : all_tf_gpu_ids) {
         PlatformGpuId platform_gpu_dst;
         TF_RETURN_IF_ERROR(
@@ -1327,7 +1608,7 @@ Status BaseGPUDeviceFactory::GetDeviceLocalities(
 
     // If this is one of multiple virtual GPUs on the same physical GPU
     // add high strength links to the others.
-    for (TfGpuId tf_gpu_dst : all_tf_gpu_ids) {
+    for (TfGpuId tf_gpu_dst : all_tf_gpu_ids) { // 同理这里也是从 0 开始的, 不符合我的预期.
       if (tf_gpu_id == tf_gpu_dst) continue;
       PlatformGpuId platform_gpu_dst;
       TF_RETURN_IF_ERROR(
@@ -1373,6 +1654,87 @@ static int GetDefaultMinGPUMultiprocessorCount(
   } else {
     return max_count;
   }
+}
+
+Status BaseGPUDeviceFactory::GetSelectedDeviceLocalities(
+    int num_tf_gpus, int selected_dev, const std::vector<InterconnectMap>& interconnects,
+    LocalityMap* localities) {
+  std::vector<TfGpuId> all_tf_gpu_ids;
+  all_tf_gpu_ids.reserve(num_tf_gpus);
+  //del// for (int i = 0; i < num_tf_gpus; ++i) {
+  //del//   all_tf_gpu_ids.push_back(TfGpuId(i)); // 这里可以改进/修改成塞入实际我选定的 device.
+  //del// }
+
+  // 目前假设就一个
+  all_tf_gpu_ids.push_back(TfGpuId(selected_dev));
+
+  for (TfGpuId tf_gpu_id : all_tf_gpu_ids) { // 这里又是从 0 开始的, 不对!, 1-1, 2-2, 3-3 就找不到!
+    PlatformGpuId platform_gpu_id;
+    TF_RETURN_IF_ERROR(
+        GpuIdManager::TfToPlatformGpuId(tf_gpu_id, &platform_gpu_id));
+    // Get GPU bus_id from its reported NUMA affinity.  Because GPUs are
+    // virtualized in some environments, we can't just use the GPU id.
+    // NUMA locales are indexed from 0, buses are indexed from 1.
+    se::StreamExecutor* se =
+        GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie();
+    const se::DeviceDescription& desc = se->GetDeviceDescription();
+    int numa_node = desc.numa_node();
+    if (numa_node < 0) {
+      // For some reason the StreamExecutor couldn't get the NUMA
+      // affinity of the GPU.  If this is not a multi-socket mobo with
+      // GPUs local to different buses, it doesn't matter.  If it is, we
+      // may run into trouble later with data transfer operations.  The
+      // trouble may manifest as slower than expected performance, or
+      // outright failures.
+      LOG(INFO) << "Could not identify NUMA node of platform GPU id "
+                << platform_gpu_id
+                << ", defaulting to 0.  Your kernel may not have been built "
+                << "with NUMA support.";
+      numa_node = 0;
+    }
+    DeviceLocality dev_locality;
+    dev_locality.set_numa_node(numa_node);
+    dev_locality.set_bus_id(numa_node + 1);
+
+    // Set LocalLinks from InterconnectMaps.
+    LocalLinks* links = dev_locality.mutable_links();
+    for (const InterconnectMap& imap : interconnects) { // 这里又是从 0 开始的, 也不符合我的设计
+      for (TfGpuId tf_gpu_dst : all_tf_gpu_ids) {
+        PlatformGpuId platform_gpu_dst;
+        TF_RETURN_IF_ERROR(
+            GpuIdManager::TfToPlatformGpuId(tf_gpu_dst, &platform_gpu_dst));
+        if (imap.directed_links.find({platform_gpu_id, platform_gpu_dst}) !=
+            imap.directed_links.end()) {
+          InterconnectLink* ilink = links->add_link();
+          ilink->set_device_id(tf_gpu_dst.value());
+          ilink->set_type(imap.name);
+          ilink->set_strength(imap.strength);
+        }
+      }
+    }
+
+    // If this is one of multiple virtual GPUs on the same physical GPU
+    // add high strength links to the others.
+    for (TfGpuId tf_gpu_dst : all_tf_gpu_ids) { // 同理这里也是从 0 开始的, 不符合我的预期.
+      if (tf_gpu_id == tf_gpu_dst) continue;
+      PlatformGpuId platform_gpu_dst;
+      TF_RETURN_IF_ERROR(
+          GpuIdManager::TfToPlatformGpuId(tf_gpu_dst, &platform_gpu_dst));
+      if (platform_gpu_id == platform_gpu_dst) {
+        InterconnectLink* ilink = links->add_link();
+        ilink->set_device_id(tf_gpu_dst.value());
+        ilink->set_type("SAME_DEVICE");
+        ilink->set_strength(InterconnectMap::kSameDeviceStrength);
+      }
+    }
+
+    (*localities)[tf_gpu_id] = dev_locality;
+    VLOG(1) << "GPUDevice PlatformGpuId " << platform_gpu_id << " TfGpuId "
+            << tf_gpu_id << " on bus " << dev_locality.bus_id()
+            << " numa: " << numa_node << " pci: " << desc.pci_bus_id()
+            << " DeviceLocality: " << dev_locality.DebugString();
+  }
+  return Status::OK();
 }
 
 static int GetMinGPUMultiprocessorCount(
@@ -1512,19 +1874,26 @@ Status EnablePeerAccess(se::Platform* platform,
 Status BaseGPUDeviceFactory::GetValidDeviceIds(
     const std::vector<PlatformGpuId>& visible_gpu_order,
     std::vector<PlatformGpuId>* ids) {
+  
+  // 这里费老大劲搞出来的 ids 我想需要过滤一下
+  // 需要根据 selected_devices 来控制一下.
+
   se::Platform* gpu_manager = GPUMachineManager();
   bool new_gpu_found = false;
   for (int i = 0; i < visible_gpu_order.size(); ++i) {
+    // 我不设置的话, visible_gpu_order 是全部.
+
     const PlatformGpuId visible_gpu_id = visible_gpu_order[i];
 
     // Only perform this once per visible platform gpu id.
     if (visible_gpu_initialized_[visible_gpu_id.value()]) {
       continue;
     }
-
     visible_gpu_initialized_[visible_gpu_id.value()] = true;
+    
     new_gpu_found = true;
 
+    // 构造 executor 是为了得到基本信息. 临时变量而已.
     auto executor =
         GpuIdUtil::ExecutorForPlatformGpuId(gpu_manager, visible_gpu_id);
     if (!executor.ok()) {
@@ -1599,6 +1968,7 @@ Status BaseGPUDeviceFactory::GetValidDeviceIds(
       GetMinGPUMultiprocessorCount(gpu_manager, visible_gpu_order);
 
   // Filter out devices that don't have the right capability or power.
+  // 不存在于我的情况, 因为都 V100 了, 全部都是 OK 的.
   for (int i = 0; i < visible_gpu_order.size(); ++i) {
     const PlatformGpuId visible_gpu_id = visible_gpu_order[i];
     auto exec_status =
@@ -1667,6 +2037,7 @@ Status BaseGPUDeviceFactory::GetValidDeviceIds(
     }
     ids->push_back(visible_gpu_id);
   }
+
   if (!ids->empty()) {
     std::vector<int> raw_ids(ids->size());
     std::transform(ids->begin(), ids->end(), raw_ids.begin(),

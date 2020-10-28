@@ -79,5 +79,12 @@ void GrpcEagerServiceImpl::Shutdown() {
       cq_.get(), gpr_now(GPR_CLOCK_MONOTONIC), nullptr);
 }
 
+void GrpcEagerServiceImpl::ShutdownServer() {
+  cq_->Shutdown();
+  void* ignored_tag;
+  bool ignored_ok;
+  while (cq_->Next(&ignored_tag, &ignored_ok)) { }
+}
+
 }  // namespace eager
 }  // namespace tensorflow

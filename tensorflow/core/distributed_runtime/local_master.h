@@ -91,6 +91,9 @@ class LocalMaster : public MasterInterface {
   static void Register(const string& target, Master* master,
                        int64 default_timeout_in_ms);
 
+  // erase a target's master when I need to restart the server
+  static void Erase(const string& target);
+
   // Returns a pointer to the local master associated with the given
   // `target`, or nullptr if none exists.
   static std::unique_ptr<LocalMaster> Lookup(const string& target);

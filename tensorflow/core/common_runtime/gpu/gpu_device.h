@@ -260,6 +260,11 @@ class BaseGPUDeviceFactory : public DeviceFactory {
  public:
   Status CreateDevices(const SessionOptions& options, const string& name_prefix,
                        std::vector<std::unique_ptr<Device>>* devices) override;
+  
+  // CreateSelectedDevices
+  Status CreateSelectedDevices(const SessionOptions& options, const string& name_prefix,
+                               int selected_dev,
+                               std::vector<std::unique_ptr<Device>>* devices) override;
 
   struct InterconnectMap {
     // Name of interconnect technology, if known.
@@ -291,6 +296,12 @@ class BaseGPUDeviceFactory : public DeviceFactory {
   // every TfGpuId.
   virtual Status GetDeviceLocalities(
       int num_tf_gpus, const std::vector<InterconnectMap>& interconnects,
+      LocalityMap* localities);
+
+  // Populates *localities with the DeviceLocality descriptor for
+  // every TfGpuId.
+  virtual Status GetSelectedDeviceLocalities(
+      int num_tf_gpus, int selected_dev, const std::vector<InterconnectMap>& interconnects,
       LocalityMap* localities);
 
  private:

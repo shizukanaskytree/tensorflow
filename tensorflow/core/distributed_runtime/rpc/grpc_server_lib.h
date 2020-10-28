@@ -85,9 +85,20 @@ class GrpcServer : public ServerInterface {
   // Destruction is only supported in the factory method. Clean
   // shutdown is not currently implemented for this server type.
   virtual ~GrpcServer();
+  // cmt:
+  // when is it called? 
+  //~cmt 
 
   // Implementations of ServerInterface methods.
   Status Start() override;
+  
+  // selected_dev 用于指定这个 server 使用哪个 device
+  // -1: CPU, XLA_CPU; 0: GPU_0, XLA_GPU_0, etc
+  // each server only occupies one GPU at most.
+  Status Restart(int selected_dev) override;
+
+  Status Shutdown(int selected_dev);
+
   Status Stop() override;
   Status Join() override;
   const string target() const override;
@@ -142,6 +153,10 @@ class GrpcServer : public ServerInterface {
   //   \                          /
   //    \________________________/
   //            Stop(), Join()
+
+  // cmt:
+  // 所谓的 restart 不也就说 Stop() -> NEW -> Start() 吗?
+  //~cmt:
   enum State { NEW, STARTED, STOPPED };
   State state_ GUARDED_BY(mu_);
 

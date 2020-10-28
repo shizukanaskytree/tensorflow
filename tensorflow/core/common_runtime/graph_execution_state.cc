@@ -65,6 +65,16 @@ GraphExecutionState::GraphExecutionState(
       flib_def_(new FunctionLibraryDefinition(OpRegistry::Global(),
                                               graph_def->library())),
       graph_(nullptr) {
+  
+  //code// VLOG(0) << "==================================";
+  //code// // devices_, std::vector<Device*>& devices()
+  //code// VLOG(0) << "GraphExecutionState::GraphExecutionState, devices_: ";
+  //code// std::vector<Device*> devs = device_set_->devices();
+  //code// for (auto& d: devs) {
+  //code//   VLOG(0) << d->DebugString();
+  //code// }
+  //code// VLOG(0) << "==================================";
+
   // NOTE(mrry): GraphDef does not have a move constructor, so we pass
   // a non-const pointer and use `Swap()` to transfer the contents
   // without copying.

@@ -137,9 +137,15 @@ class DeviceFinder {
       WorkerCacheInterface* worker_cache,
       std::vector<std::unique_ptr<Device>>* out_remote) {
     DeviceFinder finder(device_filters, env, worker_cache);
+    // 1.
+    // DeviceFinder
+
     finder.Start();
     TF_RETURN_IF_ERROR(finder.Wait());
     finder.GetRemoteDevices(env->local_devices, out_remote);
+    // 1.
+    // 这是个问题, no remote devices.
+
     return Status::OK();
   }
 
@@ -174,6 +180,15 @@ class DeviceFinder {
       // `worker_cache`.
       std::vector<string> workers;
       worker_cache->ListWorkers(&workers);
+      //code// VLOG(0) << "master.cc, DeviceFinder: workers: " << workers.size();
+      //code// for (auto& w: workers) {
+      //code//   VLOG(0) << "worker: " << w;
+      //code// }
+      // master.cc, DeviceFinder: workers: 3
+      // worker: /job:ps/replica:0/task:0
+      // worker: /job:worker/replica:0/task:0
+      // worker: /job:worker/replica:0/task:1
+
       std::swap(workers, targets_);
     } else {
       // When applying filters, we must include the local worker, even if it
@@ -282,8 +297,10 @@ class DeviceFinder {
     for (Device* dev : local) names.insert(dev->name());
     mutex_lock l(mu_);
     for (Device* dev : found_) {
+      //code// VLOG(0) << "master.cc, GetRemoteDevices: " << dev->DebugString();
       const string& name = dev->name();
       if (names.insert(name).second && MatchFilters(name)) {
+        //code// VLOG(0) << "master.cc, remote pushed: " << dev->DebugString();
         remote->push_back(std::unique_ptr<Device>(dev));
       } else {
         delete dev;
@@ -437,12 +454,24 @@ void Master::CreateSession(const CreateSessionRequest* req,
         }
       }
     } else {
-      worker_cache = env_->worker_cache;
+      worker_cache = env_->worker_cache; // some errors...
+      
+      // DEBUG...
+      //debug// VLOG(0) << "worker size: start";
+      //debug// std::vector<string> workers;
+      //debug// worker_cache->ListWorkers(&workers);
+      //debug// VLOG(0) << "worker size:" << workers.size();
+      //debug// VLOG(0) << "worker size: end";
+
       // Ping all the workers and build the list of devices that the
       // session will use.
       status =
           DeviceFinder::GetRemoteDevices(req->config().device_filters(), env_,
                                          worker_cache, remote_devices.get());
+      // 1.
+      // 修正
+      //debug// VLOG(0) << "remote_devices SIZE" << remote_devices->size();
+
       if (!status.ok()) return;
       device_set.reset(new DeviceSet);
       for (auto&& d : *remote_devices) {

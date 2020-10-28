@@ -77,6 +77,13 @@ class GrpcMasterService : public AsyncServiceInterface {
     }
   }
 
+  void ShutdownServer() {
+    cq_->Shutdown();
+    void* ignored_tag;
+    bool ignored_ok;
+    while (cq_->Next(&ignored_tag, &ignored_ok)) { }
+  }
+
 // This macro creates a new request for the given RPC method name
 // (e.g., `ENQUEUE_REQUEST(RunStep);`), and enqueues it on
 // `this->cq_`.
