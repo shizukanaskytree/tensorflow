@@ -1177,7 +1177,37 @@ Status FindKernelRegistration(const DeviceType& device_type, // input
     kKernelAttr); // input
 
   const string key = Key(node_def.op(), device_type, label);
+  // 1.
+  // p key
+  // $5 = "Add:XLA_GPU:"
+
   auto regs = GlobalKernelRegistryTyped()->equal_range(key);
+  // 1.
+  // regs 的类型是
+  // std::pair<std::string const, tensorflow::KernelRegistration>
+
+  // 2.
+  // p regs
+  // $6 = {first = {<std::__detail::_Node_iterator_base<std::pair<std::basic_string<char, std::char_traits<char>, std::allocator<char> > const, tensorflow::KernelRegistration>, true>> = {_M_cur = 0x5637edd36ee0}, <No data fields>}, second = {<std::__detail::_Node_iterator_base<std::pair<std::basic_string<char, std::char_traits<char>, std::allocator<char> > const, tensorflow::KernelRegistration>, true>> = {_M_cur = 0x5637edd37740}, <No data fields>}}
+  //
+  // (gdb) p regs.first
+  // $7 = {<std::__detail::_Node_iterator_base<std::pair<std::basic_string<char, std::char_traits<char>, std::allocator<char> > const, tensorflow::KernelRegistration>, true>> = {_M_cur = 0x5637edd36ee0}, <No data fields>}
+  //
+  // (gdb) p regs.second
+  // $8 = {<std::__detail::_Node_iterator_base<std::pair<std::basic_string<char, std::char_traits<char>, std::allocator<char> > const, tensorflow::KernelRegistration>, true>> = {_M_cur = 0x5637edd37740}, <No data fields>}
+
+  // 3.
+  // (gdb) p GlobalKernelRegistryTyped()
+  // $9 = (tensorflow::KernelRegistry *) 0x5637e983e8f0
+  // (gdb) p GlobalKernelRegistryTyped()->size()
+  // $10 = 10834
+
+  // 4.
+  // This maps from 'op_type' + DeviceType to the set of KernelDefs and
+  // factory functions for instantiating the OpKernel that matches the
+  // KernelDef.
+  // typedef std::unordered_multimap<string, KernelRegistration> KernelRegistry;
+
   for (auto iter = regs.first; iter != regs.second; ++iter) {
     // If there is a kernel registered for the op and device_type,
     // check that the attrs match.

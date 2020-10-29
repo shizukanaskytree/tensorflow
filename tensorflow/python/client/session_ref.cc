@@ -33,6 +33,10 @@ namespace {
 // SessionRef blocks closing until all active calls complete or are cancelled.
 struct RunCounter {
   std::shared_ptr<Session> session;
+  // 1.
+  // grpc 时是 tensorflow/core/distributed_runtime/rpc/grpc_session.cc
+  // GrpcSession::Run
+
   uint64* value;
   mutex* m;
   condition_variable* cv;
@@ -408,22 +412,34 @@ Status SessionRef::CheckNotClosed() {
 // If logging is active, log the start and end time of the operation along with
 // the request and response.
 #define LOG_AND_RUN_OPERATION(OpName, ...)                          \
+  // 1.
+  // OpName 可以是
+  // SessionRef::Run 中的 Run
+
   TF_RETURN_IF_ERROR(CheckNotClosed());                             \
+  // 1.
+  // tensorflow/core/lib/core/errors.h
+  // TF_RETURN_IF_ERROR
+
   RunCounter rc(session_, &run_count_, &run_lock_, &run_finished_); \
   // 1.
   // RunCounter 数据结构
   // tensorflow/python/client/session_ref.cc
-  //
+  // ...
+
+  // 2.
+  // session_
+  // class SessionRef::session_: std::shared_ptr<Session>
 
   if (!logger_) {                                                   \
     return rc.session->OpName(__VA_ARGS__);                         \
+    // 1.
+    // grpc 时是 tensorflow/core/distributed_runtime/rpc/grpc_session.cc
+    // GrpcSession::Run
   }                                                                 \
   return logger_->Record##OpName(rc.session.get(), __VA_ARGS__);
 
-/**
- *
- *
- */
+
 Status SessionRef::Run(const RunOptions& run_options,
                        const std::vector<std::pair<string, Tensor> >& inputs,
                        const std::vector<string>& output_tensor_names,
@@ -432,6 +448,11 @@ Status SessionRef::Run(const RunOptions& run_options,
                        RunMetadata* run_metadata) {
   LOG_AND_RUN_OPERATION(Run, run_options, inputs, output_tensor_names,
                         target_node_names, outputs, run_metadata);
+  // 1.
+  // grpc 时是 tensorflow/core/distributed_runtime/rpc/grpc_session.cc
+  // GrpcSession::Run
+  // go there!
+
 }
 
 Status SessionRef::Run(const std::vector<std::pair<string, Tensor> >& inputs,

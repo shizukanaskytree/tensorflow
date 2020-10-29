@@ -16,6 +16,10 @@ filegroup(
 )
 
 load("//tensorflow:tensorflow.bzl", "tf_cc_test", "tf_cuda_library")
+# 1.
+# tf_cuda_library
+# tensorflow/tensorflow.bzl
+
 load("//tensorflow:tensorflow.bzl", "tf_cuda_cc_test")
 load("//tensorflow:tensorflow.bzl", "tf_copts")
 

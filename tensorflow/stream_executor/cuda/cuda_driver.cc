@@ -857,13 +857,64 @@ GpuDriver::ContextGetSharedMemConfig(GpuContext* context) {
 
 /* static */ void* GpuDriver::DeviceAllocate(GpuContext* context,
                                              uint64 bytes) {
+  // 1.
+  // callstack
+  //
+  // Thread #299 [python] 62589 [core: 34] (Suspended : Breakpoint)
+  // 	stream_executor::gpu::GpuDriver::DeviceAllocate() at cuda_driver.cc:857 0x7fc7437cd611
+  // 	stream_executor::gpu::GpuExecutor::Allocate() at cuda_gpu_executor.cc:545 0x7fc7437bc9f0
+  // 	stream_executor::StreamExecutor::Allocate() at stream_executor_pimpl.cc:510 0x7fc745d7df36
+  // 	stream_executor::StreamExecutor::AllocateArray<char>() at stream_executor_pimpl.h:766 0x7fc7edb868b7
+  // 	tensorflow::GPUMemAllocator::Alloc() at gpu_bfc_allocator.h:58 0x7fc7edb84e46
+  // 	tensorflow::BFCAllocator::Extend() at bfc_allocator.cc:112 0x7fc7edb98c3e
+  // 	tensorflow::BFCAllocator::AllocateRawInternal() at bfc_allocator.cc:277 0x7fc7edb999f8
+  // 	tensorflow::BFCAllocator::AllocateRawInternalWithRetry() at bfc_allocator.cc:194 0x7fc7edb9936d
+  // 	tensorflow::BFCAllocator::AllocateRaw() at bfc_allocator.cc:241 0x7fc7edb99883
+  // 	tensorflow::Allocator::Allocate<float>() at allocator.h:132 0x7fc7ed8464a0
+  // 	tensorflow::Allocator::Allocate<float>() at allocator.h:119 0x7fc7ed8458cd
+  // 	tensorflow::(anonymous namespace)::Buffer<float>::Buffer at tensor.cc:446 0x7fc7ed835918
+  // 	tensorflow::Tensor::Tensor() at tensor.cc:738 0x7fc7ed82e3bd
+  // 	tensorflow::BaseGPUDevice::MaybeCopyTensorToGPU() at gpu_device.cc:653 0x7fc7edb64bbf
+  // 	tensorflow::BaseGPUDevice::MakeTensorFromProto() at gpu_device.cc:738 0x7fc7edb65515
+  // 	tensorflow::ConstantOp::ConstantOp() at constant_op.cc:75 0x7fc73ffc7409
+  // 	tensorflow::<lambda(tensorflow::OpKernelConstruction*)>::operator()(tensorflow::OpKernelConstruction *) const at constant_op.cc:102 0x7fc73ffc77c1
+  // 	tensorflow::<lambda(tensorflow::OpKernelConstruction*)>::_FUN at constant_op.cc:102 0x7fc73ffc77e8
+  // 	tensorflow::kernel_factory::OpKernelRegistrar::PtrOpKernelFactory::Create() at op_kernel.cc:1,093 0x7fc7ed7f2963
+  // 	tensorflow::CreateOpKernel() at op_kernel.cc:1,326 0x7fc7ed7f42bd
+  // 	tensorflow::CreateNonCachedKernel() at executor.cc:2,877 0x7fc7edc06a42
+  // 	tensorflow::FunctionLibraryRuntimeImpl::CreateKernel() at function.cc:558 0x7fc7edc1c1d2
+  // 	tensorflow::FunctionLibraryRuntimeImpl::CreateKernel() at function.cc:534 0x7fc7edc1bedb
+  // 	tensorflow::GraphMgr::<lambda(const tensorflow::NodeDef&, tensorflow::OpKernel**)>::operator()(const tensorflow::NodeDef &, tensorflow::OpKernel **) const at graph_mgr.cc:243 0x7fc73ebb9aa9
+  // 	std::_Function_handler<tensorflow::Status(const tensorflow::NodeDef&, tensorflow::OpKernel**), tensorflow::GraphMgr::InitItem(const string&, const tensorflow::GraphDef&, const tensorflow::GraphOptions&, const tensorflow::DebugOptions&, tensorflow::int64, tensorflow::DistributedFunctionLibraryRuntime*, tensorflow::GraphMgr::Item*)::<lambda(const tensorflow::NodeDef&, tensorflow::OpKernel**)> >::_M_invoke at std_function.h:302 0x7fc73ebc06e6
+  // 	std::function<tensorflow::Status (tensorflow::NodeDef const&, tensorflow::OpKernel**)>::operator()(tensorflow::NodeDef const&, tensorflow::OpKernel**) const at std_function.h:706 0x7fc73fe8edc8
+  // 	tensorflow::(anonymous namespace)::ExecutorImpl::Initialize at executor.cc:632 0x7fc7edbfb442
+  // 	tensorflow::NewLocalExecutor() at executor.cc:2,862 0x7fc7edc06918
+  // 	tensorflow::GraphMgr::InitItem() at graph_mgr.cc:276 0x7fc73ebbaab8
+  // 	tensorflow::GraphMgr::Register() at graph_mgr.cc:290 0x7fc73ebbafc8
+  // 	tensorflow::Worker::RegisterGraphAsync() at worker.cc:74 0x7fc73eb519ef
+  // 	tensorflow::MasterSession::ReffedClientGraph::DoRegisterPartitions() at master_session.cc:482 0x7fc73a727718
+  // 	tensorflow::MasterSession::ReffedClientGraph::RegisterPartitions() at master_session.cc:357 0x7fc73a72624d
+  // 	tensorflow::MasterSession::BuildAndRegisterPartitions() at master_session.cc:1,615 0x7fc73a72f790
+  // 	tensorflow::MasterSession::DoRunWithLocalExecution() at master_session.cc:1,877 0x7fc73a73178d
+  // 	tensorflow::MasterSession::Run() at master_session.cc:1,563 0x7fc73a72f167
+  // 	tensorflow::Master::<lambda()>::operator()(void) const at master.cc:549 0x7fc73a7145f2
+  // 	std::_Function_handler<void(), tensorflow::Master::RunStep(tensorflow::CallOptions*, const tensorflow::RunStepRequestWrapper*, tensorflow::MutableRunStepResponseWrapper*, tensorflow::Master::MyClosure)::<lambda()> >::_M_invoke at std_function.h:316 0x7fc73a71a1c9
+  // 	std::function<void ()>::operator()() const at std_function.h:706 0x7fc7ed730a94
+  // 	std::__invoke_impl<void, std::function<void ()>> at invoke.h:60 0x7fc7edd32939
+  // 	<...more frames...>
+  //
+
   if (bytes == 0) {
     return nullptr;
   }
 
   ScopedActivateContext activated{context};
   CUdeviceptr result = 0;
+
+  // =================================================== 
   CUresult res = cuMemAlloc(&result, bytes);
+  // ===================================================
+
   if (res != CUDA_SUCCESS) {
     LOG(ERROR) << "failed to allocate "
                << port::HumanReadableNumBytes::ToString(bytes) << " (" << bytes
@@ -1350,7 +1401,11 @@ GpuDriver::ContextGetSharedMemConfig(GpuContext* context) {
 
 /* static */ int GpuDriver::GetDeviceCount() {
   int device_count = 0;
+
+  // =======================================================================
   CUresult res = cuDeviceGetCount(&device_count);
+  // =======================================================================
+
   if (res != CUDA_SUCCESS) {
     LOG(ERROR) << "could not retrieve CUDA device count: " << ToString(res);
     return 0;

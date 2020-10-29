@@ -40,6 +40,11 @@ struct WorkerSession;
 // `GrpcWorker` specializes the `RecvTensorAsync()` method to support a more
 // efficient gRPC data structure for handling large binary data.
 class Worker : public WorkerInterface {
+  // 1.
+  // class WorkerInterface
+  // tensorflow/core/distributed_runtime/worker_interface.h:37:
+  // 
+
  public:
   Worker(WorkerEnv* env);
   virtual ~Worker() {}

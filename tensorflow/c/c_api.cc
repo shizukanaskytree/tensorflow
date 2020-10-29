@@ -778,6 +778,16 @@ Status LoadLibrary(const char* library_filename, void** result,
 // 我这下子明白了，其实是把 TF_Session 内的 Graph 转换成 GraphDef (仅仅因为函数接口需要吧)
 // 然后接着 GraphDef 内的信息把 DirectSession::execution_state_ 给初始化了。
 bool ExtendSessionGraphHelper(TF_Session* session, TF_Status* status) {
+  // 1.
+  // Q: 图是怎么被 Extended 的?
+  // ===
+  // A:
+  // for (auto id = session->last_num_graph_nodes; id < num_nodes; ++id) {
+  //   ...
+  //   NodeDef* const node_def = graph_def.add_node(); // 增加图的新的节点
+  //   ...
+  // }
+
   if (session->graph != nullptr) {
 
     // Take the graph lock before the session lock to avoid deadlock. This is
@@ -796,6 +806,9 @@ bool ExtendSessionGraphHelper(TF_Session* session, TF_Status* status) {
     }
 
     const auto num_nodes = graph.num_node_ids();
+    // 1.
+    // cmt: 图的节点数量是增加了的
+
     if (session->last_num_graph_nodes < num_nodes) {
       // TODO(nolivia): check this on a subset of the graph instead of all of
       // it.
@@ -809,6 +822,8 @@ bool ExtendSessionGraphHelper(TF_Session* session, TF_Status* status) {
       GraphDef graph_def;
 
       *graph_def.mutable_versions() = graph.versions();
+
+      // ✅ Extend 图的核心:
       // Fill graph_def with nodes with ids in the range
       // [session->last_num_graph_nodes, num_nodes), that is the nodes
       // added since the last TF_SessionRun() call.
@@ -1561,6 +1576,12 @@ TF_Operation* TF_FinishOperation(TF_OperationDescription* desc,
 // ----------------------------------------------------------
 
 const char* TF_OperationName(TF_Operation* oper) {
+  // 1.
+  // 本质上, Operation 就是 Node!
+  // ./tensorflow/c/c_api_internal.h:124:struct TF_Operation {
+  // ./tensorflow/c/c_api_internal.h-125-  tensorflow::Node node;
+  // ./tensorflow/c/c_api_internal.h-126-};
+  //
   return oper->node.name().c_str();
 }
 
@@ -2971,11 +2992,40 @@ TF_Buffer* TF_GetRegisteredKernelsForOp(const char* name, TF_Status* status) {
 
 // TF_Server functions ----------------------------------------------
 
+// * Outline: (一次只看一个!)
+// - TF_NewServer
+// - TF_ServerStart
+// - TF_ServerStop
+// - TF_ServerJoin
+// - TF_ServerTarget
+// - TF_DeleteServer
+// - TF_RegisterLogListener
+
+// * 思考:
+// Q:
+// 如何 start a server?
+
 #if !defined(IS_MOBILE_PLATFORM) && !defined(IS_SLIM_BUILD)
 TF_Server::TF_Server(std::unique_ptr<tensorflow::ServerInterface> server)
     : target(server->target()), server(std::move(server)) {}
+// 1.
+// struct TF_Server 定义:
+// ./c/c_api_internal.h
+
 #endif  // !defined(IS_MOBILE_PLATFORM) && !defined(IS_SLIM_BUILD)
 
+
+// cmt start
+// self._server = c_api.TF_NewServer(self._server_def.SerializeToString())
+// # 1.
+// # TF_NewServer
+// # c/c_api.cc:2907
+// # TF_Server* TF_NewServer(const void* proto, size_t proto_len,
+//
+// SerializeToString(): serializes the message and returns it as a string.
+// Note that the bytes are binary, not text; we only use the str type as a
+// convenient container.
+//~cmt end
 TF_Server* TF_NewServer(const void* proto, size_t proto_len,
                         TF_Status* status) {
 #if defined(IS_MOBILE_PLATFORM) || defined(IS_SLIM_BUILD)
@@ -2983,7 +3033,13 @@ TF_Server* TF_NewServer(const void* proto, size_t proto_len,
       "Server functionality is not supported on mobile");
   return nullptr;
 #else
+// iamhere
   tensorflow::ServerDef server_def;
+  // 1.
+  // tensorflow::ServerDef
+  // protobuf auto generated code
+  // see message ServerDef
+
   if (!server_def.ParseFromArray(proto, static_cast<int>(proto_len))) {
     status->status = InvalidArgument(
         "Could not parse provided bytes into a ServerDef protocol buffer");
@@ -2991,14 +3047,47 @@ TF_Server* TF_NewServer(const void* proto, size_t proto_len,
   }
 
   std::unique_ptr<tensorflow::ServerInterface> out_server;
+  // 1.
+  // ServerInterface 定义
+  // core/distributed_runtime/server_lib.h:36:
+  // class ServerInterface
+  //
+  // 接口函数是:
+  // Start
+  // Stop
+  // Join
+  // target
+  //
+
+  // 2.
+  // 引申:
+  // core/distributed_runtime/rpc/grpc_server_lib.h:72:
+  // class GrpcServer : public ServerInterface
+
   status->status = tensorflow::NewServer(server_def, &out_server);
+  // 1.
+  // tensorflow::NewServer
+  //
+
   if (TF_GetCode(status) != TF_OK) return nullptr;
 
   return new TF_Server(std::move(out_server));
+  // 1.
+  // TF_Server
+
 #endif  // defined(IS_MOBILE_PLATFORM) || defined(IS_SLIM_BUILD)
 }
 
 void TF_ServerStart(TF_Server* server, TF_Status* status) {
+  // 1.
+  // 去看 grpc 的 TF_ServerStart!
+  // tensorflow/core/distributed_runtime/rpc/grpc_server_lib.cc
+  // TF_ServerStart
+
+  // 2.
+  // interface 定义在
+  // tensorflow/core/distributed_runtime/server_lib.h
+
 #if defined(IS_MOBILE_PLATFORM) || defined(IS_SLIM_BUILD)
   status->status = tensorflow::errors::Unimplemented(
       "Server functionality is not supported on mobile");
@@ -3006,6 +3095,11 @@ void TF_ServerStart(TF_Server* server, TF_Status* status) {
   status->status = server->server->Start();
 #endif  // defined(IS_MOBILE_PLATFORM) || defined(IS_SLIM_BUILD)
 }
+
+// idea:
+// void TF_ServerRestart(TF_Server* server, TF_Status* status){
+//   status->status = server->server->Restart();
+// }
 
 void TF_ServerStop(TF_Server* server, TF_Status* status) {
 #if defined(IS_MOBILE_PLATFORM) || defined(IS_SLIM_BUILD)

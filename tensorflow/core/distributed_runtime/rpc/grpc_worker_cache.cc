@@ -94,14 +94,27 @@ class GrpcWorkerCache : public WorkerCachePartial {
    *         worker name.
    */
   WorkerInterface* CreateWorker(const string& target) override {
+    // 1.
+    // target example:
+    // $21 = "/job:worker/replica:0/task:1"
+
     if (target == local_target_) {
       return local_worker_;
     } else {
       SharedGrpcChannelPtr channel = channel_cache_->FindWorkerChannel(target);
       if (!channel) return nullptr;
       return NewGrpcRemoteWorker(
-          channel, threads_[AssignWorkerToThread(target)].completion_queue(),
-          callback_threadpool_.get(), &logger_);
+          channel,
+          threads_[AssignWorkerToThread(target)].completion_queue(),
+          callback_threadpool_.get(),
+          &logger_);
+      // 1.
+      // NewGrpcRemoteWorker 在哪?
+      // tensorflow/core/distributed_runtime/rpc/grpc_remote_worker.cc:32:
+      // WorkerInterface* NewGrpcRemoteWorker(SharedGrpcChannelPtr channel,
+
+      // NewGrpcRemoteWorker 做了什么?
+
     }
   }
 

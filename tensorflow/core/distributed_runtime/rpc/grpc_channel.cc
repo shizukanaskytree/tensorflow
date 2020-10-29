@@ -148,7 +148,7 @@ Status NewHostPortGrpcChannel(const string& target,
   ///         std::shared_ptr<::grpc::Channel> ;
   *channel_pointer = ::grpc::CreateCustomChannel(
       "dns:///" + target, ::grpc::InsecureChannelCredentials(), args);
-      
+
   return Status::OK();
 }
 
@@ -326,8 +326,16 @@ class SparseGrpcChannelCache : public CachingGrpcChannelCache {
       : job_id_(job_id),
         host_ports_(host_ports),
         channel_func_(std::move(channel_func)) {
+
     LOG(INFO) << "Initialize GrpcChannelCache for job " << ToString();
+    // 1.
+    // logging
+    //
+    // 2020-09-25 16:14:38.456321: I tensorflow/core/distributed_runtime/rpc/grpc_channel.cc:250] Initialize GrpcChannelCache for job ps -> {0 -> localhost:2222}
+    // 2020-09-25 16:14:38.456384: I tensorflow/core/distributed_runtime/rpc/grpc_channel.cc:250] Initialize GrpcChannelCache for job worker -> {0 -> localhost:2223, 1 -> localhost:2224}
+    //
   }
+
   ~SparseGrpcChannelCache() override {}
 
   /** \brief Get all workers from all ip:port, and store them to a string in the
@@ -411,6 +419,7 @@ class SparseGrpcChannelCache : public CachingGrpcChannelCache {
   }
 
  private:
+  
   string ToString() {
     std::vector<string> task_strings;
     task_strings.reserve(host_ports_.size());

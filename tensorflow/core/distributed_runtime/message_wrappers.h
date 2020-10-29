@@ -192,7 +192,16 @@ class MutableProtoRunStepRequest : public MutableRunStepRequestWrapper {
   void set_store_errors_in_response_body(bool store_errors) override;
 
  private:
+  // =============================================================
   RunStepRequest request_;
+  // =============================================================
+  // 1.
+  // RunStepRequest 在哪?
+  // tensorflow/core/protobuf/master.proto:113:
+  // message RunStepRequest
+  // 我来总结一下:
+  // sess.run() 的所有 开关和参数. go to `message RunStepRequest`
+
   friend class MasterInterface;
 };
 
@@ -697,7 +706,14 @@ class OwnedProtoRunStepResponse : public MutableRunStepResponseWrapper {
   RunStepResponse* get_proto() override;
 
  private:
+  // =============================================================
   RunStepResponse response_;
+  // =============================================================
+  // 1.
+  // message RunStepResponse
+  // tensorflow/core/protobuf/master.proto:150:
+  // 我的描述:
+  // 用来描述得到的计算返回值, 也就是 tensors
 };
 
 // Proto-based message wrapper for use on the server side of the RunStep RPC.

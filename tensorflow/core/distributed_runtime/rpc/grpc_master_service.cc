@@ -22,12 +22,27 @@ limitations under the License.
 // A GrpcMasterService knows ahead of time local devices available as
 // client devices.
 //
-// A GrpcMasterService discovers remote devices in the background and
+// 👍 ⭕️ A GrpcMasterService discovers remote devices in the background and
 // keeps track of statistics of those remote devices.
 //
-// Each session analyzes the graph, places nodes across available
+// 👍 ⭕️  Each session analyzes the graph, places nodes across available
 // devices, and ultimately drives the graph computation by initiating
 // RunGraph on workers.
+
+// file notes
+//
+
+// 起点:
+// tensorflow/core/distributed_runtime/rpc/grpc_server_lib.cc
+// master_service_ = NewGrpcMasterService(master_impl_.get(), config, &builder);
+
+// 发现!!!
+// 我发现这个在 sess.run 中没有被调用到任何函数!!!!
+// 不要在这些函数中浪费时间了!!!
+// - ps
+// - worker
+// 都没有
+
 #include "tensorflow/core/distributed_runtime/rpc/grpc_master_service.h"
 
 #include "grpcpp/alarm.h"
@@ -46,13 +61,29 @@ limitations under the License.
 namespace tensorflow {
 
 class GrpcMasterService : public AsyncServiceInterface {
+  // 1.
+  // tensorflow/core/distributed_runtime/rpc/async_service_interface.h:23:
+  // class AsyncServiceInterface
+
+  // 2.
+  // 发现!!!
+  // 我发现这个在 sess.run 中没有被调用到任何函数!!!!
+  // 不要在这些函数中浪费时间了!!!
+
  public:
-  GrpcMasterService(Master* master, const ConfigProto& default_session_config,
+  GrpcMasterService(Master* master,
+                    const ConfigProto& default_session_config,
                     ::grpc::ServerBuilder* builder)
       : master_impl_(master),
         is_shutdown_(false),
         default_session_config_(default_session_config) {
     builder->RegisterService(&master_service_);
+    // 1.
+    // master_service_: grpc::MasterService::AsyncService
+    // tensorflow/core/distributed_runtime/rpc/grpc_master_service_impl.h
+    //
+    // master_service_ "包含"了上述的熟悉.
+
     cq_ = builder->AddCompletionQueue();
   }
 
@@ -156,16 +187,22 @@ class GrpcMasterService : public AsyncServiceInterface {
    *  \details This macro is invoked one or more times for each RPC method to
    *           ensure that there are sufficient completion queue entries to
    *           handle incoming requests without blocking.
-   *
-   *  \todo Why should these macro be called one or more times for completion
-   *        queue?
    */
   void HandleRPCsLoop() override {
-    /// \todo Q. What is the diff between ENQUEUE_REQUEST for one time and
-    ///       multiple times?
+    // Q. What is the diff between ENQUEUE_REQUEST for one time and
+    //    multiple times?
+    // A:
+    // 增加并发性啊, 如果同时来 100 个就能招架得住!
+
     ENQUEUE_REQUEST(CreateSession, true);
     ENQUEUE_REQUEST(ExtendSession, false);
     for (int i = 0; i < 100; ++i) {
+      // 1.
+      // Q:
+      // 为什么要 100 个?
+      // A:
+      // 增加并发性啊, 如果同时来 100 个就能招架得住!
+
       ENQUEUE_REQUEST(PartialRunSetup, false);
       ENQUEUE_REQUEST(RunStep, true);
     }
@@ -182,27 +219,27 @@ class GrpcMasterService : public AsyncServiceInterface {
     void* tag;
     bool ok;
 
-    /// \fn Next
-    ///
-    /// \brief Read from the queue, blocking until an event(tag) is available or
-    ///        the queue is shutting down. Next is blocking here for client side
-    ///        request.
-    ///
-    /// \param tag: void* ;
-    ///        [out] Updated to point to the read event's tag.
-    ///
-    /// \param ok: bool ;
-    ///        [out] true if read a successful event, false otherwise.
-    ///
-    /// \details
-    /// Next grpc API:
-    /// https://grpc.github.io/grpc/cpp/classgrpc__impl_1_1_completion_queue.html#aed4c03e1d101c102ef289c2c472aa933
-    /// Next returns true if got an event, false if the queue is fully drained
-    /// and shut down.
-    ///
-    /// cq_: std::unique_ptr<::grpc::ServerCompletionQueue>
-    /// the completion queue "cq" used for asynchronous communication.
-    /// Tutorial: https://grpc.io/docs/tutorials/async/helloasync-cpp/
+    // \fn Next
+    //
+    // \brief Read from the queue, blocking until an event(tag) is available or
+    //        the queue is shutting down. Next is blocking here for client side
+    //        request.
+    //
+    // \param tag: void* ;
+    //        [out] Updated to point to the read event's tag.
+    //
+    // \param ok: bool ;
+    //        [out] true if read a successful event, false otherwise.
+    //
+    // \details
+    // Next grpc API:
+    // https://grpc.github.io/grpc/cpp/classgrpc__impl_1_1_completion_queue.html#aed4c03e1d101c102ef289c2c472aa933
+    // Next returns true if got an event, false if the queue is fully drained
+    // and shut down.
+    //
+    // cq_: std::unique_ptr<::grpc::ServerCompletionQueue>
+    // the completion queue "cq" used for asynchronous communication.
+    // Tutorial: https://grpc.io/docs/tutorials/async/helloasync-cpp/
     while (cq_->Next(&tag, &ok)) {
       UntypedCall<GrpcMasterService>::Tag* callback_tag =
           static_cast<UntypedCall<GrpcMasterService>::Tag*>(tag);
@@ -210,6 +247,9 @@ class GrpcMasterService : public AsyncServiceInterface {
         /// Once received request from the client,
         /// OnCompleted indirectly invokes the grpc implementation functions.
         callback_tag->OnCompleted(this, ok);
+        // 1.
+        // cmt
+        // worker 的 sess.run 也没有在这里卡住, 奇怪的, 反正就是没有.
       } else {
         // NOTE(mrry): A null `callback_tag` indicates that this is
         // the shutdown alarm.
@@ -223,6 +263,11 @@ class GrpcMasterService : public AsyncServiceInterface {
   Master* master_impl_ = nullptr;  // Not owned.
   std::unique_ptr<::grpc::ServerCompletionQueue> cq_;
   grpc::MasterService::AsyncService master_service_;
+  // 1.
+  // master_service_: grpc::MasterService::AsyncService
+  // tensorflow/core/distributed_runtime/rpc/grpc_master_service_impl.h
+  //
+  // master_service_ 包含了上述的.
 
   mutex mu_;
   bool is_shutdown_ GUARDED_BY(mu_);
@@ -270,7 +315,7 @@ class GrpcMasterService : public AsyncServiceInterface {
     ///  Repeated fields will be concatenated. The given message must be of the
     ///  same type as this message same class).
     rewritten_req->MergeFrom(call->request);
-    
+
     /// master_impl_ is Master*. Master::CreateSession is in master.cc.
     /// master_impl_->CreateSession will create a session in another thread.
     /// The callback lambda function is called at the very end of CreateSession
@@ -318,6 +363,10 @@ class GrpcMasterService : public AsyncServiceInterface {
    */
   // RPC handler for running one step in a session.
   void RunStepHandler(MasterCall<RunStepRequest, RunStepResponse>* call) {
+    // 1.
+    // cmt:
+    // worker sess.run 都没有进入过!!!
+
     auto* trace = TraceRpc("RunStep/Server", call->client_metadata());
     CallOptions* call_opts = new CallOptions;
     if (call->request.options().timeout_in_ms() > 0) {
@@ -325,11 +374,15 @@ class GrpcMasterService : public AsyncServiceInterface {
     } else {
       call_opts->SetTimeout(default_session_config_.operation_timeout_in_ms());
     }
+
     RunStepRequestWrapper* wrapped_request =
         new ProtoRunStepRequest(&call->request);
+
     MutableRunStepResponseWrapper* wrapped_response =
         new NonOwnedProtoRunStepResponse(&call->response);
+
     call->SetCancelCallback([call_opts]() { call_opts->StartCancel(); });
+
     master_impl_->RunStep(
         call_opts, wrapped_request, wrapped_response,
         [call, call_opts, wrapped_request, wrapped_response,

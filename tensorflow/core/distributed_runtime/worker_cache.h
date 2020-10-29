@@ -30,6 +30,24 @@ class ChannelCache;
 class StepStats;
 
 class WorkerCacheInterface {
+// 1.
+// (tf_1_13_1_gdb) wxf@seir19:~/tf1_13_1/baseline/tensorflow$ grep -nwr "class.*:.*WorkerCacheInterface"
+//
+// tensorflow/core/distributed_runtime/test_utils.h:123:
+// class TestWorkerCache : public WorkerCacheInterface {
+//
+// tensorflow/core/distributed_runtime/worker_cache_wrapper.h:26:
+// class WorkerCacheWrapper : public WorkerCacheInterface {
+//
+// tensorflow/core/distributed_runtime/rpc/rpc_rendezvous_mgr_test.cc:51:
+// class DummyWorkerCache : public WorkerCacheInterface {
+//
+// tensorflow/core/distributed_runtime/worker_session.cc:23:
+// class WorkerFreeListCache : public WorkerCacheInterface {
+//
+// tensorflow/core/distributed_runtime/worker_cache_partial.h:32:
+// class WorkerCachePartial : public WorkerCacheInterface {
+
  public:
   virtual ~WorkerCacheInterface() {}
 

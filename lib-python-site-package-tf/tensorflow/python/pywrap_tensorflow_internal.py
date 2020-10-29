@@ -1728,6 +1728,20 @@ def TF_NewServer(proto):
 TF_NewServer = _pywrap_tensorflow_internal.TF_NewServer
 
 def TF_ServerStart(server):
+    """
+    1. server 是个什么样的 server?
+
+        server = tf.train.Server(cluster,
+          job_name="ps",
+          task_index=FLAGS.task_index,
+          config=config)
+
+        本质上是:
+        self._server = c_api.TF_NewServer(self._server_def.SerializeToString())
+
+        see: server_lib.py
+    """
+    
     return _pywrap_tensorflow_internal.TF_ServerStart(server)
 TF_ServerStart = _pywrap_tensorflow_internal.TF_ServerStart
 
@@ -2457,5 +2471,3 @@ def GenerateModelReport(metagraph, assume_valid_feeds, debug):
     return _pywrap_tensorflow_internal.GenerateModelReport(metagraph, assume_valid_feeds, debug)
 GenerateModelReport = _pywrap_tensorflow_internal.GenerateModelReport
 # This file is compatible with both classic and new-style classes.
-
-

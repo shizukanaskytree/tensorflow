@@ -16,6 +16,8 @@ limitations under the License.
 // Helper macros and typemaps for use in TensorFlow swig files.
 //
 %{
+  // %{ %} 插入生成的代码中
+
   #include <memory>
   #include <vector>
   #include "tensorflow/core/platform/types.h"
@@ -96,6 +98,15 @@ limitations under the License.
     return static_cast<bool>(!PyErr_Occurred());
   }
 %}
+
+// %typemap notes:
+//
+// One of the most important problems in wrapper code generation is the
+// conversion or marshalling of datatypes between programming languages.
+//
+// swig generates wrapper code
+//
+// typemap: map type from C to the target type.
 
 %typemap(in) string {
   if (!_PyObjAs<string>($input, &$1)) return NULL;

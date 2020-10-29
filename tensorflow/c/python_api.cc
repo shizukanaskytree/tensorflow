@@ -115,6 +115,12 @@ void SetRequireShapeInferenceFns(TF_Graph* graph, bool require) {
 }
 
 void ExtendSession(TF_Session* session, TF_Status* status) {
+  // 1.
+  // struct TF_Session
+  // tensorflow/c/c_api_internal.h:128:
+  //
+
+  
   ExtendSessionGraphHelper(session, status);
   session->extend_before_run = false;
 }

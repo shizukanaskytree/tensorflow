@@ -43,6 +43,9 @@ class Master;
 // TODO(mrry): Make all potentially blocking Master methods take CallOptions
 // for cancellation.
 class LocalMaster : public MasterInterface {
+// 1.
+// 所谓的 local 是指 a master service that has been created in the same process as the client.
+
  public:
   ~LocalMaster() {}
 

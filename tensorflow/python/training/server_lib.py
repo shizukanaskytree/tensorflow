@@ -49,13 +49,19 @@ def _make_server_def(server_or_cluster_def, job_name, task_index, protocol,
       options for all sessions that run on this server.
 
   Returns:
-    A `tf.train.ServerDef`.
+    A `tf.train.ServerDef`. ⭕️
 
   Raises:
     TypeError: If the arguments do not have the appropriate type.
     ValueError: If an argument is not specified and cannot be inferred.
   """
+  # =============================================================
   server_def = tensorflow_server_pb2.ServerDef()
+  # =============================================================
+  # 1.
+  # message ServerDef
+  # core/protobuf/tensorflow_server.proto
+
   if isinstance(server_or_cluster_def, tensorflow_server_pb2.ServerDef):
     server_def.MergeFrom(server_or_cluster_def)
     if job_name is not None:
@@ -69,6 +75,13 @@ def _make_server_def(server_or_cluster_def, job_name, task_index, protocol,
   else:
     try:
       cluster_spec = ClusterSpec(server_or_cluster_def)
+      # 1.
+      # Yes, it is.
+
+      # 这个数据结构是定义在这个文件内的, 往下看!
+      # @tf_export("train.ClusterSpec")
+      # class ClusterSpec(object):
+
     except TypeError:
       raise TypeError("Could not convert `server_or_cluster_def` to a "
                       "`tf.train.ServerDef` or `tf.train.ClusterSpec`.")
@@ -86,25 +99,29 @@ def _make_server_def(server_or_cluster_def, job_name, task_index, protocol,
     if protocol is None:
       protocol = "grpc"
 
+    # =============================================================
     server_def = tensorflow_server_pb2.ServerDef(
         cluster=cluster_spec.as_cluster_def(),
         job_name=job_name, task_index=task_index, protocol=protocol)
+    # =============================================================
+
     if config is not None:
       server_def.default_session_config.MergeFrom(config)
   return server_def
 
-
+# =======================================================================
 @tf_export("distribute.Server", v1=["distribute.Server", "train.Server"])
 @deprecation.deprecated_endpoints("train.Server")
 class Server(object):
+# =======================================================================
   """An in-process TensorFlow server, for use in distributed training.
 
   A `tf.train.Server` instance encapsulates a set of devices and a
   `tf.Session` target that
   can participate in distributed training. A server belongs to a
   cluster (specified by a `tf.train.ClusterSpec`), and
-  corresponds to a particular task in a named job. The server can
-  communicate with any other server in the same cluster.
+  corresponds to a particular task in a named job. **The server can
+  communicate with any other server in the same cluster.**
   """
 
   def __init__(self,
@@ -114,30 +131,77 @@ class Server(object):
                protocol=None,
                config=None,
                start=True):
+    # 1.
+    # Note:
+    # 记住, 一次只看一个变量!!! 屡清关系!
+
     """Creates a new server with the given definition.
 
     The `job_name`, `task_index`, and `protocol` arguments are optional, and
     override any information provided in `server_or_cluster_def`.
 
     Args:
+
+      ===============================================================
+
       server_or_cluster_def: A `tf.train.ServerDef` or
         `tf.train.ClusterDef` protocol buffer, or a
         `tf.train.ClusterSpec` object, describing the server to be
         created and/or the cluster of which it is a member.
+
+        e.g.,
+        # Server Setup
+        # allows this node know about all other nodes
+        cluster = tf.train.ClusterSpec({
+          'ps':['localhost:2222'],
+          'worker':['localhost:2223','localhost:2224']
+        })
+
+      ===============================================================
+
       job_name: (Optional.) Specifies the name of the job of which the server
         is a member. Defaults to the value in `server_or_cluster_def`, if
         specified.
+
+        e.g.,
+        server = tf.train.Server(cluster,
+              job_name="ps", # <== !!! ⭕️
+              task_index=FLAGS.task_index,
+              config=config)
+        server.join()
+
+      ===============================================================
+
       task_index: (Optional.) Specifies the task index of the server in its
         job. Defaults to the value in `server_or_cluster_def`, if specified.
         Otherwise defaults to 0 if the server's job has only one task.
+
+        e.g.,
+        python ssgd.py --job_name "ps" --task_index 0 --cuda_devices ""
+        python ssgd.py --job_name "worker" --task_index 0 --cuda_devices "0"
+
+      ===============================================================
+
       protocol: (Optional.) Specifies the protocol to be used by the server.
         Acceptable values include `"grpc", "grpc+verbs"`. Defaults to the
         value in `server_or_cluster_def`, if specified. Otherwise defaults to
         `"grpc"`.
+
+      ===============================================================
+
       config: (Options.) A `tf.ConfigProto` that specifies default
         configuration options for all sessions that run on this server.
+
+        e.g.,
+        # Configure
+        config=tf.ConfigProto(log_device_placement=False)
+
+      ===============================================================
+
       start: (Optional.) Boolean, indicating whether to start the server
         after creating it. Defaults to `True`.
+
+      ===============================================================
 
     Raises:
       tf.errors.OpError: Or one of its subclasses if an error occurs while
@@ -146,21 +210,50 @@ class Server(object):
     self._server_def = _make_server_def(server_or_cluster_def,
                                         job_name, task_index, protocol, config)
     self._server = c_api.TF_NewServer(self._server_def.SerializeToString())
+    # 1.
+    # TF_NewServer
+    # c/c_api.cc:2907
+    # TF_Server* TF_NewServer(const void* proto, size_t proto_len,
+
+    # 2.
+    # SerializeToString() 说明:
+    # SerializeToString(): serializes the message and returns it as a string.
+    # Note that the bytes are binary, not text; we only use the str type as a
+    # convenient container.
+
     if start:
       self.start()
 
   def __del__(self):
+    # 1.
+    # 怎么调用呢?
+    # del obj
+    # see: https://www.geeksforgeeks.org/python-__delete__-vs-__del__/
+
+    # 2.
+    # 执行逻辑是:
+    # c_api.TF_ServerStop(self._server)
+    #   except errors.UnimplementedError:
+    #     pass
+
     try:
       c_api.TF_ServerStop(self._server)
       # Clean shutdown of servers is not yet implemented, so
       # we leak instead of calling c_api.TF_DeleteServer here.
       # See:
       # https://github.com/tensorflow/tensorflow/blob/0495317a6e9dd4cac577b9d5cf9525e62b571018/tensorflow/core/distributed_runtime/rpc/grpc_server_lib.h#L73
+
     except errors.UnimplementedError:
+      # 1.
+      # catch 到了上面的 TF_ServerStop 内的 errors::Unimplemented(...)
+      # 进入了这个但是没有什么报错反应所以就这么自然而然地退出了.
+      # 原来这就是退出的逻辑.
       pass
+
     except AttributeError:
       # At shutdown, `c_api` may have been garbage collected.
       pass
+    
     self._server = None
 
   def start(self):

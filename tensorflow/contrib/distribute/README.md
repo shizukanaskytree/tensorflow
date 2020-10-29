@@ -30,7 +30,7 @@ fault-tolerance to allow training to continue when there is worker failure.
 
 * [`ParameterServerStrategy`](https://www.tensorflow.org/versions/master/api_docs/python/tf/contrib/distribute/ParameterServerStrategy):
 This strategy supports using parameter servers either for multi-GPU local
-training or asynchronous multi-machine training. When used to train locally,
+training or **asynchronous** multi-machine training. When used to train locally,
 variables are not mirrored, instead they are placed on the CPU and operations
 are replicated across all local GPUs. In a multi-machine setting, some are
 designated as workers and some as parameter servers. Each variable is placed on
@@ -364,5 +364,3 @@ instead.
 Please give distribution strategies a try. This feature is in early stages and
 is evolving, so we welcome your feedback via
 [issues on GitHub](https://github.com/tensorflow/tensorflow/issues/new).
-
-

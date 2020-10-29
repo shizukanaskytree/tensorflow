@@ -41,11 +41,45 @@ struct FactoryItem {
   std::unique_ptr<DeviceFactory> factory;
   int priority;
 };
+// 1.
+// 告诉我哪里是 DeviceFactory ?
+// tensorflow/core/common_runtime/device_factory.h
+
+// 2.
+// DeviceFactory 继承关系
+//
+// DeviceFactory
+// - BaseGPUDeviceFactory
+//  - GPUDeviceFactory
+// - GPUCompatibleCPUDeviceFactory
+// - SYCLDeviceFactory
+// - ThreadPoolDeviceFactory
+// - XlaCpuDeviceFactory
+// - XlaGpuDeviceFactory
+// - XlaInterpreterDeviceFactory
+// - DummyFactory
 
 std::unordered_map<string, FactoryItem>& device_factories() {
   static std::unordered_map<string, FactoryItem>* factories =
       new std::unordered_map<string, FactoryItem>;
   return *factories;
+  // 1.
+  // debug print:
+  // p *factories
+  // $4 = std::unordered_map with 4 elements =
+  // {["XLA_CPU"] = {factory = std::unique_ptr<tensorflow::DeviceFactory> = {get() = 0x5602a967e220}, priority = 50},
+  //  ["GPU"] = {factory = std::unique_ptr<tensorflow::DeviceFactory> = {get() = 0x5602a9071170}, priority = 210},
+  //  ["XLA_GPU"] = {factory = std::unique_ptr<tensorflow::DeviceFactory> = {get() = 0x5602a968dd20}, priority = 50},
+  //  ["CPU"] = {factory = std::unique_ptr<tensorflow::DeviceFactory> = {get() = 0x5602a9071200}, priority = 70}}
+
+  // 2.
+  // CPU
+  // XLA_CPU
+  // GPU
+  // XLA_GPU
+
+  // 3.
+  // 给 2 个 GPU 也是一样的, 如上, 同!
 }
 
 }  // namespace
@@ -54,6 +88,7 @@ std::unordered_map<string, FactoryItem>& device_factories() {
 int32 DeviceFactory::DevicePriority(const string& device_type) {
   mutex_lock l(*get_device_factory_lock());
   std::unordered_map<string, FactoryItem>& factories = device_factories();
+
   auto iter = factories.find(device_type);
   if (iter != factories.end()) {
     return iter->second.priority;
@@ -65,6 +100,10 @@ int32 DeviceFactory::DevicePriority(const string& device_type) {
 // static
 void DeviceFactory::Register(const string& device_type, DeviceFactory* factory,
                              int priority) {
+  // 1.
+  // 具体的话呢
+  // 请看最下面的 宏定义, 那里是使用这个函数地方. 我也查出了调用的实例
+
   mutex_lock l(*get_device_factory_lock());
   std::unique_ptr<DeviceFactory> factory_ptr(factory);
   std::unordered_map<string, FactoryItem>& factories = device_factories();
@@ -90,26 +129,22 @@ DeviceFactory* DeviceFactory::GetFactory(const string& device_type) {
   return it->second.factory.get();
 }
 
-/** \brief Create CPU and GPU devices
- *
- *  \param options
- *
- *  \param name_prefix
- *
- *  \param devices
- *
- *  \return Status
- *
- */
 Status DeviceFactory::AddDevices(
     const SessionOptions& options, // input
     const string& name_prefix, // input
     std::vector<std::unique_ptr<Device>>* devices) { // output
   // 1.
+  // 调用方:
+  // tensorflow/core/distributed_runtime/rpc/grpc_server_lib.cc
+  // GrpcServer::Init
+
+  // 2.
   // name_prefix 变量说明
   // 在 DirectSessionFactory::NewSession
   // tensorflow/core/common_runtime/direct_session.cc
-  // 这个变量被 hardcode 成了 "/job:localhost/replica:0/task:0"
+  // e.g., "/job:localhost/replica:0/task:0"
+  //
+  // e.g., "/job:worker/replica:0/task:1"
 
   // CPU first. A CPU device is required.
   auto cpu_factory = GetFactory("CPU");
@@ -119,6 +154,9 @@ Status DeviceFactory::AddDevices(
   }
 
   size_t init_size = devices->size();
+  // 1.
+  // init_size
+  // init_size == 0
 
   TF_RETURN_IF_ERROR(cpu_factory->CreateDevices(options, name_prefix, devices));
 
@@ -128,17 +166,62 @@ Status DeviceFactory::AddDevices(
 
   // Then the rest (including GPU).
   mutex_lock l(*get_device_factory_lock());
+
   for (auto& p : device_factories()) {
     // 1.
     // device_factories 函数说明
+    //
+
+    // 2.
+    // 可是他是怎么知道还有其他的 gpu device 的呢?
+    // ...
 
     auto factory = p.second.factory.get();
     if (factory != cpu_factory) {
       TF_RETURN_IF_ERROR(factory->CreateDevices(options, name_prefix, devices));
       // 1.
-      // device_factories 函数说明
+      // CPU
+      // XLA_CPU
+      // GPU
+      // XLA_GPU
+
+      // 2.
       // tensorflow/core/common_runtime/gpu/gpu_device.cc
       // Status BaseGPUDeviceFactory::CreateDevices(
+
+      // 3.
+      // tensorflow/compiler/jit/xla_gpu_device.cc
+      // XlaGpuDeviceFactory::CreateDevices
+
+      // tensorflow/compiler/jit/xla_cpu_device.cc
+      // XlaCpuDeviceFactory::CreateDevices
+
+      // tensorflow/core/common_runtime/gpu/gpu_device.cc
+      // BaseGPUDeviceFactory::CreateDevices
+
+      // tensorflow/core/common_runtime/gpu/gpu_device_factory.cc
+      // GPUCompatibleCPUDeviceFactory::CreateDevices
+
+      // 4.
+      // Device 继承关系
+
+      // GPUCompatibleCPUDevice - ThreadPoolDevice - LocalDevice - Device
+      // CPU
+
+      // - XlaCpuDeviceFactory::CreateDevices <= XLA_CPU
+      //  - XlaDevice
+      //   - LocalDevice
+      //    - Device
+
+      // - CreateGPUDevice
+      //  - GPUDevice
+      //   - BaseGPUDevice, BaseGPUDeviceFactory, gpu_device.cc
+      //    - LocalDevice
+      //      - Device
+
+      // 5.
+      // p name_prefix
+      // $9 = "/job:worker/replica:0/task:1"
 
     }
   }

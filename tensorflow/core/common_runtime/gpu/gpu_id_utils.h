@@ -33,11 +33,16 @@ class GpuIdUtil {
   static se::port::StatusOr<se::StreamExecutor*> ExecutorForPlatformGpuId(
       se::Platform* gpu_manager, PlatformGpuId platform_gpu_id) {
     return gpu_manager->ExecutorForDevice(platform_gpu_id.value());
+    // 1.
+    // ExecutorForDevice
+    // cuda_platform.cc
   }
+
   static se::port::StatusOr<se::StreamExecutor*> ExecutorForPlatformGpuId(
       PlatformGpuId platform_gpu_id) {
     return ExecutorForPlatformGpuId(GPUMachineManager(), platform_gpu_id);
   }
+
   static se::port::StatusOr<se::StreamExecutor*> ExecutorForTfGpuId(
       TfGpuId tf_gpu_id) {
     PlatformGpuId platform_gpu_id;

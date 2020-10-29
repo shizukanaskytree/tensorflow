@@ -256,6 +256,12 @@ class SessionManager(object):
 
     Args:
       master: `String` representation of the TensorFlow master to use.
+      # 1.
+      #wxf.cmt#
+      (Optional.) The execution engine to connect to. Defaults ("" empty string) to using an
+      in-process engine. See Distributed TensorFlow for more examples.
+      #~wxf.cmt#
+
       init_op: Optional `Operation` used to initialize the model.
       saver: A `Saver` object used to restore a model.
       checkpoint_dir: Path to the checkpoint files. The latest checkpoint in the

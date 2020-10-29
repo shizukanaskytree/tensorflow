@@ -33,6 +33,23 @@ struct PartitionOptions {
   // Node.
   typedef std::function<string(const Node*)> NodeToLocFunc;
   NodeToLocFunc node_to_loc = nullptr;
+  // 1.
+  // tensorflow/core/common_runtime/direct_session.cc:1534:
+  // popts.node_to_loc = [](const Node* node) {
+  // ...
+
+  // 2.
+  // tensorflow/core/distributed_runtime/master_session.cc:1580:
+  // popts.node_to_loc = SplitByWorker;
+
+  // 2.1
+  // tensorflow/core/distributed_runtime/master_session.cc:373:
+  // static string SplitByWorker(const Node* node)
+
+  // 2.2
+  // tensorflow/core/distributed_runtime/master_session.cc
+  // SplitByWorker 函数
+  // 
 
   // A function that returns a unique graph node name with the given
   // prefix.

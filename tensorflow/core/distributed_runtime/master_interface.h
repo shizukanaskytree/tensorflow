@@ -68,6 +68,13 @@ class MasterInterface {
   // `RunStep()` call on the same `MasterInterface` instance.
   virtual MutableRunStepRequestWrapper* CreateRunStepRequest() {
     MutableProtoRunStepRequest* ret = new MutableProtoRunStepRequest;
+    // 1.
+    // MutableProtoRunStepRequest
+    // 解释: mutable protobuf Run Step Request message
+    // tensorflow/core/distributed_runtime/message_wrappers.h
+    // go there!
+    // in essence, it wraps `RunStepRequest request_`
+
     ret->request_.set_request_id(GetUniqueRequestId());
     return ret;
   }
@@ -79,6 +86,11 @@ class MasterInterface {
   // `RunStep()` call on the same `MasterInterface` instance.
   virtual MutableRunStepResponseWrapper* CreateRunStepResponse() {
     return new OwnedProtoRunStepResponse;
+    // 1.
+    // class OwnedProtoRunStepResponse : public MutableRunStepResponseWrapper
+    // tensorflow/core/distributed_runtime/message_wrappers.h:681:
+    // 核心: RunStepResponse response_;
+    //
   }
 
   virtual Status CloseSession(CallOptions* call_options,

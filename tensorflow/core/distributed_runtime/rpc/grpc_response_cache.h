@@ -70,8 +70,11 @@ class GrpcResponseCache {
   // If it is finished, invoke `done_cb` immediately after filling `response`.
   // If active, done_db will be invoked when the current call completes.
   // Otherwise, invoke `compute_func` to fill the cache and invoke done_cb.
-  void LookupOrCompute(const string& key, RPCResponse response,
-                       ComputeFunc compute_func, StatusCallback done_cb);
+  void LookupOrCompute(
+    const string& key,
+    RPCResponse response,
+    ComputeFunc compute_func,
+    StatusCallback done_cb);
 
   // Remove all stale or expired cache entries if the cache is full.
   void MaybeCleanup();

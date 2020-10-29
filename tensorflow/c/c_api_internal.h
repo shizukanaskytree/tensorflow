@@ -131,6 +131,14 @@ struct TF_Session {
   tensorflow::Session* session;
 
   TF_Graph* const graph;
+  // 1.
+  // 为什么是你?
+  // TF_Graph
+  // 内部本质是 tensorflow::Graph graph
+
+  // 2.
+  // class Graph
+  // tensorflow/core/graph/graph.h:449:
 
   tensorflow::mutex mu ACQUIRED_AFTER(TF_Graph::mu);
 

@@ -59,6 +59,7 @@ class RecentRequestIds {
   // ShortDebugString are added to returned errors.
   Status TrackUnique(int64 request_id, const string& method_name,
                      const protobuf::Message& request);
+
   // Overloaded versions of the above function for wrapped protos.
   Status TrackUnique(int64 request_id, const string& method_name,
                      const RunStepRequestWrapper* wrapper);

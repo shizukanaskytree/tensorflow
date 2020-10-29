@@ -139,16 +139,26 @@ int CudaPlatform::VisibleDeviceCount() const {
   }
 
   return GpuDriver::GetDeviceCount();
+  // 1.
+  // tensorflow/stream_executor/cuda/cuda_driver.cc:1264:
+  // /* static */ int GpuDriver::GetDeviceCount()
+
 }
 
 const string& CudaPlatform::Name() const { return name_; }
 
 port::StatusOr<StreamExecutor*> CudaPlatform::ExecutorForDevice(int ordinal) {
   StreamExecutorConfig config;
+  // 1.
+  // tensorflow/stream_executor/platform.h:72
+  // struct StreamExecutorConfig
+
   config.ordinal = ordinal;
   config.plugin_config = PluginConfig();
   config.device_options = GetDeviceOptionsFromEnv();
   return GetExecutor(config);
+  // 1.
+  // GetExecutor 本文件内
 }
 
 port::StatusOr<StreamExecutor*> CudaPlatform::ExecutorForDeviceWithPluginConfig(
@@ -164,6 +174,10 @@ port::StatusOr<StreamExecutor*> CudaPlatform::GetExecutor(
     const StreamExecutorConfig& config) {
   return executor_cache_.GetOrCreate(
       config, [&]() { return GetUncachedExecutor(config); });
+  // 1.
+  // tensorflow/core/common_runtime/gpu/gpu_device.cc:237:
+  // BaseGPUDevice::StreamGroup* GetOrCreate
+
 }
 
 port::StatusOr<std::unique_ptr<StreamExecutor>>

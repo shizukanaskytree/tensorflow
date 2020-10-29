@@ -161,7 +161,7 @@ class LocalRendezvousImpl : public Rendezvous {
            const ParsedKey& key,
            const Args& send_args,
            const Tensor& val,
-          const bool is_dead) override {
+           const bool is_dead) override {
     // 1.
     // gdb print see: tensorflow/core/common_runtime/rendezvous_mgr.cc
     // IntraProcessRendezvous::Send

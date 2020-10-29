@@ -71,9 +71,13 @@ namespace tensorflow {
 // 4. When the response has been sent, the tag is returned from
 //    `cq_->Next()`, and the call object is deleted.
 
-// Represents a pending request with unknown message types.
+// Represents a pending **request** with unknown message types.
 template <class Service>
 class UntypedCall : public core::RefCounted {
+  // 1.
+  // tensorflow/core/distributed_runtime/rpc/grpc_call.h:136:
+  // class Call : public UntypedCall<Service>
+
  public:
   virtual ~UntypedCall() {}
 
@@ -144,7 +148,7 @@ class UntypedCall : public core::RefCounted {
     UntypedCall* const call_;  // `this` owns one reference.
     Callback callback_;
   };
-};
+}; // class UntypedCall end
 
 /** \class Call
  *
@@ -172,9 +176,21 @@ class UntypedCall : public core::RefCounted {
  */
 // Represents a pending call with known request and response message
 // types, and a known request-handling method.
-template <class Service, class GrpcService, class RequestMessage,
+template <class Service,
+          class GrpcService,
+          class RequestMessage,
           class ResponseMessage>
 class Call : public UntypedCall<Service> {
+  // 1.
+  // 这个 function 的用途是:
+  // tensorflow/core/distributed_runtime/rpc/grpc_worker_service.cc
+  // ENQUEUE_REQUEST 里面执行
+  //
+  // Call<GrpcWorkerServiceThread,
+  //      grpc::WorkerService::AsyncService,
+  //      method##Request,
+  //      method##Response>::
+
  public:
 
   /** \brief Define the signature of auto-generated functions of
@@ -243,10 +259,12 @@ class Call : public UntypedCall<Service> {
   // `GrpcService::RequestFoo()` method, where `Foo` is the name of an
   // RPC method.
   using EnqueueFunction = void (GrpcService::*)(
-      ::grpc::ServerContext*, RequestMessage*,
+      ::grpc::ServerContext*,
+      RequestMessage*,
       ::grpc::ServerAsyncResponseWriter<ResponseMessage>*,
-      ::grpc::CompletionQueue*, ::grpc::ServerCompletionQueue*, void*);
-
+      ::grpc::CompletionQueue*,
+      ::grpc::ServerCompletionQueue*,
+      void*);
 
   /** \brief Signature of grpc handler functions. e.g., CreateSessionHandler in
    *         grpc_master_service.cc.
@@ -279,7 +297,10 @@ class Call : public UntypedCall<Service> {
   // Represents the generic signature of a `Service::HandleFoo()`
   // method, where `Foo` is the name of an RPC method.
   using HandleRequestFunction = void (Service::*)(
-      Call<Service, GrpcService, RequestMessage, ResponseMessage>*);
+      Call<Service,
+           GrpcService,
+           RequestMessage,
+           ResponseMessage>*);
 
   Call(HandleRequestFunction handle_request_function)
       : handle_request_function_(handle_request_function), responder_(&ctx_) {}
@@ -307,14 +328,16 @@ class Call : public UntypedCall<Service> {
    *           otherwise false.
    */
   void RequestReceived(Service* service, bool ok) override {
+    // 1.
+    //
     if (ok) {
       this->Ref();
-      /// For example,
-      /// service is GrpcMasterService;
-      /// handle_request_function_ is CreateSessionHandler;
-      /// So, it will redirect to grpc_master_service.cc,
-      /// CreateSessionHandler(
-      ///   MasterCall<CreateSessionRequest, CreateSessionResponse>* call){...}
+      // For example,
+      // service is GrpcMasterService;
+      // handle_request_function_ is CreateSessionHandler;
+      // So, it will redirect to grpc_master_service.cc,
+      // CreateSessionHandler(
+      //   MasterCall<CreateSessionRequest, CreateSessionResponse>* call){...}
       (service->*handle_request_function_)(this);
     }
   }
@@ -326,35 +349,35 @@ class Call : public UntypedCall<Service> {
   void SendResponse(::grpc::Status status) {
     this->Ref();  // Ref for grpc; released in Tag callback.
 
-    /// \fn Finish
-    /// responder_: ::grpc::ServerAsyncResponseWriter<ResponseMessage>
-    ///
-    /// \details
-    /// Request to receive the server's response \a msg and final \a status for
-    /// the call, and to notify \a tag on this call's completion queue when
-    /// finished.
-    ///
-    /// \note tag
-    /// call CompletionQueue::Next to wait for operations to complete.
-    /// If a "tag" appears, it indicates that the corresponding operation is
-    /// complete.
-    ///
-    /// This function will return when either:
-    /// - when the server's response message and status have been received by
-    ///   the client.
-    /// - when the server has returned a non-OK status (no message expected in
-    ///   this case).
-    /// - when the call failed for some reason and the library generated a
-    ///   non-OK status.
-    ///
-    /// \param[in] tag Tag identifying this request.
-    /// \param[out] status To be updated with the operation status.
-    /// \param[out] msg To be filled in with the server's response message.
-    ///
-    /// \details
-    /// Server also must make sure the client has got the response from itself.
-    /// Once client get the response for sure, the tag will be returned from the
-    /// completion queue to indicate that rpc is finished.
+    // \fn Finish
+    // responder_: ::grpc::ServerAsyncResponseWriter<ResponseMessage>
+    //
+    // \details
+    // Request to receive the server's response \a msg and final \a status for
+    // the call, and to notify \a tag on this call's completion queue when
+    // finished.
+    //
+    // \note tag
+    // call CompletionQueue::Next to wait for operations to complete.
+    // If a "tag" appears, it indicates that the corresponding operation is
+    // complete.
+    //
+    // This function will return when either:
+    // - when the server's response message and status have been received by
+    //   the client.
+    // - when the server has returned a non-OK status (no message expected in
+    //   this case).
+    // - when the call failed for some reason and the library generated a
+    //   non-OK status.
+    //
+    // \param[in] tag Tag identifying this request.
+    // \param[out] status To be updated with the operation status.
+    // \param[out] msg To be filled in with the server's response message.
+    //
+    // \details
+    // Server also must make sure the client has got the response from itself.
+    // Once client get the response for sure, the tag will be returned from the
+    // completion queue to indicate that rpc is finished.
     responder_.Finish(response, status, &response_sent_tag_);
 
     this->Unref();
@@ -430,52 +453,116 @@ class Call : public UntypedCall<Service> {
                              HandleRequestFunction handle_request_function,
                              bool supports_cancel) {
     /// New a Call object.
-    auto call = new Call<Service, GrpcService, RequestMessage, ResponseMessage>(
-        handle_request_function);
+    auto call = new Call<Service,
+                         GrpcService,
+                         RequestMessage,
+                         ResponseMessage>(
+                      handle_request_function);
+
     if (supports_cancel) {
       call->RegisterCancellationHandler();
     }
 
     /// Call the grpc auto-generated function according to the signature.
     // Initial ref for call handed to grpc; released in Tag callback.
-    (grpc_service->*enqueue_function)(&call->ctx_, &call->request,
-                                      &call->responder_, cq, cq,
+    (grpc_service->*enqueue_function)(&call->ctx_,
+                                      &call->request,
+                                      &call->responder_,
+                                      cq,
+                                      cq,
                                       &call->request_received_tag_);
   }
 
-  /**
-   *
-   *
-   *
-   *
-   *
-   *
-   *
-   *
-   */
   // Enqueues a new request for the given service on the given
   // completion queue, using the given `method_id`.
   //
   // The request will be handled with the given
   // `handle_request_function`.
   static void EnqueueRequestForMethod(
-      GrpcService* grpc_service, ::grpc::ServerCompletionQueue* cq,
-      int method_id, HandleRequestFunction handle_request_function,
+      GrpcService* grpc_service,
+      ::grpc::ServerCompletionQueue* cq,
+      int method_id,
+      HandleRequestFunction handle_request_function,
       bool supports_cancel) {
-    auto call = new Call<Service, GrpcService, RequestMessage, ResponseMessage>(
-        handle_request_function);
+    // 1.
+    // 调用的一个例子:
+    //
+    // #define ENQUEUE_REQUEST(method, supports_cancel)                        \
+    //   do {                                                                  \
+    //     mutex_lock l(shutdown_mu_);                                         \
+    //     if (!is_shutdown_) {                                                \
+    //       Call<GrpcWorkerServiceThread, grpc::WorkerService::AsyncService,  \
+    //            method##Request, method##Response>::                         \
+    //           EnqueueRequestForMethod(                                      \
+    //               worker_service_,                                          \
+    //               cq_.get(),                                                \
+    //               static_cast<int>(GrpcWorkerMethod::k##method),            \
+    //               &GrpcWorkerServiceThread::method##Handler,                \
+    //               (supports_cancel));                                       \
+    //     }                                                                   \
+    //   } while (0)
+
+    // 1.1
+    // HandleRequestFunction handle_request_function
+    // 具体是
+    // &GrpcWorkerServiceThread::method##Handler
+    // ...
+    // GetStepSequenceHandler
+    // RunGraphHandler
+    // RecvBufHandler
+    // CompleteGroupHandler
+    // CompleteInstanceHandler
+
+    // 1.2
+    //
+    // Represents the generic signature of a `Service::HandleFoo()`
+    // method, where `Foo` is the name of an RPC method.
+    //
+    // using HandleRequestFunction = void (Service::*)(
+    //                                 Call<Service,
+    //                                      GrpcService,
+    //                                      RequestMessage,
+    //                                      ResponseMessage>*);
+
+    // 1.3
+    // Service is typename, generic name.
+
+    // 1.4
+    // GrpcService is typename, generic name.
+
+    // 1.5
+    // RequestMessage is typename, generic name.
+
+    // 1.6
+    // ResponseMessage is typename, generic name.
+
+    auto call = new Call<Service,
+                         GrpcService,
+                         RequestMessage,
+                         ResponseMessage>(handle_request_function);
+
     if (supports_cancel) {
       call->RegisterCancellationHandler();
     }
 
     // Initial ref for call handed to grpc; released in Tag callback.
-    grpc_service->RequestAsyncUnary(method_id, &call->ctx_, &call->request,
-                                    &call->responder_, cq, cq,
-                                    &call->request_received_tag_);
+    grpc_service->RequestAsyncUnary(
+      method_id,
+      &call->ctx_,
+      &call->request,
+      &call->responder_,
+      cq,
+      cq,
+      &call->request_received_tag_);
   }
 
   RequestMessage request;
+  // 1.
+  // RequestMessage
+  // 通配的 template `type`
+
   ResponseMessage response;
+  // 2.
 
   const std::multimap<::grpc::string_ref, ::grpc::string_ref>& client_metadata()
       const {
@@ -492,12 +579,17 @@ class Call : public UntypedCall<Service> {
   }
 
   HandleRequestFunction handle_request_function_;
+
   ::grpc::ServerContext ctx_;
   ::grpc::ServerAsyncResponseWriter<ResponseMessage> responder_;
 
   // Used as void* completion markers from grpc to indicate different
   // events of interest for a Call.
   typedef typename UntypedCall<Service>::Tag Tag;
+  // 1.
+  // typedef typename 语法规则:
+  // https://stackoverflow.com/a/18385553/7748163
+
   Tag request_received_tag_{this, Tag::kRequestReceived};
   Tag response_sent_tag_{this, Tag::kResponseSent};
   Tag cancelled_tag_{this, Tag::kCancelled};

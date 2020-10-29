@@ -90,6 +90,14 @@ TF_LIB_GTL_DEFINE_INT_TYPE(PlatformGpuId, int32);
 // 1.
 // TF_LIB_GTL_DEFINE_INT_TYPE 宏定义说明:
 // TF_LIB_GTL_DEFINE_INT_TYPE(TfGpuId, int32) is a type of ::tensorflow::gtl::IntType.
+//
+// (gdb) ptype visible_gpu_order[0]
+// type = const class tensorflow::gtl::IntType<tensorflow::PlatformGpuId_tag_, int> [with IntTypeName = tensorflow::PlatformGpuId_tag_, _ValueType = int]
+//
+// tensorflow/core/lib/gtl/int_type.h:173:
+// #define TF_LIB_GTL_DEFINE_INT_TYPE(int_type_name, value_type)   
+// typedef ::tensorflow::gtl::IntType<int_type_name##_tag_, value_type>
+
 
 // 2.
 // Step by step dis.as.sem.ble:

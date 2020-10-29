@@ -1,3 +1,6 @@
+// 好戏都在后头.
+// 看最后啊, 最重要的在后面!
+
 /* Copyright 2016 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -163,7 +166,7 @@ Status ServerFactory::GetFactory(const ServerDef& server_def,
  *         2.job name, 3. task index, 4. configuration for sessions on this
  *         server, 5. protocol used by this server.
  *
- *   ```cpp 
+ *   ```cpp
  *   cluster {
  *       job {
  *         name: "worker"

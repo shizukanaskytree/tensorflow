@@ -37,6 +37,11 @@ struct WorkerSession;
 // actually perform the underlying operations until after the RemoteRendezvous
 // has been Initialize'd.
 class RemoteRendezvous : public Rendezvous {
+// 1.
+// Rendezvous
+// tensorflow/core/framework/rendezvous.h:46:
+// class Rendezvous : public core::RefCounted
+
  public:
   // Fully construct the RemoteRendezvous.
   virtual Status Initialize(WorkerSession* session) = 0;

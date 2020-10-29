@@ -64,11 +64,13 @@ namespace tensorflow {
 // TODO(zhifengc): Cleanup this class. It's becoming messy.
 class MasterSession::ReffedClientGraph : public core::RefCounted {
  public:
-  ReffedClientGraph(const string& handle, const BuildGraphOptions& bopts,
+  ReffedClientGraph(const string& handle,
+                    const BuildGraphOptions& bopts,
                     std::unique_ptr<ClientGraph> client_graph,
                     const SessionOptions& session_opts,
                     const StatsPublisherFactory& stats_publisher_factory,
-                    bool is_partial, WorkerCacheInterface* worker_cache,
+                    bool is_partial,
+                    WorkerCacheInterface* worker_cache,
                     bool should_deregister)
       : session_handle_(handle),
         bg_opts_(bopts),
@@ -80,6 +82,7 @@ class MasterSession::ReffedClientGraph : public core::RefCounted {
         should_deregister_(should_deregister),
         collective_graph_key_(
             client_graph_before_register_->collective_graph_key) {
+
     VLOG(1) << "Created ReffedClientGraph for node with "
             << client_graph_before_register_->graph.num_node_ids();
 
@@ -381,6 +384,11 @@ static string SplitByWorker(const Node* node) {
   CHECK(DeviceNameUtils::SplitDeviceName(node->assigned_device_name(), &task,
                                          &device))
       << "node: " << node->name() << " dev: " << node->assigned_device_name();
+  // 1.
+  // SplitDeviceName
+  // tensorflow/core/util/device_name_utils.cc:461:
+  // bool DeviceNameUtils::SplitDeviceName(StringPiece name, string* task,
+
   return task;
 }
 
@@ -634,10 +642,16 @@ template <class FetchListType, class ClientRequestType,
           class ClientResponseType>
 Status MasterSession::ReffedClientGraph::RunPartitionsHelper(
     const std::unordered_map<StringPiece, size_t, StringPieceHasher>& feeds,
-    const FetchListType& fetches, const MasterEnv* env, int64 step_id,
-    int64 execution_count, PerStepState* pss, CallOptions* call_opts,
-    const ClientRequestType& req, ClientResponseType* resp,
-    CancellationManager* cm, bool is_last_partial_run) {
+    const FetchListType& fetches,
+    const MasterEnv* env,
+    int64 step_id,
+    int64 execution_count,
+    PerStepState* pss,
+    CallOptions* call_opts,
+    const ClientRequestType& req,
+    ClientResponseType* resp,
+    CancellationManager* cm,
+    bool is_last_partial_run) {
   // Collect execution cost stats on a smoothly decreasing frequency.
   /// ExecutorOpts 是一个 protobuf message , 定义在 worker.proto
   ExecutorOpts exec_opts;
@@ -729,27 +743,41 @@ Status MasterSession::ReffedClientGraph::RunPartitionsHelper(
     const Part& part = partitions_[i];
     RunManyGraphs::Call* call = calls.get(i);
     TRACEPRINTF("Partition %d %s", i, part.name.c_str());
-    ///
+
+    // =======================================================================
     part.worker->RunGraphAsync(
-        &call->opts, call->req.get(), call->resp.get(),
+        &call->opts,
+        call->req.get(),
+        call->resp.get(),
         std::bind(&RunManyGraphs::WhenDone, &calls, i, std::placeholders::_1));
+    // =======================================================================
+    // 1.
+    // RunGraphAsync
+    // core/distributed_runtime/worker.h:68:  void RunGraphAsync(CallOptions* opts, RunGraphRequestWrapper* request,
+
   }
 
   // Waits for the RunGraph calls.
   call_opts->SetCancelCallback([&calls]() { calls.StartCancel(); });
+
   auto token = cm->get_cancellation_token();
+
   const bool success =
       cm->RegisterCallback(token, [&calls]() { calls.StartCancel(); });
   if (!success) {
     calls.StartCancel();
   }
+
   calls.Wait();
+
   call_opts->ClearCancelCallback();
+
   if (success) {
     cm->DeregisterCallback(token);
   } else {
     return errors::Cancelled("Step was cancelled");
   }
+
   TF_RETURN_IF_ERROR(calls.status());
 
   // Collects fetches and metadata.
@@ -1238,7 +1266,8 @@ string BuildGraphOptionsString(const BuildGraphOptions& opts) {
 }
 
 MasterSession::MasterSession(
-    const SessionOptions& opt, const MasterEnv* env,
+    const SessionOptions& opt,
+    const MasterEnv* env,
     std::unique_ptr<std::vector<std::unique_ptr<Device>>> remote_devs,
     std::unique_ptr<WorkerCacheInterface> worker_cache,
     std::unique_ptr<DeviceSet> device_set,
@@ -1260,9 +1289,59 @@ MasterSession::MasterSession(
 
   VLOG(1) << "Session " << handle_ << " #local " << env->local_devices.size()
           << " #remote " << remote_devs_->size();
+  // 1.
+  // 2020-09-30 15:18:03.747554: I
+  // tensorflow/core/distributed_runtime/master_session.cc:1191]
+  // Session 9c3e2c028f57833f #local 4 #remote 6
+
+  // 2.
+  // 共 4 个 local_devices, worker 1:
+  //
+  // p env->local_devices[0]->DebugString()
+  // $4 = "name: \"/job:worker/replica:0/task:1/device:CPU:0\"\ndevice_type: \"CPU\"\nmemory_limit: 268435456\nlocality {\n}\nincarnation: 7572078565850133336\n"
+  //
+  // p env->local_devices[1]->DebugString()
+  // $5 = "name: \"/job:worker/replica:0/task:1/device:XLA_CPU:0\"\ndevice_type: \"XLA_CPU\"\nmemory_limit: 17179869184\nlocality {\n}\nincarnation: 13382407942238418194\nphysical_device_desc: \"device: XLA_CPU device\"\n"
+  //
+  // p env->local_devices[2]->DebugString()
+  // $6 = "name: \"/job:worker/replica:0/task:1/device:GPU:0\"\ndevice_type: \"GPU\"\nmemory_limit: 30381775258\nlocality {\n  bus_id: 1\n  links {\n  }\n}\nincarnation: 9606045140827706580\nphysical_device_desc: \"device: 0,"...
+  //
+  // p env->local_devices[3]->DebugString()
+  // $7 = "name: \"/job:worker/replica:0/task:1/device:XLA_GPU:0\"\ndevice_type: \"XLA_GPU\"\nmemory_limit: 17179869184\nlocality {\n}\nincarnation: 7190191108523786726\nphysical_device_desc: \"device: XLA_GPU device\"\n"
+
+  // 3.
+  // 共 6 个 remote_devs, 2 ps, 4 worker.
+  //
+  // ps:
+  // (gdb) p (((*(remote_devs_.get()))[0]).get())->DebugString()
+  // $10 = "name: \"/job:ps/replica:0/task:0/device:CPU:0\"\ndevice_type: \"CPU\"\nmemory_limit: 268435456\nlocality {\n}\nincarnation: 8089561552637269586\n"
+  //
+  // (gdb) p (((*(remote_devs_.get()))[1]).get())->DebugString()
+  // $11 = "name: \"/job:ps/replica:0/task:0/device:XLA_CPU:0\"\ndevice_type: \"XLA_CPU\"\nmemory_limit: 17179869184\nlocality {\n}\nincarnation: 3760586469902275930\nphysical_device_desc: \"device: XLA_CPU device\"\n"
+  //
+  // worker 0:
+  // (gdb) p (((*(remote_devs_.get()))[2]).get())->DebugString()
+  // $12 = "name: \"/job:worker/replica:0/task:0/device:CPU:0\"\ndevice_type: \"CPU\"\nmemory_limit: 268435456\nlocality {\n}\nincarnation: 1076021834361356929\n"
+  //
+  // (gdb) p (((*(remote_devs_.get()))[3]).get())->DebugString()
+  // $13 = "name: \"/job:worker/replica:0/task:0/device:XLA_CPU:0\"\ndevice_type: \"XLA_CPU\"\nmemory_limit: 17179869184\nlocality {\n}\nincarnation: 15051760837232546270\nphysical_device_desc: \"device: XLA_CPU device\"\n"
+  //
+  // (gdb) p (((*(remote_devs_.get()))[4]).get())->DebugString()
+  // $14 = "name: \"/job:worker/replica:0/task:0/device:GPU:0\"\ndevice_type: \"GPU\"\nmemory_limit: 30381775258\nlocality {\n  bus_id: 1\n  links {\n  }\n}\nincarnation: 6665856221923815520\nphysical_device_desc: \"device: 0,"...
+  //
+  // (gdb) p (((*(remote_devs_.get()))[5]).get())->DebugString()
+  // $15 = "name: \"/job:worker/replica:0/task:0/device:XLA_GPU:0\"\ndevice_type: \"XLA_GPU\"\nmemory_limit: 17179869184\nlocality {\n}\nincarnation: 14468446838054120394\nphysical_device_desc: \"device: XLA_GPU device\"\n"
+
+  // 3.
+  // 关于 devices_, device_set
+  // (gdb) p devices_.get()->devices().size()
+  // $16 = 10
 
   LOG(INFO) << "Start master session " << handle_
             << " with config: " << session_opts_.config.ShortDebugString();
+  // 1.
+  // ShortDebugString 是对于 config message type 而言的.
+  // https://developers.google.com/protocol-buffers/docs/reference/cpp/google.protobuf.message
 }
 
 MasterSession::~MasterSession() {
@@ -1328,24 +1407,59 @@ Status MasterSession::Create(GraphDef* graph_def,
  */
 Status MasterSession::CreateWorkerSessions(
     const WorkerCacheFactoryOptions& options) {
+  // 1.
+  // WorkerCacheFactoryOptions
+  // tensorflow/core/distributed_runtime/master_env.h
+  //
+  // 本质上就是 cluster_def 加上,
+  // worker_device = "/job:%s/task:%d" % (FLAGS.job_name, FLAGS.task_index)
+  //
+  // cluster = tf.train.ClusterSpec({
+  //       'ps':['localhost:2222'],
+  //       'worker':['localhost:2223','localhost:2224']
+  //       })
+
   const std::vector<string> worker_names = filtered_worker_list_;
+  // 1.
+  // p worker_names
+  // $17 = std::vector of length 3, capacity 3 = {"/job:ps/replica:0/task:0", "/job:worker/replica:0/task:0", "/job:worker/replica:0/task:1"}
+
   WorkerCacheInterface* worker_cache = get_worker_cache();
+  // 1.
+  // class WorkerCacheInterface
+  // tensorflow/core/distributed_runtime/worker_cache.h:32:
 
   struct WorkerGroup {
     // The worker name. (Not owned.)
     const string* name;
 
-    /// WorkerInterface for talking with the TensorFlow Worker grpc service.
+    // WorkerInterface for talking with the TensorFlow Worker grpc service.
     // The worker referenced by name. (Not owned.)
     WorkerInterface* worker = nullptr;
 
     // Request and responses used for a given worker.
     CreateWorkerSessionRequest request;
+    // 1.
+    // message CreateWorkerSessionRequest
+    // tensorflow/core/protobuf/worker.proto:59:
+
     CreateWorkerSessionResponse response;
+    // 1.
+    // tensorflow/core/protobuf/worker.proto:59:
+    // CreateWorkerSessionResponse contains nothing
+
     Status status = Status::OK();
   };
+
   BlockingCounter done(worker_names.size());
+  // 1.
+  // class BlockingCounter
+  // tensorflow/core/lib/core/blocking_counter.h:26:
+
   std::vector<WorkerGroup> workers(worker_names.size());
+  // 1.
+  // p worker_names
+  // $17 = std::vector of length 3, capacity 3 = {"/job:ps/replica:0/task:0", "/job:worker/replica:0/task:0", "/job:worker/replica:0/task:1"}
 
   // Release the workers.
   auto cleanup = gtl::MakeCleanup([&workers, worker_cache] {
@@ -1360,8 +1474,26 @@ Status MasterSession::CreateWorkerSessions(
   // Create all the workers & kick off the computations.
   for (size_t i = 0; i < worker_names.size(); ++i) {
     workers[i].name = &worker_names[i];
-    /// Create a remote worker and initialize their grpc services.
     workers[i].worker = worker_cache->CreateWorker(worker_names[i]);
+    // 1.
+    // CreateWorker 做了什么?
+    // 见 worker_cache.h
+    //
+    // If "target" names a remote task for which an RPC channel exists
+    // or can be constructed, returns a pointer to a WorkerInterface object
+    // wrapping that channel. The returned value must be destroyed by
+    // calling `this->ReleaseWorker(target, ret)`
+    // TODO(mrry): rename this to GetOrCreateWorker() or something that
+    // makes it more obvious that this method returns a potentially
+    // shared object.
+    //
+    // Create a remote worker and initialize their grpc services.
+
+    // 2.
+    // CreateWorker 在哪?
+    // CreateWorker 是 tensorflow/core/distributed_runtime/rpc/grpc_worker_cache.cc
+    //
+
     workers[i].request.set_session_handle(handle_);
 
     DeviceNameUtils::ParsedName name;
@@ -1398,20 +1530,38 @@ Status MasterSession::CreateWorkerSessions(
       workers[i].status = s;
       done.DecrementCount();
     };
-    /// \note
-    /// Create worker session requested by master server to worker server.
-    /// CreateWorkerSessionAsync worker.cc
-    /// MasterSession::initialized worker_cache_:
-    ///     const std::unique_ptr< WorkerCacheInterface >
-    /// it is a connection between Master and worker.
+
     workers[i].worker->CreateWorkerSessionAsync(&workers[i].request,
-                                                &workers[i].response, cb);
+                                                &workers[i].response,
+                                                cb);
+    // 1.
+    // tensorflow/core/distributed_runtime/rpc/grpc_remote_worker.cc:79:
+    // void CreateWorkerSessionAsync(const CreateWorkerSessionRequest* request,
+
+    // 2.
+    //
+    // Thread #290 [python] 82786 [core: 52] (Suspended : Step)
+    // 	tensorflow::RPCState<google::protobuf::Message>::RPCState<google::protobuf::Message>() at grpc_state.h:66 0x7fe1f123fdb4
+    // 	tensorflow::RPCState<google::protobuf::Message>::RPCState() at grpc_state.h:48 0x7fe1f123f64c
+    // 	tensorflow::GrpcRemoteWorker::IssueRequest() at grpc_remote_worker.cc:268 0x7fe1f568b940
+    //
+    // 	tensorflow::GrpcRemoteWorker::CreateWorkerSessionAsync() at grpc_remote_worker.cc:82 0x7fe1f5689b89
+    //
+    // 	tensorflow::MasterSession::CreateWorkerSessions() at master_session.cc:1,303 0x7fe1f12a23f0
+    // 	tensorflow::MasterSession::Create() at master_session.cc:1,230 0x7fe1f12a1ba7
+    // 	tensorflow::Master::<lambda()>::operator()(void) const at master.cc:479 0x7fe1f1288e29
+    // 	std::_Function_handler<void(), tensorflow::Master::CreateSession(const tensorflow::CreateSessionRequest*, tensorflow::CreateSessionResponse*, tensorflow::Master::MyClosure)::<lambda()> >::_M_invoke at std_function.h:316 0x7fe1f128f4d8
+    // 	std::function<void ()>::operator()() const at std_function.h:706 0x7fe29f2a37b4
+    // 	std::__invoke_impl<void, std::function<void ()>> at invoke.h:60 0x7fe29f8a4fd9
+    // 	<...more frames...>
   }
 
   done.Wait();
+
   for (size_t i = 0; i < workers.size(); ++i) {
     status.Update(workers[i].status);
   }
+
   return status;
 }
 
@@ -1681,9 +1831,16 @@ Status MasterSession::PartialRunSetup(const PartialRunSetupRequest* req,
  *  \param[out] resp: MutableRunStepResponseWrapper* ;
  *
  */
-Status MasterSession::Run(CallOptions* opts, const RunStepRequestWrapper& req,
-                          MutableRunStepResponseWrapper* resp) {
+Status MasterSession::Run(
+  CallOptions* opts,
+  const RunStepRequestWrapper& req,
+  MutableRunStepResponseWrapper* resp) {
+  // 1.
+  // class CallOptions
+  // tensorflow/core/distributed_runtime/call_options.h:34:
+
   UpdateLastAccessTime();
+
   {
     mutex_lock l(mu_);
     if (closed_) {
@@ -1693,11 +1850,13 @@ Status MasterSession::Run(CallOptions* opts, const RunStepRequestWrapper& req,
     // Note: all code paths must eventually call MarkRunCompletion()
     // in order to appropriate decrement the num_running_ counter.
   }
+
   Status status;
   if (!req.partial_run_handle().empty()) {
     status = DoPartialRun(opts, req, resp);
   } else {
     status = DoRunWithLocalExecution(opts, req, resp);
+    // DoRunWithLocalExecution 在本文件中
   }
   return status;
 }
@@ -1996,24 +2155,52 @@ Status MasterSession::PostRunCleanup(MasterSession::ReffedClientGraph* rcg,
  *
  */
 Status MasterSession::DoRunWithLocalExecution(
-    CallOptions* opts, const RunStepRequestWrapper& req,
+    CallOptions* opts,
+    const RunStepRequestWrapper& req,
     MutableRunStepResponseWrapper* resp) {
+
   VLOG(2) << "DoRunWithLocalExecution req: " << req.DebugString();
-  /** \note pss: struct PerStepState
-   *  定义在 master_session.h ， 我感觉是用来记录各种统计信息的，包括 costs, timeline
-   *  start time, end time, grpc 等的
-   *
-   */
+  // 1.
+  // req.DebugString();
+  //
+  // 2020-10-01 00:14:37.345283: I tensorflow/core/distributed_runtime/master_session.cc:1855] DoRunWithLocalExecution req:
+  // session_handle: "9c3e2c028f57833f"
+  // fetch: "concat_1:0"
+  // options {
+  // }
+
   PerStepState pss;
+  // 1.
+  // pss: struct PerStepState
+  // 定义在 master_session.h ， 我感觉是用来记录各种统计信息的，包括 costs, timeline
+  // start time, end time, grpc 等的
+
   pss.start_micros = Env::Default()->NowMicros();
   auto cleanup = gtl::MakeCleanup([this] { MarkRunCompletion(); });
 
   // Prepare.
   BuildGraphOptions bgopts;
+  // 1.
+  // struct BuildGraphOptions
+  // tensorflow/core/common_runtime/build_graph_options.h:27:
+
   BuildBuildGraphOptions(req, session_opts_.config, &bgopts);
+  // 1
+  // 这个函数是用来填充 Init bgopts: BuildGraphOptions 的.
+  // 根据 req, session_opts_.config.
+
   ReffedClientGraph* rcg = nullptr;
+  // 1.
+  // ReffedClientGraph
+  // tensorflow/core/distributed_runtime/master_session.cc:65:
+  // class MasterSession::ReffedClientGraph : public core::RefCounted {
+  // cmt:
+  // 本质上是 ClientGraph
+  // ...
+
   int64 count;
-  /// StartStep will build optimize graph.
+
+  // StartStep will build optimize graph.
   TF_RETURN_IF_ERROR(StartStep(bgopts, false, &rcg, &count));
 
   // Unref "rcg" when out of scope.

@@ -277,6 +277,9 @@ class _VariableStore(object):
   def __init__(self):
     """Create a variable store."""
     self._vars = {}  # A dictionary of the stored TensorFlow variables.
+    # 1.
+    # self._vars 是用来存的!
+
     self._partitioned_vars = {}  # A dict of the stored PartitionedVariables.
     self._store_eager_variables = False
 
@@ -297,7 +300,7 @@ class _VariableStore(object):
                    constraint=None,
                    synchronization=VariableSynchronization.AUTO,
                    aggregation=VariableAggregation.NONE):
-    """Gets an existing variable with these parameters or create a new one.
+    """Gets an existing variable with these parameters or **create a new one**.
 
     If a variable with the given name is already stored, we return the stored
     variable. Otherwise, we create a new one.
@@ -1366,6 +1369,9 @@ def get_variable_scope():
 
 def _get_default_variable_store():
   store = ops.get_collection(_VARSTORE_KEY)
+  # 1.
+  # _VARSTORE_KEY 是 _VARSTORE_KEY = ("__variable_store",)
+
   if store:
     return store[0]
   store = _VariableStore()

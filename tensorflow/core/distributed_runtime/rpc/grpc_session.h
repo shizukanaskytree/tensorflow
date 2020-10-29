@@ -125,12 +125,14 @@ class GrpcSession : public Session {
  private:
   const SessionOptions options_;
 
-  /// master_: std::unique_ptr<MasterInterface>
-  /// \note master_ real type is class GrpcRemoteMaster, a derived class
-  ///       implements MasterInterface.
-  /// grpc session use this master interface/stub to invoke session related
-  /// functions, like create a session, extend a session, run a step.
   std::unique_ptr<MasterInterface> master_;
+  // 1.
+  // master_: std::unique_ptr<MasterInterface>
+  // \note master_ real type is class GrpcRemoteMaster, a derived class
+  //       implements MasterInterface.
+  // grpc session use this master interface/stub to invoke session related
+  // functions, like create a session, extend a session, run a step.
+
   mutex mu_;
 
   // handle_ returned by the master to identify this session.

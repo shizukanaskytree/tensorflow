@@ -3026,8 +3026,12 @@ class Graph(object):
     # In TF2.x or after switch_to_thread_local(),
     # self._thread_local._control_dependencies_stack is used instead.
     self._graph_control_dependencies_stack = []
+
     # Arbitrary collections of objects.
     self._collections = {}
+    # 1.
+    # 这个是存所有的 Ops 的, 到时从 tf.get_variable 也是从这里面取的!
+
     # The graph-level random seed
     self._seed = None
     # A dictionary of attributes that should be applied to all ops.
@@ -4026,7 +4030,7 @@ class Graph(object):
 
       # 2.
       # 添加 _collections 元素的函数
-      # 
+      #
       # def add_to_collection(self, name, value):
       #   if name not in self._collections:
       #     self._collections[name] = [value]

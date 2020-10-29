@@ -86,6 +86,12 @@ limitations under the License.
 
 #ifdef __cplusplus
 extern "C" {
+// 1.
+// extern "C" tells the C++ compiler that you have a function which was
+// compiled by the C compiler. Once you tell it that it was compiled by the
+// C compiler, the C++ compiler will know how to call it correctly. It also
+// allows the C++ compiler to compile a C++ function in such a way that the
+// C compiler can call it.
 #endif
 
 // --------------------------------------------------------------------------
@@ -1751,6 +1757,16 @@ TF_CAPI_EXPORT extern TF_Server* TF_NewServer(const void* proto,
 
 // Starts an in-process TensorFlow server.
 TF_CAPI_EXPORT extern void TF_ServerStart(TF_Server* server, TF_Status* status);
+// 1.
+// idea:
+// Restarts an in-process TensorFlow server.
+// TF_CAPI_EXPORT extern void TF_ServerRestart(TF_Server* server, TF_Status* status);
+//
+// 2.
+// 输入输出接口 swig
+// http://www.swig.org/Doc1.3/Arguments.html
+// 为什么 TF_Status* status 就是 Output 呢?
+//
 
 // Stops an in-process TensorFlow server.
 TF_CAPI_EXPORT extern void TF_ServerStop(TF_Server* server, TF_Status* status);

@@ -36,6 +36,14 @@ struct WorkerEnv;
 struct WorkerSession;
 
 class GrpcWorker : public Worker {
+  // 1.
+  // tensorflow/core/distributed_runtime/worker.h:42:
+  // class Worker : public WorkerInterface
+
+  // 2.
+  // class Worker 的 methods 超级丰富!!!
+  //
+
  public:
   GrpcWorker(WorkerEnv* env, const ConfigProto& config);
 
@@ -55,6 +63,10 @@ class GrpcWorker : public Worker {
 
  private:
   RecentRequestIds recent_request_ids_;
+  // 1.
+  // tensorflow/core/distributed_runtime/recent_request_ids.h:48:
+  // class RecentRequestIds
+
   const int32 recv_buf_max_chunk_;
 };
 
@@ -72,7 +84,8 @@ struct GrpcWorkerServiceOptions {
 
 // Returns an implementation of WorkerService rpc service.
 std::unique_ptr<AsyncServiceInterface> NewGrpcWorkerService(
-    GrpcWorker* worker, ::grpc::ServerBuilder* builder,
+    GrpcWorker* worker,
+    ::grpc::ServerBuilder* builder,
     GrpcWorkerServiceOptions opts = GrpcWorkerServiceOptions());
 
 }  // namespace tensorflow

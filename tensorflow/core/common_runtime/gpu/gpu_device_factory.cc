@@ -213,19 +213,33 @@ class GPUCompatibleCPUDeviceFactory : public DeviceFactory {
   Status CreateDevices(const SessionOptions& options, const string& name_prefix,
                        std::vector<std::unique_ptr<Device>>* devices) override {
     int n = 1;
+    // 1.
+    // 默认情况下就是一个!
+
     auto iter = options.config.device_count().find("CPU");
+    // 1.
+    // options.config.device_count() 中的 device_count 是什么?
+    //
+    // Map from device type name (e.g., "CPU" or "GPU" ) to maximum
+    // number of devices of that type to use.  If a particular device
+    // type is not found in the map, the system picks an appropriate
+    // number.
+    // map<string, int32> device_count;
+
     if (iter != options.config.device_count().end()) {
       n = iter->second;
     }
     int num_numa_nodes = options.config.experimental().use_numa_affinity()
                              ? port::NUMANumNodes()
                              : 1;
+
     for (int i = 0; i < n; i++) {
       string name = strings::StrCat(name_prefix, "/device:CPU:", i);
       int numa_node = i % num_numa_nodes;
       DeviceLocality locality;
       locality.set_numa_node(numa_node);
-      devices->push_back(absl::make_unique<GPUCompatibleCPUDevice>(
+      devices->push_back(
+        absl::make_unique<GPUCompatibleCPUDevice>(
           options, name, Bytes(256 << 20), DeviceLocality(),
           ProcessState::singleton()->GetCPUAllocator(numa_node)));
     }
@@ -233,7 +247,11 @@ class GPUCompatibleCPUDeviceFactory : public DeviceFactory {
     return Status::OK();
   }
 };
+
+
 REGISTER_LOCAL_DEVICE_FACTORY("CPU", GPUCompatibleCPUDeviceFactory, 70);
+// 在程序一开始就注册了这个 CPU !!!
+
 
 }  // namespace tensorflow
 

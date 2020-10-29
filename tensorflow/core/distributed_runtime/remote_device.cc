@@ -46,6 +46,7 @@ class RemoteDevice : public Device {
       : Device(env, da), local_dev_name_(GetLocalDeviceName(da.name())) {}
 
   Status Sync() override { return Status::OK(); }
+
   Allocator* GetAllocator(AllocatorAttributes attr) override { return nullptr; }
 
  private:
@@ -75,32 +76,52 @@ class RemoteDevice : public Device {
  *
  *  \remark No return value.
  */
-void NewRemoteDevices(Env* env, WorkerCacheInterface* worker_cache,
-                      const string& worker_name, NewRemoteDevicesDone done) {
+void NewRemoteDevices(
+  Env* env,
+  WorkerCacheInterface* worker_cache,
+  const string& worker_name,
+  NewRemoteDevicesDone done) {
+  // 1.
+  // 调用方
+  // tensorflow/core/distributed_runtime/master.cc
+
   WorkerInterface* wi = worker_cache->CreateWorker(worker_name);
+
   if (wi == nullptr) {
     std::vector<Device*> empty;
     done(errors::NotFound("Device ", worker_name, " is not found."), &empty);
     return;
   }
+
   struct Call {
     GetStatusRequest req;
     GetStatusResponse resp;
   };
+
   Call* call = new Call;
+
   /// callback function will be called in worker.cc, GetStatusAsync;
-  auto cb = [env, worker_cache, worker_name, done, wi,
-             call](const Status& status) {
+  auto cb = [env, worker_cache, worker_name, done, wi, call](const Status& status) {
+
     Status s = status;
+
+    // =======================================================================
     std::vector<Device*> remote_devices;
+    // =======================================================================
+    // 1.
+    // 怎么传出去的?? 怎么用啊?
+
     auto cleanup = gtl::MakeCleanup(
         [&worker_cache, &worker_name, &wi, &done, &remote_devices, &s, call] {
           worker_cache->ReleaseWorker(worker_name, wi);
           done(s, &remote_devices);
           delete call;
         });
+
     if (s.ok()) {
+
       DeviceNameUtils::ParsedName worker_name_parsed;
+
       if (!DeviceNameUtils::ParseFullName(worker_name, &worker_name_parsed) ||
           !worker_name_parsed.has_job || !worker_name_parsed.has_replica ||
           !worker_name_parsed.has_task) {
@@ -109,32 +130,42 @@ void NewRemoteDevices(Env* env, WorkerCacheInterface* worker_cache,
         LOG(WARNING) << s;
         return;
       }
+
       remote_devices.reserve(call->resp.device_attributes_size());
+
       for (const DeviceAttributes& da : call->resp.device_attributes()) {
+
         DeviceNameUtils::ParsedName device_name_parsed;
+
         CHECK(DeviceNameUtils::ParseFullName(da.name(), &device_name_parsed))
             << "Device attribute name '" << da.name() << "' could not be "
             << "parsed. Device Attribute: " << da.DebugString();
+
         // Preserve the exact name, if possible.
         // TODO(b/37868888): Simplify when legacy device name formats removed.
         if (device_name_parsed.job == worker_name_parsed.job &&
             device_name_parsed.replica == worker_name_parsed.replica &&
             device_name_parsed.task == worker_name_parsed.task) {
+          // =========================================
           auto d = new RemoteDevice(env, da);
           remote_devices.push_back(d);
+          // =========================================
         } else {
           DeviceAttributes da_rewritten = da;
           da_rewritten.set_name(DeviceNameUtils::FullName(
               worker_name_parsed.job, worker_name_parsed.replica,
               worker_name_parsed.task, device_name_parsed.type,
               device_name_parsed.id));
+          // =========================================
           auto d = new RemoteDevice(env, da_rewritten);
           remote_devices.push_back(d);
+          // =========================================
         }
       }
     }
+
   };
-  /// pay attention to callback function.
+
   wi->GetStatusAsync(&call->req, &call->resp, cb);
 }
 

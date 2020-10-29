@@ -1,3 +1,17 @@
+"""
+Doc description:
+
+tensorflow/python/client/session.py
+
+建议: 先看懂前端. 再对应后端. 先好好看懂代码啊!!!
+
+要求: 每一个都要懂!!!
+
+comment: 真! 诚!
+
+"""
+
+
 # Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -638,6 +652,8 @@ class BaseSession(SessionInterface):
     """
     if graph is None:
       self._graph = ops.get_default_graph()
+      # 1.
+      # ops is tensorflow/python/framework/ops.py
     else:
       if not isinstance(graph, ops.Graph):
         raise TypeError('graph must be a tf.Graph, but got %s' % type(graph))
@@ -674,6 +690,18 @@ class BaseSession(SessionInterface):
     try:
       # pylint: disable=protected-access
       self._session = tf_session.TF_NewSessionRef(self._graph._c_graph, opts)
+      # 1.
+      # 关注图的走向!
+      # self._graph._c_graph
+
+      # 2.
+      # tf_session.TF_NewSessionRef
+      #   tensorflow/python/client/tf_session_helper.cc
+      #   TF_Session* TF_NewSessionRef(TF_Graph* graph, const TF_SessionOptions* opts, TF_Status* status)
+      #     TF_Session* tf_session = TF_NewSession(graph, opts, status);
+      # 
+
+
       # pylint: enable=protected-access
     finally:
       tf_session.TF_DeleteSessionOptions(opts)
@@ -1542,8 +1570,18 @@ class Session(BaseSession):
     """Creates a new TensorFlow session.
 
     If no `graph` argument is specified when constructing the session,
+    #wxf.cmt# 通常这个 graph 都是 None, 我看到的代码都是这样.
+
     the default graph will be launched in the session. If you are
+    #wxf.cmt#
+    所以这么得到 `the default graph`
+    A:
+    self._graph = ops.get_default_graph() # in class BaseSession
+    #~wxf.cmt#
+
     using more than one graph (created with `tf.Graph()`) in the same
+    #wxf.cmt# 果然这个图就是这个图啊, `tf.Graph()`
+
     process, you will have to use different sessions for each graph,
     but each graph can be used in multiple sessions. In this case, it
     is often clearer to pass the graph to be launched explicitly to

@@ -40,7 +40,7 @@ class DeviceFactory {
   // CPU devices are added first.
   static Status AddDevices(const SessionOptions& options, // input
                            const string& name_prefix, // input
-                           std::vector<std::unique_ptr<Device>>* devices); // output 
+                           std::vector<std::unique_ptr<Device>>* devices); // output
 
   // Helper for tests.  Create a single device of type "type".  The
   // returned device is always numbered zero, so if creating multiple
@@ -115,6 +115,33 @@ class Registrar {
 #define REGISTER_LOCAL_DEVICE_FACTORY(device_type, device_factory, ...) \
   INTERNAL_REGISTER_LOCAL_DEVICE_FACTORY(device_type, device_factory,   \
                                          __COUNTER__, ##__VA_ARGS__)
+// 1.
+// 哪些?
+//
+// tensorflow/core/common_runtime/gpu/gpu_device_factory.cc:135:
+// REGISTER_LOCAL_DEVICE_FACTORY("CPU", GPUCompatibleCPUDeviceFactory, 70);
+
+// 2.
+// tensorflow/core/common_runtime/threadpool_device_factory.cc:68:
+// REGISTER_LOCAL_DEVICE_FACTORY("CPU", ThreadPoolDeviceFactory, 60);
+
+// 3.
+// tensorflow/compiler/jit/xla_cpu_device.cc:82:
+// REGISTER_LOCAL_DEVICE_FACTORY(DEVICE_XLA_CPU, XlaCpuDeviceFactory);
+
+// ===
+
+// 4.
+// tensorflow/core/common_runtime/gpu/gpu_device_factory.cc:74:
+// REGISTER_LOCAL_DEVICE_FACTORY("GPU", GPUDeviceFactory, 210);
+
+// 5.
+// tensorflow/compiler/jit/xla_gpu_device.cc:116:
+// REGISTER_LOCAL_DEVICE_FACTORY(DEVICE_XLA_GPU, XlaGpuDeviceFactory);
+
+// 5.
+// tensorflow/compiler/jit/xla_interpreter_device.cc:74:
+// REGISTER_LOCAL_DEVICE_FACTORY(DEVICE_XLA_INTERPRETER, XlaInterpreterDeviceFactory, 40);
 
 #define INTERNAL_REGISTER_LOCAL_DEVICE_FACTORY(device_type, device_factory, \
                                                ctr, ...)                    \

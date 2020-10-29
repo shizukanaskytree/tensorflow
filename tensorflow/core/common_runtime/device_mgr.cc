@@ -34,7 +34,7 @@ DeviceMgr::DeviceMgr(std::vector<std::unique_ptr<Device>> devices)
 
     d->device_mgr_ = this;
 
-    // Register under the (1) full name and (2) canonical name.
+    // Register under the (1) full name and (2) canonical name. 规范名
     for (const string& name :
          DeviceNameUtils::GetNamesForDeviceMappings(d->parsed_name())) {
       device_map_[CopyToBackingStore(name)] = d.get();

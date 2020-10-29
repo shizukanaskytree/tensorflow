@@ -41,6 +41,14 @@ class RpcRemoteRendezvous : public BaseRemoteRendezvous {
  public:
   RpcRemoteRendezvous(const WorkerEnv* env, int64 step_id)
       : BaseRemoteRendezvous(env, step_id) {}
+  // 1.
+  // tensorflow/core/distributed_runtime/base_rendezvous_mgr.h:119:
+  // class BaseRemoteRendezvous : public RemoteRendezvous
+
+  // 2.
+  // class RemoteRendezvous
+  //
+
 
  protected:
   void RecvFromRemoteAsync(const Rendezvous::ParsedKey& parsed,
@@ -289,6 +297,17 @@ void RpcRemoteRendezvous::RecvFromRemoteAsync(
 
 RpcRendezvousMgr::RpcRendezvousMgr(const WorkerEnv* env)
     : BaseRendezvousMgr(env) {}
+// 1.
+// env 给到 BaseRendezvousMgr 后究竟做和用处?
+// class BaseRendezvousMgr : public RendezvousMgrInterface
+// tensorflow/core/distributed_runtime/base_rendezvous_mgr.h:60:
+//
+
+// 2.
+// RendezvousMgrInterface
+// class RendezvousMgrInterface
+// tensorflow/core/distributed_runtime/rendezvous_mgr_interface.h:63:
+//
 
 BaseRemoteRendezvous* RpcRendezvousMgr::Create(int64 step_id,
                                                const WorkerEnv* worker_env) {

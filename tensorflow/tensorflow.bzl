@@ -1247,6 +1247,10 @@ register_extension_info(
 
 # terminology changes: saving tf_cuda_* definition for compatibility
 def tf_cuda_library(*args, **kwargs):
+    # 1.
+    # syntax: (*args, **kwargs)
+    # https://www.programiz.com/python-programming/args-and-kwargs
+
     tf_gpu_library(*args, **kwargs)
 
 register_extension_info(

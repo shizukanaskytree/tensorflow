@@ -175,20 +175,25 @@ Status Worker::PrepareRunGraph(RunGraphRequestWrapper* req,
 /** \brief Receive Master server side request to run graph computing. So, for
  *         a worker, it is a server side.
  */
-void Worker::RunGraphAsync(CallOptions* opts, RunGraphRequestWrapper* request,
-                           MutableRunGraphResponseWrapper* response,
-                           StatusCallback done) {
+void Worker::RunGraphAsync(
+  CallOptions* opts,
+  RunGraphRequestWrapper* request, // input from master to worker
+  MutableRunGraphResponseWrapper* response, // output return to master
+  StatusCallback done) {
+
   if (request->store_errors_in_response_body()) {
     done = [response, done](const Status& status) {
       response->set_status(status);
       done(Status::OK());
     };
   }
+
   if (request->is_partial()) {
     DoPartialRunGraph(opts, request, response, std::move(done));
   } else {
     DoRunGraph(opts, request, response, std::move(done));
   }
+
 }
 
 MutableRunGraphRequestWrapper* Worker::CreateRunGraphRequest() {
@@ -217,13 +222,25 @@ MutableRunGraphResponseWrapper* Worker::CreateRunGraphResponse() {
  *  \param[in] done: StatusCallback;
  *
  */
-void Worker::DoRunGraph(CallOptions* opts, RunGraphRequestWrapper* request,
-                        MutableRunGraphResponseWrapper* response,
-                        StatusCallback done) {
+void Worker::DoRunGraph(
+  CallOptions* opts,
+  RunGraphRequestWrapper* request,
+  MutableRunGraphResponseWrapper* response,
+  StatusCallback done) {
+
   /// \todo gdb step id, it's abnormal.
   const int64 step_id = request->step_id();
+
   TRACEPRINTF("RunGraph: %lld", step_id);
+
+  // ===================================================
   std::shared_ptr<WorkerSession> session;
+  // ===================================================
+  // 1.
+  // struct WorkerSession
+  // core/distributed_runtime/worker_session.h:33
+
+
   Status s;
   if (request->create_worker_session_called()) {
     s = env_->session_mgr->WorkerSessionForSession(request->session_handle(),
@@ -237,19 +254,26 @@ void Worker::DoRunGraph(CallOptions* opts, RunGraphRequestWrapper* request,
   }
   GraphMgr::NamedTensors in;
   GraphMgr::NamedTensors* out = new GraphMgr::NamedTensors;
+
+  // ===================================================
   s = PrepareRunGraph(request, &in, out);
+  // ===================================================
+
   if (!s.ok()) {
     delete out;
     done(s);
     return;
   }
+
   StepStatsCollector* collector = nullptr;
   if (request->exec_opts().report_tensor_allocations_upon_oom() ||
       request->exec_opts().record_timeline() ||
       request->exec_opts().record_costs()) {
     collector = new StepStatsCollector(response->mutable_step_stats());
   }
+
   DeviceTracer* tracer = nullptr;
+
   if (collector && request->exec_opts().record_timeline()) {
     // If timeline was requested, assume we want hardware level tracing.
     std::unique_ptr<DeviceTracer> trptr = CreateDeviceTracer();
@@ -271,6 +295,7 @@ void Worker::DoRunGraph(CallOptions* opts, RunGraphRequestWrapper* request,
       }
     }
   }
+
   CancellationManager* cm = new CancellationManager;
   opts->SetCancelCallback([this, cm, step_id]() {
     cm->StartCancel();
@@ -289,15 +314,37 @@ void Worker::DoRunGraph(CallOptions* opts, RunGraphRequestWrapper* request,
     done(errors::Aborted("Call was aborted"));
     return;
   }
+
+  // ===================================================
   session->graph_mgr->ExecuteAsync(
-      request->graph_handle(), step_id, session.get(), request->exec_opts(),
-      collector, response, cm, in,
+
+    // 1.
+    // graph_mgr: GraphMgr
+    // see: tensorflow/core/distributed_runtime/worker_session.h
+
+    // 2.
+    // class GraphMgr
+    // core/distributed_runtime/graph_mgr.h:70:
+
+    // 3.
+    // GraphMgr::ExecuteAsync
+    // 在 tensorflow/core/distributed_runtime/graph_mgr.h 内.
+
+      request->graph_handle(),
+      step_id,
+      session.get(),
+      request->exec_opts(),
+      collector,
+      response,
+      cm,
+      in,
       /// the last param is the callback function: StatusCallback;
       [this, step_id, response, session, cm, out, token, collector, tracer,
        opts, done](Status s) {
         if (s.ok()) {
           s = session->graph_mgr->RecvOutputs(step_id, out);
         }
+
         opts->ClearCancelCallback();
         cancellation_manager_.DeregisterCallback(token);
         delete cm;
@@ -311,6 +358,7 @@ void Worker::DoRunGraph(CallOptions* opts, RunGraphRequestWrapper* request,
             LOG(ERROR) << "Bad status from tracer: " << tracer_status;
           }
         }
+
         if (s.ok()) {
           for (const auto& p : *out) {
             const string& key = p.first;
@@ -318,12 +366,15 @@ void Worker::DoRunGraph(CallOptions* opts, RunGraphRequestWrapper* request,
             response->AddRecv(key, val);
           }
         }
+
         if (collector) collector->Finalize();
         delete collector;
         delete tracer;
         delete out;
         done(s);
       });
+  // ===================================================
+
 }
 
 // TODO(suharshs): Add stats collection support to partial run.

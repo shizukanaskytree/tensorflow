@@ -35,9 +35,18 @@ import "tensorflow/core/protobuf/worker.proto";
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+// note
+// 如下的 XxxXxxRequest XxxXxxResponse message 都定义在:
+// tensorflow/core/protobuf/worker.proto 内
+
 service WorkerService {
   // See worker.proto for details.
   rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+  // 1.
+  // GetStatusRequest 是什么?
+  // tensorflow/core/protobuf/worker.proto:44:
+  // message GetStatusRequest
+  // 空的..
 
   // See worker.proto for details.
   rpc CreateWorkerSession(CreateWorkerSessionRequest)
@@ -55,6 +64,8 @@ service WorkerService {
 
   // See worker.proto for details.
   rpc RunGraph(RunGraphRequest) returns (RunGraphResponse);
+  // 1.
+  // 这个我比较感兴趣.
 
   // See worker.proto for details.
   rpc CleanupGraph(CleanupGraphRequest) returns (CleanupGraphResponse);

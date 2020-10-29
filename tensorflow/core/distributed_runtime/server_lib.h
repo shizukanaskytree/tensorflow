@@ -34,6 +34,9 @@ namespace tensorflow {
 // Represents a single TensorFlow server that exports Master and Worker
 // services.
 class ServerInterface {
+  // 1.
+  // 只有 继承给 GrpcServer 
+
  public:
   ServerInterface() {}
   virtual ~ServerInterface() {}
@@ -56,6 +59,10 @@ class ServerInterface {
   // Returns a target string that can be used to connect to this server using
   // `tensorflow::NewSession()`.
   virtual const string target() const = 0;
+  // 1.
+  // e.g.,
+  // server.target: grpc://localhost:2222
+
 
  private:
   TF_DISALLOW_COPY_AND_ASSIGN(ServerInterface);

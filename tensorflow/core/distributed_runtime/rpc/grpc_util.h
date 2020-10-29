@@ -122,6 +122,17 @@ inline ::grpc::Status ToGrpcStatus(const ::tensorflow::Status& s) {
 }
 
 typedef std::shared_ptr<::grpc::Channel> SharedGrpcChannelPtr;
+// 1.
+// ::grpc::Channel 是什么?
+//
+// see: https://grpc.io/docs/what-is-grpc/core-concepts/#channels
+// 
+// A gRPC channel provides a connection to a gRPC server on a
+// specified host and port. It is used when creating a client stub.
+//
+// Channels
+// A gRPC channel provides a connection to a gRPC server on a specified host and port. It is used when creating a client stub. Clients can specify channel arguments to modify gRPC’s default behavior, such as switching message compression on or off. A channel has state, including connected and idle.
+// How gRPC deals with closing a channel is language dependent. Some languages also permit querying channel state.
 
 inline string GrpcIdKey() { return "tf-rpc"; }
 

@@ -157,7 +157,6 @@ struct GraphInfo {
 //   HOST_MEMORY = 1,
 //};
 
-
 DataType EdgeType(const Edge* e) {
   if (e->IsControlEdge()) {
     return DT_FLOAT;
@@ -781,9 +780,6 @@ Status AddControlLoop(const PartitionOptions& opts, Graph* g, const Node* src,
   return Status::OK();
 }
 
-
-
-
 // 这个函数目的:
 // Build memory and device type info
 // for every node in the graph.
@@ -802,6 +798,7 @@ Status BuildMemoryDeviceInfo(
   const Graph& g,  // input
   GraphInfo* info) // output
 {
+  // 1.
   // GraphInfo 数据结构:
   // tensorflow/core/graph/graph_partition.cc:108:
   // struct GraphInfo
@@ -814,60 +811,53 @@ Status BuildMemoryDeviceInfo(
   //      + unique_frame_names: gtl::FlatSet<string>
   //      + frame_names: std::vector<string>
 
-  // MemoryTypeVector 数据结构
-  // tensorflow/core/framework/types.h:100:
-  // typedef gtl::InlinedVector<MemoryType, 4> MemoryTypeVector;
-  //   enum MemoryType, tensorflow/core/framework/types.h
-  //     DEVICE_MEMORY = 0
-  //     HOST_MEMORY = 1
+  // 2.
+  // Q: Graph& g 里面是否可以标记高低优先级?
+  // A:
+
 
   MemoryTypeVector input_memory_types;
   MemoryTypeVector output_memory_types;
+  // 1.
+  // MemoryTypeVector 数据结构
+  // tensorflow/core/framework/types.h:100:
+  // typedef gtl::InlinedVector<MemoryType, 4> MemoryTypeVector;
 
-  // info->device_types: std::vector<DeviceType>
-  // tensorflow/core/framework/types.h:54:
-  // class DeviceType
-  //   A DeviceType is just a string
-  //   string type_;
-  // 取值:
-  //   // Convenient constants that can be passed to a DeviceType constructor
-  //   TF_EXPORT extern const char* const DEVICE_CPU;   // "CPU"
-  //   TF_EXPORT extern const char* const DEVICE_GPU;   // "GPU"
-  //   TF_EXPORT extern const char* const DEVICE_SYCL;  // "SYCL"
+  // 2.
+  // MemoryType 是什么?
+  // tensorflow/core/framework/types.h
+  // enum MemoryType
+  //   DEVICE_MEMORY = 0
+  //   HOST_MEMORY = 1
+
   info->device_types.resize(g.num_node_ids(), DEVICE_CPU);
+  // 1.
+  // info->device_types: std::vector<DeviceType>
 
+  // 2.
+  // class DeviceType
+  // tensorflow/core/framework/types.h:54:
+  //
+  // A DeviceType is just a string
+  // string type_;
+  //
+  // 取值:
+  // // Convenient constants that can be passed to a DeviceType constructor
+  // TF_EXPORT extern const char* const DEVICE_CPU;   // "CPU"
+  // TF_EXPORT extern const char* const DEVICE_GPU;   // "GPU"
+  // TF_EXPORT extern const char* const DEVICE_SYCL;  // "SYCL"
 
-  // g.op_nodes(): gtl::iterator_range<NodeIter>
-  // 含义是 Access to the list of all nodes, excluding the Source and Sink nodes.
   for (const Node* node : g.op_nodes()) {
+    // 1.
+    // g.op_nodes(): gtl::iterator_range<NodeIter>
+    // 含义是 Access to the list of all nodes, excluding the Source and Sink nodes.
 
     DeviceNameUtils::ParsedName parsed;
-
     if (!DeviceNameUtils::ParseFullName(node->assigned_device_name(),
                                         &parsed)) {
       return errors::Internal("Malformed assigned device '",
                               node->assigned_device_name(), "'");
     }
-
-
-    // MemoryTypesForNode 函数说明:
-    // tensorflow/core/framework/memory_types.h:31
-    // tensorflow/core/framework/memory_types.cc
-
-    // // Returns into *{input,output}_memory_types the memory type of each
-    // // {input,output} tensor.
-    // //
-    // // REQUIRES: * '*_memory_types' is not nullptr.
-    // //           * def has all attrs specified (e.g. using AddDefaultsToNodeDef()).
-    // Status MemoryTypesForNode(const OpRegistryInterface* op_registry,
-    //                           const DeviceType& device_type,
-    //                           const NodeDef& ndef,
-    //                           MemoryTypeVector* input_memory_types,
-    //                           MemoryTypeVector* output_memory_types);
-    // 提醒:
-    // 在调用这个函数时，device type 已经确定了。所以是根据是 device type 确定 memory type.
-    // 所以，如果我要增加双份的 CPU 版本，我就要提前告知 CPU device, 或者在函数下层调用栈时跑两遍
-    // 这些函数达到我的目的。
 
     // 这个函数，会明确每个 node 的 input / output 的 memory type
     TF_RETURN_IF_ERROR(
@@ -881,9 +871,31 @@ Status BuildMemoryDeviceInfo(
         node->def(),             // input
         &input_memory_types,     // output
         &output_memory_types));  // output
-        // ------------------------------------------------------------------
-        // 这个函数的 output 用于赋值 info->output_types
-        // ------------------------------------------------------------------
+    // 1.
+    // MemoryTypesForNode 函数说明:
+    // tensorflow/core/framework/memory_types.h:31
+    // tensorflow/core/framework/memory_types.cc
+
+    // 1.1
+    // 函数定义:
+    // // Returns into *{input, output}_memory_types the memory type of each
+    // // {input,output} tensor.
+    // //
+    // // REQUIRES: * '*_memory_types' is not nullptr.
+    // //           * def has all attrs specified (e.g. using AddDefaultsToNodeDef()).
+    //
+    // Status MemoryTypesForNode(const OpRegistryInterface* op_registry,
+    //                           const DeviceType& device_type,
+    //                           const NodeDef& ndef,
+    //                           MemoryTypeVector* input_memory_types,
+    //                           MemoryTypeVector* output_memory_types);
+    // 设计提醒:
+    // 在调用这个函数时，device type 已经确定了。所以是根据是 device type 确定 memory type.
+    // 所以，如果我要增加双份的 CPU 版本，我就要提前告知 CPU device, 或者在函数下层调用栈时跑两遍
+    // 这些函数达到我的目的。
+    // ------------------------------------------------------------------
+    // 这个函数的 output 用于赋值 info->output_types
+    // ------------------------------------------------------------------
 
     int node_id = node->id();
 
@@ -932,8 +944,6 @@ const Node* OutputFrame(const Node* node,
   }
   return cf_info[node->id()].parent_frame;
 }
-
-
 
 // Each participating device needs to decide
 // a) if there is a next iteration,
@@ -1521,32 +1531,8 @@ void SetIncarnation(const PartitionOptions& opts, GraphDef* gdef) {
   }
 }
 
-// 1.
-// 调用方:
-// TF_RETURN_IF_ERROR(Partition(popts, &client_graph->graph, &partitions));
-
-// 2.
-// Where are we ?
-// Thread #1 [python] 17387 [core: 22] (Suspended : Breakpoint)
-// 	tensorflow::Partition() at graph_partition.cc:965 0x7f855b4dcf71
-// 	tensorflow::DirectSession::CreateGraphs() at direct_session.cc:3,256 0x7f855709aaf1
-// 	tensorflow::DirectSession::CreateExecutors() at direct_session.cc:2,627 0x7f8557095f7e
-// 	tensorflow::DirectSession::GetOrCreateExecutors() at direct_session.cc:3,032 0x7f8557098fdc
-// 	tensorflow::DirectSession::Run() at direct_session.cc:2,147 0x7f8557092802
-// 	tensorflow::SessionRef::Run() at session_ref.cc:414 0x7f8552b72f8a
-// 	TF_Run_Helper() at c_api.cc:878 0x7f8557113b96
-// 	TF_SessionRun() at c_api.cc:2,752 0x7f855711d45e
-// 	tensorflow::TF_SessionRun_wrapper_helper() at tf_session_helper.cc:407 0x7f8552b673e1
-// 	tensorflow::TF_SessionRun_wrapper() at tf_session_helper.cc:450 0x7f8552b6786d
-// 	<...more frames...>
-
-// 3.
-// 一句话概括:
-// 在 dst_graph 和 src_graph 中间构建 send, recv node
-
 Status Partition(
   const PartitionOptions& opts, // input
-
   // client_graph->graph, 是以 targets, fetches nodes 为输出的最小依赖的图
   Graph* g, // input
   std::unordered_map<string, GraphDef>* partitions) // output
@@ -1556,19 +1542,24 @@ Status Partition(
   //
   // Partition the graph across devices.
   // PartitionOptions popts;
-
+  //
+  // struct PartitionOptions
+  // tensorflow/core/graph/graph_partition.h:31:
+  //
   // popts.node_to_loc = [](const Node* node) {
   //   return node->assigned_device_name();
   // };
-
+  //
   // popts.new_name = [this](const string& prefix) {
   //   return strings::StrCat(prefix, "/_", edge_name_counter_.fetch_add(1));
   // };
+  //
   // popts.get_incarnation = [](const string& name) {
   //   // The direct session does not have changing incarnation numbers.
   //   // Just return '1'.
   //   return 1;
   // };
+  //
   // popts.flib_def = &client_graph->graph.flib_def();
   // popts.control_flow_added = false;
   // std::unordered_map<string, GraphDef> partitions;
@@ -1607,14 +1598,56 @@ Status Partition(
   // - fdef: FunctionDef
   // - op_registration_data: OpRegistrationData
 
+  // 4.
+  // 调用方:
+  // TF_RETURN_IF_ERROR(Partition(popts, &client_graph->graph, &partitions));
+
+  // 4.1
+  // Where are we ?
+  // Thread #1 [python] 17387 [core: 22] (Suspended : Breakpoint)
+  // 	tensorflow::Partition() at graph_partition.cc:965 0x7f855b4dcf71
+  // 	tensorflow::DirectSession::CreateGraphs() at direct_session.cc:3,256 0x7f855709aaf1
+  // 	tensorflow::DirectSession::CreateExecutors() at direct_session.cc:2,627 0x7f8557095f7e
+  // 	tensorflow::DirectSession::GetOrCreateExecutors() at direct_session.cc:3,032 0x7f8557098fdc
+  // 	tensorflow::DirectSession::Run() at direct_session.cc:2,147 0x7f8557092802
+  // 	tensorflow::SessionRef::Run() at session_ref.cc:414 0x7f8552b72f8a
+  // 	TF_Run_Helper() at c_api.cc:878 0x7f8557113b96
+  // 	TF_SessionRun() at c_api.cc:2,752 0x7f855711d45e
+  // 	tensorflow::TF_SessionRun_wrapper_helper() at tf_session_helper.cc:407 0x7f8552b673e1
+  // 	tensorflow::TF_SessionRun_wrapper() at tf_session_helper.cc:450 0x7f8552b6786d
+  // 	<...more frames...>
+
+  // 4.2
+  // 一句话概括:
+  // 在 dst_graph 和 src_graph 中间构建 send, recv node
+
+  // 5.
+  // distributed tf callstack:
+  // Thread #291 [python] 96328 [core: 21] (Suspended : Step)
+  // 	tensorflow::Partition() at graph_partition.cc:990 0x7fc16eb1626d
+  // 	tensorflow::MasterSession::ReffedClientGraph::DoBuildPartitions() at master_session.cc:433 0x7fc1660cf60a
+  // 	tensorflow::MasterSession::ReffedClientGraph::RegisterPartitions() at master_session.cc:345 0x7fc1660ce73b
+  // 	tensorflow::MasterSession::BuildAndRegisterPartitions() at master_session.cc:1,615 0x7fc1660d7dfc
+  // 	tensorflow::MasterSession::DoRunWithLocalExecution() at master_session.cc:1,877 0x7fc1660d9df9
+  // 	tensorflow::MasterSession::Run() at master_session.cc:1,563 0x7fc1660d77d3
+  // 	tensorflow::Master::<lambda()>::operator()(void) const at master.cc:549 0x7fc1660bcc5e
+  // 	std::_Function_handler<void(), tensorflow::Master::RunStep(tensorflow::CallOptions*, const tensorflow::RunStepRequestWrapper*, tensorflow::MutableRunStepResponseWrapper*, tensorflow::Master::MyClosure)::<lambda()> >::_M_invoke at std_function.h:316 0x7fc1660c2835
+  // 	std::function<void ()>::operator()() const at std_function.h:706 0x7fc20690c7b4
+  // 	std::__invoke_impl<void, std::function<void ()>> at invoke.h:60 0x7fc206f0dfd9
+  // 	<...more frames...>
+
+
   Status status;
   partitions->clear();
+  // 1.
+  // partitions: std::unordered_map<string, GraphDef>*
+  // 这个 partitions 是 output
 
   GraphInfo g_info;
   // 1.
   // GraphInfo 数据结构
-  // tensorflow/core/graph/graph_partition.cc:108:
   // struct GraphInfo
+  // tensorflow/core/graph/graph_partition.cc:108:
   // - device_types: std::vector<DeviceType>
   //    * class DeviceType: tensorflow/core/framework/types.h
   //       + string type_;
@@ -1670,6 +1703,12 @@ Status Partition(
   status = BuildMemoryDeviceInfo(
     *g,  // input
     &g_info); // output
+  // 1.
+  // BuildMemoryDeviceInfo 解释:
+  // tensorflow/core/graph/graph_partition.cc:549:
+  // Status BuildMemoryDeviceInfo(const Graph& g, GraphInfo* info)
+  // ...
+
   if (!status.ok()) return status;
 
   string dstp;
@@ -1708,16 +1747,23 @@ Status Partition(
   // edge to dst. We will add a control edge for every pair in
   // (ref_recvs x ref_control_inputs).
   std::vector<NodeDef*> ref_recvs;
+  // 1.
+  // ...
+
   std::vector<string> ref_control_inputs;
+
 
   int32 num_data = 0;
   int32 num_control = 0;
 
-  // 造子图开始
-  // step 1: 遍历每个 node, 这里称为 dst node; 同时也获得了 dst_graph: GraphDef*
-  // step 2 : 遍历 dst node 的 每条 input edge
-  // step 3: 将 input edge 的 src node , dst node 所在的 src graph 和 dst graph 之间构造 edge.
   for (const Node* dst : g->op_nodes()) {
+    // 1.
+    // 思路:
+    // 造子图开始
+    // step 1: 遍历每个 node, 这里称为 dst node; 同时也获得了 dst_graph: GraphDef*
+    // step 2 : 遍历 dst node 的 每条 input edge
+    // step 3: 将 input edge 的 src node , dst node 所在的 src graph 和 dst graph 之间构造 edge.
+
     dstp = opts.node_to_loc(dst);
     // 1.
     // node_to_loc 是什么?
@@ -1802,12 +1848,12 @@ Status Partition(
 
     // 遍历 dst node 的 每条 input edge ，加入 inputs，用作下一轮处理。
     for (const Edge* edge : dst->in_edges()) {
-
-      // IsControlEdge 函数定义:
-      // graph/graph.h,
-      // if either src_output_ or dst_input_ is kControlSlot,
-      // return src_output_ == Graph::kControlSlot;
       if (edge->IsControlEdge()) {
+        // 1.
+        // IsControlEdge 函数定义:
+        // graph/graph.h,
+        // if either src_output_ or dst_input_ is kControlSlot,
+        // return src_output_ == Graph::kControlSlot;
 
         if (IsMerge(edge->src()) && IsControlLoop(edge->src())) {
           // This is one of the control edges added for control flow. There
@@ -1815,7 +1861,6 @@ Status Partition(
           // remote inputs. We keep track of the number of such edges.
           control_flow_edge = edge;
           ++num_control_flow_edges;
-
         } else {
           // p edge->DebugString()
           // $29 = "[id=14 _SOURCE:-1 -> x/shape:-1]"

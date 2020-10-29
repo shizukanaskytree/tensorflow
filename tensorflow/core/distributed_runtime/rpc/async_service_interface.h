@@ -20,7 +20,18 @@ namespace tensorflow {
 
 // Represents an abstract asynchronous service that handles incoming
 // RPCs with a polling loop.
+// 1.
+// 轮询（Polling）是一种 CPU 决策如何提供周边设备服务的方式，又称“程控输入输出”
+//（Programmed I/O）。轮询法的概念是：由 CPU 定时发出询问，依序询问每一个周边设备是否需要
+// 其服务，有即给予服务，服务结束后再问下一个周边，接着不断周而复始。
+// 轮询法实现容易，但效率偏低。
+
 class AsyncServiceInterface {
+// - GrpcEagerServiceImpl, grpc_eager_service_impl.h
+// - GrpcWorkerService, grpc_worker_service.cc
+// - GrpcMasterService, grpc_master_service.cc
+// - GrpcVerbsService, grpc_verbs_service.h
+
  public:
   virtual ~AsyncServiceInterface() {}
 

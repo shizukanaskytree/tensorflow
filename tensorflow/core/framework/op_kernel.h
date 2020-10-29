@@ -1579,8 +1579,13 @@ class Name : public KernelDefBuilder {
 
 }  // namespace register_kernel
 
+
 #define REGISTER_KERNEL_BUILDER(kernel_builder, ...) \
   REGISTER_KERNEL_BUILDER_UNIQ_HELPER(__COUNTER__, kernel_builder, __VA_ARGS__)
+// 1.
+// ✅ 重要:
+// 这个是注册所有 Op 的.
+
 
 #define REGISTER_KERNEL_BUILDER_UNIQ_HELPER(ctr, kernel_builder, ...) \
   REGISTER_KERNEL_BUILDER_UNIQ(ctr, kernel_builder, __VA_ARGS__)

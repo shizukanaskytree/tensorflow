@@ -98,6 +98,9 @@ class BaseRendezvousMgr : public RendezvousMgrInterface {
  private:
   // Maps step_id to rendezvous.
   typedef gtl::FlatMap<int64, BaseRemoteRendezvous*> Table;
+  // 1.
+  // BaseRemoteRendezvous 兜住
+  //
 
   // Not owned.
   const WorkerEnv* const worker_env_;
@@ -117,6 +120,11 @@ class BaseRendezvousMgr : public RendezvousMgrInterface {
 // obtained from NewLocalRendezvous().  This class just adds
 // functionality to coordinate with remote workers.
 class BaseRemoteRendezvous : public RemoteRendezvous {
+// 1.
+// class RemoteRendezvous : public Rendezvous
+// tensorflow/core/distributed_runtime/rendezvous_mgr_interface.h:39:
+// 
+
  public:
   BaseRemoteRendezvous(const WorkerEnv* env, int64 step_id);
 
@@ -220,6 +228,9 @@ class BaseRemoteRendezvous : public RemoteRendezvous {
 };
 
 class BaseRecvTensorCall {
+// 1.
+// 复合复合再复合
+
  public:
   BaseRecvTensorCall() {}
   virtual ~BaseRecvTensorCall() {}

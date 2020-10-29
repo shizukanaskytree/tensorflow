@@ -32,6 +32,9 @@ limitations under the License.
 #include "tensorflow/core/protobuf/master.pb.h"
 #include "tensorflow/core/public/session_options.h"
 
+
+// 找 device
+
 namespace tensorflow {
 
 class Device;
@@ -40,16 +43,27 @@ struct MasterEnv;
 // A session encapsulates a graph computation (resource allocation,
 // placement, execution, etc.).
 class MasterSession : public core::RefCounted {
+  // 1.
+  // core::RefCounted
+  // Reference counting
+  // https://en.wikipedia.org/wiki/Reference_counting
+
  public:
   // This session encapsulates the graph computation for a graph.
   //
   // The session places nodes on devices in "remote_devs" and executes
   // operations on these devices.
+  //                     -------
   //
   // The caller takes ownership of all remote devices.
   MasterSession(
-      const SessionOptions& options, const MasterEnv* env,
+      const SessionOptions& options, // ⭕️
+      const MasterEnv* env,
+
+      //=======================================================================
       std::unique_ptr<std::vector<std::unique_ptr<Device>>> remote_devs,
+      //=======================================================================
+
       std::unique_ptr<WorkerCacheInterface> worker_cache,
       std::unique_ptr<DeviceSet> device_set,
       std::vector<string> filtered_worker_list,
@@ -121,6 +135,55 @@ class MasterSession : public core::RefCounted {
   const string handle_;
 
   std::unique_ptr<std::vector<std::unique_ptr<Device>>> remote_devs_;
+  // 1.
+  //
+  // 1.
+  // 2020-09-30 15:18:03.747554: I
+  // tensorflow/core/distributed_runtime/master_session.cc:1191]
+  // Session 9c3e2c028f57833f #local 4 #remote 6
+
+  // 2.
+  // 共 4 个 local_devices, worker 1:
+  //
+  // p env->local_devices[0]->DebugString()
+  // $4 = "name: \"/job:worker/replica:0/task:1/device:CPU:0\"\ndevice_type: \"CPU\"\nmemory_limit: 268435456\nlocality {\n}\nincarnation: 7572078565850133336\n"
+  //
+  // p env->local_devices[1]->DebugString()
+  // $5 = "name: \"/job:worker/replica:0/task:1/device:XLA_CPU:0\"\ndevice_type: \"XLA_CPU\"\nmemory_limit: 17179869184\nlocality {\n}\nincarnation: 13382407942238418194\nphysical_device_desc: \"device: XLA_CPU device\"\n"
+  //
+  // p env->local_devices[2]->DebugString()
+  // $6 = "name: \"/job:worker/replica:0/task:1/device:GPU:0\"\ndevice_type: \"GPU\"\nmemory_limit: 30381775258\nlocality {\n  bus_id: 1\n  links {\n  }\n}\nincarnation: 9606045140827706580\nphysical_device_desc: \"device: 0,"...
+  //
+  // p env->local_devices[3]->DebugString()
+  // $7 = "name: \"/job:worker/replica:0/task:1/device:XLA_GPU:0\"\ndevice_type: \"XLA_GPU\"\nmemory_limit: 17179869184\nlocality {\n}\nincarnation: 7190191108523786726\nphysical_device_desc: \"device: XLA_GPU device\"\n"
+
+  // 3.
+  // 共 6 个 remote_devs, 2 ps, 4 worker.
+  //
+  // ps:
+  // (gdb) p (((*(remote_devs_.get()))[0]).get())->DebugString()
+  // $10 = "name: \"/job:ps/replica:0/task:0/device:CPU:0\"\ndevice_type: \"CPU\"\nmemory_limit: 268435456\nlocality {\n}\nincarnation: 8089561552637269586\n"
+  //
+  // (gdb) p (((*(remote_devs_.get()))[1]).get())->DebugString()
+  // $11 = "name: \"/job:ps/replica:0/task:0/device:XLA_CPU:0\"\ndevice_type: \"XLA_CPU\"\nmemory_limit: 17179869184\nlocality {\n}\nincarnation: 3760586469902275930\nphysical_device_desc: \"device: XLA_CPU device\"\n"
+  //
+  // worker 0:
+  // (gdb) p (((*(remote_devs_.get()))[2]).get())->DebugString()
+  // $12 = "name: \"/job:worker/replica:0/task:0/device:CPU:0\"\ndevice_type: \"CPU\"\nmemory_limit: 268435456\nlocality {\n}\nincarnation: 1076021834361356929\n"
+  //
+  // (gdb) p (((*(remote_devs_.get()))[3]).get())->DebugString()
+  // $13 = "name: \"/job:worker/replica:0/task:0/device:XLA_CPU:0\"\ndevice_type: \"XLA_CPU\"\nmemory_limit: 17179869184\nlocality {\n}\nincarnation: 15051760837232546270\nphysical_device_desc: \"device: XLA_CPU device\"\n"
+  //
+  // (gdb) p (((*(remote_devs_.get()))[4]).get())->DebugString()
+  // $14 = "name: \"/job:worker/replica:0/task:0/device:GPU:0\"\ndevice_type: \"GPU\"\nmemory_limit: 30381775258\nlocality {\n  bus_id: 1\n  links {\n  }\n}\nincarnation: 6665856221923815520\nphysical_device_desc: \"device: 0,"...
+  //
+  // (gdb) p (((*(remote_devs_.get()))[5]).get())->DebugString()
+  // $15 = "name: \"/job:worker/replica:0/task:0/device:XLA_GPU:0\"\ndevice_type: \"XLA_GPU\"\nmemory_limit: 17179869184\nlocality {\n}\nincarnation: 14468446838054120394\nphysical_device_desc: \"device: XLA_GPU device\"\n"
+
+  // 3.
+  // 关于 devices_, device_set
+  // (gdb) p devices_.get()->devices().size()
+  // $16 = 10
 
   // The optional session-specific worker cluster.
   // TODO(saeta): Convert to std::optional when available.
@@ -191,6 +254,7 @@ class MasterSession : public core::RefCounted {
 
     ~RunState();
   };
+
   std::unordered_map<string, std::unique_ptr<RunState>> partial_runs_
       GUARDED_BY(mu_);
 

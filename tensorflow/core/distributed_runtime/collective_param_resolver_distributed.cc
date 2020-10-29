@@ -103,8 +103,10 @@ class CompleteInstanceCall : public CancellableCall {
  *
  */
 CollectiveParamResolverDistributed::CollectiveParamResolverDistributed(
-    const ConfigProto& config, const DeviceMgr* dev_mgr,
-    DeviceResolverDistributed* dev_resolver, WorkerCacheInterface* worker_cache,
+    const ConfigProto& config,
+    const DeviceMgr* dev_mgr,
+    DeviceResolverDistributed* dev_resolver,
+    WorkerCacheInterface* worker_cache,
     const string& task_name)
     : CollectiveParamResolverLocal(config, dev_mgr, dev_resolver, task_name),
       worker_cache_(worker_cache),
@@ -114,10 +116,17 @@ CollectiveParamResolverDistributed::CollectiveParamResolverDistributed(
   VLOG(1) << "CompleteParamResolverDistributed ctor task={" << task_name
           << "} config.collective_group_leader={"
           << config.experimental().collective_group_leader() << "}";
+  // 2020-09-25 16:14:38.460325: I
+  // tensorflow/core/distributed_runtime/collective_param_resolver_distributed.cc:90]
+  // CompleteParamResolverDistributed ctor task={/job:ps/replica:0/task:0}
+  // config.collective_group_leader={}
+
 }
 
 void CollectiveParamResolverDistributed::CompleteParamsAsync(
-    const string& device, CollectiveParams* cp, CancellationManager* cancel_mgr,
+    const string& device,
+    CollectiveParams* cp,
+    CancellationManager* cancel_mgr,
     const StatusCallback& done) {
   VLOG(1) << "CompleteParams distributed " << device << " for " << cp << ": "
           << cp->ToString();
@@ -134,17 +143,24 @@ void CollectiveParamResolverDistributed::CompleteParamsAsync(
 }
 
 void CollectiveParamResolverDistributed::CompleteGroupAsync(
-    const CompleteGroupRequest* request, CompleteGroupResponse* response,
-    CancellationManager* cancel_mgr, const StatusCallback& done) {
+    const CompleteGroupRequest* request,
+    CompleteGroupResponse* response,
+    CancellationManager* cancel_mgr,
+    const StatusCallback& done) {
+
   CollectiveParams cp;
   cp.group.group_key = request->group_key();
   cp.group.group_size = request->group_size();
   cp.group.device_type = DeviceType(request->device_type());
+
   for (const string& dn : request->device_name()) {
     cp.instance.device_names.push_back(dn);
   }
+
   CompleteGroupDistributed(
-      cp.instance.device_names[0], &cp, cancel_mgr,
+      cp.instance.device_names[0],
+      &cp,
+      cancel_mgr,
       [this, response, done](const Status& s, const GroupRec* gr) {
         if (s.ok()) {
           mutex_lock l(gr->mu);
@@ -152,12 +168,15 @@ void CollectiveParamResolverDistributed::CompleteGroupAsync(
           response->set_group_size(gr->group.group_size);
           response->set_device_type(gr->group.device_type.type_string());
           response->set_num_tasks(gr->task_set.size());
+
           for (const string& dn : gr->device_list) {
             response->add_device_name(dn);
           }
+
           for (const string& tn : gr->task_list) {
             response->add_task_name(tn);
           }
+
         } else {
           LOG(ERROR) << "Bad status from CompleteGroupDistributed: " << s;
         }
@@ -166,8 +185,11 @@ void CollectiveParamResolverDistributed::CompleteGroupAsync(
 }
 
 void CollectiveParamResolverDistributed::CompleteInstanceAsync(
-    const CompleteInstanceRequest* request, CompleteInstanceResponse* response,
-    CancellationManager* cancel_mgr, const StatusCallback& done) {
+    const CompleteInstanceRequest* request,
+    CompleteInstanceResponse* response,
+    CancellationManager* cancel_mgr,
+    const StatusCallback& done) {
+
   CollectiveParams* cp = new CollectiveParams;
   cp->name = request->name();
   cp->group.group_key = request->group_key();
@@ -177,9 +199,11 @@ void CollectiveParamResolverDistributed::CompleteInstanceAsync(
   cp->instance.instance_key = request->instance_key();
   cp->instance.data_type = request->data_type();
   cp->instance.shape = TensorShape(request->shape());
+
   for (int32 offset : request->subdiv_offset()) {
     cp->instance.impl_details.subdiv_offsets.push_back(offset);
   }
+
   string* device = new string(request->device());
   VLOG(1) << "New cp " << cp << " for device " << *device << " : "
           << cp->ToString();
@@ -188,9 +212,12 @@ void CollectiveParamResolverDistributed::CompleteInstanceAsync(
     delete cp;
     delete device;
   };
+
   // Start by completing the group.
   CompleteGroupDistributed(
-      *device, cp, cancel_mgr,
+      *device,
+      cp,
+      cancel_mgr,
       [this, cp, device, response, cancel_mgr, done_and_cleanup](
           const Status& cg_status, const GroupRec* gr) {
         if (cg_status.ok()) {
@@ -245,22 +272,27 @@ Status CollectiveParamResolverDistributed::UpdateGroupCache(
   gr->group.group_key = resp.group_key();
   gr->group.group_size = resp.group_size();
   gr->group.num_tasks = resp.num_tasks();
+
   if (resp.device_name_size() != gr->group.group_size) {
     return errors::Internal(
         "CompleteGroupResponse group_size doesn't match device_name list");
   }
+
   for (const string& dn : resp.device_name()) {
     gr->device_set.insert(dn);
     gr->device_list.push_back(dn);
   }
+
   if (resp.task_name_size() != gr->group.group_size) {
     return errors::Internal(
         "CompleteGroupResponse group_size doesn't match task_name list");
   }
+
   for (const string& tn : resp.task_name()) {
     gr->task_list.push_back(tn);
     gr->task_set.insert(tn);
   }
+
   CHECK_EQ(gr->task_set.size(), gr->group.num_tasks);
   {
     // Group membership should never change. Once a record is in group_table_

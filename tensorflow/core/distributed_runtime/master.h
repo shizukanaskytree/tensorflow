@@ -36,10 +36,12 @@ namespace tensorflow {
 /** \class Master
  *
  *  \brief class Master have the same interface as class Session. It is
- *         responsible for grpc service functions:  
+ *         responsible for grpc service functions:
  *         1. Create a session; 2. extend a session; 3. close a session;
  *         4. run a step of the graph; 5. list devices;
  */
+
+// Master 承担了 common_runtime 里面 direct_session 的切割的只能怪的前半部分.
 class Master {
  public:
   explicit Master(MasterEnv* env, double session_gc_seconds);
@@ -57,14 +59,33 @@ class Master {
   void PartialRunSetup(const PartialRunSetupRequest* req,
                        PartialRunSetupResponse* resp, MyClosure done);
 
+  // =======================================================================
   void RunStep(CallOptions* opts, const RunStepRequestWrapper* req,
                MutableRunStepResponseWrapper* resp, MyClosure done);
+  // =======================================================================
+  // 1.
+  // RPC is a request–response protocol.
+  // Wiki: https://en.wikipedia.org/wiki/Remote_procedure_call
+  //
+  // An RPC is initiated by the client, which sends a request message to a
+  // known remote server to execute a specified procedure with supplied
+  // parameters.
+  //
+  // Sequence of events
+  // - The client calls the client stub. The call is a local procedure call, with parameters pushed on to the stack in the normal way.
+  // - The client stub packs the parameters into a message and makes a system call to send the message. Packing the parameters is called marshalling.
+  // - The client's local operating system sends the message from the client machine to the server machine.
+  // - The local operating system on the server machine passes the incoming packets to the server stub.
+  // - The server stub unpacks the parameters from the message. Unpacking the parameters is called unmarshalling.
+  // - Finally, the server stub calls the server procedure. The reply traces the same steps in the reverse direction.
 
   void CloseSession(const CloseSessionRequest* req, CloseSessionResponse* resp,
                     MyClosure done);
 
+  // =======================================================================
   void ListDevices(const ListDevicesRequest* req, ListDevicesResponse* resp,
                    MyClosure done);
+  // =======================================================================
 
   // See tensorflow::Reset() and the comment on ResetRequest.
   void Reset(const ResetRequest* req, ResetResponse* resp, MyClosure done);

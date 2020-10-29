@@ -67,6 +67,25 @@ Master::Master(MasterEnv* env, double session_gc_seconds)
       step_count_(0),
       session_gc_seconds_(session_gc_seconds),
       recent_request_ids_(10000) {
+  // 1.
+  // ps callstack to here is :
+  //
+  // Thread #1 [python] 64502 [core: 32] (Suspended : Breakpoint)
+  // 	tensorflow::Master::Master() at master.cc:72 0x7f5f8a9d553d
+  // 	tensorflow::GrpcServer::CreateMaster() at grpc_server_lib.cc:423 0x7f5f8a99888b
+  // 	tensorflow::GrpcServer::Init() at grpc_server_lib.cc:196 0x7f5f8a9965ac
+  //✅tensorflow::GrpcServer::Create() at grpc_server_lib.cc:434 0x7f5f8a9989be
+  // 	tensorflow::(anonymous namespace)::GrpcServerFactory::NewServer at grpc_server_lib.cc:469 0x7f5f8a998dfc
+  // 	tensorflow::NewServer() at server_lib.cc:76 0x7f5f8ee754d5
+  // 	TF_NewServer() at c_api.cc:2,922 0x7f5f8ed34fa8
+  // 	_wrap_TF_NewServer() at pywrap_tensorflow_internal.cc:19,069 0x7f5f8a648146
+  // 	_PyCFunction_FastCallDict() at methodobject.c:234 0x5623a6693271
+  // 	call_function() at ceval.c:4,851 0x5623a671ab70
+  // 	<...more frames...>
+
+  // 2.
+  //
+
   // Right now, a master service must be co-located with a device.
   // Otherwise, fetches do not work.
   CHECK(!env->local_devices.empty());
@@ -88,6 +107,7 @@ Master::~Master() {
   }
 }
 
+// Cleanup unused session.
 void Master::GC() {
   Env* env = Env::Default();
   while (true) {
@@ -124,6 +144,20 @@ void Master::GC() {
  *
  */
 MasterSession* Master::FindMasterSession(const string& handle) {
+  // 1.
+  // handle
+  // "2668d59701ccc3f7"
+
+  // 2.
+  // Maps session handles to sessions.
+  // std::unordered_map<string, MasterSession*> sessions_ GUARDED_BY(mu_);
+
+  // 3.
+  // (gdb) p sessions_
+  // $13 = std::unordered_map with 1 element = {["2668d59701ccc3f7"] = 0x7f566c00da60}
+
+
+
   MasterSession* session = nullptr;
   {
     mutex_lock l(mu_);
@@ -169,14 +203,28 @@ class DeviceFinder {
    *  \return Status
    */
   static Status GetRemoteDevices(
-      const protobuf::RepeatedPtrField<string>& device_filters, MasterEnv* env,
+      const protobuf::RepeatedPtrField<string>& device_filters,
+      MasterEnv* env,
       WorkerCacheInterface* worker_cache,
       std::vector<std::unique_ptr<Device>>* out_remote) {
+    // 1.
+    // device_filters: const protobuf::RepeatedPtrField<string>&
+    // 是什么啊???
+    //
+
     DeviceFinder finder(device_filters, env, worker_cache);
+
     finder.Start();
+
     /// wait until get all devices.
+    // ===================================================
     TF_RETURN_IF_ERROR(finder.Wait());
+    // ===================================================
+
     finder.GetRemoteDevices(env->local_devices, out_remote);
+    // 1.
+    // out_remote 是返回值
+
     return Status::OK();
   }
 
@@ -211,15 +259,21 @@ class DeviceFinder {
    *         name of workers.
    */
   static void GetRemoteWorkers(
-      const protobuf::RepeatedPtrField<string>& device_filters, MasterEnv* env,
-      WorkerCacheInterface* worker_cache, std::vector<string>* workers) {
-    /// DeviceFinder constructor. Enumerates all known workers' target and
-    /// get qualified candidates according to the filter requirement.
+      const protobuf::RepeatedPtrField<string>& device_filters,
+      MasterEnv* env,
+      WorkerCacheInterface* worker_cache,
+      std::vector<string>* workers) {
+
     DeviceFinder finder(device_filters, env, worker_cache);
+    // 1.
+    // DeviceFinder constructor. Enumerates all known workers' target and
+    // get qualified candidates according to the filter requirement.
+
     *workers = finder.targets_;
   }
 
  private:
+
   /** \brief DeviceFinder constructor. Enumerates all known workers' target and
    *         get qualified candidates according to the filter requirement.
    *
@@ -251,7 +305,9 @@ class DeviceFinder {
       const protobuf::RepeatedPtrField<string>& device_filters, MasterEnv* env,
       WorkerCacheInterface* worker_cache)
       : env_(env), worker_cache_(worker_cache) {
+
     CHECK(worker_cache) << "Worker cache was null!";
+
     auto process_filter = [this](const string& filter) {
       DeviceNameUtils::ParsedName parsed;
       /// Parse the fullname string filter into a structed data type of
@@ -264,32 +320,44 @@ class DeviceFinder {
         LOG(FATAL) << "Skipping invalid filter: " << filter;
       }
     };
+
     for (const string& filter : device_filters) {
       process_filter(filter);
     }
+
     // Enumerates all known workers' target. A target name is a
     // prefix of a device name. E.g., /job:mnist/replica:0/task:10.
-    /// I don't specify the filter, so it goes to the first if branch.
+    // I don't specify the filter, so it goes to the first if branch.
     if (filters_.empty()) {
       // If no filters were specified, we list all known workers in
       // `worker_cache`.
       std::vector<string> workers;
 
-      /// \brief Get all workers from all ip:port, and store them to a string in
-      ///        the of ("/job:", job, "/replica:0/task:", task).
-      ///
-      /// \param workers: std::vector<string>*
-      ///        The return value of ListWorkers, and store them to a string in
-      ///        the of ("/job:", job, "/replica:0/task:", task).
-      ///
-      /// \note call GrpcWorkerCache::ListWorkers,
-      ///       worker_cache is GrpcWorkerCache.
-      ///       GrpcWorkerCache derives WorkerCachePartial, which derives
-      ///       WorkerCacheInterface.
-      worker_cache->ListWorkers(&workers);
+      // \brief Get all workers from all ip:port, and store them to a string in
+      //        the of ("/job:", job, "/replica:0/task:", task).
+      //
+      // \param workers: std::vector<string>*
+      //        The return value of ListWorkers, and store them to a string in
+      //        the of ("/job:", job, "/replica:0/task:", task).
+      //
+      // \note call GrpcWorkerCache::ListWorkers,
+      //       worker_cache is GrpcWorkerCache.
+      //       GrpcWorkerCache derives WorkerCachePartial, which derives
+      //       WorkerCacheInterface.
+      //
+      worker_cache->ListWorkers(&workers);   // 为什么会报错呢?????????
+      // 1.
+      // output of workers are:
+      // p workers
+      // $5 = std::vector of length 3, capacity 3 = {"/job:ps/replica:0/task:0", "/job:worker/replica:0/task:0", "/job:worker/replica:0/task:1"}
+      //
+      // p workers
+      // $11 = std::vector of length 3, capacity 3 = {"/job:ps/replica:0/task:0", "/job:worker/replica:0/task:0", "/job:worker/replica:0/task:1"}
 
       std::swap(workers, targets_);
     } else {
+      // 未进入!
+
       // When applying filters, we must include the local worker, even if it
       // does not match any of the filters.
       CHECK_GT(env_->local_devices.size(), 0) << "No local devices provided.";
@@ -340,6 +408,9 @@ class DeviceFinder {
       }
     }
     seen_targets_.assign(targets_.size(), false);
+    // 1.
+    // seen_targets_ size is 3 in my example.
+    // targets_: std::vector of length 3, capacity 3 = {"/job:ps/replica:0/task:0", "/job:worker/replica:0/task:0", "/job:worker/replica:0/task:1"}
   }
 
   ~DeviceFinder() {
@@ -361,11 +432,35 @@ class DeviceFinder {
     using std::placeholders::_1;
     using std::placeholders::_2;
     for (size_t i = 0; i < targets_.size(); ++i) {
+      // 1.
+      // targets_ 是:
+      // std::vector of length 3, capacity 3 = {"/job:ps/replica:0/task:0", "/job:worker/replica:0/task:0", "/job:worker/replica:0/task:1"}
+
       // TODO(mrry): Propagate a timeout here, since `this->WhenFound()` may
       // never be called.
       /// Create a work mapping to a target, i.e., job:task_index.
-      NewRemoteDevices(env_->env, worker_cache_, targets_[i],
-                       std::bind(&ME::WhenFound, this, i, _1, _2));
+      NewRemoteDevices(
+        env_->env,
+        worker_cache_,
+        targets_[i],
+        std::bind(&ME::WhenFound, this, i, _1, _2));
+      // 1.
+      // NewRemoteDevices
+      // tensorflow/core/distributed_runtime/remote_device.cc
+
+      // 2.
+      // targets_ are
+      //  std::vector of length 3, capacity 3 = {"/job:ps/replica:0/task:0", "/job:worker/replica:0/task:0", "/job:worker/replica:0/task:1"}
+      // 逐个放到 NewRemoteDevices 里面.
+
+      // 3.
+      // WhenFound
+      // 在本文件下面.
+
+      // 4.
+      // ME:
+      // typedef DeviceFinder ME
+
     }
   }
 
@@ -374,15 +469,17 @@ class DeviceFinder {
   // responded.
   const int32 kLoggingPeriodMs = 10 * 1000;
 
-  /** \brief CreateSession will wait for response from the unresponsive workers.
-   */
+  // CreateSession will wait for response from the unresponsive workers.
+  // ===================================================
   Status Wait() {
+  // ===================================================
     mutex_lock l(mu_);
     // TODO(mrry): Propagate a timeout here, since `num_pending_` may
     // never become zero.
     while (num_pending_ != 0) {
       /// condition_variable pending_zero_; is defined in master.cc
       pending_zero_.wait_for(l, std::chrono::milliseconds(kLoggingPeriodMs));
+
       if (num_pending_ != 0) {
         for (size_t i = 0; i < targets_.size(); ++i) {
           if (!seen_targets_[i]) {
@@ -407,13 +504,29 @@ class DeviceFinder {
   // The caller takes the ownership of returned remote devices.
   void GetRemoteDevices(const std::vector<Device*>& local,
                         std::vector<std::unique_ptr<Device>>* remote) {
+    // 1.
+    // remote : output
+
     std::unordered_set<string> names(local.size());
     for (Device* dev : local) names.insert(dev->name());
     mutex_lock l(mu_);
     for (Device* dev : found_) {
+      // 1.
+      // std::vector<Device*> found_ GUARDED_BY(mu_);
+      // std::vector of length 10, capacity 12 = {0x7f57f40066d0,
+      // 0x7f57f4006a10, 0x7f5800006aa0, 0x7f5800006de0, 0x7f5800007190,
+      // 0x7f58000075b0, 0x7f566c00f6e0, 0x7f566c00d570, 0x7f566c00f270,
+      // 0x7f566c00d740}
+
       const string& name = dev->name();
+      // 1.
+      // name
+      // e.g.,
+      // "/job:ps/replica:0/task:0/device:XLA_CPU:0"
+
       if (names.insert(name).second && MatchFilters(name)) {
         remote->push_back(std::unique_ptr<Device>(dev));
+
       } else {
         delete dev;
       }
@@ -424,6 +537,10 @@ class DeviceFinder {
   typedef DeviceFinder ME;
   const MasterEnv* env_;
   WorkerCacheInterface* worker_cache_;
+  // 1.
+  // core/distributed_runtime/worker_cache.h:32:
+  // class WorkerCacheInterface
+
   std::vector<DeviceNameUtils::ParsedName> filters_;
 
   mutex mu_;
@@ -431,6 +548,10 @@ class DeviceFinder {
   int num_pending_ GUARDED_BY(mu_);
   condition_variable pending_zero_;
   std::vector<Device*> found_ GUARDED_BY(mu_);
+  // 1.
+  // 找到的 devices
+
+
   // List of targets to be contacted by this DeviceFinder. The
   // respective `bool` in `seen_targets_` indicates whether we have
   // heard from this target or not.
@@ -451,23 +572,36 @@ class DeviceFinder {
    */
   void WhenFound(int target_index, const Status& s,
                  std::vector<Device*>* devices) {
+    // 1.
+    // size of devices is 2
+
     mutex_lock l(mu_);
     /// std::vector<bool> seen_targets_  defined in master.cc
     seen_targets_[target_index] = true;
+
     if (!s.ok()) {
       LOG(ERROR) << "CreateSession failed because worker "
                  << targets_[target_index] << " returned error: " << s;
       status_.Update(s);
     } else {
-      /// std::vector<Device*> found_  in master.cc.
-      /// Specify the range of [devices->begin(), devices->end()), inserted at
-      /// the position of found_.end().
       found_.insert(found_.end(), devices->begin(), devices->end());
+      // 1.
+      // std::vector<Device*> found_ GUARDED_BY(mu_); 定义在上面
+      // 找到的 devices
+
+      // 2.
+      // Specify the range of [devices->begin(), devices->end()), inserted at
+      // the position of found_.end().
+
       devices->clear();
     }
+
     --num_pending_;
     if (num_pending_ == 0) {
       pending_zero_.notify_all();
+      // 1.
+      // pending_zero_: condition_variable
+
     }
   }
 
@@ -540,52 +674,65 @@ class DeviceFinder {
  *      - master_session_factory is initialized when grpc server is initialized.
  */
 void Master::CreateSession(const CreateSessionRequest* req,
-                           CreateSessionResponse* resp, MyClosure done) {
-  /// \fn SchedClosure
-  /// SchedClosure is at core/common_runtime/process_util.cc
-  /// It is a function, its input is a lambda.
+                           CreateSessionResponse* resp,
+                           MyClosure done) {
+  // SchedClosure
+  //
+  // SchedClosure is at core/common_runtime/process_util.cc
+  // It is a function, its input is a lambda.
   SchedClosure([this, req, resp, done]() {
-    /// The following code is executed by another thread.
+    // The following code is executed by another thread.
     Status status;
-    /// \note worker_cache_factory_options: WorkerCacheFactoryOptions;
-    /// To fill in fields in the struct of WorkerCacheFactoryOptions.
-    /// Worker cache factory options are pointers to cluster, job, task,
-    /// protocol, host:port information to be used in
-    /// GrpcServer::WorkerCacheFactory to Construct a new GrpcWorkerCache
-    /// which can access all workers responsible for graph computing.
+
     WorkerCacheFactoryOptions worker_cache_factory_options;
+    // 1.
+    // worker_cache_factory_options: WorkerCacheFactoryOptions
+    // To fill in fields in the struct of WorkerCacheFactoryOptions
+    // Worker cache factory options are pointers to cluster, job, task,
+    // protocol, host:port information to be used in
+    // GrpcServer::WorkerCacheFactory to Construct a new GrpcWorkerCache
+    // which can access all workers responsible for graph computing.
+
     string grpc_protocol("grpc");
     worker_cache_factory_options.protocol = &grpc_protocol;
-    /// \note gtl::MakeCleanup can make an RAII cleanup object that will call
-    /// the lambda function when it go out of this scope.
+
     auto call_done = gtl::MakeCleanup([&status, &done] { done(status); });
+    // 1.
+    // gtl::MakeCleanup can make an RAII cleanup object that will call
+    // the lambda function when it go out of this scope.
+
     status = ValidateExternalGraphDefSyntax(req->graph_def());
+
     if (!status.ok()) return;
 
     // The following 4 variables are set differently, depending on whether this
     // session uses a client-provided clusterspec or not.
-    /// \note worker_cache: WorkerCacheInterface*
-    /// WorkerCacheInterface provides interface for 1. list workers' names;
-    /// 2. list workers' name of a job name; 3. create worker with a name;
-    /// 4. destory a worker; 5. get device locality information of a device;
-    /// 6. logging.
+
     WorkerCacheInterface* worker_cache = nullptr;
-    // Note: worker_cache_ptr will be null except if this session is using a
-    // client-supplied ClusterDef (ClusterSpec propagation).
+    // 1.
+    // worker_cache: WorkerCacheInterface*
+    // WorkerCacheInterface provides interface for 1. list workers' names;
+    // 2. list workers' name of a job name; 3. create worker with a name;
+    // 4. destory a worker; 5. get device locality information of a device;
+    // 6. logging.
+
     std::unique_ptr<WorkerCacheInterface> worker_cache_ptr;
-    /// \note DeviceSet:
-    /// DeviceSet is a container class for managing the various types of
-    /// devices used by a model, registering all device name and Device object.
-    /// utilities includes 1. add device, 2. lookup device by name or type.
+    // worker_cache_ptr will be null except if this session is using a
+    // client-supplied ClusterDef (ClusterSpec propagation).
+
     std::unique_ptr<DeviceSet> device_set;
+    // DeviceSet:
+    // DeviceSet is a container class for managing the various types of
+    // devices used by a model, registering all device name and Device object.
+    // utilities includes 1. add device, 2. lookup device by name or type.
+
     // TODO(saeta): Convert to std::make_unique when available.
     std::unique_ptr<std::vector<std::unique_ptr<Device>>> remote_devices(
         new std::vector<std::unique_ptr<Device>>());
 
-    /// my server doesn't go to the 1st if branch.
-    /// \todo Why not has cluster def? A. The client doesn't fill in the cluster
-    ///       definition in the request message.
     if (req->config().has_cluster_def()) {
+      // 未进入!!!
+
       worker_cache_factory_options.cluster_def = &req->config().cluster_def();
 
       // Set the server_def's job_name and task_index fields.
@@ -630,47 +777,104 @@ void Master::CreateSession(const CreateSessionRequest* req,
       }
 
       // Create the worker cache from the computed server_def.
-      /// Indirectly call the GrpcServer::WorkerCacheFactory in
-      /// distributed_runtime/rpc/grpc_server_lib.cc.
-      /// to construct a new GrpcWorkerCache which can access all workers
-      /// responsible for graph computing.
       status = env_->worker_cache_factory(worker_cache_factory_options,
                                           &worker_cache);
+      // 1.
+      // Indirectly call the GrpcServer::WorkerCacheFactory in
+      // distributed_runtime/rpc/grpc_server_lib.cc
+      // to construct a new GrpcWorkerCache which can access all workers
+      // responsible for graph computing.
+
       if (!status.ok()) return;
+
       worker_cache_ptr = std::unique_ptr<WorkerCacheInterface>(worker_cache);
+
+      //=======================================================================
       // Ping all the workers and build the list of devices that the
       // session will use.
-      /// \todo Q. What if a second remote session is created? If there is no left
-      ///       devices for the second session?
-      ///       A. I guess the 2nd session creation will also get the same
-      ///       devices.
+      //=======================================================================
+      // Q. What if a second remote session is created? If there is no left
+      // devices for the second session?
+      // A. I guess the 2nd session creation will also get the same
+      // devices.
+      //=======================================================================
       status =
-          DeviceFinder::GetRemoteDevices(req->config().device_filters(), env_,
-                                         worker_cache, remote_devices.get());
+          DeviceFinder::GetRemoteDevices(
+            req->config().device_filters(),
+            env_,
+            worker_cache,
+            remote_devices.get());
+      //=======================================================================
+
       if (!status.ok()) return;
+
       device_set.reset(new DeviceSet);
+
       for (auto&& d : *remote_devices) {
         device_set->AddDevice(d.get());
+
         DeviceNameUtils::ParsedName name = d->parsed_name();
+
         if (name.job == *worker_cache_factory_options.job_name &&
             name.task == worker_cache_factory_options.task_index &&
             name.type == "CPU" && name.id == 0) {
           device_set->set_client_device(d.get());
         }
       }
+
     } else {
+      // 进入!
+
       worker_cache = env_->worker_cache;
+      // 1.
+      // worker_cache: WorkerCacheInterface*, nullptr
+
+      // 2.
+
+      // =============================================================
       // Ping all the workers and build the list of devices that the
       // session will use.
       status =
-          DeviceFinder::GetRemoteDevices(req->config().device_filters(), env_,
-                                         worker_cache, remote_devices.get());
+          DeviceFinder::GetRemoteDevices(
+            req->config().device_filters(),
+            env_,
+            worker_cache,
+            remote_devices.get());
+      // =============================================================
+      // 1.
+      // callstack
+      //
+      // 0  tensorflow::NewGrpcRemoteWorker (channel=..., completion_queue=0x55ab5e705db0, callback_threadpool=0x55ab5e707870, logger=0x55ab5e705cd0) at
+      //  tensorflow/core/distributed_runtime/rpc/grpc_remote_worker.cc:313
+      //
+      // 1  0x00007f21dadce250 in tensorflow::(anonymous namespace)::GrpcWorkerCache::CreateWorker (this=0x55ab5e705c60, target=...) at
+      //  tensorflow/core/distributed_runtime/rpc/grpc_worker_cache.cc:80
+      //
+      // 2  0x00007f21dae28566 in tensorflow::NewRemoteDevices(tensorflow::Env*, tensorflow::WorkerCacheInterface*, std::string const&, std::function<void (tensorflow::Status const&, std::vector<tensorflow::Device*, std::allocator<tensorflow::Device*> >*)>) (env=0x55ab5b737820, worker_cache=0x55ab5e705c60, worker_name=..., done=...) at
+      //  tensorflow/core/distributed_runtime/remote_device.cc:59
+      //
+      // 3  0x00007f21d69d736f in tensorflow::DeviceFinder::Start (this=0x7f1d11ffa6e0) at
+      //  tensorflow/core/distributed_runtime/master.cc:249
+      //
+      // 4  0x00007f21d69d5d9f in tensorflow::DeviceFinder::GetRemoteDevices (device_filters=..., env=0x55ab5cfc9b68, worker_cache=0x55ab5e705c60, out_remote=0x7f1d080014f0) at
+      //  tensorflow/core/distributed_runtime/master.cc:140 还在这个文件里面.
+      //
+      // 5  0x00007f21d69d895c in tensorflow::Master::<lambda()>::operator()(void) const (__closure=0x55ab5e9b56c0) at
+      //  tensorflow/core/distributed_runtime/master.cc:444
+
+      // 2.
+      // GetRemoteDevices
+      //
+
+
       if (!status.ok()) return;
       device_set.reset(new DeviceSet);
       for (auto&& d : *remote_devices) {
         device_set->AddDevice(d.get());
       }
+
       int num_local_devices = 0;
+
       for (Device* d : env_->local_devices) {
         device_set->AddDevice(d);
         if (num_local_devices == 0) {
@@ -691,26 +895,38 @@ void Master::CreateSession(const CreateSessionRequest* req,
     DeviceFinder::GetRemoteWorkers(req->config().device_filters(), env_,
                                    worker_cache, &filtered_worker_list);
 
-    /// \fn master_session_factory
-    /// A type alias of this lambda:
-    /// ```cpp
-    /// std::function<
-    ///   MasterSession*(
-    ///     SessionOptions,
-    ///     MasterEnv*,
-    ///     std::unique_ptr<std::vector<std::unique_ptr<Device>>>,
-    ///     std::unique_ptr<WorkerCacheInterface>,
-    ///     std::unique_ptr<DeviceSet> device_set,
-    ///     std::vector<string> filtered_worker_list)>
-    /// ```
-    /// \brief master_session_factory creates a MasterSession instance.
-    ///        `session` points to this instance.
     MasterSession* session = env_->master_session_factory(
-        options, env_, std::move(remote_devices), std::move(worker_cache_ptr),
-        std::move(device_set), std::move(filtered_worker_list));
+        options,
+        env_,
+        std::move(remote_devices),
+        std::move(worker_cache_ptr),
+        std::move(device_set),
+        std::move(filtered_worker_list));
+    // 1.
+    // master_session_factory
+    // lambda function defined in rpc/grpc_server_lib.cc
+    //
+    // master_env_.master_session_factory =
+    //     [config, stats_factory](
+    //         SessionOptions options,
+    //         const MasterEnv* env,
+    //         std::unique_ptr<std::vector<std::unique_ptr<Device>>> remote_devs,
+    //         std::unique_ptr<WorkerCacheInterface> worker_cache,
+    //         std::unique_ptr<DeviceSet> device_set,
+    //         std::vector<string> filtered_worker_list) {
+    //       // 函数体:
+    //       options.config.MergeFrom(config);
+    //       return new MasterSession(options, env, std::move(remote_devs),
+    //                                std::move(worker_cache), std::move(device_set),
+    //                                std::move(filtered_worker_list),
+    //                                stats_factory);
+    //     };
 
     GraphDef* gdef =
         const_cast<CreateSessionRequest*>(req)->mutable_graph_def();
+    // 1.
+    // 这里面就有图啊
+    // 就是需要被构造的图啊
 
     /// \note session: MasterSession*
     ///       MasterSession::Create in master_session.cc
@@ -719,6 +935,8 @@ void Master::CreateSession(const CreateSessionRequest* req,
     ///  MasterSession::Create is responsible for creating Worker Session
     ///  asynchronously.
     status = session->Create(gdef, worker_cache_factory_options);
+    //
+
     if (!status.ok()) {
       session->Close().IgnoreError();
       session->Unref();
@@ -790,16 +1008,31 @@ void Master::PartialRunSetup(const PartialRunSetupRequest* req,
  *  \remark No return value.
  *
  */
-void Master::RunStep(CallOptions* opts, const RunStepRequestWrapper* req,
-                     MutableRunStepResponseWrapper* resp, MyClosure done) {
+void Master::RunStep(CallOptions* opts,
+                     const RunStepRequestWrapper* req,
+                     MutableRunStepResponseWrapper* resp,
+                     MyClosure done) {
+  // 1.
+  // 所以, master_impl_->RunStep 的 RunStep 是怎么转交给 worker 的?
+  // ...
+
   Status s = recent_request_ids_.TrackUnique(req->request_id(),
                                              "RunStep (Master)", req);
+
   if (!s.ok()) {
     done(s);
     return;
   }
+
   auto start_time = env_->env->NowMicros();
+
   auto session = FindMasterSession(req->session_handle());
+  // 1.
+  // session: MasterSession
+  // core/distributed_runtime/master_session.h:42:
+  // class MasterSession : public core::RefCounted
+
+
   if (session == nullptr) {
     done(errors::Aborted("Session ", req->session_handle(), " is not found."));
     return;
@@ -807,10 +1040,86 @@ void Master::RunStep(CallOptions* opts, const RunStepRequestWrapper* req,
 
   /// Start a new thread to run the closure.
   SchedClosure([this, start_time, session, opts, req, resp, done]() {
+    // 1.
+    // 1.1
+    // SchedClosure 功能:
+    // Start a new thread to run the closure.
+
+    // 1.2.
+    // SchedClosure 函数定义:
+    //
+    // 接口:
+    // core/platform/env.h:286:
+    // virtual void SchedClosure(std::function<void()> closure) = 0;
+    //
+    // 实现:
+    // core/platform/posix/env.cc:118:
+    // void SchedClosure(std::function<void()> closure) override {
+    //
+    // 其他:
+    // core/common_runtime/process_util.cc:109:
+    // void SchedClosure(std::function<void()> closure)
+
+    // =============================================================
     Status status = session->Run(opts, *req, resp);
+    // =============================================================
+    // 1.
+    // req, resp 的概念如下完美解释.
+
+    // 2.
+    // RPC is a request–response protocol.
+    // Wiki: https://en.wikipedia.org/wiki/Remote_procedure_call
+    //
+    // An RPC is initiated by the client, which sends a request message to a
+    // known remote server to execute a specified procedure with supplied
+    // parameters.
+    //
+    // Sequence of events
+    // - The client calls the client stub. The call is a local procedure call, with parameters pushed on to the stack in the normal way.
+    // - The client stub packs the parameters into a message and makes a system call to send the message. Packing the parameters is called marshalling.
+    // - The client's local operating system sends the message from the client machine to the server machine.
+    // - The local operating system on the server machine passes the incoming packets to the server stub.
+    // - The server stub unpacks the parameters from the message. Unpacking the parameters is called unmarshalling.
+    // - Finally, the server stub calls the server procedure. The reply traces the same steps in the reverse direction.
+
+    // 2.
+    // session :  real type = tensorflow::MasterSession *
+    // tensorflow/core/distributed_runtime/master_session.cc
+
+    // 3.
+    // session->Run(opts, *req, resp)
+    // 定义在
+    // tensorflow/core/distributed_runtime/master_session.cc
+    //
+    // Status MasterSession::Run(CallOptions* opts, const RunStepRequestWrapper& req,
+    //                          MutableRunStepResponseWrapper* resp) {
+    //
+
+    // 4.
+    // 思想:
+    // RegisterPartitions 切割图, 然后去执行.
+    // 关键函数: RunPartitionsHelper in
+    // tensorflow/core/distributed_runtime/master_session.cc
+    // - part.worker->RunGraphAsync
+
+    // 5.
+    // 1 step of the above log: (a lot!!!)
+    // https://gist.github.com/shizukanaskytree/d3b382ff22187520d6b481f166b92541
+
     session->Unref();
     uint64 done_time = env_->env->NowMicros();
     done(status);
+    // 1.
+    // done 函数是什么
+    // tensorflow/core/distributed_runtime/local_master.cc
+    // LocalMaster::RunStep 内
+    //
+    // Notification n;
+    // [&n, &ret](const Status& s) {
+    //   ret.Update(s);
+    //   n.Notify();
+    // }
+
     mutex_lock l(mu_);
     last_1000_steps_.AddValue((done_time - start_time) / 1e9);
     ++step_count_;

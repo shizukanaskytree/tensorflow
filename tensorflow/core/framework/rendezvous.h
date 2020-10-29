@@ -32,6 +32,7 @@ namespace tensorflow {
 // keyed by a rendezvous key. The key encodes a pair of <producer,
 // consumer>, where the producer and the consumer are tensorflow
 // devices.
+// -------- IMPT ---------
 //
 // The producer calls the Send() method to send one tensor over one
 // named channel. The consumer calls the Recv() method to receive one
@@ -44,6 +45,10 @@ namespace tensorflow {
 // or providing a callback: in either case, the consumer receives the
 // Tensor as soon as it is available.  A producer never blocks.
 class Rendezvous : public core::RefCounted {
+  // 1.
+  // 教程:
+  // https://www.cnblogs.com/deep-learning-stacks/p/10354258.html
+
  public:
 
   struct Args {
@@ -61,6 +66,10 @@ class Rendezvous : public core::RefCounted {
   // Parses the key constructed by CreateKey and parse src/dst device
   // names into structures respectively.
   struct ParsedKey {
+    // 1.
+    // 教程:
+    // https://www.cnblogs.com/deep-learning-stacks/p/10354258.html
+
     StringPiece src_device;
     DeviceNameUtils::ParsedName src;
     uint64 src_incarnation = 0;

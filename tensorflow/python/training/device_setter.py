@@ -136,6 +136,25 @@ def replica_device_setter(ps_tasks=0, ps_device="/job:ps",
                           cluster=None, ps_ops=None, ps_strategy=None):
   """Return a `device function` to use when building a Graph for replicas.
 
+  实例:
+
+  1.
+  ps_tasks=1
+
+  2.
+  ps_device="/job:ps",
+
+  3.
+  worker_device="/job:worker"
+
+  4.
+  '/job:worker/task:0'
+  since:
+  worker_device = "/job:%s/task:%d" % (FLAGS.job_name, FLAGS.task_index)
+
+  5.
+  其余默认.
+
   Device Functions are used in `with tf.device(device_function):` statement to
   automatically assign devices to `Operation` objects as they are constructed,
   Device constraints are added from the inner-most context first, working
@@ -145,7 +164,7 @@ def replica_device_setter(ps_tasks=0, ps_device="/job:ps",
   If `cluster` is `None`, and `ps_tasks` is 0, the returned function is a no-op.
   Otherwise, the value of `ps_tasks` is derived from `cluster`.
 
-  By default, only Variable ops are placed on ps tasks, and the placement
+  ✅ By default, **only Variable ops are placed on ps tasks**, and the placement
   strategy is round-robin over all ps tasks. A custom `ps_strategy` may be used
   to do more intelligent placement, such as
   `tf.contrib.training.GreedyLoadBalancingStrategy`.
@@ -169,16 +188,33 @@ def replica_device_setter(ps_tasks=0, ps_device="/job:ps",
   Args:
     ps_tasks: Number of tasks in the `ps` job.  Ignored if `cluster` is
       provided.
+
+    ps_tasks is not provided and also will be ignored!
+
+    #wxf.cmt#
+    我的例子是:
+    # Assigns ops to the local worker by default.
+    with tf.device(tf.train.replica_device_setter(
+      # worker0 --> 0, worker1 --> 1
+      worker_device="/job:worker/task:%d" % WORKER_ID, # WORKER_ID=0 or WORKER_ID=1
+      cluster=cluster)):
+      ...
+    #~wxf.cmt#
+
     ps_device: String.  Device of the `ps` job.  If empty no `ps` job is used.
       Defaults to `ps`.
     worker_device: String.  Device of the `worker` job.  If empty no `worker`
       job is used.
+
     merge_devices: `Boolean`. If `True`, merges or only sets a device if the
       device constraint is completely unset. merges device specification rather
       than overriding them.
+
     cluster: `ClusterDef` proto or `ClusterSpec`.
+
     ps_ops: List of strings representing `Operation` types that need to be
       placed on `ps` devices.  If `None`, defaults to `STANDARD_PS_OPS`.
+
     ps_strategy: A callable invoked for every ps `Operation` (i.e. matched by
       `ps_ops`), that takes the `Operation` and returns the ps task index to
       use.  If `None`, defaults to a round-robin strategy across all `ps`
@@ -191,6 +227,7 @@ def replica_device_setter(ps_tasks=0, ps_device="/job:ps",
     TypeError if `cluster` is not a dictionary or `ClusterDef` protocol buffer,
     or if `ps_strategy` is provided but not a callable.
   """
+
   if cluster is not None:
     if isinstance(cluster, server_lib.ClusterSpec):
       cluster_spec = cluster.as_dict()
@@ -216,6 +253,9 @@ def replica_device_setter(ps_tasks=0, ps_device="/job:ps",
         "replica_device_setter")
   if ps_strategy is None:
     ps_strategy = _RoundRobinStrategy(ps_tasks)
+    # 1.
+    # 默认是这个啊
+
   if not six.callable(ps_strategy):
     raise TypeError("ps_strategy must be callable")
   chooser = _ReplicaDeviceChooser(

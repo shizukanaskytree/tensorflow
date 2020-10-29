@@ -53,14 +53,38 @@ LocalMaster::LocalMaster(Master* master_impl, const int64 default_timeout_in_ms)
 Status LocalMaster::CreateSession(CallOptions* call_options,
                                   const CreateSessionRequest* request,
                                   CreateSessionResponse* response) {
+  // 1.
+  // 执行逻辑:
+  // 首先,
+  // main thread is blocking here when another thread is
+  // `master_impl_->CreateSession`
+  // 其次,
+  // master_impl_->CreateSession 是第二个线程分出去执行的
+  // 最终,
+  // 只有 master_impl_->CreateSession 这个线程结束了以后 n.Notify() 后, main thread
+  // 才会继续执行.
+
+  // 1.1
+  // 截图看:
+  // https://docs.google.com/document/d/1OGmW02cLX686fhgaB5Vh4JgHLhdmXyQ3CtU3MAJOi4A/edit
+
   Notification n;
   Status ret;
   master_impl_->CreateSession(request, response, [&n, &ret](const Status& s) {
     ret.Update(s);
     n.Notify();
   });
+  // 1.
+  // master_impl_:
+  // Master*
+
+
   TF_RETURN_IF_ERROR(
       WaitForNotification(call_options, default_timeout_in_ms_, &n));
+  // 1.
+  // main thread is blocking here when another thread is
+  // `master_impl_->CreateSession`
+
   return ret;
 }
 
@@ -95,13 +119,48 @@ Status LocalMaster::PartialRunSetup(CallOptions* call_options,
 Status LocalMaster::RunStep(CallOptions* call_options,
                             RunStepRequestWrapper* request,
                             MutableRunStepResponseWrapper* response) {
+// 1.
+// 输入:
+// CallOptions* call_options
+// RunStepRequestWrapper* req,
+// 输出:
+// MutableRunStepResponseWrapper* resp
+
+// 2.
+// RunStepRequestWrapper 在
+// tensorflow/core/distributed_runtime/message_wrappers.h
+
   Notification n;
+  // 1.
+  // Notification 数据结构在哪里
+  // tensorflow/core/platform/default/notification.h
+
+  // 2.
+  // Notification 怎么用啊?
+  //
+
   Status ret;
-  master_impl_->RunStep(call_options, request, response,
+
+  master_impl_->RunStep(call_options,
+                        request,
+                        response,
                         [&n, &ret](const Status& s) {
                           ret.Update(s);
                           n.Notify();
                         });
+  // 1.
+  // RunStep 在
+  // tensorflow/core/distributed_runtime/master.cc
+  // Master::RunStep
+
+  // 2.
+  // master_impl_: Master*
+
+  // 3.
+  // 所以, master_impl_->RunStep 的 RunStep 是怎么转交给 worker 的?
+  // ...
+
+
   TF_RETURN_IF_ERROR(
       WaitForNotification(call_options, default_timeout_in_ms_, &n));
   return ret;

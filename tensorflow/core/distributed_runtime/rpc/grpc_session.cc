@@ -206,11 +206,21 @@ Status GrpcSession::CreateImpl(CallOptions* call_options,
     }
   }
   CreateSessionRequest req;
+  // 1.
+  // tensorflow/core/protobuf/master.proto
+  // GraphDef graph_def
+  // ConfigProto config
+  // string target
+
   *req.mutable_config() = options_.config;
   *req.mutable_graph_def() = graph;
   req.set_target(options_.target);
+  // CreateSessionRequest 就这三个!!!
+
   ReEncodeConsts(req.mutable_graph_def());
+
   CreateSessionResponse resp;
+  // 看来得重造!!!
 
   /// master_: std::unique_ptr<MasterInterface>
   /// \note master_ real type is class GrpcRemoteMaster, a derived class
@@ -218,6 +228,7 @@ Status GrpcSession::CreateImpl(CallOptions* call_options,
   /// grpc session use this master interface/stub to invoke session related
   /// functions, like create a session, extend a session, run a step.
   Status s = master_->CreateSession(call_options, &req, &resp);
+
   if (s.ok()) {
     /// extract return value, remote master session handler string and graph
     /// version, from message CreateSessionResponse resp.
@@ -367,13 +378,39 @@ Status GrpcSession::RunHelper(
     const RunOptions& run_options,
     const std::vector<std::pair<string, Tensor>>& inputs,
     const std::vector<string>& output_tensor_names,
-    const std::vector<string>& target_node_names, std::vector<Tensor>* outputs,
-    RunMetadata* run_metadata, const string& prun_handle) {
+    const std::vector<string>& target_node_names,
+    std::vector<Tensor>* outputs,
+    RunMetadata* run_metadata,
+    const string& prun_handle) {
   // Convert to proto
   std::unique_ptr<MutableRunStepRequestWrapper> req(
       master_->CreateRunStepRequest());
+  // 1.
+  // tensorflow/core/distributed_runtime/message_wrappers.h:102:
+  // class MutableRunStepRequestWrapper : public RunStepRequestWrapper
+
+  // 2.
+  // tensorflow/core/distributed_runtime/message_wrappers.h:49:
+  // class RunStepRequestWrapper
+  // 描述: 它是 Abstract interface for an immutable RunStepRequest message.
+
+  // 3.
+  // master_ 是 class GrpcSession : public Session 的 member.
+  //
+  // 定义是 std::unique_ptr<MasterInterface> master_;
+  // tensorflow/core/distributed_runtime/rpc/grpc_session.h
+  // 接口定义:
+  // tensorflow/core/distributed_runtime/master_interface.h
+
+  // 4.
+  // master_->CreateRunStepRequest()
+  // 定义在 tensorflow/core/distributed_runtime/master_interface.h
+
   std::unique_ptr<MutableRunStepResponseWrapper> resp(
       master_->CreateRunStepResponse());
+  // 1.
+  // 关于 MutableRunStepResponseWrapper
+  // tensorflow/core/distributed_runtime/master_interface.h
 
   *req->mutable_options() = run_options;
 
@@ -408,8 +445,16 @@ Status GrpcSession::RunHelper(
 
   CallOptions call_options;
   call_options.SetTimeout(req->options().timeout_in_ms());
-  /// RunProto invokes the grpc call
+
   TF_RETURN_IF_ERROR(RunProto(&call_options, req.get(), resp.get()));
+  // 1.
+  // RunProto invokes the grpc call
+  // RunProto 在
+  // tensorflow/core/distributed_runtime/rpc/grpc_session.cc
+
+  // 2.
+  // 输入: &call_options, req.get()
+  // 输出: resp.get()
 
   // Look for an extended error returned in the response body.
   if (resp->status_code() != error::Code::OK) {
@@ -510,10 +555,26 @@ Status GrpcSession::Run(const std::vector<std::pair<string, Tensor>>& inputs,
 Status GrpcSession::RunProto(CallOptions* call_options,
                              MutableRunStepRequestWrapper* req,
                              MutableRunStepResponseWrapper* resp) {
+  // 1.
+  // 输入:
+  // CallOptions* call_options
+  // MutableRunStepRequestWrapper* req,
+  // 输出:
+  // MutableRunStepResponseWrapper* resp
+
   string handle;
   TF_RETURN_IF_ERROR(Handle(&handle));
   req->set_session_handle(handle);
+
   return master_->RunStep(call_options, req, resp);
+  // 1.
+  // RunStep 在:
+  // tensorflow/core/distributed_runtime/local_master.cc
+
+  // 2.
+  // master_: class LocalMaster
+  // tensorflow/core/distributed_runtime/local_master.h
+  // 所谓的 local 是指 a master service that has been created in the same process as the client.
 }
 
 Status GrpcSession::PRunSetup(const std::vector<string>& input_names,

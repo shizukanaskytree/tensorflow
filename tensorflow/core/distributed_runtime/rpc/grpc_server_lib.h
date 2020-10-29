@@ -142,6 +142,15 @@ class GrpcServer : public ServerInterface {
   //   \                          /
   //    \________________________/
   //            Stop(), Join()
+
+  // cmt:
+  // 我自己跟了一遍, 发现这个状态转移不对.
+  //
+  //          Stop()
+  // STARTED --------> STOPPED 这个根本不存在
+  //
+  //~cmt
+
   enum State { NEW, STARTED, STOPPED };
   State state_ GUARDED_BY(mu_);
 

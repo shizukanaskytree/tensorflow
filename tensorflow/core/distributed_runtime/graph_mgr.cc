@@ -466,12 +466,17 @@ void GraphMgr::RecvOutputsAsync(const int64 step_id, NamedTensors* out,
  *
  *  \remark No return value;
  */
-void GraphMgr::ExecuteAsync(const string& handle, const int64 step_id,
-                            WorkerSession* session, const ExecutorOpts& opts,
-                            StepStatsCollector* collector,
-                            MutableRunGraphResponseWrapper* response,
-                            CancellationManager* cancellation_manager,
-                            const NamedTensors& in, StatusCallback done) {
+void GraphMgr::ExecuteAsync(
+  const string& handle,
+  const int64 step_id,
+  WorkerSession* session,
+  const ExecutorOpts& opts,
+  StepStatsCollector* collector,
+  MutableRunGraphResponseWrapper* response,
+  CancellationManager* cancellation_manager,
+  const NamedTensors& in,
+  StatusCallback done) {
+
   const uint64 start_time_usecs = Env::Default()->NowMicros();
   // Lookup an item. Holds one ref while executing.
   Item* item = nullptr;
@@ -493,6 +498,7 @@ void GraphMgr::ExecuteAsync(const string& handle, const int64 step_id,
   /// \note CostGraphDef is a good summary of memory and other statistics that
   ///       the system will use.
   CostGraphDef* cost_graph = nullptr;
+
   if (response != nullptr) {
     cost_graph = response->mutable_cost_graph();
     if (opts.record_partition_graphs()) {
@@ -512,6 +518,7 @@ void GraphMgr::ExecuteAsync(const string& handle, const int64 step_id,
                 worker_env_->collective_executor_mgr->FindOrCreate(step_id),
                 true)
           : nullptr;
+
   // Sends values specified by the caller.
   if (s.ok()) {
     std::vector<string> keys;
@@ -569,13 +576,17 @@ void GraphMgr::ExecuteAsync(const string& handle, const int64 step_id,
  *         A lambda function.
  *
  */
-void GraphMgr::StartParallelExecutors(const string& handle, int64 step_id,
-                                      Item* item, Rendezvous* rendezvous,
-                                      CollectiveExecutor::Handle* ce_handle,
-                                      StepStatsCollector* collector,
-                                      CostGraphDef* cost_graph,
-                                      CancellationManager* cancellation_manager,
-                                      StatusCallback done) {
+void GraphMgr::StartParallelExecutors(
+  const string& handle,
+  int64 step_id,
+  Item* item,
+  Rendezvous* rendezvous,
+  CollectiveExecutor::Handle* ce_handle,
+  StepStatsCollector* collector,
+  CostGraphDef* cost_graph,
+  CancellationManager* cancellation_manager,
+  StatusCallback done) {
+
   const int num_units = item->units.size();
   CHECK_GE(num_units, 1);
   /// ScopedStepContainer: Container used for per-step resources.

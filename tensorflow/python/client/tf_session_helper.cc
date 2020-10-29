@@ -47,6 +47,7 @@ TF_Session* TF_NewSessionRef(TF_Graph* graph, const TF_SessionOptions* opts,
                              TF_Status* status) {
 
   TF_Session* tf_session = TF_NewSession(graph, opts, status);
+  // 1.
   // TF_Session 数据结构:
   // tensorflow/c/c_api_internal.h:135:struct TF_Session
   //
@@ -56,12 +57,37 @@ TF_Session* TF_NewSessionRef(TF_Graph* graph, const TF_SessionOptions* opts,
   }
 
   Session* session = reinterpret_cast<Session*>(tf_session->session);
+  // 1.
+  // struct TF_Session
+  //
+  // tf_session->session: tensorflow::Session*
+
+  // 1.1
+  // return value
+  // session: tensorflow::Session*
+
+  // 2.
+  // 关注 Session 内的图
+  // tensorflow::Session
+  // tensorflow/tensorflow/core/public/session.h
+
+  // 3.
+  //
 
   SessionRef* session_ref = new SessionRef(session);
+  // 1.
+  // class SessionRef
 
   tf_session->session = session_ref;
 
   return tf_session;
+  // 1.
+  // Q: return to where?
+  // ===
+  // A:
+  // tensorflow/python/client/session.py
+  // class BaseSession::__init__::tf_session.TF_NewSessionRef
+  
 }
 
 void TF_Run_wrapper_helper(TF_DeprecatedSession* session, const char* handle,
@@ -479,6 +505,23 @@ void TF_SessionRun_wrapper(TF_Session* session,
   TF_SessionRun_wrapper_helper(session, nullptr, run_options, inputs,
                                input_ndarrays, outputs, targets, run_metadata,
                                out_status, py_outputs);
+  // 1.1
+  // TF_SessionRun_wrapper_helper 函数第二个参数 `handler` is `nullptr`.
+
+  // 1.2
+  // void TF_SessionRun_wrapper_helper(TF_Session* session, const char* handle,
+  //                                   const TF_Buffer* run_options,
+  //                                   const std::vector<TF_Output>& inputs,
+  //                                   const std::vector<PyObject*>& input_ndarrays,
+  //                                   const std::vector<TF_Output>& outputs,
+  //                                   const std::vector<TF_Operation*>& targets,
+  //                                   TF_Buffer* run_metadata,
+  //                                   TF_Status* out_status,
+  //                                   std::vector<PyObject*>* py_outputs)
+  //
+
+
+
   // Release any unused ndarray references (see memory management comment in
   // TF_SessionRun_wrapper_helper)
   ClearDecrefCache();

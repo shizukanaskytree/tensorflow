@@ -39,17 +39,22 @@ namespace grpc {
 template <>
 class SerializationTraits<tensorflow::TensorResponse> {
  public:
+
   static Status Serialize(const tensorflow::TensorResponse& msg, ByteBuffer* bp,
                           bool* own_buffer) {
     LOG(FATAL) << "TODO(sanjay,jeff): Implement";
     return Status();
   }
+
   static Status Deserialize(ByteBuffer* buffer,
                             tensorflow::TensorResponse* msg) {
+
     if (buffer == nullptr) {
       return Status(StatusCode::INTERNAL, "No payload");
     }
+
     Status result = Status::OK;
+
     if (result.ok()) {
       ::tensorflow::GrpcByteSource source(buffer);
       auto s = msg->ParseFrom(&source);
@@ -59,9 +64,11 @@ class SerializationTraits<tensorflow::TensorResponse> {
                             "TensorResponse parse error", s.ToString()));
       }
     }
+
     buffer->Clear();
     return result;
   }
+
 };
 
 }  // namespace grpc
@@ -99,14 +106,23 @@ namespace grpc {
 // and the gRPC generated stub and service classes.
 // See the proto file for the definition of methods and messages.
 class WorkerService final {
+  // 1.
+  // 这个的核心只有一个, 就是
+  // using ::grpc::Service::RequestAsyncUnary;
+  // 其他的都是模板化的东西补补的.
+
  public:
   class AsyncService : public ::grpc::Service {
    public:
     AsyncService();
     virtual ~AsyncService();
 
+    // =======================================================================
     // Make RequestAsyncUnary public for grpc_call.h
     using ::grpc::Service::RequestAsyncUnary;
+    // =======================================================================
+    // 1.
+    // 
   };
 };
 

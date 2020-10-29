@@ -48,6 +48,16 @@ class SyncReplicasOptimizer(optimizer.Optimizer):
   This class is deprecated. For synchrononous training, please use [Distribution
   Strategies](https://github.com/tensorflow/tensorflow/tree/master/tensorflow/contrib/distribute).
 
+  wxf: checkout
+  https://github.com/shizukanaskytree/tensorflow/tree/tf-annotation-1.3/tensorflow/contrib/distribute
+  - MirroredStrategy: This does in-graph replication with synchronous training on many GPUs on one machine.
+    - all-reduce
+  - CollectiveAllReduceStrategy: This is a version of MirroredStrategy for multi-worker training.
+    - all-reduce, between-graph communication and synchronization
+  - ParameterServerStrategy: When used to train locally, variables are not mirrored, instead they are placed on the CPU and operations are replicated across all local GPUs.
+    - multi-GPU local training
+    - asynchronous multi-machine training
+
   In a typical asynchronous training environment, it's common to have some
   stale gradients. For example, with a N-replica asynchronous training,
   gradients will be applied to the variables N times independently. Depending
@@ -180,6 +190,9 @@ class SyncReplicasOptimizer(optimizer.Optimizer):
       name: string. Optional name of the returned operation.
     """
     if total_num_replicas is None:
+      # 1.
+      # not enter!
+      # total_num_replicas e.g., 2
       total_num_replicas = replicas_to_aggregate
 
     super(SyncReplicasOptimizer, self).__init__(use_locking, name)

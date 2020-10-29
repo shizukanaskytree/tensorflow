@@ -1,3 +1,7 @@
+// Doc summary:
+//
+
+
 /* Copyright 2016 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -382,7 +386,7 @@ class GraphExecutionState {
   std::unique_ptr<subgraph::RewriteGraphMetadata> rewrite_metadata_;
 
   // The dataflow graph owned by this object.
-  Graph* graph_;
+  Graph* graph_; // ✅
 
   TF_DISALLOW_COPY_AND_ASSIGN(GraphExecutionState);
 };
@@ -435,6 +439,10 @@ class GraphExecutionState {
 // 2.
 // 注意：
 // class GraphExecutionState 数据结构 内不含有 ClientGraph 对象或者它的指针。
+
+// 3.
+// Graph* graph_; 是什么?
+//
 
 
 }  // namespace tensorflow

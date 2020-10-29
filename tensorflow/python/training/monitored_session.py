@@ -1185,7 +1185,29 @@ class _RecoverableSession(_WrappedSession):
       sess_creator: A 'SessionCreator' to be wrapped by recoverable.
     """
     self._sess_creator = sess_creator
+    # =======================================================================
     _WrappedSession.__init__(self, self._create_session())
+    # =======================================================================
+    # 1.
+    #
+    #0  tensorflow::NewGrpcRemoteWorker (channel=..., completion_queue=0x55ab5e705db0, callback_threadpool=0x55ab5e707870, logger=0x55ab5e705cd0) at 
+    # tensorflow/core/distributed_runtime/rpc/grpc_remote_worker.cc:313
+    #
+    #1  0x00007f21dadce250 in tensorflow::(anonymous namespace)::GrpcWorkerCache::CreateWorker (this=0x55ab5e705c60, target=...) at
+    # tensorflow/core/distributed_runtime/rpc/grpc_worker_cache.cc:80
+    #
+    #2  0x00007f21dae28566 in tensorflow::NewRemoteDevices(tensorflow::Env*, tensorflow::WorkerCacheInterface*, std::string const&, std::function<void (tensorflow::Status const&, std::vector<tensorflow::Device*, std::allocator<tensorflow::Device*> >*)>) (env=0x55ab5b737820, worker_cache=0x55ab5e705c60, worker_name=..., done=...) at
+    # tensorflow/core/distributed_runtime/remote_device.cc:59
+    #
+    #3  0x00007f21d69d736f in tensorflow::DeviceFinder::Start (this=0x7f1d11ffa6e0) at
+    # tensorflow/core/distributed_runtime/master.cc:249
+    #
+    #4  0x00007f21d69d5d9f in tensorflow::DeviceFinder::GetRemoteDevices (device_filters=..., env=0x55ab5cfc9b68, worker_cache=0x55ab5e705c60, out_remote=0x7f1d080014f0) at
+    # tensorflow/core/distributed_runtime/master.cc:140
+    #
+    #5  0x00007f21d69d895c in tensorflow::Master::<lambda()>::operator()(void) const (__closure=0x55ab5e9b56c0) at
+    # tensorflow/core/distributed_runtime/master.cc:444
+
 
   def _create_session(self):
     while True:
