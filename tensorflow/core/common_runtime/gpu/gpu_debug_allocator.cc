@@ -103,6 +103,8 @@ void* GPUDebugAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
   return rv;
 }
 void GPUDebugAllocator::DeallocateRaw(void* ptr) {
+  VLOG(0) << "GPUDebugAllocator::DeallocateRaw";
+  
   if (ptr != nullptr) {
     CHECK(CheckHeader(ptr)) << "before_mask has been overwritten";
     CHECK(CheckFooter(ptr)) << "after_mask has been overwritten";

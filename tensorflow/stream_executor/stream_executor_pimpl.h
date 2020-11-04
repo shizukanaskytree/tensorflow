@@ -763,7 +763,7 @@ class ScopedModuleHandle {
 template <typename T>
 inline DeviceMemory<T> StreamExecutor::AllocateArray(uint64 element_count) {
   uint64 bytes = sizeof(T) * element_count;
-  void *opaque = Allocate(bytes);
+  void *opaque = Allocate(bytes); // opaque is the address of CUdeviceptr (typedef unsigned int)  
   return DeviceMemory<T>::MakeFromByteSize(opaque, bytes);
 }
 

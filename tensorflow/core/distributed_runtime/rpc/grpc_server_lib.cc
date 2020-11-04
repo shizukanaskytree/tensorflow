@@ -300,343 +300,36 @@ Status GrpcServer::Init(const GrpcServerOptions& opts) {
   return Status::OK();
 }
 
-Status GrpcServer::Restart(int selected_dev) {
-  // Arg:
-  //   selected_dev 描述: platform_gpu_id
-  // 
-  // -1: CPU
-  // 
-  //      0 1 2 3
-  // 0:   N Y Y Y
-  // 1:   Y N Y Y
-  // 2:   Y Y N Y
-  // 3:   Y Y Y N
-  // 
-  // 添加专属的 devices, 因为 devices 生变, 所以 sess_opts 内指定一下新的 
-  // device 是什么情况.
-  // visible devices 4 个, 但是不会全用了, 而且对于这个 server 只是挑了其中一个
-  // 而且最差情况是只能用 CPU 而不能用 GPU 了.
-  // 还是在 Restart() 里设定参数吧. 用 int 吗? -1, 0, 1, 2, 3, 4, 5, 6, 7
-  // 
-  // -1: CPU, GPU_0, GPU_1, GPU_2 ...
-  // 
-  // -1 表示没有 GPU, 就初始化为 CPU server. 可以.
-  //
-  // hardcode 了试试先, -1: CPU: PASS
-  // 0: GPU_0: DOING...
-  //
-  // int selected_dev = 0; 
-  // 
-  // 之前的 devices_ 都已经存了, 我想应该要析构掉之前的, 包括 stream_executor 等等
-  // 
-  // 不行
-  // global devices pool --> pick device you want.
-  // get all available uninitialized occupied devices, 
-  // then pick 1 for the following initialization process.
-  // 
-  // cmt:
-  // 模仿 GrpcServer::Init
-  // GrpcServer::Init again! 而不是删除之前的!
-  // 
-  // 感觉需要所有的 server 都重启, 否则怎么办呢? 每个 server 里面都存着 remote devices 的信息
-  // 这个需要被更新啊.
-  // 那就都重启喽
+// 在 Shutdown 之前先调用这个函数来释放某个 GPU
+//code// Status GrpcServer::DeleteDevice(int selected_dev) {
+//code//   // get the gpu device 
+//code//   // worker_env_.device_mgr;
+//code//   std::vector<Device*> devs = worker_env_.device_mgr->ListDevices();
+//code//   for (auto& dev : devs) {
+//code// 
+//code//   }
+//code// 
+//code// }
 
-  mutex_lock l(mu_);
-  
-  // 也要参考一下 GrpcServer::~GrpcServer() 
-  // -------------------------------------------------------------
-  // reset everything in grpc server: GrpcServer.
-  // shutdown the server before a new one.
-  server_->Shutdown();
+// 参考
+// BaseGPUDevice::~BaseGPUDevice() {
+//   VLOG(0) << "BaseGPUDevice::~BaseGPUDevice()";
+//   delete gpu_device_info_;
+// 
+//   // struct StreamGroup {
+//   //   se::Stream* compute = nullptr;
+//   //   se::Stream* host_to_device = nullptr;
+//   //   se::Stream* device_to_host = nullptr;
+//   //   gtl::InlinedVector<se::Stream*, 4> device_to_device;
+//   // };
+//   // class StreamGroupFactory;
+//   // gtl::InlinedVector<StreamGroup*, 4> streams_;
+// 
+//   for (auto sb : scratch_) gpu_allocator_->DeallocateRaw(sb);
+//   for (auto ctx : device_contexts_) ctx->Unref();
+// }
 
-  // shutdown services 
-  master_service_->Shutdown();
-  //master_service_->ShutdownServer();
-  worker_service_->Shutdown();
-  //worker_service_->ShutdownServer();
-  eager_service_->Shutdown();
-  //eager_service_->ShutdownServer();
-
-  // -------------------------------------------------------------
-  // MasterEnv
-  // -------------------------------------------------------------
-  // 二次删除, 在 delete worker_env_.session_mgr; 所以不写了.
-  // delete master_env_.worker_cache; 
-  //delete master_env_.ops;
-
-  master_impl_.reset();
-  delete master_service_;
-  channel_cache_.reset();
-
-  // -------------------------------------------------------------
-  // WorkerEnv
-  // -------------------------------------------------------------
-  // from GrpcServer::~GrpcServer()
-  // We must delete graph_mgr before device_mgr, due to shared
-  // ownership of OpKernels in the executors. (The graph_mgr will
-  // free all stateless OpKernels, and pass over borrowed stateful
-  // OpKernels, which are also held in their respective devices'
-  // OpSegments.)
-  // -------------------------------------------------------------
-  if (worker_env_.session_mgr != nullptr) {
-    VLOG(0) << "1. delete worker_env_.session_mgr";
-    delete worker_env_.session_mgr;  // Deletes graph_mgr's.
-  } else {
-    VLOG(0) << "2. delete worker_env_.device_mgr";
-    // Note: session_mgr's legacy_session_ deletes device_mgr now.
-    delete worker_env_.device_mgr;
-  }
-  // Shut down all outstanding rendezvous.
-  delete worker_env_.rendezvous_mgr;
-  // deallocate the old one.
-  delete worker_env_.collective_executor_mgr;
-
-  worker_impl_.reset();
-
-  delete worker_service_;
-  // -------------------------------------------------------------
-  delete eager_service_;
-  // -------------------------------------------------------------
-  server_.reset();
-
-  master_env_ = {}; // reset
-  worker_env_ = {}; // reset
-  // -------------------------------------------------------------
-
-  state_ = STARTED;
-
-  master_env_.env = env_;
-  worker_env_.env = env_;
-
-  VLOG(0) << "Restart server;";
-
-  GrpcServerOptions opts;
-  opts.rendezvous_mgr_func = NewRpcRendezvousMgr;
-
-  // 实际上, 我在这里需要尝试的是 Init 内的重新构建
-  SessionOptions sess_opts;
-  ConfigProto config = server_def_.default_session_config();
-  sess_opts.config = config;
-  
-  // Configure shared devices between master and worker.
-  string name_prefix =
-      strings::StrCat("/job:", server_def_.job_name(), "/replica:0",
-                      "/task:", server_def_.task_index());
-
-  // --------------------------------------------------------------------
-  std::vector<std::unique_ptr<Device>> devices;
-
-  // Returns a string listing all devices.
-  //VLOG(0) << worker_env_.device_mgr->DebugString();
-
-  // Returns a string of all the device mapping.
-  //VLOG(0) << worker_env_.device_mgr->DeviceMappingString();
-  // device_mgr 里面没有 clear devices 的操作.
-
-  // remove all existing devices if it is gpu or xla_gpu 
-  // 删除以前要把 variables 备份到 cpu 
-  // 迁移一下.
-
-  // 那么 device 自己有没有自焚的呢? 
-  // std::vector<Device*> 
-  //c// std::vector<Device*> devs = worker_env_.device_mgr->ListDevices();
-  //c// for (auto& dev : devs) {
-  //c//   VLOG(0) << dev->DebugString();
-  //c//   delete dev;
-  //c// }
-
-  // note: 删除了 devices 后好像不能再进行如下操作了.
-  // 先把以前的 device mgr 清理掉, 因为我要重新构造新的.
-  //delete worker_env_.device_mgr;
-
-  TF_RETURN_IF_ERROR(
-      DeviceFactory::AddSelectedDevices(sess_opts, name_prefix, 
-                                        selected_dev, &devices));
-
-  worker_env_.device_mgr = new DeviceMgr(std::move(devices));
-
-  // print again.
-  // Returns a string listing all devices.
-  VLOG(0) << worker_env_.device_mgr->DebugString();
-  // Returns a string of all the device mapping.
-  VLOG(0) << worker_env_.device_mgr->DeviceMappingString();
-  
-  //master_env_.local_devices.clear();
-  master_env_.local_devices = worker_env_.device_mgr->ListDevices();
-  
-  //worker_env_.local_devices.clear();
-  worker_env_.local_devices = worker_env_.device_mgr->ListDevices();
-
-  //worker_env_.rendezvous_mgr->CleanupAll();
-  //delete worker_env_.rendezvous_mgr;
-  worker_env_.rendezvous_mgr = opts.rendezvous_mgr_func == nullptr
-                                   ? new RpcRendezvousMgr(&worker_env_)
-                                   : opts.rendezvous_mgr_func(&worker_env_);
-
-  // -------------------------------------------------------------
-  // Look up the port that has been requested for this task in `server_def_`.
-  int requested_port = -1;
-  for (const auto& job : server_def_.cluster().job()) {
-    if (job.name() == server_def_.job_name()) {
-      auto iter = job.tasks().find(server_def_.task_index());
-      if (iter == job.tasks().end()) {
-        return errors::InvalidArgument("Task ", server_def_.task_index(),
-                                       " was not defined in job \"",
-                                       server_def_.job_name(), "\"");
-      }
-      auto colon_index = iter->second.find_last_of(':');
-      if (!strings::safe_strto32(iter->second.substr(colon_index + 1),
-                                 &requested_port)) {
-        return errors::InvalidArgument(
-            "Could not parse port for local server from \"", iter->second,
-            "\".");
-      }
-      break;
-    }
-  }
-  if (requested_port == -1) {
-    return errors::Internal("Job \"", server_def_.job_name(),
-                            "\" was not defined in cluster");
-  }
-  // -------------------------------------------------------------
-
-  string unused;
-  string default_worker_name;
-  if (!DeviceNameUtils::SplitDeviceName(master_env_.local_devices[0]->name(),
-                                        &default_worker_name, &unused)) {
-    return errors::Internal("Could not parse worker name.");
-  }
-
-  // -------------------------------------------------------------
-
-  // grpc server
-  ::grpc::ServerBuilder builder;
-  builder.AddListeningPort(strings::StrCat("0.0.0.0:", requested_port),
-                           GetServerCredentials(server_def_), &bound_port_);
-  
-  VLOG(0) << "Debug, bound_port_:" << bound_port_;
-
-  builder.SetMaxMessageSize(std::numeric_limits<int32>::max());
-
-  builder.SetOption(
-      std::unique_ptr<::grpc::ServerBuilderOption>(new NoReusePortOption));
-
-  // Allow subclasses to specify more args to pass to the gRPC server.
-  MaybeMutateBuilder(&builder);
-
-  // -------------------------------------------------------------
-  master_impl_ = CreateMaster(&master_env_);
-  master_service_ = NewGrpcMasterService(master_impl_.get(), config, &builder);
-  // -------------------------------------------------------------
-  worker_impl_ = opts.worker_func ? opts.worker_func(&worker_env_, config)
-                                  : NewGrpcWorker(&worker_env_, config);
-  worker_service_ = NewGrpcWorkerService(worker_impl_.get(), &builder,
-                                         opts.worker_service_options)
-                        .release();
-  // -------------------------------------------------------------
-  eager_service_ = new eager::GrpcEagerServiceImpl(&worker_env_, &builder);
-  // -------------------------------------------------------------
-
-  // extra service:
-  if (opts.service_func != nullptr) {
-    VLOG(0) << "Enter! opts.service_func != nullptr";
-    opts.service_func(&worker_env_, &builder);
-  }
-
-  server_ = builder.BuildAndStart(); // OK!
-  if (!server_) {
-    return errors::Unknown("Could not start gRPC server");
-  }
-
-  // 在 WorkerCacheFactory 里面会 new channel_cache_.
-  WorkerCacheInterface* worker_cache;
-  WorkerCacheFactoryOptions worker_cache_factory_options(server_def_);
-  TF_RETURN_IF_ERROR(
-      WorkerCacheFactory(worker_cache_factory_options, &worker_cache));
-  CHECK_NE(nullptr, worker_cache);
-
-  // -------------------------------------------------------------
-
-  if (opts.collective_mgr_func) {
-    worker_env_.collective_executor_mgr =
-        opts.collective_mgr_func(config, &worker_env_, worker_cache);
-    if (!worker_env_.collective_executor_mgr) {
-      return errors::Internal(
-          "collective_mgr_func did not return CollectiveExecutorMgr");
-    }
-  } else {
-    std::unique_ptr<DeviceResolverDistributed> dev_resolver(
-        new DeviceResolverDistributed(worker_env_.device_mgr, worker_cache,
-                                      default_worker_name));
-    std::unique_ptr<CollectiveParamResolverDistributed> param_resolver(
-        new CollectiveParamResolverDistributed(config, worker_env_.device_mgr,
-                                               dev_resolver.get(), worker_cache,
-                                               default_worker_name));
-    worker_env_.collective_executor_mgr = new RpcCollectiveExecutorMgr(
-        config, worker_env_.device_mgr, std::move(dev_resolver),
-        std::move(param_resolver), worker_cache, default_worker_name);
-  }
-
-  // Set up worker environment.
-  worker_env_.session_mgr = new SessionMgr(
-      &worker_env_, SessionMgr::WorkerNameFromServerDef(server_def_),
-      std::unique_ptr<WorkerCacheInterface>(worker_cache),
-      [this](const ServerDef& server_def, WorkerCacheInterface** worker_cache) {
-        WorkerCacheFactoryOptions options(server_def);
-        return WorkerCacheFactory(options, worker_cache);
-      });
-  
-  // Do not delete (as these are not owned by the server):
-  // - master_env_.env
-  // - worker_env_.env
-  // - worker_env_.compute_pool
-  worker_env_.compute_pool = ComputePool(sess_opts);
-
-  // Finish setting up master environment.
-  master_env_.ops = OpRegistry::Global();
-  master_env_.worker_cache = worker_cache;
-  master_env_.collective_executor_mgr = worker_env_.collective_executor_mgr;
-  StatsPublisherFactory stats_factory = opts.stats_factory;
-  master_env_.master_session_factory =
-      [config, stats_factory](
-          SessionOptions options, const MasterEnv* env,
-          std::unique_ptr<std::vector<std::unique_ptr<Device>>> remote_devs,
-          std::unique_ptr<WorkerCacheInterface> worker_cache,
-          std::unique_ptr<DeviceSet> device_set,
-          std::vector<string> filtered_worker_list) {
-        options.config.MergeFrom(config);
-        return new MasterSession(options, env, std::move(remote_devs),
-                                 std::move(worker_cache), std::move(device_set),
-                                 std::move(filtered_worker_list),
-                                 stats_factory);
-      };
-  master_env_.worker_cache_factory =
-      [this](const WorkerCacheFactoryOptions& options,
-             WorkerCacheInterface** worker_cache) {
-        return WorkerCacheFactory(options, worker_cache);
-      };
-
-  // Provide direct access to the master from in-process clients.
-  LocalMaster::Register(target(), master_impl_.get(),
-                        config.operation_timeout_in_ms());
-
-  // then restart threads of master, worker, and eager.
-  master_thread_.reset(
-      env_->StartThread(ThreadOptions(), "TF_master_service",
-                        [this] { master_service_->HandleRPCsLoop(); }));
-  worker_thread_.reset(
-      env_->StartThread(ThreadOptions(), "TF_worker_service",
-                        [this] { worker_service_->HandleRPCsLoop(); }));
-
-  eager_thread_.reset(
-      env_->StartThread(ThreadOptions(), "TF_eager_service",
-                        [this] { eager_service_->HandleRPCsLoop(); }));
-
-  return Status::OK();
-}
-
-Status GrpcServer::Shutdown(int selected_dev) {
+Status GrpcServer::Shutdown(int del_dev, int selected_dev) {
   // 会挂, 为什么呢???
   // 这所谓的 shutdown 就是个坑!!!
 
@@ -682,14 +375,33 @@ Status GrpcServer::Shutdown(int selected_dev) {
   //t//   // Note: session_mgr's legacy_session_ deletes device_mgr now.
   //t//   delete worker_env_.device_mgr;
   //t// }
-  delete worker_env_.session_mgr;  // Deletes graph_mgr's.
-  delete worker_env_.device_mgr;
+
+  // 删除指定的 GPU
+  std::vector<Device*> devs = worker_env_.device_mgr->ListDevices();
+  for (auto& dev: devs) {
+    VLOG(0) << "device type: " << dev->device_type() << "device id: " << dev->Id();
+    // output is :
+    // device type: CPU
+    // device type: XLA_CPU
+    // device type: GPU
+    // device type: XLA_GPU
+    if (dev->device_type() == "GPU" && dev->Id() == del_dev) {
+      // 对如果 del_dev 设置是 -2 的话, 那么久不会进行 Release memory 的操作.
+      dev->ReleaseMem();
+    }
+  }
+
+  delete worker_env_.session_mgr; // Deletes graph_mgr's.
+  //err// delete worker_env_.device_mgr;
 
   // hardcoded now
   VLOG(0) << "selected_dev: " << selected_dev;
   TF_RETURN_IF_ERROR(
       DeviceFactory::AddSelectedDevices(sess_opts, name_prefix, 
+                                        del_dev,
                                         selected_dev, &devices));
+  // 需要注销其他的 device 主动注销掉
+  // 把 gpu 单独拿出来看看吧, 然后销毁掉看看.
   
   worker_env_.device_mgr = new DeviceMgr(std::move(devices));
 

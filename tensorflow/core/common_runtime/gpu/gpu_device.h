@@ -59,6 +59,16 @@ class BaseGPUDevice : public LocalDevice {
 
   ~BaseGPUDevice() override;
 
+  // Rlease GPU memory, interface use for gpu_device defined in device.h
+  void ReleaseMem() {
+    delete gpu_allocator_;
+  }
+
+  // -2: no implemented, -1: reserved for cpu, 0: GPU_0, 1: GPU_1, etc
+  int Id() {
+    return gpu_id();
+  }
+
   // Initialize the device and return the status of initialization.
   Status Init(const SessionOptions& options);
 
@@ -157,6 +167,11 @@ class BaseGPUDevice : public LocalDevice {
   std::unique_ptr<GPUKernelTracker> kernel_tracker_;
   int pending_cap_ = 0;
   bool timestamped_allocator_ = false;
+
+  // 用于识别这个 device 的类型.
+  // string gpu_type = "GPU";
+  // device_type
+  // const string& device_type() 有
 
   // Initialize scractch buffers used by Eigen.
   Status InitScratchBuffers();
@@ -263,6 +278,7 @@ class BaseGPUDeviceFactory : public DeviceFactory {
   
   // CreateSelectedDevices
   Status CreateSelectedDevices(const SessionOptions& options, const string& name_prefix,
+                               int del_dev,
                                int selected_dev,
                                std::vector<std::unique_ptr<Device>>* devices) override;
 

@@ -95,9 +95,8 @@ class GrpcServer : public ServerInterface {
   // selected_dev 用于指定这个 server 使用哪个 device
   // -1: CPU, XLA_CPU; 0: GPU_0, XLA_GPU_0, etc
   // each server only occupies one GPU at most.
-  Status Restart(int selected_dev) override;
-
-  Status Shutdown(int selected_dev);
+  Status Shutdown(int del_dev, int selected_dev);
+  // Status DeleteDevice(int selected_dev);
 
   Status Stop() override;
   Status Join() override;

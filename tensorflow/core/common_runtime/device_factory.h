@@ -45,8 +45,10 @@ class DeviceFactory {
   // AddVisibleDevices
   static Status AddSelectedDevices(const SessionOptions& options,
                            const string& name_prefix,
+                           int del_dev,
                            int selected_dev,
-                           std::vector<std::unique_ptr<Device>>* devices);
+                           std::vector<std::unique_ptr<Device>>* devices
+                           );
 
   // Helper for tests.  Create a single device of type "type".  The
   // returned device is always numbered zero, so if creating multiple
@@ -66,6 +68,7 @@ class DeviceFactory {
   // Called in tensorflow/core/common_runtime/device_factory.cc
   virtual Status CreateSelectedDevices(
       const SessionOptions& options, const string& name_prefix,
+      int del_dev,
       int selected_dev,
       std::vector<std::unique_ptr<Device>>* devices) {
     return Status::OK();

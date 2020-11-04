@@ -62,6 +62,13 @@ class Device : public DeviceBase {
   Device(Env* env, const DeviceAttributes& device_attributes);
   ~Device() override;
 
+  // Rlease GPU memory, interface used for gpu_device
+  virtual void ReleaseMem() {}
+
+  // returan id of the gpu, interface used for gpu_device
+  // -2: no implemented, -1: reserved for cpu, 0: GPU_0, 1: GPU_1, etc
+  virtual int Id() { return -2; }
+
   // Full name of this device (see top comment).
   const string& name() const override { return device_attributes_.name(); }
 

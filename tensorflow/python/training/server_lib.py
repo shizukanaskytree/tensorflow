@@ -177,10 +177,10 @@ class Server(object):
     """
     c_api.TF_ServerRestart(self._server, selected_dev)
   
-  def shutdown(self, selected_dev): 
+  def shutdown(self, del_dev, selected_dev): 
     """shutdown the server
     """
-    c_api.TF_ServerShutdown(self._server, selected_dev)
+    c_api.TF_ServerShutdown(self._server, del_dev, selected_dev)
 
   def join(self):
     """Blocks until the server has shut down.

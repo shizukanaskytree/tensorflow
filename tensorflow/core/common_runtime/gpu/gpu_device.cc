@@ -74,6 +74,8 @@ limitations under the License.
 #include "tensorflow/core/util/env_var.h"
 #include "tensorflow/core/util/stream_executor_util.h"
 
+#include "tensorflow/stream_executor/gpu/gpu_driver.h"
+
 #if !defined(PLATFORM_GOOGLE)
 #if GOOGLE_CUDA
 #include "cuda/cuda_config.h"
@@ -332,9 +334,30 @@ BaseGPUDevice::BaseGPUDevice(const SessionOptions& options, const string& name,
 }
 
 BaseGPUDevice::~BaseGPUDevice() {
+  VLOG(0) << "BaseGPUDevice::~BaseGPUDevice()";
   delete gpu_device_info_;
+
+  // struct StreamGroup {
+  //   se::Stream* compute = nullptr;
+  //   se::Stream* host_to_device = nullptr;
+  //   se::Stream* device_to_host = nullptr;
+  //   gtl::InlinedVector<se::Stream*, 4> device_to_device;
+  // };
+  // class StreamGroupFactory;
+  // gtl::InlinedVector<StreamGroup*, 4> streams_;
+
+  // Flaw about releasing the GPU resources automatically.
+  // https://github.com/tensorflow/tensorflow/issues/36465#issuecomment-582749350
+  // kill the process? what!
+  // https://github.com/tensorflow/tensorflow/issues/36465#issuecomment-625731245
+
+  // BFCAllocator::~BFCAllocator()
+
   for (auto sb : scratch_) gpu_allocator_->DeallocateRaw(sb);
   for (auto ctx : device_contexts_) ctx->Unref();
+
+  // 这个是用于释放 memory 的
+  // delete gpu_allocator_; // OK!
 }
 
 // This should be idempotent if already initialized.
@@ -387,6 +410,9 @@ Status BaseGPUDevice::Init(const SessionOptions& options) {
   for (int i = 0; i < max_streams_; i++) {
     streams_.push_back(StreamGroupFactory::Global().GetOrCreate(
         tf_gpu_id_, i, executor_, options.config.gpu_options()));
+    // 1.
+    // streams_ 需要销毁
+
     device_contexts_.push_back(new GPUDeviceContext(
         i, streams_.back()->compute, streams_.back()->host_to_device,
         streams_.back()->device_to_host, streams_.back()->device_to_device));
@@ -1171,6 +1197,7 @@ Status BaseGPUDeviceFactory::CreateDevices(
 
 Status BaseGPUDeviceFactory::CreateSelectedDevices(
     const SessionOptions& options, const string& name_prefix,
+    int del_dev,
     int selected_dev,
     std::vector<std::unique_ptr<Device>>* devices) {
   // 设计的思路是
@@ -1192,6 +1219,43 @@ Status BaseGPUDeviceFactory::CreateSelectedDevices(
   if (gpu_manager->VisibleDeviceCount() <= 0) {
     return Status::OK();
   }
+
+  // 在这里试图删除选定的待删除的 device
+  // if del_dev != -1 then delete the existin devices 
+  //
+  // gpu_manager 能看到 GpuExecutor 吗?
+  // 不能
+  // GpuDriver::CreateContext 得到 context, 参考
+  //   tensorflow/stream_executor/cuda/cuda_gpu_executor.cc
+  //   GpuExecutor::Init
+  // 再顺势把 GPU device 给删除了.
+  // 实验, hardcode delete 第三个 GPU, i.e., GPU_2
+  //CUcontext context_;
+
+  // The device ordinal value that this executor was initialized with; recorded
+  // for use in getting device metadata. Immutable post-initialization.
+  //int device_ordinal = 2; // hardcoded
+  //CUdevice device; 
+
+  // Returns a device with the given ordinal on this platform with a default
+  // plugin configuration or, if none can be found with the given ordinal or
+  // there is an error in opening a context to communicate with the device, an
+  // error status is returned.
+  //
+  // Ownership of the executor is NOT transferred to the caller --
+  // the Platform owns the executors in a singleton-like fashion.
+  //virtual port::StatusOr<StreamExecutor*> ExecutorForDevice(int ordinal) = 0
+  // 得到 gpu executor
+  //se::StreamExecutor *to_del_dev = gpu_manager->ExecutorForDevice(del_dev).ValueOrDie();
+
+  // Deallocate the DeviceMemory previously allocated via this interface.
+  // Deallocation of a nullptr-representative value is permitted.
+  // Resets the internal contents of mem to be null-representative, but this
+  // null-out effect should not be relied upon in client code.
+  // void Deallocate(DeviceMemoryBase *mem);
+  //to_del_dev->Deallocate(?);
+
+  // -----------------------------------------------------------------------   
 
   size_t num_gpus_to_use = INT_MAX;
 

@@ -1757,8 +1757,8 @@ TF_CAPI_EXPORT extern void TF_ServerRestart(TF_Server* server, int selected_dev,
                                             TF_Status* status);
 
 // Shutdown the server.
-TF_CAPI_EXPORT extern void TF_ServerShutdown(TF_Server* server, int selected_dev, 
-                                             TF_Status* status);
+TF_CAPI_EXPORT extern void TF_ServerShutdown(TF_Server* server, int del_dev, 
+                                             int selected_dev, TF_Status* status); 
 
 // Stops an in-process TensorFlow server.
 TF_CAPI_EXPORT extern void TF_ServerStop(TF_Server* server, TF_Status* status);

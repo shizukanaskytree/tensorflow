@@ -141,6 +141,10 @@ int CudaPlatform::VisibleDeviceCount() const {
   return GpuDriver::GetDeviceCount();
 }
 
+// void CudaPlatform::DeallocateGPU() {
+//    
+// }
+
 const string& CudaPlatform::Name() const { return name_; }
 
 port::StatusOr<StreamExecutor*> CudaPlatform::ExecutorForDevice(int ordinal) {

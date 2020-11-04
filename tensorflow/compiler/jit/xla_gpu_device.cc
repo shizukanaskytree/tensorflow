@@ -60,6 +60,7 @@ class XlaGpuDeviceFactory : public DeviceFactory {
   
   // new api: create devices according to  the selected_dev.
   Status CreateSelectedDevices(const SessionOptions& options, const string& name_prefix,
+                               int del_dev,
                                int selected_dev,
                                std::vector<std::unique_ptr<Device>>* devices) override;
 };
@@ -128,6 +129,7 @@ Status XlaGpuDeviceFactory::CreateDevices(
 
 Status XlaGpuDeviceFactory::CreateSelectedDevices(
     const SessionOptions& session_options, const string& name_prefix,
+    int del_dev,
     int selected_dev,
     std::vector<std::unique_ptr<Device>>* devices) {
   // if selected_dev is -1, it means only cpu and xla_cpu.

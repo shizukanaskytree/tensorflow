@@ -69,6 +69,8 @@ BFCAllocator::BFCAllocator(SubAllocator* sub_allocator, size_t total_memory,
 }
 
 BFCAllocator::~BFCAllocator() {
+  // 主要是让 GPU 调用这个试试, 这样才能释放掉 memory!
+  
   // Return memory back.
   VLOG(2) << "Number of regions allocated: "
           << region_manager_.regions().size();
@@ -391,6 +393,9 @@ void BFCAllocator::SplitChunk(BFCAllocator::ChunkHandle h, size_t num_bytes) {
 }
 
 void BFCAllocator::DeallocateRaw(void* ptr) {
+  // debug
+  //debug// VLOG(0) << "DeallocateRaw " << Name() << " " << RequestedSize(ptr);
+
   VLOG(1) << "DeallocateRaw " << Name() << " " << RequestedSize(ptr);
   DeallocateRawInternal(ptr);
   retry_helper_.NotifyDealloc();

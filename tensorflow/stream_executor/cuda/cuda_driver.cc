@@ -858,6 +858,9 @@ GpuDriver::ContextGetSharedMemConfig(GpuContext* context) {
   ScopedActivateContext activated{context};
   CUdeviceptr result = 0;
   CUresult res = cuMemAlloc(&result, bytes);
+  // api: 
+  // CUresult cuMemAlloc ( CUdeviceptr* dptr, size_t bytesize )
+  
   if (res != CUDA_SUCCESS) {
     LOG(ERROR) << "failed to allocate "
                << port::HumanReadableNumBytes::ToString(bytes) << " (" << bytes
@@ -872,6 +875,7 @@ GpuDriver::ContextGetSharedMemConfig(GpuContext* context) {
 
 /* static */ void GpuDriver::DeviceDeallocate(GpuContext* context,
                                               void* location) {
+  VLOG(0) << "GpuDriver::DeviceDeallocate";
   ScopedActivateContext activation(context);
   CUdeviceptr pointer = absl::bit_cast<CUdeviceptr>(location);
   CUresult res = cuMemFree(pointer);
@@ -903,6 +907,7 @@ GpuDriver::ContextGetSharedMemConfig(GpuContext* context) {
 
 /* static */ void GpuDriver::UnifiedMemoryDeallocate(GpuContext* context,
                                                      void* location) {
+  VLOG(0) << "GpuDriver::UnifiedMemoryDeallocate";
   ScopedActivateContext activation(context);
   CUdeviceptr pointer = absl::bit_cast<CUdeviceptr>(location);
   CUresult res = cuMemFree(pointer);

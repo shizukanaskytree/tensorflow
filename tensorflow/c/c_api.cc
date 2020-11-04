@@ -2958,10 +2958,10 @@ void TF_ServerRestart(TF_Server* server, int selected_dev,
   status->status = server->server->Restart(selected_dev);
 }
 
-void TF_ServerShutdown(TF_Server* server, int selected_dev, 
-                       TF_Status* status) {
+void TF_ServerShutdown(TF_Server* server, int del_dev, 
+                       int selected_dev, TF_Status* status) {
   VLOG(0) << "Shutdown the current server";
-  status->status = server->server->Shutdown(selected_dev);
+  status->status = server->server->Shutdown(del_dev, selected_dev);
 }
 
 void TF_ServerStop(TF_Server* server, TF_Status* status) {

@@ -119,6 +119,7 @@ Status DeviceFactory::AddDevices(
 
 Status DeviceFactory::AddSelectedDevices(
     const SessionOptions& options, const string& name_prefix,
+    int del_dev,
     int selected_dev,
     std::vector<std::unique_ptr<Device>>* devices) {
   // CPU first. A CPU device is required.
@@ -161,13 +162,11 @@ Status DeviceFactory::AddSelectedDevices(
   for (auto& p : device_factories()) {
     auto factory = p.second.factory.get();
     // gpu is special now.
-    
-    // 不构建 xla gpu 了, 有问题目前, 不知道为什么
-    //if (factory == gpu_factory) {
     if (factory == gpu_factory || factory == xla_gpu_factory) {
       // Pass: 把删选条件放到 CreateSelectedDevices 里面吧.
       TF_RETURN_IF_ERROR(
         factory->CreateSelectedDevices(options, name_prefix, 
+          del_dev, 
           selected_dev, devices));
       // 因为这个函数的变化所以导致我需要大面积重复这个 AddSelectedDevices 函数.
     }

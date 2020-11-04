@@ -53,6 +53,7 @@ void* GPUcudaMallocAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
 }
 void GPUcudaMallocAllocator::DeallocateRaw(void* ptr) {
 #ifdef GOOGLE_CUDA
+  VLOG(0) << "GPUcudaMallocAllocator::DeallocateRaw";
   // free with cudaFree
   CUresult res = cuMemFree(reinterpret_cast<CUdeviceptr>(ptr));
   if (res != CUDA_SUCCESS) {
