@@ -410,8 +410,11 @@ class IteratorContext {
   std::unique_ptr<Thread> StartThread(const string& name,
                                       std::function<void()> fn) {
     if (params_.thread_factory) {
+      //VLOG(0) << "1. StartThread";
+      // this branch!
       return params_.thread_factory->StartThread(name, std::move(fn));
     } else {
+      //VLOG(0) << "2. StartThread";
       return absl::WrapUnique(
           Env::Default()->StartThread({}, name, std::move(fn)));
     }

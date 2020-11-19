@@ -14,6 +14,7 @@ limitations under the License.
 ==============================================================================*/
 
 #include "tensorflow/core/kernels/data/prefetch_autotuner.h"
+#include<iostream> 
 
 namespace tensorflow {
 namespace data {
@@ -34,6 +35,10 @@ size_t kBufferLimitThreshold = 2048;
 }  // namespace
 
 void PrefetchAutotuner::RecordConsumption(size_t current_buffer_size) {
+
+  //std::cout << "PrefetchAutotuner::RecordConsumption, current_buffer_size: "
+  //          << current_buffer_size << std::endl;
+
   switch (mode_) {
     case Mode::kDisabled:
       return;

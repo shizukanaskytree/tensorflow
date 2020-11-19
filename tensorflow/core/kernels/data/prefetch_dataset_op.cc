@@ -44,6 +44,8 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
         input_(input),
         buffer_size_(buffer_size),
         slack_period_(slack_period) {
+    //VLOG(0) << "buffer_size_: " << buffer_size_; 
+    // buffer_size_: -1
     input_->Ref();
   }
 
@@ -113,6 +115,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
       {
         tf_shared_lock l(mu_);
         buffer_limit = auto_tuner_.buffer_limit();
+        //VLOG(0) << "BuildTraceMeName: buffer_limit" << buffer_limit; 
       }
       return strings::StrCat(prefix(), "#buffer_limit=", buffer_limit, "#");
     }
@@ -124,6 +127,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
     Status GetNextInternal(IteratorContext* ctx,
                            std::vector<Tensor>* out_tensors,
                            bool* end_of_sequence) override {
+      //VLOG(0) << "prefetch_dataset_op::GetNextInternal";
       const auto& stats_aggregator = ctx->stats_aggregator();
       {
         mutex_lock l(mu_);
@@ -250,6 +254,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
 
     Status Consume(IteratorContext* ctx, std::vector<Tensor>* out_tensors,
                    bool* end_of_sequence) EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+      //VLOG(0) << "prefetch_dataset_op::Consume";
       const auto& stats_aggregator = ctx->stats_aggregator();
       if (stats_aggregator) {
         stats_aggregator->AddToHistogram(
@@ -280,6 +285,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           // measurement because we slept for that duration before prefetching
           // the element.
           slack_us_ = kSleepFactor * slack_us_ + slack_us;
+          //code// VLOG(0) << "Setting slack_us_: " << slack_us_;
           VLOG(2) << "Setting slack_us_: " << slack_us_;
         }
         *out_tensors = std::move(buffer_.front().value);
@@ -301,6 +307,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
     Status EnsurePrefetchThreadStarted(IteratorContext* ctx)
         EXCLUSIVE_LOCKS_REQUIRED(mu_) {
       if (!prefetch_thread_) {
+        //VLOG(0) << "EnsurePrefetchThreadStarted;";
         std::shared_ptr<IteratorContext> new_ctx =
             std::make_shared<IteratorContext>(*ctx);
         prefetch_thread_ = ctx->StartThread(
@@ -314,6 +321,8 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
     //
     // It owns the iterator context passed to it.
     void PrefetchThread(const std::shared_ptr<IteratorContext>& ctx) {
+      //VLOG(0) << "PrefetchThread";
+
       RecordStart(ctx.get());
       auto cleanup = gtl::MakeCleanup([this, ctx] { RecordStop(ctx.get()); });
       // Keep track of where we are in an iteration "burst"
@@ -322,6 +331,8 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
         // 1. Wait for a slot in the buffer.
         {
           mutex_lock l(mu_);
+          // auto_tuner_ 是提供一个阈值让 prefetch thread 等待与否.
+          // buffer_limit 自然是越大越好. 这样 prefetch thread 不容易停下来.
           while (!cancelled_ && buffer_.size() >= auto_tuner_.buffer_limit()) {
             RecordStop(ctx.get());
             cond_var_.wait(l);
@@ -368,6 +379,9 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           cond_var_.notify_all();
         }
         ++num_produced;
+
+        //VLOG(0) << "PrefetchThread::num_produced: " << num_produced;
+
       }
     }
 

@@ -25,6 +25,7 @@ namespace data {
 //
 // PrefetchAutotuner attempts to find the minimum buffer size such that there is
 // always at least 1 element in the prefetch queue every time the downstream
+// wxf cmt: 可不可以不止一个呢?
 // iterator calls GetNext().
 //
 // One common failure mode of input pipelines is being throughput bound. No
