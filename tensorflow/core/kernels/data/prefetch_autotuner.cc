@@ -41,13 +41,19 @@ void PrefetchAutotuner::RecordConsumption(size_t current_buffer_size) {
 
   switch (mode_) {
     case Mode::kDisabled:
+      std::cout << "PrefetchAutotuner::kDisabled\n";
+      std::cout << current_buffer_size << std::endl;
       return;
     case Mode::kUpswing:
+      //std::cout << "PrefetchAutotuner::kUpswing\n";
+      //std::cout << current_buffer_size << std::endl;
       if (current_buffer_size == buffer_limit_) {
         mode_ = Mode::kDownswing;
       }
       return;
     case Mode::kDownswing:
+      std::cout << "PrefetchAutotuner::kDownswing\n";
+      std::cout << current_buffer_size << std::endl;
       if (current_buffer_size == 0) {
         if (buffer_limit_ >= kBufferLimitThreshold) {
           buffer_limit_ += kBufferLimitThreshold;

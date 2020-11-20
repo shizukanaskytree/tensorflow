@@ -83,6 +83,9 @@ class IteratorResource : public ResourceBase {
           captured_state->function_handle_cache.get();
       params.resource_mgr = &captured_state->resource_mgr;
       params.thread_factory = unbounded_thread_pool_.get_thread_factory();
+      
+      //VLOG(0) << "IteratorResource::GetNext";
+      
       return captured_state->iterator->GetNext(
           IteratorContext(std::move(params)), out_tensors, end_of_sequence);
     } else {

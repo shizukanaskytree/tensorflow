@@ -44,6 +44,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
         input_(input),
         buffer_size_(buffer_size),
         slack_period_(slack_period) {
+    VLOG(0) << "slack_period_: " << slack_period_; 
     //VLOG(0) << "buffer_size_: " << buffer_size_; 
     // buffer_size_: -1
     input_->Ref();
@@ -136,6 +137,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
         // produced, or we are shutting down.
         while (!cancelled_ && buffer_.empty() && !prefetch_thread_finished_ &&
                auto_tuner_.buffer_limit() != 0) {
+          //VLOG(0) << "GetNextInternal, wait, empty";
           auto_tuner_.RecordEmpty();
           RecordStop(ctx);
           cond_var_.wait(l);
@@ -148,6 +150,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
         }
 
         if (!buffer_.empty()) {
+          //VLOG(0) << "buffer not empty, Consume";
           return Consume(ctx, out_tensors, end_of_sequence);
         }
 
@@ -285,12 +288,13 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           // measurement because we slept for that duration before prefetching
           // the element.
           slack_us_ = kSleepFactor * slack_us_ + slack_us;
-          //code// VLOG(0) << "Setting slack_us_: " << slack_us_;
+          VLOG(0) << "Setting slack_us_: " << slack_us_;
           VLOG(2) << "Setting slack_us_: " << slack_us_;
         }
         *out_tensors = std::move(buffer_.front().value);
         RecordBufferDequeue(ctx, *out_tensors);
       }
+      // autotune in `Consume` to determine the buffer size.
       auto_tuner_.RecordConsumption(buffer_.size());
       buffer_.pop_front();
       *end_of_sequence = false;
@@ -334,6 +338,9 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           // auto_tuner_ 是提供一个阈值让 prefetch thread 等待与否.
           // buffer_limit 自然是越大越好. 这样 prefetch thread 不容易停下来.
           while (!cancelled_ && buffer_.size() >= auto_tuner_.buffer_limit()) {
+            //VLOG(0) << "PrefetchThread, auto_tuner wait";
+            // 几乎就没有怎么进入
+
             RecordStop(ctx.get());
             cond_var_.wait(l);
             RecordStart(ctx.get());
@@ -361,9 +368,14 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
         mutex_lock parent_l(parent_mu_);
         bool end_of_sequence;
         BufferElement buffer_element;
+
+        // Get the buffer element.
         buffer_element.status = input_impl_->GetNext(
             ctx.get(), &buffer_element.value, &end_of_sequence);
-        if (buffer_element.status.ok() && end_of_sequence) {
+
+        if (buffer_element.status.ok() 
+            && end_of_sequence) {
+        //orig// if (buffer_element.status.ok() && end_of_sequence) {
           mutex_lock l(mu_);
           prefetch_thread_finished_ = true;
           cond_var_.notify_all();
@@ -375,11 +387,29 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           mutex_lock l(mu_);
           RecordBufferEnqueue(ctx.get(), buffer_element.value);
           buffer_element.created_us = ctx->env()->NowMicros();
+
+          // =======================
+          // idea: 能不能一次取 x4.
+          // =======================
+          //origin// buffer_.push_back(std::move(buffer_element));
+
+          // =======================
+          // push to the buffer_ x4.
+          // idea: data echoing
+          // =======================
+          buffer_.push_back(buffer_element);
+          buffer_.push_back(buffer_element);
+          buffer_.push_back(buffer_element);
+          buffer_.push_back(buffer_element);
+          buffer_.push_back(buffer_element);
+          buffer_.push_back(buffer_element);
           buffer_.push_back(std::move(buffer_element));
+
           cond_var_.notify_all();
         }
         ++num_produced;
 
+        // push to the buffer_ xN.
         //VLOG(0) << "PrefetchThread::num_produced: " << num_produced;
 
       }
