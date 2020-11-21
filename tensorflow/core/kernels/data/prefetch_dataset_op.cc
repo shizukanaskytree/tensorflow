@@ -389,25 +389,53 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           buffer_element.created_us = ctx->env()->NowMicros();
 
           // =======================
+          // idea: data echoing
           // idea: 能不能一次取 x4.
+          // follow up idea: 能不能存一个 buffer 记住之前的某几个, 留着备用?
+          //   然后定期更新这些 buffer 内记住的那几个. 为了有混淆效果的 data echoing.
+          // push to the buffer_ x 4.
           // =======================
+
           //origin// buffer_.push_back(std::move(buffer_element));
 
-          // =======================
-          // push to the buffer_ x4.
-          // idea: data echoing
-          // =======================
+          // cache the previous dataset elements and randomize it.
+          // echo size limit is the history to maintain.
+
+          // TODO : design a elegant and flexible way to store history data.
+          // history_span for replacement.
+          // push_back the current and erase which one?
+          // a degree to control the echo_size_ memory(history)
+          // 保鲜度指数: new 一点 还是 陈腐一点.
+          // --------------------------------------------------------
+          echoing_buffer_.push_back(buffer_element);
+          VLOG(0) << "size of echoing_buffer_: " << echoing_buffer_.size();
+          if (echoing_buffer_.size() > echo_size_) {
+            
+            echoing_buffer_.erase(echoing_buffer_.begin());
+          }
+          // shuffle echoing_buffer_ elements
+          auto rng = std::default_random_engine {};
+
+          // shuffle(order) 替换成
+          // pick one then replacement => permutation
+          std::shuffle(std::begin(echoing_buffer_), std::end(echoing_buffer_), rng);
+
+          // --------------------------------------------------------
+
+          // push fresh data first, then the echoed data to buffer_ next.
           buffer_.push_back(buffer_element);
-          buffer_.push_back(buffer_element);
-          buffer_.push_back(buffer_element);
-          buffer_.push_back(buffer_element);
-          buffer_.push_back(buffer_element);
-          buffer_.push_back(buffer_element);
-          buffer_.push_back(std::move(buffer_element));
+          // push the echoed data from history 
+          for (auto &elem: echoing_buffer_) {
+            buffer_.push_back(elem);
+          }
+
+          //original// buffer_.push_back(std::move(buffer_element));
 
           cond_var_.notify_all();
         }
-        ++num_produced;
+        //origin// ++num_produced;
+
+        num_produced += (echo_size_ + 1);
 
         // push to the buffer_ xN.
         //VLOG(0) << "PrefetchThread::num_produced: " << num_produced;
@@ -462,6 +490,11 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
     condition_variable cond_var_;
     PrefetchAutotuner auto_tuner_ GUARDED_BY(mu_);
     std::deque<BufferElement> buffer_ GUARDED_BY(mu_);
+    
+    // It is used to repeat previous some cached dataset element.
+    int echo_size_ = 16;
+    std::vector<BufferElement> echoing_buffer_ GUARDED_BY(mu_);
+
     std::unique_ptr<Thread> prefetch_thread_ GUARDED_BY(mu_);
     bool cancelled_ GUARDED_BY(mu_) = false;
     bool prefetch_thread_finished_ GUARDED_BY(mu_) = false;
