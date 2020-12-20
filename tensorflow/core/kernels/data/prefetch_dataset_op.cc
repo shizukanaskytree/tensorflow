@@ -389,6 +389,16 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           buffer_element.created_us = ctx->env()->NowMicros();
 
           // =======================
+          // data-echoed as the baseline
+          // =======================
+          // --------------------------------------------------------
+          for (int i = 0; i < echo_size_; ++i) {
+            echoing_buffer_.push_back(buffer_element);
+          }
+          // --------------------------------------------------------
+
+
+          // =======================
           // idea: data echoing
           // idea: 能不能一次取 x4.
           // follow up idea: 能不能存一个 buffer 记住之前的某几个, 留着备用?
@@ -407,18 +417,17 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           // a degree to control the echo_size_ memory(history)
           // 保鲜度指数: new 一点 还是 陈腐一点.
           // --------------------------------------------------------
-          echoing_buffer_.push_back(buffer_element);
-          VLOG(0) << "size of echoing_buffer_: " << echoing_buffer_.size();
-          if (echoing_buffer_.size() > echo_size_) {
-            
-            echoing_buffer_.erase(echoing_buffer_.begin());
-          }
-          // shuffle echoing_buffer_ elements
-          auto rng = std::default_random_engine {};
+          //my idea// echoing_buffer_.push_back(buffer_element);
+          //my idea// //VLOG(0) << "size of echoing_buffer_: " << echoing_buffer_.size();
+          //my idea// if (echoing_buffer_.size() > echo_size_) {
+          //my idea//   echoing_buffer_.erase(echoing_buffer_.begin());
+          //my idea// }
+          //my idea// // shuffle echoing_buffer_ elements
+          //my idea// auto rng = std::default_random_engine {};
 
-          // shuffle(order) 替换成
-          // pick one then replacement => permutation
-          std::shuffle(std::begin(echoing_buffer_), std::end(echoing_buffer_), rng);
+          //my idea// // shuffle(order) 替换成
+          //my idea// // pick one then replacement => permutation
+          //my idea// std::shuffle(std::begin(echoing_buffer_), std::end(echoing_buffer_), rng);
 
           // --------------------------------------------------------
 
@@ -428,6 +437,14 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           for (auto &elem: echoing_buffer_) {
             buffer_.push_back(elem);
           }
+
+          // =======================
+          // data-echoed as the baseline
+          // =======================
+          // --------------------------------------------------------
+          // clear the data-echoed buffer completely
+          echoing_buffer_.clear();
+          // --------------------------------------------------------
 
           //original// buffer_.push_back(std::move(buffer_element));
 
