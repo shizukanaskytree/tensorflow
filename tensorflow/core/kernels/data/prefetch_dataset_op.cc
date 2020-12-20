@@ -492,7 +492,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
     std::deque<BufferElement> buffer_ GUARDED_BY(mu_);
     
     // It is used to repeat previous some cached dataset element.
-    int echo_size_ = 16;
+    int echo_size_ = 32;
     std::vector<BufferElement> echoing_buffer_ GUARDED_BY(mu_);
 
     std::unique_ptr<Thread> prefetch_thread_ GUARDED_BY(mu_);
