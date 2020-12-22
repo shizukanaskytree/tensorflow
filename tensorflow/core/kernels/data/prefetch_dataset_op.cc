@@ -36,6 +36,18 @@ namespace data {
 constexpr double kSleepFactor = 0.2;
 constexpr char kDatasetName[] = "Prefetch";
 
+// NOTE: find //debug// VLOG(0) to find buffer size info.
+
+// newly generated data, fresh data.
+int num_batches = 0;
+// 每隔多少步进行采样老数据, 然后缓存下来. 50,000 data for cifar-10, 使用质数来 sample.
+int stale_data_sampling_freq = 7;
+
+// num_steps = consume + generate (insert)
+int num_steps = 0;
+// every 16 new mini-batches data, then we append some (K=16) history cached data to it.
+int echo_freq = 16*2;
+
 class PrefetchDatasetOp::Dataset : public DatasetBase {
  public:
   Dataset(OpKernelContext* ctx, const DatasetBase* input, int64 buffer_size,
@@ -44,7 +56,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
         input_(input),
         buffer_size_(buffer_size),
         slack_period_(slack_period) {
-    VLOG(0) << "slack_period_: " << slack_period_; 
+    //VLOG(0) << "slack_period_: " << slack_period_; 
     //VLOG(0) << "buffer_size_: " << buffer_size_; 
     // buffer_size_: -1
     input_->Ref();
@@ -150,7 +162,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
         }
 
         if (!buffer_.empty()) {
-          //VLOG(0) << "buffer not empty, Consume";
+          //VLOG(0) << "Consume @ GetNextInternal since buffer not empty";
           return Consume(ctx, out_tensors, end_of_sequence);
         }
 
@@ -297,6 +309,11 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
       // autotune in `Consume` to determine the buffer size.
       auto_tuner_.RecordConsumption(buffer_.size());
       buffer_.pop_front();
+      
+      //debug// VLOG(0) << "buffer size after Consume: " << buffer_.size();
+      // count the step we extract the data from the prefetch stage.
+      num_steps += 1; // num_steps = generate + consume.
+
       *end_of_sequence = false;
 
       // Wake the prefetch thread, in case it has been waiting for space
@@ -351,6 +368,9 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           }
         }
 
+        // print the buffer size
+        //VLOG(0) << "buffer size: " << buffer_.size();
+
         if (dataset()->slack_period_ > 0 &&
             num_produced % dataset()->slack_period_ == 0) {
           // For the first element in the "burst", sleep for a bit if there is
@@ -388,6 +408,9 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           RecordBufferEnqueue(ctx.get(), buffer_element.value);
           buffer_element.created_us = ctx->env()->NowMicros();
 
+          // count the training step.
+          num_steps += 1; // num_steps = generate + consume.
+
           // =======================
           // idea: data echoing
           // idea: 能不能一次取 x4.
@@ -407,29 +430,57 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           // a degree to control the echo_size_ memory(history)
           // 保鲜度指数: new 一点 还是 陈腐一点.
           // --------------------------------------------------------
-          echoing_buffer_.push_back(buffer_element);
-          VLOG(0) << "size of echoing_buffer_: " << echoing_buffer_.size();
-          if (echoing_buffer_.size() > echo_size_) {
-            
-            echoing_buffer_.erase(echoing_buffer_.begin());
+          // append stale data every "echo_freq of newly generated data steps".
+          if (num_batches % stale_data_sampling_freq == 0) {
+            echoing_buffer_.push_back(buffer_element);
+            //VLOG(0) << "size of echoing_buffer_: " << echoing_buffer_.size();
+            if (echoing_buffer_.size() > echo_size_) {
+              echoing_buffer_.erase(echoing_buffer_.begin());
+
+              // 我们是否可以 erase 一半呢?
+              //echoing_buffer_.erase(echoing_buffer_.begin() + echoing_buffer_.size() / 2, echoing_buffer_.end());
+
+              // 我们是否可以 erase 3/4 呢?
+              //echoing_buffer_.erase(echoing_buffer_.begin() + echoing_buffer_.size()*(1/2), echoing_buffer_.end());
+
+              // 我们是否可以 erase 老一半呢?
+              //echoing_buffer_.erase(echoing_buffer_.begin(), echoing_buffer_.end() - echoing_buffer_.size()*(1/2));
+              
+              // 是否可以全部 erase?
+              //echoing_buffer_.clear();
+            }
           }
-          // shuffle echoing_buffer_ elements
-          auto rng = std::default_random_engine {};
 
-          // shuffle(order) 替换成
-          // pick one then replacement => permutation
-          std::shuffle(std::begin(echoing_buffer_), std::end(echoing_buffer_), rng);
+          // we append stale data into the fresh data every echo_freq (e.g., 8 new mini-batches) as a new buffer.
+          if (num_steps % echo_freq == 0) {
+            // shuffle echoing_buffer_ elements
+            auto rng = std::default_random_engine {};
 
+            // shuffle(order) 替换成
+            // pick one then replacement => permutation
+            std::shuffle(std::begin(echoing_buffer_), std::end(echoing_buffer_), rng);
+
+            // push fresh data first, then the echoed data to buffer_ next.
+            buffer_.push_back(buffer_element);
+            num_batches += 1;
+            //debug// VLOG(0) << "buffer size +1 : " << buffer_.size() 
+            //debug//         << "; echoing_buffer_ size: " << echoing_buffer_.size()
+            //debug//         << "; num of batches: " << num_batches;
+            // push the echoed data from history
+            for (auto &elem: echoing_buffer_) {
+              buffer_.push_back(elem);
+            }
+          }
           // --------------------------------------------------------
 
-          // push fresh data first, then the echoed data to buffer_ next.
-          buffer_.push_back(buffer_element);
-          // push the echoed data from history 
-          for (auto &elem: echoing_buffer_) {
-            buffer_.push_back(elem);
-          }
+          buffer_.push_back(std::move(buffer_element));
+          num_batches += 1;
+          //debug// VLOG(0) << "buffer size +1 : " << buffer_.size() 
+          //debug//         << "; echoing_buffer_ size: " << echoing_buffer_.size()
+          //debug//         << "; num of batches: " << num_batches;
 
-          //original// buffer_.push_back(std::move(buffer_element));
+          // print the buffer size
+          //debug// VLOG(0) << "buffer size after push back echoing_buffer_: " << buffer_.size();
 
           cond_var_.notify_all();
         }
@@ -492,7 +543,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
     std::deque<BufferElement> buffer_ GUARDED_BY(mu_);
     
     // It is used to repeat previous some cached dataset element.
-    int echo_size_ = 32;
+    int echo_size_ = 16;
     std::vector<BufferElement> echoing_buffer_ GUARDED_BY(mu_);
 
     std::unique_ptr<Thread> prefetch_thread_ GUARDED_BY(mu_);
