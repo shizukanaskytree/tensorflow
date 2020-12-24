@@ -41,12 +41,12 @@ constexpr char kDatasetName[] = "Prefetch";
 // newly generated data, fresh data.
 int num_batches = 0;
 // 每隔多少步进行采样老数据, 然后缓存下来. 50,000 data for cifar-10, 使用质数来 sample.
-int stale_data_sampling_freq = 7;
+int stale_data_sampling_freq = 400; // good setting: 400.
 
 // num_steps = consume + generate (insert)
 int num_steps = 0;
 // every 16 new mini-batches data, then we append some (K=16) history cached data to it.
-int echo_freq = 16*2;
+int echo_freq = 16*4;
 
 class PrefetchDatasetOp::Dataset : public DatasetBase {
  public:
@@ -300,7 +300,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           // measurement because we slept for that duration before prefetching
           // the element.
           slack_us_ = kSleepFactor * slack_us_ + slack_us;
-          VLOG(0) << "Setting slack_us_: " << slack_us_;
+          //VLOG(0) << "Setting slack_us_: " << slack_us_;
           VLOG(2) << "Setting slack_us_: " << slack_us_;
         }
         *out_tensors = std::move(buffer_.front().value);
@@ -430,7 +430,8 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           // a degree to control the echo_size_ memory(history)
           // 保鲜度指数: new 一点 还是 陈腐一点.
           // --------------------------------------------------------
-          // append stale data every "echo_freq of newly generated data steps".
+          // append stale data every "echo_freq of newly generated data steps".          
+
           if (num_batches % stale_data_sampling_freq == 0) {
             echoing_buffer_.push_back(buffer_element);
             //VLOG(0) << "size of echoing_buffer_: " << echoing_buffer_.size();
@@ -480,7 +481,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           //debug//         << "; num of batches: " << num_batches;
 
           // print the buffer size
-          //debug// VLOG(0) << "buffer size after push back echoing_buffer_: " << buffer_.size();
+          //debug// VLOG(0) << "buffer size without pushing echoing_buffer_: " << buffer_.size();
 
           cond_var_.notify_all();
         }
@@ -543,7 +544,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
     std::deque<BufferElement> buffer_ GUARDED_BY(mu_);
     
     // It is used to repeat previous some cached dataset element.
-    int echo_size_ = 16;
+    int echo_size_ = 32;
     std::vector<BufferElement> echoing_buffer_ GUARDED_BY(mu_);
 
     std::unique_ptr<Thread> prefetch_thread_ GUARDED_BY(mu_);
