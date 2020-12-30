@@ -46,7 +46,7 @@ int num_batches = 0;
 // num_steps = consume + generate (insert)
 int num_steps = 0;
 // every 16 new mini-batches data, then we append some (K=16) history cached data to it.
-int echo_freq = 16*3;
+int echo_freq = 16*10;
 
 class PrefetchDatasetOp::Dataset : public DatasetBase {
  public:
@@ -428,7 +428,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           }
 
           // echo 频率
-          if (num_batches >= echo_size_ && (num_steps % echo_freq == 0)) {
+          if (num_batches >= echo_size_ && (num_batches % echo_freq == 0)) {
             buffer_.push_back(std::move(buffer_element));
             for (auto &elem: echoing_buffer_) {
               buffer_.push_back(elem);
