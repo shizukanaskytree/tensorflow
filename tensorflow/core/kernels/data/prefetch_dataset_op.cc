@@ -38,15 +38,11 @@ constexpr char kDatasetName[] = "Prefetch";
 
 // NOTE: find //debug// VLOG(0) to find buffer size info.
 
-// newly generated data, fresh data.
-int num_batches = 0;
 // 每隔多少步进行采样老数据, 然后缓存下来. 50,000 data for cifar-10, 使用质数来 sample.
 //old// int stale_data_sampling_freq = 400; // good setting: 400.
 
-// num_steps = consume + generate (insert)
-int num_steps = 0;
 // every 16 new mini-batches data, then we append some (K=16) history cached data to it.
-int echo_freq = 16*10;
+int echo_freq = 16*4;
 
 class PrefetchDatasetOp::Dataset : public DatasetBase {
  public:
@@ -312,7 +308,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
       
       //debug// VLOG(0) << "buffer size after Consume: " << buffer_.size();
       // count the step we extract the data from the prefetch stage.
-      num_steps += 1; // num_steps = generate + consume.
+      num_steps_ += 1; // num_steps = generate + consume.
 
       *end_of_sequence = false;
 
@@ -409,26 +405,27 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           buffer_element.created_us = ctx->env()->NowMicros();
 
           // count the training step.
-          num_steps += 1; // num_steps = generate + consume.
+          num_steps_ += 1; // num_steps_ = generate + consume.
           
           // =======================
           // idea: 水塘抽样（Reservoir sampling）
           // =======================
-          //VLOG(0) << "-DEBUG-";
-          if (num_batches <= echo_size_) {
+          //VLOG(0) << "- DEBUG 1 -";
+          //VLOG(0) << "num_batches_: " << num_batches_;
+          if (num_batches_ < echo_size_) {
             echoing_buffer_.push_back(buffer_element);
-            //VLOG(0) << echoing_buffer_.size();
+            //VLOG(0) << "push to sampling pool, size = " << echoing_buffer_.size();
           } else {
-            int r = rand() % num_batches;
+            int r = rand() % num_batches_;
             if (r < echo_size_) {
-              //VLOG(0) << echoing_buffer_.size();
+              //VLOG(0) << "echo buffer size = " << echoing_buffer_.size();
               //VLOG(0) << "r = " << r;
               echoing_buffer_[r] = buffer_element;
             }
           }
 
           // echo 频率
-          if (num_batches >= echo_size_ && (num_batches % echo_freq == 0)) {
+          if (num_batches_ >= echo_size_ && (num_batches_ % echo_freq == 0)) {
             buffer_.push_back(std::move(buffer_element));
             for (auto &elem: echoing_buffer_) {
               buffer_.push_back(elem);
@@ -440,7 +437,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           }
 
           // num of fresh mini-batches.
-          num_batches += 1;
+          num_batches_ += 1;
 
           // =======================
           // idea: data echoing
@@ -570,8 +567,12 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
     PrefetchAutotuner auto_tuner_ GUARDED_BY(mu_);
     std::deque<BufferElement> buffer_ GUARDED_BY(mu_);
     
+    // sparated cases: num_steps_ should be private! num_steps_ = consume + generate (insert)
+    int num_steps_ = 0;
+    // newly generated data, fresh data.
+    int num_batches_ = 0;
     // It is used to repeat previous some cached dataset element.
-    int echo_size_ = 8;
+    int echo_size_ = 4;
     std::vector<BufferElement> echoing_buffer_ GUARDED_BY(mu_);
 
     std::unique_ptr<Thread> prefetch_thread_ GUARDED_BY(mu_);
