@@ -151,9 +151,9 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
                !prefetch_thread_finished_ && auto_tuner_.buffer_limit() != 0) {
           // when buffer_ is empty, push stale data
           for(int i = 0; i < 3; ++i){
-          int r = rand() % (echoing_buffer_.size());
-          auto elem = echoing_buffer_[r];
-          buffer_.push_back(elem);
+            int r = rand() % (echoing_buffer_.size());
+            auto elem = echoing_buffer_[r];
+            buffer_.push_back(elem);
           }
           //VLOG(0) << "elem created time: " << elem.created_us;
           //VLOG(0) << "+ push to buffer, size: " << buffer_.size();;
@@ -435,13 +435,23 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           } else {
             // the problem is fresh data can hardly replace new data later.
             //int r = rand() % echo_size_*3; // 1 of 3 chance to replace 
-            int r = rand() % (num_batches_%1280000);
+
+            // each epoch, we should reset the r from 1..40036
+            int r = rand() % (num_batches_ % int(1281167/32));
             if (r < echo_size_) {
               //VLOG(0) << "echo buffer size = " << echoing_buffer_.size();
               //VLOG(0) << "r = " << r;
               //VLOG(0) << "replace r = " << r;
               echoing_buffer_[r] = buffer_element;
             }
+          }
+
+          // num of fresh mini-batches.
+          num_batches_ += 1;
+
+          // reset the echoing_buffer_ each epoch, here we hardcore the batch size = 32.
+          if (num_batches_ % int(1281167/320) == 0) {
+            echoing_buffer_.clear();
           }
 
           //o// // echo 频率
@@ -455,9 +465,6 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           //o//   buffer_.push_back(std::move(buffer_element));
           //o//   num_produced += 1;
           //o// }
-
-          // num of fresh mini-batches.
-          num_batches_ += 1;
 
           // =======================
           // idea: data echoing
