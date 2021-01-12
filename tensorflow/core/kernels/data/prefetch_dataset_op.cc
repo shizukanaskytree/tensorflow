@@ -42,7 +42,7 @@ constexpr char kDatasetName[] = "Prefetch";
 //old// int stale_data_sampling_freq = 400; // good setting: 400.
 
 // every 16 new mini-batches data, then we append some (K=16) history cached data to it.
-int echo_freq = 16*4;
+//o// int echo_freq = 1; //16*6;
 
 class PrefetchDatasetOp::Dataset : public DatasetBase {
  public:
@@ -143,9 +143,26 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
         TF_RETURN_IF_ERROR(EnsurePrefetchThreadStarted(ctx));
         // Wait until the next element in the buffer has been
         // produced, or we are shutting down.
+        //VLOG(0) << "- Before echoing, buffer size: " << buffer_.size(); 
+
+        // 当 model 从 dataset pipeline 去取的时候, 如果是空的, buffer_.empty() 那么就用老数据.
+        // 前提是 echoing_buffer_ 内有 elements!
+        while (!echoing_buffer_.empty() && !cancelled_ && buffer_.empty() && 
+               !prefetch_thread_finished_ && auto_tuner_.buffer_limit() != 0) {
+          // when buffer_ is empty, push stale data
+          for(int i = 0; i < 3; ++i){
+          int r = rand() % (echoing_buffer_.size());
+          auto elem = echoing_buffer_[r];
+          buffer_.push_back(elem);
+          }
+          //VLOG(0) << "elem created time: " << elem.created_us;
+          //VLOG(0) << "+ push to buffer, size: " << buffer_.size();;
+        }
+        //VLOG(0) << "+ After echoing, buffer size: "  
+
         while (!cancelled_ && buffer_.empty() && !prefetch_thread_finished_ &&
                auto_tuner_.buffer_limit() != 0) {
-          //VLOG(0) << "GetNextInternal, wait, empty";
+          //VLOG(0) << "GetNextInternal, wait, empty";      
           auto_tuner_.RecordEmpty();
           RecordStop(ctx);
           cond_var_.wait(l);
@@ -412,29 +429,32 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           // =======================
           //VLOG(0) << "- DEBUG 1 -";
           //VLOG(0) << "num_batches_: " << num_batches_;
-          if (num_batches_ < echo_size_) {
+          if (echoing_buffer_.size() < echo_size_) {
             echoing_buffer_.push_back(buffer_element);
             //VLOG(0) << "push to sampling pool, size = " << echoing_buffer_.size();
           } else {
-            int r = rand() % num_batches_;
+            // the problem is fresh data can hardly replace new data later.
+            //int r = rand() % echo_size_*3; // 1 of 3 chance to replace 
+            int r = rand() % (num_batches_%1280000);
             if (r < echo_size_) {
               //VLOG(0) << "echo buffer size = " << echoing_buffer_.size();
               //VLOG(0) << "r = " << r;
+              //VLOG(0) << "replace r = " << r;
               echoing_buffer_[r] = buffer_element;
             }
           }
 
-          // echo 频率
-          if (num_batches_ >= echo_size_ && (num_batches_ % echo_freq == 0)) {
-            buffer_.push_back(std::move(buffer_element));
-            for (auto &elem: echoing_buffer_) {
-              buffer_.push_back(elem);
-            }
-            num_produced += (echo_size_ + 1);
-          } else {
-            buffer_.push_back(std::move(buffer_element));
-            num_produced += 1;
-          }
+          //o// // echo 频率
+          //o// if (num_batches_ >= echo_size_ && (num_batches_ % echo_freq == 0)) {
+          //o//   buffer_.push_back(std::move(buffer_element));
+          //o//   for (auto &elem: echoing_buffer_) {
+          //o//     buffer_.push_back(elem);
+          //o//   }
+          //o//   num_produced += (echo_size_ + 1);
+          //o// } else {
+          //o//   buffer_.push_back(std::move(buffer_element));
+          //o//   num_produced += 1;
+          //o// }
 
           // num of fresh mini-batches.
           num_batches_ += 1;
@@ -447,7 +467,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           // push to the buffer_ x 4.
           // =======================
 
-          //origin// buffer_.push_back(std::move(buffer_element));
+          buffer_.push_back(std::move(buffer_element));
 
           // cache the previous dataset elements and randomize it.
           // echo size limit is the history to maintain.
@@ -511,7 +531,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
 
           cond_var_.notify_all();
         }
-        //origin// ++num_produced;
+        ++num_produced;
 
         // push to the buffer_ xN.
         //VLOG(0) << "PrefetchThread::num_produced: " << num_produced;
@@ -572,8 +592,8 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
     // newly generated data, fresh data.
     int num_batches_ = 0;
     // It is used to repeat previous some cached dataset element.
-    int echo_size_ = 4;
-    std::vector<BufferElement> echoing_buffer_ GUARDED_BY(mu_);
+    int echo_size_ = 320;
+    std::deque<BufferElement> echoing_buffer_ GUARDED_BY(mu_);
 
     std::unique_ptr<Thread> prefetch_thread_ GUARDED_BY(mu_);
     bool cancelled_ GUARDED_BY(mu_) = false;
