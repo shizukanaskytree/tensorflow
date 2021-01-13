@@ -599,8 +599,8 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
     // newly generated data, fresh data.
     int num_batches_ = 0;
     // It is used to repeat previous some cached dataset element.
-    int echo_size_ = 400;
-    int K_ = 4;
+    int echo_size_ = 1600;
+    int K_ = 3;
     std::deque<BufferElement> echoing_buffer_ GUARDED_BY(mu_);
 
     std::unique_ptr<Thread> prefetch_thread_ GUARDED_BY(mu_);
