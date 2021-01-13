@@ -375,6 +375,12 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           mutex_lock l(mu_);
           RecordBufferEnqueue(ctx.get(), buffer_element.value);
           buffer_element.created_us = ctx->env()->NowMicros();
+
+          // data echoing: repeat the same data (mini-batch) for K_ times.
+          for (int i = 0; i < K_-1; ++i) {
+            buffer_.push_back(buffer_element);
+          }
+          
           buffer_.push_back(std::move(buffer_element));
           cond_var_.notify_all();
         }
@@ -435,6 +441,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
     std::unique_ptr<Thread> prefetch_thread_ GUARDED_BY(mu_);
     bool cancelled_ GUARDED_BY(mu_) = false;
     bool prefetch_thread_finished_ GUARDED_BY(mu_) = false;
+    int K_ = 3;
 
     std::atomic<int64> slack_us_;
   };
