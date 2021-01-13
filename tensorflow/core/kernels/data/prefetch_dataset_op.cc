@@ -150,7 +150,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
         while (!echoing_buffer_.empty() && !cancelled_ && buffer_.empty() && 
                !prefetch_thread_finished_ && auto_tuner_.buffer_limit() != 0) {
           // when buffer_ is empty, push stale data
-          for(int i = 0; i < 3; ++i){
+          for(int i = 0; i < K_; ++i){
             int r = rand() % (echoing_buffer_.size());
             auto elem = echoing_buffer_[r];
             buffer_.push_back(elem);
@@ -437,7 +437,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
             //int r = rand() % echo_size_*3; // 1 of 3 chance to replace 
 
             // each epoch, we should reset the r from 1..40036
-            int r = rand() % (num_batches_ % int(1281167/32));
+            int r = rand() % (num_batches_ % 4000);
             if (r < echo_size_) {
               //VLOG(0) << "echo buffer size = " << echoing_buffer_.size();
               //VLOG(0) << "r = " << r;
@@ -450,7 +450,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           num_batches_ += 1;
 
           // reset the echoing_buffer_ each epoch, here we hardcore the batch size = 32.
-          if (num_batches_ % int(1281167/320) == 0) {
+          if (num_batches_ % 4000 == 0) {
             echoing_buffer_.clear();
           }
 
@@ -599,7 +599,8 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
     // newly generated data, fresh data.
     int num_batches_ = 0;
     // It is used to repeat previous some cached dataset element.
-    int echo_size_ = 320;
+    int echo_size_ = 400;
+    int K_ = 4;
     std::deque<BufferElement> echoing_buffer_ GUARDED_BY(mu_);
 
     std::unique_ptr<Thread> prefetch_thread_ GUARDED_BY(mu_);
