@@ -134,23 +134,26 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
       {
         mutex_lock l(mu_);
         TF_RETURN_IF_ERROR(EnsurePrefetchThreadStarted(ctx));
+
         // Wait until the next element in the buffer has been
         // produced, or we are shutting down.
         while (!cancelled_ && buffer_.empty() && !prefetch_thread_finished_ &&
                auto_tuner_.buffer_limit() != 0) {
-          //VLOG(0) << "Wait enter.";
+          //VLOG(0) << "== Wait enter.";
+          VLOG(0) << "== Thread " << std::this_thread::get_id() << ", buffer size:" << buffer_.size();
           // test timer start
-          high_resolution_clock::time_point t_s = high_resolution_clock::now();
+          t_s_empty_ = high_resolution_clock::now();
+
           auto_tuner_.RecordEmpty();
           RecordStop(ctx);
           cond_var_.wait(l);
           RecordStart(ctx);
           
-          //VLOG(0) << "Wait leave.";
+          //VLOG(0) << "== Wait leave.";
           // test timer end. 
-          high_resolution_clock::time_point t_e = high_resolution_clock::now();
-          double diff = duration_cast<milliseconds>(t_e - t_s).count();
-          VLOG(0) << "Thread " << std::this_thread::get_id() << " waits milliseconds: " << diff;
+          t_e_empty_ = high_resolution_clock::now();
+          diff_empty_ = duration_cast<milliseconds>(t_e_empty_ - t_s_empty_).count();
+          VLOG(0) << "== Thread " << std::this_thread::get_id() << " waits milliseconds: " << diff_empty_;
         }
 
         if (cancelled_) {
@@ -304,6 +307,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
       }
       auto_tuner_.RecordConsumption(buffer_.size());
       buffer_.pop_front();
+      VLOG(0) << "-- Consume by " << "Thread " << std::this_thread::get_id() << ", size: " << buffer_.size();
       *end_of_sequence = false;
 
       // Wake the prefetch thread, in case it has been waiting for space
@@ -345,17 +349,18 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           // auto_tuner_ 是提供一个阈值让 prefetch thread 等待与否.
           // buffer_limit 自然是越大越好. 这样 prefetch thread 不容易停下来.
           while (!cancelled_ && buffer_.size() >= auto_tuner_.buffer_limit()) {
-            VLOG(0) << "limit: " << auto_tuner_.buffer_limit() << " <= size: " << buffer_.size(); 
+            VLOG(0) << "|| Thread " << std::this_thread::get_id() << ", before, limit: " << auto_tuner_.buffer_limit() << " <= size: " << buffer_.size(); 
 
-            high_resolution_clock::time_point t_s = high_resolution_clock::now();
+            t_s_limit_ = high_resolution_clock::now();
             RecordStop(ctx.get());
             cond_var_.wait(l);
             RecordStart(ctx.get());
+
             // test timer end. 
-            high_resolution_clock::time_point t_e = high_resolution_clock::now();
-            double diff = duration_cast<milliseconds>(t_e - t_s).count();
-            VLOG(0) << "Thread " << std::this_thread::get_id() << " waits milliseconds (reach limit): " << diff;
-            VLOG(0) << "After, limit: " << auto_tuner_.buffer_limit() << " <= size: " << buffer_.size(); 
+            t_e_limit_ = high_resolution_clock::now();
+            diff_limit_ = duration_cast<milliseconds>(t_e_limit_ - t_s_limit_).count();
+            VLOG(0) << "|| Thread " << std::this_thread::get_id() << " waits milliseconds (reach limit): " << diff_limit_;
+            VLOG(0) << "|| Thread " << std::this_thread::get_id() << ", after, limit: " << auto_tuner_.buffer_limit() << " <= size: " << buffer_.size(); 
           }
 
           if (cancelled_) {
@@ -380,8 +385,19 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
         mutex_lock parent_l(parent_mu_);
         bool end_of_sequence;
         BufferElement buffer_element;
+
+        VLOG(0) << "Thread " << std::this_thread::get_id() << " before get, size: " << buffer_.size(); 
+        // timer starts
+        t_s_ = high_resolution_clock::now();
         buffer_element.status = input_impl_->GetNext(
             ctx.get(), &buffer_element.value, &end_of_sequence);
+        // timer ends
+        t_e_ = high_resolution_clock::now();
+        diff_ = duration_cast<milliseconds>(t_e_ - t_s_).count();
+        VLOG(0) << "++ Thread " << std::this_thread::get_id() << " waits milliseconds to get next data: " << diff_;
+        VLOG(0) << "Thread " << std::this_thread::get_id() << " after get, size: " << buffer_.size()+1; 
+
+
         if (buffer_element.status.ok() && end_of_sequence) {
           mutex_lock l(mu_);
           prefetch_thread_finished_ = true;
@@ -456,6 +472,17 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
     bool prefetch_thread_finished_ GUARDED_BY(mu_) = false;
 
     std::atomic<int64> slack_us_;
+    high_resolution_clock::time_point t_s_;
+    high_resolution_clock::time_point t_e_;
+    double diff_;
+
+    high_resolution_clock::time_point t_s_limit_;
+    high_resolution_clock::time_point t_e_limit_;
+    double diff_limit_;
+
+    high_resolution_clock::time_point t_s_empty_;
+    high_resolution_clock::time_point t_e_empty_;
+    double diff_empty_;
   };
   const DatasetBase* const input_;
   const int64 buffer_size_;
