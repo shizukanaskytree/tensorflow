@@ -138,7 +138,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
         // produced, or we are shutting down.
         while (!cancelled_ && buffer_.empty() && !prefetch_thread_finished_ &&
                auto_tuner_.buffer_limit() != 0) {
-          VLOG(0) << "Wait enter.";
+          //VLOG(0) << "Wait enter.";
           // test timer start
           high_resolution_clock::time_point t_s = high_resolution_clock::now();
           auto_tuner_.RecordEmpty();
@@ -146,7 +146,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           cond_var_.wait(l);
           RecordStart(ctx);
           
-          VLOG(0) << "Wait leave.";
+          //VLOG(0) << "Wait leave.";
           // test timer end. 
           high_resolution_clock::time_point t_e = high_resolution_clock::now();
           double diff = duration_cast<milliseconds>(t_e - t_s).count();
@@ -345,9 +345,17 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           // auto_tuner_ 是提供一个阈值让 prefetch thread 等待与否.
           // buffer_limit 自然是越大越好. 这样 prefetch thread 不容易停下来.
           while (!cancelled_ && buffer_.size() >= auto_tuner_.buffer_limit()) {
+            VLOG(0) << "limit: " << auto_tuner_.buffer_limit() << " <= size: " << buffer_.size(); 
+
+            high_resolution_clock::time_point t_s = high_resolution_clock::now();
             RecordStop(ctx.get());
             cond_var_.wait(l);
             RecordStart(ctx.get());
+            // test timer end. 
+            high_resolution_clock::time_point t_e = high_resolution_clock::now();
+            double diff = duration_cast<milliseconds>(t_e - t_s).count();
+            VLOG(0) << "Thread " << std::this_thread::get_id() << " waits milliseconds (reach limit): " << diff;
+            VLOG(0) << "After, limit: " << auto_tuner_.buffer_limit() << " <= size: " << buffer_.size(); 
           }
 
           if (cancelled_) {
