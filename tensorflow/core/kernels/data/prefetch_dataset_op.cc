@@ -15,6 +15,8 @@ limitations under the License.
 #include "tensorflow/core/kernels/data/prefetch_dataset_op.h"
 
 #include <deque>
+#include <chrono>
+using namespace std::chrono;
 
 #include "tensorflow/core/common_runtime/metrics.h"
 #include "tensorflow/core/framework/partial_tensor_shape.h"
@@ -136,10 +138,19 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
         // produced, or we are shutting down.
         while (!cancelled_ && buffer_.empty() && !prefetch_thread_finished_ &&
                auto_tuner_.buffer_limit() != 0) {
+          VLOG(0) << "Wait enter.";
+          // test timer start
+          high_resolution_clock::time_point t_s = high_resolution_clock::now();
           auto_tuner_.RecordEmpty();
           RecordStop(ctx);
           cond_var_.wait(l);
           RecordStart(ctx);
+          
+          VLOG(0) << "Wait leave.";
+          // test timer end. 
+          high_resolution_clock::time_point t_e = high_resolution_clock::now();
+          double diff = duration_cast<milliseconds>(t_e - t_s).count();
+          VLOG(0) << "Thread " << std::this_thread::get_id() << " waits milliseconds: " << diff;
         }
 
         if (cancelled_) {
