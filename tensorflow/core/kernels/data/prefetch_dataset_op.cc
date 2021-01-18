@@ -451,17 +451,20 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           //VLOG(0) << "num_batches_: " << num_batches_;
           if (echoing_buffer_.size() < echo_size_) {
             echoing_buffer_.push_back(buffer_element);
+          } else {
+            // each epoch, we should reset the r from 1..40036
+            int cycle = num_batches_ % 40036;
+            if (cycle == 0) {
+              cycle = 1;
+            }
+            int r = rand() % cycle;
+            if (r < echo_size_) {
+              //VLOG(0) << "echo buffer size = " << echoing_buffer_.size();
+              //VLOG(0) << "r = " << r;
+              //VLOG(0) << "replace r = " << r;
+              echoing_buffer_[r] = buffer_element;
+            }
           }
-          //cache// } else {
-          //cache//   // each epoch, we should reset the r from 1..40036
-          //cache//   int r = rand() % (num_batches_ % 4000);
-          //cache//   if (r < echo_size_) {
-          //cache//     //VLOG(0) << "echo buffer size = " << echoing_buffer_.size();
-          //cache//     //VLOG(0) << "r = " << r;
-          //cache//     //VLOG(0) << "replace r = " << r;
-          //cache//     echoing_buffer_[r] = buffer_element;
-          //cache//   }
-          //cache// }
 
           // num of fresh mini-batches.
           num_batches_ += 1;
@@ -537,7 +540,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
     // newly generated data, fresh data.
     int num_batches_ = 0;
     // It is used to repeat previous some cached dataset element.
-    int echo_size_ = 40036; // 1201167/32 ~= 40036
+    int echo_size_ = 4000; // 1201167/32 ~= 40036
     int K_ = 4;
     std::deque<BufferElement> echoing_buffer_ GUARDED_BY(mu_);
 
