@@ -149,18 +149,18 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
 
         // 当 model 从 dataset pipeline 去取的时候, 如果是空的, buffer_.empty() 那么就用老数据.
         // 前提是 echoing_buffer_ 内有 elements!
-        while (!echoing_buffer_.empty() && !cancelled_ && buffer_.empty() && 
-               !prefetch_thread_finished_ && auto_tuner_.buffer_limit() != 0) {
-          //VLOG(0) << "== Thread " << std::this_thread::get_id() << ", buffer size:" << buffer_.size();
-          // when buffer_ is empty, push stale data
-          for(int i = 0; i < K_; ++i){
-            int r = rand() % (echoing_buffer_.size());
-            auto elem = echoing_buffer_[r];
-            buffer_.push_back(elem);
-          }
-          //VLOG(0) << "elem created time: " << elem.created_us;
-          //VLOG(0) << "+ push to buffer, size: " << buffer_.size();;
-        }
+        //cache// while (!echoing_buffer_.empty() && !cancelled_ && buffer_.empty() && 
+        //cache//        !prefetch_thread_finished_ && auto_tuner_.buffer_limit() != 0) {
+        //cache//   //VLOG(0) << "== Thread " << std::this_thread::get_id() << ", buffer size:" << buffer_.size();
+        //cache//   // when buffer_ is empty, push stale data
+        //cache//   for(int i = 0; i < K_; ++i){
+        //cache//     int r = rand() % (echoing_buffer_.size());
+        //cache//     auto elem = echoing_buffer_[r];
+        //cache//     buffer_.push_back(elem);
+        //cache//   }
+        //cache//   //VLOG(0) << "elem created time: " << elem.created_us;
+        //cache//   //VLOG(0) << "+ push to buffer, size: " << buffer_.size();;
+        //cache// }
         //VLOG(0) << "+ After echoing, buffer size: "  
 
         while (!cancelled_ && buffer_.empty() && !prefetch_thread_finished_ &&
@@ -448,122 +448,39 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           // =======================
           // idea: 水塘抽样（Reservoir sampling）
           // =======================
-          //VLOG(0) << "- DEBUG 1 -";
           //VLOG(0) << "num_batches_: " << num_batches_;
           if (echoing_buffer_.size() < echo_size_) {
             echoing_buffer_.push_back(buffer_element);
-            //VLOG(0) << "push to sampling pool, size = " << echoing_buffer_.size();
-          } else {
-            // the problem is fresh data can hardly replace new data later.
-            //int r = rand() % echo_size_*3; // 1 of 3 chance to replace 
-
-            // each epoch, we should reset the r from 1..40036
-            int r = rand() % (num_batches_ % 4000);
-            if (r < echo_size_) {
-              //VLOG(0) << "echo buffer size = " << echoing_buffer_.size();
-              //VLOG(0) << "r = " << r;
-              //VLOG(0) << "replace r = " << r;
-              echoing_buffer_[r] = buffer_element;
-            }
           }
+          //cache// } else {
+          //cache//   // each epoch, we should reset the r from 1..40036
+          //cache//   int r = rand() % (num_batches_ % 4000);
+          //cache//   if (r < echo_size_) {
+          //cache//     //VLOG(0) << "echo buffer size = " << echoing_buffer_.size();
+          //cache//     //VLOG(0) << "r = " << r;
+          //cache//     //VLOG(0) << "replace r = " << r;
+          //cache//     echoing_buffer_[r] = buffer_element;
+          //cache//   }
+          //cache// }
 
           // num of fresh mini-batches.
           num_batches_ += 1;
 
-          // reset the echoing_buffer_ each epoch, here we hardcore the batch size = 32.
-          if (num_batches_ % 4000 == 0) {
-            echoing_buffer_.clear();
+          for(int i = 0; i < K_-1; ++i){
+            int r = rand() % (echoing_buffer_.size());
+            auto elem = echoing_buffer_[r];
+            buffer_.push_back(elem);
           }
 
-          //o// // echo 频率
-          //o// if (num_batches_ >= echo_size_ && (num_batches_ % echo_freq == 0)) {
-          //o//   buffer_.push_back(std::move(buffer_element));
-          //o//   for (auto &elem: echoing_buffer_) {
-          //o//     buffer_.push_back(elem);
-          //o//   }
-          //o//   num_produced += (echo_size_ + 1);
-          //o// } else {
-          //o//   buffer_.push_back(std::move(buffer_element));
-          //o//   num_produced += 1;
-          //o// }
-
-          // =======================
-          // idea: data echoing
-          // idea: 能不能一次取 x4.
-          // follow up idea: 能不能存一个 buffer 记住之前的某几个, 留着备用?
-          //   然后定期更新这些 buffer 内记住的那几个. 为了有混淆效果的 data echoing.
-          // push to the buffer_ x 4.
-          // =======================
+          //cache// // reset the echoing_buffer_ each epoch, here we hardcore the batch size = 32.
+          //cache// if (num_batches_ % 4000 == 0) {
+          //cache//   echoing_buffer_.clear();
+          //cache// }
 
           buffer_.push_back(std::move(buffer_element));
-
-          // cache the previous dataset elements and randomize it.
-          // echo size limit is the history to maintain.
-
-          // TODO : design a elegant and flexible way to store history data.
-          // history_span for replacement.
-          // push_back the current and erase which one?
-          // a degree to control the echo_size_ memory(history)
-          // 保鲜度指数: new 一点 还是 陈腐一点.
-          // --------------------------------------------------------
-          // append stale data every "echo_freq of newly generated data steps".          
-
-          //old// if (num_batches % stale_data_sampling_freq == 0) {
-          //old//   echoing_buffer_.push_back(buffer_element);
-          //old//   //VLOG(0) << "size of echoing_buffer_: " << echoing_buffer_.size();
-          //old//   if (echoing_buffer_.size() > echo_size_) {
-          //old//     echoing_buffer_.erase(echoing_buffer_.begin());
-
-          //old//     // 我们是否可以 erase 一半呢?
-          //old//     //echoing_buffer_.erase(echoing_buffer_.begin() + echoing_buffer_.size() / 2, echoing_buffer_.end());
-
-          //old//     // 我们是否可以 erase 3/4 呢?
-          //old//     //echoing_buffer_.erase(echoing_buffer_.begin() + echoing_buffer_.size()*(1/2), echoing_buffer_.end());
-
-          //old//     // 我们是否可以 erase 老一半呢?
-          //old//     //echoing_buffer_.erase(echoing_buffer_.begin(), echoing_buffer_.end() - echoing_buffer_.size()*(1/2));
-          //old//     
-          //old//     // 是否可以全部 erase?
-          //old//     //echoing_buffer_.clear();
-          //old//   }
-          //old// }
-
-          //old// // we append stale data into the fresh data every echo_freq (e.g., 8 new mini-batches) as a new buffer.
-          //old// if (num_steps % echo_freq == 0) {
-          //old//   // shuffle echoing_buffer_ elements
-          //old//   auto rng = std::default_random_engine {};
-
-          //old//   // shuffle(order) 替换成
-          //old//   // pick one then replacement => permutation
-          //old//   std::shuffle(std::begin(echoing_buffer_), std::end(echoing_buffer_), rng);
-
-          //old//   // push fresh data first, then the echoed data to buffer_ next.
-          //old//   buffer_.push_back(buffer_element);
-          //old//   //debug// VLOG(0) << "buffer size +1 : " << buffer_.size() 
-          //old//   //debug//         << "; echoing_buffer_ size: " << echoing_buffer_.size()
-          //old//   //debug//         << "; num of batches: " << num_batches;
-          //old//   // push the echoed data from history
-          //old//   for (auto &elem: echoing_buffer_) {
-          //old//     buffer_.push_back(elem);
-          //old//   }
-          //old// }
-          // --------------------------------------------------------
-
-          //buffer_.push_back(std::move(buffer_element));
-          //debug// VLOG(0) << "buffer size +1 : " << buffer_.size() 
-          //debug//         << "; echoing_buffer_ size: " << echoing_buffer_.size()
-          //debug//         << "; num of batches: " << num_batches;
-
-          // print the buffer size
-          //debug// VLOG(0) << "buffer size without pushing echoing_buffer_: " << buffer_.size();
-
           cond_var_.notify_all();
         }
         ++num_produced;
-
-        // push to the buffer_ xN.
-        //VLOG(0) << "PrefetchThread::num_produced: " << num_produced;
-
       }
     }
 
@@ -620,8 +537,8 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
     // newly generated data, fresh data.
     int num_batches_ = 0;
     // It is used to repeat previous some cached dataset element.
-    int echo_size_ = 1600;
-    int K_ = 3;
+    int echo_size_ = 40036; // 1201167/32 ~= 40036
+    int K_ = 4;
     std::deque<BufferElement> echoing_buffer_ GUARDED_BY(mu_);
 
     std::unique_ptr<Thread> prefetch_thread_ GUARDED_BY(mu_);
