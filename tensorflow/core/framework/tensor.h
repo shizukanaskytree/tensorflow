@@ -53,6 +53,7 @@ namespace batch_util {
 Status CopyElementToSlice(Tensor element, Tensor* parent, int64 index);
 Status CopySliceToElement(const Tensor& parent, Tensor* element, int64 index);
 Status MaybeMoveSliceToElement(Tensor* parent, Tensor* element, int64 index);
+Status MoveSliceToElementSlice(Tensor* parent, Tensor* element, int64 p_index, int64 e_index);
 Status CopyContiguousSlices(const Tensor& src, int64 src_offset,
                             int64 dst_offset, int64 num_slices, Tensor* dst);
 }  // namespace batch_util
@@ -681,6 +682,8 @@ class Tensor {
   friend Status batch_util::MaybeMoveSliceToElement(
       Tensor* parent, Tensor* element,
       int64 index);  // For access to base<T>().
+  // For access to base<T>().
+  friend Status batch_util::MoveSliceToElementSlice(Tensor* parent, Tensor* element, int64 p_index, int64 e_index);
   friend Status batch_util::CopyContiguousSlices(
       const Tensor& src, int64 src_offset, int64 dst_offset, int64 num_slices,
       Tensor* dst);  // For access to base<T>().

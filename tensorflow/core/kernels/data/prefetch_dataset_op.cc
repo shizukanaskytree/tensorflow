@@ -15,6 +15,9 @@ limitations under the License.
 #include "tensorflow/core/kernels/data/prefetch_dataset_op.h"
 
 #include <deque>
+#include <thread>
+#include <chrono>
+#include <algorithm>    // std::next_permutation, std::sort
 
 #include "tensorflow/core/common_runtime/metrics.h"
 #include "tensorflow/core/framework/dataset.h"
@@ -34,6 +37,16 @@ limitations under the License.
 #include "tensorflow/core/protobuf/error_codes.pb.h"
 
 namespace tensorflow {
+
+namespace batch_util {
+Status CopyElementToSlice(Tensor element, Tensor* parent, int64 index);
+Status CopySliceToElement(const Tensor& parent, Tensor* element, int64 index);
+Status MaybeMoveSliceToElement(Tensor* parent, Tensor* element, int64 index);
+Status MoveSliceToElementSlice(Tensor* parent, Tensor* element, int64 p_index, int64 e_index);
+Status CopyContiguousSlices(const Tensor& src, int64 src_offset,
+                            int64 dst_offset, int64 num_slices, Tensor* dst);
+}  // namespace batch_util
+
 namespace data {
 
 // See documentation in ../../ops/dataset_ops.cc for a high-level
@@ -71,6 +84,11 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
         legacy_autotune_(legacy_autotune),
         buffer_size_min_(buffer_size_min) {
     input_->Ref();
+
+    VLOG(0) << "TID: " << std::this_thread::get_id() << "; Dataset::Dataset" << ";\n"
+            << ctx->op_kernel().requested_device();
+    // 区分 GPU PrefetchDatasetOp and CPU
+
   }
 
   ~Dataset() override { input_->Unref(); }
@@ -145,6 +163,8 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
               legacy_autotune_ ? 0 : params.dataset->buffer_size_, mu_,
               cond_var_)) {
       slack_us_ = 0;
+
+      VLOG(0) << "TID: " << std::this_thread::get_id() << "; Iterator::Iterator";
     }
 
     ~Iterator() override {
@@ -154,6 +174,27 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
 
     Status Initialize(IteratorContext* ctx) override {
       mutex_lock l(*mu_);
+    
+      // assume 2 tensors in the vector.
+      //hide// reused_batched_elem_.value.reserve(2);
+
+      // must specify data type and shape
+      //hide// reused_batched_elem_.value.push_back(Tensor(DT_FLOAT, TensorShape({32,32,32,3})));
+      //hide// reused_batched_elem_.value.push_back(Tensor(DT_INT32, TensorShape({32})));
+
+      //hide// reused_batched_elem_.value = {Tensor(DT_FLOAT, TensorShape({128,32,32,3})), 
+      //hide//                               Tensor(DT_INT32, TensorShape({128}))};
+
+      //hide// // K reused_batched_elems_
+      //hide// reused_batched_elems_.reserve(K_);
+      //hide// for (int i = 0; i < K_; i++) {
+      //hide//   reused_batched_elems_[i].value.reserve(2);
+      //hide//   reused_batched_elems_[i].value.push_back(Tensor(DT_FLOAT, TensorShape({32,32,32,3})));
+      //hide//   reused_batched_elems_[i].value.push_back(Tensor(DT_INT32, TensorShape({32})));
+      //hide// }
+
+      //VLOG(0) << "TID: " << std::this_thread::get_id() << "; Initiaize (Iterator)";
+      
       if (buffer_size_->value == model::kAutotune) {
         buffer_size_->value = buffer_size_min_;
       }
@@ -175,6 +216,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
         if (legacy_autotune_) {
           while (!cancelled_ && buffer_.empty() && !prefetch_thread_finished_ &&
                  auto_tuner_.buffer_limit() != 0) {
+            VLOG(0) << "empty";
             auto_tuner_.RecordEmpty();
             buffer_size_->value = auto_tuner_.buffer_limit();
             RecordStop(ctx);
@@ -184,6 +226,7 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
         } else {
           while (!cancelled_ && buffer_.empty() && !prefetch_thread_finished_ &&
                  buffer_size_->value != 0) {
+            VLOG(0) << "empty";
             RecordStop(ctx);
             cond_var_->wait(l);
             RecordStart(ctx);
@@ -403,6 +446,10 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           slack_us_ = kSleepFactor * slack_us_ + slack_us;
           VLOG(2) << "Setting slack_us_: " << slack_us_;
         }
+
+        VLOG(0) << "TID: " << std::this_thread::get_id() << ", Consume buffer_: " << buffer_.size()
+                << ", batch size: " << buffer_.front().value[0].dim_size(0);
+
         *out_tensors = std::move(buffer_.front().value);
         RecordBufferDequeue(ctx, *out_tensors);
       } else {
@@ -442,6 +489,8 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
     //
     // It owns the iterator context passed to it.
     void PrefetchThread(const std::shared_ptr<IteratorContext>& ctx) {
+      //VLOG(0) << "PrefetchThread tid: " << std::this_thread::get_id();
+
       RecordStart(ctx.get());
       auto cleanup = gtl::MakeCleanup([this, ctx] { RecordStop(ctx.get()); });
       // Keep track of where we are in an iteration "burst"
@@ -451,9 +500,11 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
         {
           mutex_lock l(*mu_);
           while (!cancelled_ && buffer_.size() >= buffer_limit()) {
+            VLOG(0) << ">= buffer limit: " << buffer_.size();
             RecordStop(ctx.get());
             cond_var_->wait(l);
             RecordStart(ctx.get());
+            VLOG(0) << "exit buffer limit: " << buffer_.size();
           }
 
           if (cancelled_) {
@@ -501,10 +552,143 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
           mutex_lock l(*mu_);
           RecordBufferEnqueue(ctx.get(), buffer_element.value);
           buffer_element.created_us = EnvTime::NowMicros();
-          buffer_.push_back(std::move(buffer_element));
+          buffer_.push_back(buffer_element);
+
+          // wxf
+          //hide// VLOG(0) << "*** vector of tensors size: " << buffer_element.value.size();
+          //hide// for (auto& it: buffer_element.value) {
+          //hide//   VLOG(0) << "*** tensor debug: " << it.DebugString();
+          //hide// }
+          //hide// *** vector of tensors size: 2
+          //hide// *** tensor debug: Tensor<type: float shape: [32,32,32,3] values: [[[-1.28277624 -1.28277624 -1.28277624]]]...>
+          //hide// *** tensor debug: Tensor<type: int32 shape: [32] values: 2 9 8...>
+          //~wxf
+
+          // 6 threads, 
+          // - 2 CPU tensors, batch_size = 128
+          // - 2 CPU tensors, batch_size = 128/num_gpus = 32 or 64 
+          // - 2 GPU tensors, batch_size = 128/num_gpus = 32 or 64 
+          // so, the c++ code should deal with python code
+
+          int batch_size = buffer_element.value[0].dim_size(0);
+          //hide// VLOG(0) << "BATCH SIZE: " << batch_size;
+          //hide// if (batch_size == 64) {
+          //hide//   VLOG(0) << buffer_element.value[0].DebugString();
+          //hide//   VLOG(0) << buffer_element.value[1].DebugString();
+          //hide//   std::this_thread::sleep_for(std::chrono::milliseconds(4000));
+          //hide// } else {
+          //hide//   VLOG(0) << buffer_element.value[0].DeviceSafeDebugString();
+          //hide//   VLOG(0) << buffer_element.value[1].DeviceSafeDebugString();
+          //hide//   std::this_thread::sleep_for(std::chrono::milliseconds(4000));
+          //hide// }
+
+          // batch_size: 128 and 32 
+          // total batch size is in the CPU size.
+          
+          //hide// if (batch_size == cached_buffer_pool_size_) { // selected
+          if (false) { // disable it.
+
+            if (cached_buffer_.size() < batch_size) {
+              cached_buffer_.push_back(buffer_element);
+              VLOG(0) << "TID: " << std::this_thread::get_id() << "; \n"
+                      << "buffer_element size: " << buffer_element.value.size() << "; \n" 
+                      << "[0]" << buffer_element.value[0].DeviceSafeDebugString() << "; \n" 
+                      << "[1]" << buffer_element.value[1].DeviceSafeDebugString();
+              // how to set prefetch thread in dataset tensorflow?
+            } else {
+
+              // random permutation
+              std::vector<int> selected(batch_size);
+              for (int i = 0; i < batch_size; i++) {
+                selected[i] = i;
+              }
+
+              // init 
+              reused_batched_elem_.value.reserve(2);
+
+              std::vector<Tensor>& new_tensors = reused_batched_elem_.value;
+              Tensor& batched_images = new_tensors[0];
+              batched_images.CopyFrom(buffer_element.value[0], buffer_element.value[0].shape());
+              //VLOG(0) << "batched_images size: " << batched_images.DebugString();
+
+              Tensor& batched_labels = new_tensors[1];
+              batched_labels.CopyFrom(buffer_element.value[1], buffer_element.value[1].shape());
+              //VLOG(0) << "batched_labels size: " << batched_labels.DebugString();
+
+              // for loop of K START here...
+              //hide// for (int k = 0; k < K_; k++) {
+
+                //VLOG(0) << "TID: " << std::this_thread::get_id() << "; k: " << k;
+
+                //VLOG(0) << "permutation: ";
+                std::random_shuffle(selected.begin(), selected.end());
+                //hide// string output;
+                //hide// for (int i = 0; i < batch_size; i++) {
+                //hide//   output += std::to_string(selected[i]) + "\t";
+                //hide// }
+                //hide// VLOG(0) << output;
+                //hide// std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+                // iterate all cached_buffer_
+                int i = 0;
+                for (auto& tensors: cached_buffer_) {
+
+                  bool is_images = true;
+                  for (auto& tensor: tensors.value) {
+                    if (is_images) {
+                      batch_util::MoveSliceToElementSlice(&tensor, &batched_images, selected[i], i);
+                      //VLOG(0) << "TID: " << std::this_thread::get_id() << "; i: " << i << " ;\n"
+                      //        << "origin: " << tensor.DebugString(5) << " ;\n"
+                      //        << "images: " << batched_images.DebugString(5);
+                    } else {
+                      batch_util::MoveSliceToElementSlice(&tensor, &batched_labels, selected[i], i);
+                      //VLOG(0) << "TID: " << std::this_thread::get_id() << "; i: " << i << " ;\n"
+                      //        << "origin: " << tensor.DebugString(10) << " ;\n"
+                      //        << "labels: " << batched_labels.DebugString(10);
+                    }
+
+                    //hide// std::this_thread::sleep_for(std::chrono::milliseconds(30));
+                    is_images = false;
+                  }
+                  VLOG(0) << "TID: " << std::this_thread::get_id() << "; i: " << i;
+                  i++;
+                  // check the result.
+                  //hide// for (auto& tensor: tensors.value) {
+                  //hide//   VLOG(0) << tensor.DebugString(32);
+                  //hide// }
+                }
+                VLOG(0) << "TID: " << std::this_thread::get_id() << " inner K_ for end";
+                
+                buffer_.push_back(reused_batched_elem_);
+                VLOG(0) << "TID: " << std::this_thread::get_id() << " push_back end";
+
+                //hide// std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+                //hide// reused_batched_elems_.push_back(reused_batched_elem_);
+              //hide// }
+              // for loop of K END here...
+
+              // replace a new buffer_element 
+              //HIDE// cached_buffer_.pop_front();
+              //HIDE// VLOG(0) << "TID: " << std::this_thread::get_id() << " pop_front end";
+              //HIDE// cached_buffer_.push_back(buffer_element);
+              //HIDE// VLOG(0) << "TID: " << std::this_thread::get_id() << " cached_buffer_ push_back end";
+            }
+          }
+
+          //hide-baseline// // test google echo baseline        
+          //hide-baseline// if (batch_size == cached_buffer_pool_size_) {          
+          //hide-baseline//   for (int i = 0; i < K_; i++) {
+          //hide-baseline//     buffer_.push_back(buffer_element);
+          //hide-baseline//   }
+          //hide-baseline// }
+          
+          //VLOG(0) << "prefetch buffer_ size: " << buffer_.size();
+
+          //hide// buffer_.push_back(std::move(buffer_element));
           cond_var_->notify_all();
         }
         ++num_produced;
+        //hide// num_produced += 1 + K_;
       }
     }
 
@@ -572,6 +756,18 @@ class PrefetchDatasetOp::Dataset : public DatasetBase {
 
     // Method for deregistering the cancellation callback.
     std::function<void()> deregister_fn_;
+   public: 
+    // for reuse
+    // echo(repeat) times
+    int K_ = 2;
+
+    int cached_buffer_pool_size_ = 128;
+    // it seems like it is thread-local. different thread has its own cached_buffer_.
+    std::deque<BufferElement> cached_buffer_ TF_GUARDED_BY(*mu_);
+    // the generated new batch from history cached buffer pool
+    BufferElement reused_batched_elem_ TF_GUARDED_BY(*mu_);
+    // a list of the generated new batch from history cached buffer pool
+    std::vector<BufferElement> reused_batched_elems_ TF_GUARDED_BY(*mu_);
   };
   const DatasetBase* const input_;
   const int64 buffer_size_;

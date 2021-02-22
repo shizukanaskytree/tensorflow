@@ -288,6 +288,11 @@ Status CopyContiguousSlices(const Tensor& src, int64 src_offset,
 // NOTE(mrry): The implementation may be able to optimize the copy to a move.
 // This is particularly important for DT_STRING tensors.
 Status MaybeMoveSliceToElement(Tensor* parent, Tensor* element, int64 index) {
+  //VLOG(0) << "*** MaybeMoveSliceToElement";
+  //VLOG(0) << "num values: "
+  //        << "element: " << element->NumElements()
+  //        << "; parent: " << parent->NumElements()
+  //        << "; parent dim size in 0: " << parent->dim_size(0);
   TF_RETURN_IF_ERROR(ValidateInput(*parent, *element, index));
   const int64 num_values = element->NumElements();
 
@@ -297,6 +302,56 @@ Status MaybeMoveSliceToElement(Tensor* parent, Tensor* element, int64 index) {
     T* dest = element->base<T>();                           \
     HandleSliceToElement<T>(parent, src, dest, num_values); \
     return Status::OK();                                    \
+  }
+
+  switch (parent->dtype()) {
+    TF_CALL_ALL_TYPES(HANDLE_TYPE);
+    TF_CALL_QUANTIZED_TYPES(HANDLE_TYPE);
+#undef HANDLE_TYPE
+    default:
+      return errors::Unimplemented(
+          "MaybeMoveSliceToElement Unhandled data type: ", element->dtype());
+  }
+}
+
+// Copies the index^th slice of parent (in the 0th dimension) into the index^th
+// element.
+Status MoveSliceToElementSlice(Tensor* parent, Tensor* element, int64 p_index, 
+                                                                int64 e_index) {
+  //VLOG(0) << "*** MoveSliceToElementSlice";
+  //VLOG(0) << "num values: "
+  //        << "element: " << element->NumElements()
+  //        << "; parent: " << parent->NumElements()
+  //        << "; parent dim size in 0: " << parent->dim_size(0); // batch size: 32 or 64 
+
+  // check num of elements are the same
+  if (element->NumElements() != parent->NumElements()) {
+    return errors::Internal(
+      "ValidateInput Cannot perform copy: number of elements does not match. "
+      " Shapes are: [element]: ",
+      element->shape().DebugString(),
+      ", [parent shape]: ", parent->DebugString());
+  }
+
+  // get the number of element of a single example.
+  TensorShape batch_shape = parent->shape();
+  const int64 num_batches = batch_shape.dim_size(0);
+  const int64 num_batch_elems = parent->NumElements() / num_batches;
+
+  // bound p_index and e_index inside num_batches
+  if (p_index < 0 || p_index >= num_batches || e_index < 0 || e_index >= num_batches) {
+    return errors::Internal(
+      "dest index of parent: ", p_index, " or element src index: ", e_index, " error; ",
+      "out of bound: ", num_batches-1);
+  }
+
+
+#define HANDLE_TYPE(T)                                            \
+  case DataTypeToEnum<T>::value: {                                \
+    T* src = parent->base<T>() + (num_batch_elems * p_index);     \
+    T* dest = element->base<T>() + (num_batch_elems * e_index);   \
+    HandleSliceToElement<T>(parent, src, dest, num_batch_elems);  \
+    return Status::OK();                                          \
   }
 
   switch (parent->dtype()) {

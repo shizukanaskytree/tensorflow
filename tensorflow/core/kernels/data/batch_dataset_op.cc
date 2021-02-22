@@ -66,6 +66,9 @@ class BatchDatasetOp::Dataset : public DatasetBase {
               strings::Printf("%lld", static_cast<long long>(batch_size))},
              {"drop_remainder", drop_remainder ? "true" : "false"},
              {"parallel_copy", parallel_copy ? "true" : "false"}}) {
+
+    VLOG(0) << "BatchDatasetOp::Dataset";
+
     input_->Ref();
 
     // NOTE(mrry): Currently we implement "batch up to" semantics. If
@@ -167,6 +170,8 @@ class BatchDatasetOp::Dataset : public DatasetBase {
           return Status::OK();
         }
         batch_elements.reserve(dataset()->reserve_size_);
+
+        VLOG(0) << "*** dataset()->reserve_size_: " << dataset()->reserve_size_; 
         *end_of_sequence = false;
         for (int i = 0; i < dataset()->batch_size_ && !*end_of_sequence; ++i) {
           std::vector<Tensor> batch_element_tuple;
@@ -273,6 +278,8 @@ void BatchDatasetOp::MakeDataset(OpKernelContext* ctx, DatasetBase* input,
     OP_REQUIRES_OK(
         ctx, ParseScalarArgument<bool>(ctx, kDropRemainder, &drop_remainder));
   }
+  
+  VLOG(0) << "BatchDatasetOp::MakeDataset";
 
   *output = new Dataset(ctx, batch_size, drop_remainder, parallel_copy_, input,
                         op_version_);

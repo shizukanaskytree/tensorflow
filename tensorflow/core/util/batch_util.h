@@ -49,6 +49,10 @@ Status CopyContiguousSlices(const Tensor& src, int64 src_offset,
 // This is particularly important for DT_STRING tensors.
 Status MaybeMoveSliceToElement(Tensor* parent, Tensor* element, int64 index);
 
+// Copies the index^th slice of parent (in the 0th dimension) into the index^th
+// element.
+Status MoveSliceToElementSlice(Tensor* parent, Tensor* element, int64 p_index, int64 e_index);
+
 // Zero-initializes the tensor `element` using the scalar stored in `padding`.
 // Both `element` and `padding` must have matching `dtype`.
 Status SetElementZero(Tensor* element, const Tensor& padding);

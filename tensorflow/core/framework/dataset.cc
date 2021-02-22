@@ -563,6 +563,9 @@ Status DatasetBaseIterator::GetNext(IteratorContext* ctx,
     }
     node_->record_start(now_nanos);
   }
+
+  //VLOG(0) << "*** DatasetBaseIterator::GetNext";
+
   Status s = GetNextInternal(ctx, out_tensors, end_of_sequence);
   if (TF_PREDICT_TRUE(s.ok() && !*end_of_sequence)) {
     DCHECK_EQ(out_tensors->size(), dataset()->output_dtypes().size());

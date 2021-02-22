@@ -372,6 +372,9 @@ class IteratorContext {
         runner_threadpool_size = kDefaultRunnerThreadpoolSize;
       }
 
+      //VLOG(0) << "*** runner_threadpool_size: " << runner_threadpool_size;
+      // 72 threads.
+
       // NOTE: Wrap every runner invocation in a call to Runner()->Run(), so
       // that a symbol in the tensorflow::data namespace is always on the stack
       // when executing a function inside a Dataset.
