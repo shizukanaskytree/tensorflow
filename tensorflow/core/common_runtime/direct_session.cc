@@ -2210,8 +2210,8 @@ Status DirectSession::Run(const RunOptions& run_options,
       // N.B.
       // to test transfer time between CPU to 2080 GPU, use API `TransferGPU2CPUStatefulVars`, `TransferCPU2GPUStatefulVars`.
       // to test transfer time between 1080 GPU to 2080 GPU, use API `TransferHPU2LPUStatefulVars`, `TransferLPU2HPUStatefulVars`.
-      TransferGPU2CPUStatefulVars();
-      //TransferHPU2LPUStatefulVars();
+      //TransferGPU2CPUStatefulVars();
+      TransferHPU2LPUStatefulVars();
     }
     last_execute_device_ = "LPU";
     // End of transferring, start to execute the graph.
@@ -2228,8 +2228,8 @@ Status DirectSession::Run(const RunOptions& run_options,
       // N.B.
       // to test transfer time between CPU to 2080 GPU, use API `TransferGPU2CPUStatefulVars`, `TransferCPU2GPUStatefulVars`.
       // to test transfer time between 1080 GPU to 2080 GPU, use API `TransferHPU2LPUStatefulVars`, `TransferLPU2HPUStatefulVars`.
-      TransferCPU2GPUStatefulVars();
-      //TransferLPU2HPUStatefulVars();
+      //TransferCPU2GPUStatefulVars();
+      TransferLPU2HPUStatefulVars();
     }
     last_execute_device_ = "HPU"; 
     // End of transferring, start to execute the graph.
@@ -3835,8 +3835,8 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
       // N.B.
       // to test transfer time between CPU to 2080 GPU, use API `TransferGPU2CPUStatefulVars`, `TransferCPU2GPUStatefulVars`.
       // to test transfer time between 1080 GPU to 2080 GPU, use API `TransferHPU2LPUStatefulVars`, `TransferLPU2HPUStatefulVars`.
-      TransferGPU2CPUStatefulVars();
-      //TransferHPU2LPUStatefulVars();
+      //TransferGPU2CPUStatefulVars();
+      TransferHPU2LPUStatefulVars();
     }
     last_execute_device_ = "LPU";
     // End of transferring, start to execute the graph.
@@ -3893,8 +3893,8 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
       // N.B.
       // to test transfer time between CPU to 2080 GPU, use API `TransferGPU2CPUStatefulVars`, `TransferCPU2GPUStatefulVars`.
       // to test transfer time between 1080 GPU to 2080 GPU, use API `TransferHPU2LPUStatefulVars`, `TransferLPU2HPUStatefulVars`.
-      TransferCPU2GPUStatefulVars();
-      //TransferLPU2HPUStatefulVars();
+      //TransferCPU2GPUStatefulVars();
+      TransferLPU2HPUStatefulVars();
     }
     last_execute_device_ = "HPU"; 
     // End of transferring, start to execute the graph.
