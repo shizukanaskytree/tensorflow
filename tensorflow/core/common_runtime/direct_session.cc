@@ -23,6 +23,8 @@ limitations under the License.
 #include <unordered_map>
 #include <map>
 #include <regex>
+#include <chrono>
+#include <ctime>
 
 #include "tensorflow/core/common_runtime/collective_executor_mgr.h"
 #include "tensorflow/core/common_runtime/collective_param_resolver_local.h"
@@ -3793,9 +3795,20 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
   // wxf 
   // if high priority task exists, then the low priority task uses the low
   // priority executor.
+  // low priority branch
   if (direct_session_priority_ == DirectSessionPriority::DIRECTSESSION_PRIORITY_LOW &&
       direct_sessions_manager_->high_priority_direct_session_count_.load(std::memory_order_relaxed)) {
 //  if (step_id > 20 && step_id < 23) { // wxf: only for debugging one thread task for lower priority for easy developing
+
+    // -------------------------------------------------------------
+    // Details:
+    // low priority job timestamp when it is preempted by high one.
+    // -------------------------------------------------------------
+    // std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
+    // auto duration = now.time_since_epoch();
+    // auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+    // VLOG(0) << "### Low priority job branch timestamp " << millis << " ms since epoch\n";
+
     {
       tf_shared_lock l(callables_lock_);
       CallableHandle low_priority_handle = usr_handle_to_low_priority_handle_[handle];
@@ -3855,6 +3868,16 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
   } else {
     // normal case: original code logic
     // High performance branch:
+    
+    // -------------------------------------------------------------
+    // Details:
+    // High priority job timestamp:
+    // -------------------------------------------------------------
+    // std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
+    // auto duration = now.time_since_epoch();
+    // auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+    // VLOG(0) << "### Catch the high priority job or single job timestamp " << millis << " ms since epoch\n";
+    
     {
       tf_shared_lock l(callables_lock_);
       if (handle >= next_callable_handle_) {

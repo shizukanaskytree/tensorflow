@@ -23,6 +23,8 @@ limitations under the License.
 #include <vector>
 #include <thread>
 #include <iostream>
+#include <chrono>
+#include <ctime>
 
 #include "tensorflow/core/common_runtime/costmodel_manager.h"
 #include "tensorflow/core/common_runtime/direct_session.h" // wxf
@@ -1735,6 +1737,18 @@ bool ExecutorState::NodeDone(const Status& s, const Node* node,
     VLOG(0) << std::this_thread::get_id() << ", *** Low priority abort branch Debugging message.";
     VLOG(0) << std::this_thread::get_id() << ", 1. ExecutorState::NodeDone: :num_outstanding_ops_ " << num_outstanding_ops_;
 
+    // -------------------------------------------------------------
+    // Details:
+    // Low priority job timestamp:
+    // From the 1st one to abort to the last one to abort. the time is preemption time.
+    // -------------------------------------------------------------
+    // Log the timestamp when nodes are aborted.
+    std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
+    auto duration = now.time_since_epoch();
+    auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+    VLOG(0) << std::this_thread::get_id() << ", ##++## Low priority abort timestamp (start) " << millis << "\n";
+
+
     if (rendezvous_) {
       rendezvous_->StartAbort(Status(tensorflow::error::SESS_RUN_CANCELLED, "wxf cancelled"));
     }
@@ -1759,6 +1773,17 @@ bool ExecutorState::NodeDone(const Status& s, const Node* node,
     if (num_outstanding_ops_.load(std::memory_order_relaxed) == 0) {
       completed = true;
     }
+
+    // -------------------------------------------------------------
+    // Details:
+    // Low priority job timestamp:
+    // From the 1st one to abort to the last one to abort. the time is preemption time.
+    // -------------------------------------------------------------
+    // Log the timestamp when nodes are aborted.
+    // std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
+    // auto duration = now.time_since_epoch();
+    // auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+    // VLOG(0) << std::this_thread::get_id() << ", ### Low priority abort timestamp (end) " << millis << "\n";
 
     return completed;
   }
@@ -2020,6 +2045,11 @@ void ExecutorState::ScheduleFinish() {
   } else {
     Finish();
   }
+
+  std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
+  auto duration = now.time_since_epoch();
+  auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+  VLOG(0) << std::this_thread::get_id() << ", ##--## ExecutorState::ScheduleFinish timestamp " << millis << "\n"; 
 }
 
 void ExecutorState::Finish() {
