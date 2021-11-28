@@ -1,0 +1,1 @@
+python test_strategy_scope.py --output_dir output_test_strategy_scope
