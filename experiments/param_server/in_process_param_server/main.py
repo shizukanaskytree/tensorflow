@@ -4,16 +4,37 @@
 # 参考的教程是:
 # https://colab.research.google.com/drive/1oFfSIAnOmfohHcDsWWK6s21TP-L33-1y#scrollTo=GxypEyIthR0z
 
-import multiprocessing
 import os
-import random
-import portpicker
+
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"
+os.environ["TF_CPP_MAX_VLOG_LEVEL"] = "2"
+
+# tensorflow/core/util/dump_graph.cc:134] Failed to dump after_grouping_2_139915407473008 because dump location is not  specified through either TF_DUMP_GRAPH_PREFIX environment variable or function argument.
+os.environ["TF_DUMP_GRAPH_PREFIX"] = "/home/wxf/tf2/tensorflow/experiments/param_server/graph_dump"
 import tensorflow as tf
 
+# to log placement, eg: https://gist.github.com/shizukanaskytree/f8131342bc6475e1d92164f5da6819d9
+tf.debugging.set_log_device_placement(True)
+
+print(os.getpid())  # for gdb
+
+import debugpy
+
+debugpy.listen(5678)
+debugpy.wait_for_client()
+
+import multiprocessing
+import random
+import portpicker
+
+tf.debugging.set_log_device_placement(True)
+
+
 # Variables are created on parameter servers and they are read and updated by workers in each step.
-# tf.distribute.experimental.ParameterServerStrategy class distributes the training steps to a cluster that scales up to thousands of workers (accompanied by parameter servers).
+# tf.distribute.experimental.ParameterServerStrategy class distributes the training steps to 
+# a cluster that scales up to thousands of workers (accompanied by parameter servers).
 
-
+# 在这个 cluster 里面有 5 个 server, coordinator 是自动被加入的, 我也不知道什么关系.
 def create_in_process_cluster(num_workers, num_ps):
     """Creates and starts local servers and returns the cluster_resolver."""
     worker_ports = [portpicker.pick_unused_port() for _ in range(num_workers)]
@@ -67,6 +88,20 @@ os.environ["GRPC_FAIL_FAST"] = "use_caller"
 NUM_WORKERS = 3
 NUM_PS = 2
 cluster_resolver = create_in_process_cluster(NUM_WORKERS, NUM_PS)
+
+# print(dir(cluster_resolver))
+# ['__abstractmethods__', '__class__', '__delattr__', '__dict__', '__dir__',
+# '__doc__', '__eq__', '__format__', '__ge__', '__getattribute__', '__gt__',
+# '__hash__', '__init__', '__init_subclass__', '__le__', '__lt__', '__module__',
+# '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__',
+# '__sizeof__', '__str__', '__subclasshook__', '__weakref__', '_abc_impl',
+# '_cluster_spec', '_environment', '_master', '_num_accelerators', '_rpc_layer',
+# '_task_id', '_task_type', '_tf_api_names', '_tf_api_names_v1', 'cluster_spec',
+# 'environment', 'master', 'num_accelerators', 'rpc_layer', 'task_id', 'task_type']
+
+print(cluster_resolver.cluster_spec())
+# ClusterSpec({'ps': ['localhost:16898', 'localhost:18235'],
+#              'worker': ['localhost:23511', 'localhost:23566', 'localhost:15823']})
 
 # Instantiate a ParameterServerStrategy
 # To enable variable sharding, you can pass in a variable_partitioner when
@@ -129,7 +164,7 @@ callbacks = [
     tf.keras.callbacks.experimental.BackupAndRestore(backup_dir=backup_dir),
 ]
 
-model.fit(dc, epochs=5, steps_per_epoch=20, callbacks=callbacks)
+model.fit(dc, epochs=1, steps_per_epoch=20, callbacks=callbacks)
 
 # =======================================================================
 # This is the end of Model.fit tutorial, next is the "Training with a custom training loop"

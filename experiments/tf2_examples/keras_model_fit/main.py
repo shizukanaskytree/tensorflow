@@ -1,6 +1,22 @@
+import os
+
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"
+os.environ["TF_CPP_MAX_VLOG_LEVEL"] = "3"
+
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
+
+tf.debugging.set_log_device_placement(True)
+# log of placement: https://gist.github.com/shizukanaskytree/f8131342bc6475e1d92164f5da6819d9
+
+print(os.getpid())
+
+
+import debugpy
+
+debugpy.listen(5678)
+debugpy.wait_for_client()
 
 
 inputs = keras.Input(shape=(784,), name="digits")
@@ -39,15 +55,15 @@ print("Fit model on training data")
 history = model.fit(
     x_train,
     y_train,
-    batch_size=64,
-    epochs=2,
+    batch_size=512,
+    epochs=1,
     # We pass some validation for
     # monitoring validation loss and metrics
     # at the end of each epoch
     validation_data=(x_val, y_val),
 )
 
-print(f'history.history: {history.history}')
+print(f"history.history: {history.history}")
 
 # Evaluate the model on the test data using `evaluate`
 print("Evaluate on test data")
@@ -59,4 +75,3 @@ print("test loss, test acc:", results)
 print("Generate predictions for 3 samples")
 predictions = model.predict(x_test[:3])
 print("predictions shape:", predictions.shape)
-
