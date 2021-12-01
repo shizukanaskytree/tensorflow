@@ -1,4 +1,25 @@
+import os
+
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"
+os.environ["TF_CPP_MAX_VLOG_LEVEL"] = "2"
+
+# tensorflow/core/util/dump_graph.cc:134] Failed to dump after_grouping_2_139915407473008 because dump location is not  specified through either TF_DUMP_GRAPH_PREFIX environment variable or function argument.
+os.environ[
+    "TF_DUMP_GRAPH_PREFIX"
+] = "/home/wxf/tf2/tensorflow/experiments/param_server/study_chief/graph_dump"
+
 import tensorflow as tf
+
+# to log placement, eg: https://gist.github.com/shizukanaskytree/f8131342bc6475e1d92164f5da6819d9
+tf.debugging.set_log_device_placement(True)
+
+print(os.getpid())  # for gdb
+
+import debugpy
+
+debugpy.listen(5678)
+debugpy.wait_for_client()
+
 import multiprocessing
 import os
 import json
@@ -58,6 +79,7 @@ import json
 #     return cluster_resolver
 
 
+# 教程:
 # https://www.tensorflow.org/guide/migrate/multi_worker_cpu_gpu_training
 
 # Find ports that are available for the `'chief'` (the coordinator),
@@ -94,9 +116,16 @@ cluster_resolver = tf.distribute.cluster_resolver.TFConfigClusterResolver()
 worker_config = tf.compat.v1.ConfigProto()
 worker_config.inter_op_parallelism_threads = 4
 
-
 # 这里有硬编码的部分.
+# 每个机器都有自己的 server 是不是?
+# cluster_resolver.cluster_spec()
 
+print("cluster_resolver.cluster_spec(): ")
+print(cluster_resolver.cluster_spec())
+
+# The server 只要 standby 就可以了. 通过 dht 存入 device names.
+# according to https://medium.com/@willburton_48961/how-to-use-distributed-tensorflow-to-split-your-tensorflow-graph-between-multiple-machines-f48ffca2810c
+# 启动的部分是 chief 完成的.
 for i in range(3):
     tf.distribute.Server(
         cluster_resolver.cluster_spec(),
@@ -108,6 +137,11 @@ for i in range(3):
 for i in range(2):
     tf.distribute.Server(cluster_resolver.cluster_spec(), job_name="ps", task_index=i)
 
+# server 和 device 的关系是如此紧密
+
+# cluster_resolver 是 tf_config : cluster + your role
+# 我想, 只有 chief 在这里负责进行启动工作
+# 对于 ps 和 worker, 只要定义好 server 就可以了, 是不是?
 strategy = tf.distribute.experimental.ParameterServerStrategy(cluster_resolver)
 
 
@@ -127,7 +161,9 @@ eval_dataset = (
     tf.data.Dataset.from_tensor_slices((eval_features, eval_labels)).repeat().batch(1)
 )
 
-with strategy.scope():
+scope_ = strategy.scope()
+
+with scope_:
     model = tf.keras.models.Sequential([tf.keras.layers.Dense(1)])
     optimizer = tf.keras.optimizers.Adagrad(learning_rate=0.05)
     model.compile(optimizer, "mse")

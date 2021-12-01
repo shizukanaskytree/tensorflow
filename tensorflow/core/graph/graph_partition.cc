@@ -984,6 +984,8 @@ Status Partition(const PartitionOptions& opts, Graph* g,
   Status status;
   partitions->clear();
 
+  // VLOG(0) << g->ToGraphDefDebug();
+
   GraphInfo g_info;
   if (!opts.control_flow_added) {
     // Add the "code" for distributed execution of control flow. Code is

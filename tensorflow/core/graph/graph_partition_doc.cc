@@ -13,8 +13,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include "tensorflow/core/graph/graph_partition.h"
-
 #include <deque>
 #include <queue>
 #include <unordered_map>
@@ -33,6 +31,7 @@ limitations under the License.
 #include "tensorflow/core/graph/control_flow.h"
 #include "tensorflow/core/graph/costmodel.h"
 #include "tensorflow/core/graph/graph_def_builder.h"
+#include "tensorflow/core/graph/graph_partition.h"
 #include "tensorflow/core/graph/node_builder.h"
 #include "tensorflow/core/graph/tensor_id.h"
 #include "tensorflow/core/lib/core/errors.h"
@@ -62,6 +61,9 @@ struct DupRecvKey {
   GraphDef* dst_graph;       // Edge's dst node is in this subgraph
   bool recv_output_on_host;  // The output of recv is on host
 
+  // 好多啊, 好烦恼啊
+  // 为什么不写目的?
+  // 搞什么?
   template <typename H>
   friend H AbslHashValue(H h, const DupRecvKey& c) {
     return H::combine(std::move(h), c.src_node_id, c.src_output_slot,
@@ -84,16 +86,23 @@ struct RecvInfo {
   int64_t start_time;
 };
 
+// DupRecvKey
+// RecvInfo
+// 本文前述
 typedef absl::flat_hash_map<DupRecvKey, RecvInfo> DupRecvTable;
 
 // A map used to store memory types for the inputs/outputs of every node.
-// The key is a pair of ints consisting of a node id and input/output index.
+// 写得好.
+
+// The key is a pair of ints consisting of a node id and input/output
+// index.
 // TODO(power): migrate back to std::pair when absl::Hash is fixed for MSVC.
 struct NodePort {
   int node_id;
   int index;
 
   friend bool operator==(const NodePort& x, const NodePort& y) {
+    // index means input/output index.
     return x.node_id == y.node_id && x.index == y.index;
   }
 
@@ -105,8 +114,11 @@ struct NodePort {
 
 typedef absl::flat_hash_map<NodePort, MemoryType> MemoryTypeMap;
 
-// We collect the following information about the graph before performing
-// graph partitioning.
+// We collect the following information about the graph before performing graph
+// partitioning. 原来如此.
+
+// We collect the following information about the graph before
+// performing graph partitioning.
 struct GraphInfo {
   std::vector<DeviceType> device_types;
   MemoryTypeMap input_types;
@@ -170,6 +182,7 @@ void AddInput(NodeDef* dst, StringPiece src_name, int src_slot) {
 }
 
 // Add a control edge from each input to each recv.
+// 增加一个 control edge, 从每个输入到每个接收。
 void AddReadControl(const std::vector<NodeDef*>& recvs,
                     const std::vector<string>& inputs) {
   for (NodeDef* recv : recvs) {
@@ -193,6 +206,9 @@ void SetSendRecvAttrs(const PartitionOptions& opts, const Edge* edge,
   builder->Attr("_dst", edge->dst()->name());
 }
 
+
+
+// 这个看着很吊的啊
 NodeDef* AddSend(const PartitionOptions& opts, const GraphInfo& g_info,
                  GraphDef* gdef, const Edge* edge,
                  NodeDefBuilder::NodeOut send_from, int64_t start_time,
@@ -251,6 +267,9 @@ NodeDef* AddSend(const PartitionOptions& opts, const GraphInfo& g_info,
   return send;
 }
 
+
+// 这个看着很吊的啊
+// the graph partitioner inserts a pair of Send and Recv ops that share the same "rendezvous key"  
 NodeDef* AddRecv(const PartitionOptions& opts, const GraphInfo& g_info,
                  GraphDef* gdef, const Edge* edge, NodeDef** real_recv,
                  Status* status) {
@@ -296,14 +315,22 @@ NodeDef* AddRecv(const PartitionOptions& opts, const GraphInfo& g_info,
             << " on " << dst->assigned_device_name();
   }
 
+  // 构造 recv 节点
   // Add the recv node.
   const string recv_op = (host_memory) ? "_HostRecv" : "_Recv";
   NodeDefBuilder recv_builder(opts.new_name(src->name()), recv_op,
                               NodeDebugInfo(*src));
   SetSendRecvAttrs(opts, edge, &recv_builder);
+
+  // 我所关心的 dst device 的名字. dst->assigned_device_name()
   recv_builder.Device(dst->assigned_device_name())
       .Attr("tensor_type", cast_dtype);
+
+
+  // 构造节点
   NodeDef* recv = gdef->add_node();
+
+
   *status = recv_builder.Finalize(recv, /*consume=*/true);
   if (!status->ok()) return nullptr;
   *real_recv = recv;
@@ -574,24 +601,50 @@ Status AddControlLoop(const PartitionOptions& opts, Graph* g, const Node* src,
 // TODO(yuanbyu): It might be simpler if we convert MemoryType to
 // DeviceType for the inputs/outputs of each node.
 Status BuildMemoryDeviceInfo(const Graph& g, GraphInfo* info) {
+  // const Graph& g, this is the input
+  // info: GraphInfo*, this is the output
+  // 这个函数的目的就是赋值 info.
+
+  // GraphInfo
+  // - device_types is a list of all nodes' device type of this graph.
+
+  // input_memory_types is like a list of [0, 1, 0, 1]
+  // 在 tensorflow/core/framework/types.h 里面, 定义了 0 是 device memory, 1
+  // host memory.
   MemoryTypeVector input_memory_types;
   MemoryTypeVector output_memory_types;
 
   info->device_types.resize(g.num_node_ids(), DEVICE_CPU);
+
+  // iterate all nodes in the graph.
   for (const Node* node : g.op_nodes()) {
+    // 也就是说这个函数, 依靠 解析名字里面的 gpu, cpu 的情况, 赋值每个 node 的
+    // device type.
+
     DeviceNameUtils::ParsedName parsed;
+
     if (!DeviceNameUtils::ParseFullName(node->assigned_device_name(),
                                         &parsed)) {
+      // Malformed, 畸形的，难看的
       return errors::Internal("Malformed assigned device '",
                               node->assigned_device_name(), "'");
     }
 
+    // MemoryTypesForNode 完成对 node 的 memory type 赋值.
+    // g.op_registry()
+    // DeviceType(parsed.type)
+    // node->def()
+    // &input_memory_types
+    // &output_memory_types
     TF_RETURN_IF_ERROR(MemoryTypesForNode(
         g.op_registry(), DeviceType(parsed.type), node->def(),
         &input_memory_types, &output_memory_types));
 
     int node_id = node->id();
+
+    // 这个函数的核心, 就这句话.
     info->device_types[node_id] = DeviceType(parsed.type);
+
     for (int i = 0; i < input_memory_types.size(); ++i) {
       info->input_types[{node_id, i}] = input_memory_types[i];
     }
@@ -979,12 +1032,81 @@ void SetIncarnation(const PartitionOptions& opts, GraphDef* gdef) {
   }
 }
 
+// 破釜沉舟:
+// https://gist.github.com/shizukanaskytree/adcd9481e17f3f506c6e8bca526bdddb
+
+// Partition "input" graph into a set of graphs, one per location.
+// The location for node n is derived by calling opts.node_to_loc(n).
+// New nodes added by Partition use "opts.new_name(old_name)" to
+// generate node names.
+//
+// Stores the partitions in *partitions.
+// Status Partition(const PartitionOptions& opts, Graph* input,
+//                  std::unordered_map<string, GraphDef>* partitions);
+
+// PartitionOptions is in tensorflow/core/graph/graph_partition.h
+// 传入的图是固定的, 唯一的, 切割的规则是我定的
+// 输出的只是一个 partition 而已嘛!
+// 得到了 这个 GraphDef 输出来给我, 然后发送 每个 server 不就好了吗!
+
+// 目前比较未知的是 PartitionOptions
+// 这个规定了规则
+// 但是我完全可以认为构造的
+// 怕什么!
+// 相信!!!
+
+
+// 我觉得我要 take advantage of this by something like:
+
+// 被调用的地方
+// tensorflow/core/distributed_runtime/master_session.cc:437:  return Partition(popts, &client_graph->graph, out_partitions);
+// tensorflow/core/common_runtime/direct_session.cc:1679:  TF_RETURN_IF_ERROR(Partition(popts, &client_graph->graph, &partitions));
+// tensorflow/core/distributed_runtime/graph_mgr.cc:185:  TF_RETURN_IF_ERROR(Partition(popts, &graph, &partitions));
+
+
+// tensorflow/core/common_runtime/direct_session.cc
+// Status DirectSession::CreateGraphs
+// 
+
+
+// 调用这个 Partition 函数的地方是
+// ========================================================================
+// Status PartitionFunctionGraph(
+//     const DeviceSet& device_set, std::unique_ptr<Graph> graph,
+//     std::unordered_map<string, std::unique_ptr<Graph>>* subgraphs) {
+//   PartitionOptions partition_options;
+//   partition_options.node_to_loc = [](const Node* node) {
+//     // TODO(iga): To support the distributed case, first split the graph by
+//     // worker (e.g,. using the master session's `SplitByWorker` policy), and
+//     // then recursively partition the per-worker shards at the remote worker(s).
+//     // Currently, we simply split the graph at device boundaries.
+//     return node->assigned_device_name();
+//   };
+// ========================================================================
+
+
+// 执行以后下一步是:
+// 
 Status Partition(const PartitionOptions& opts, Graph* g,
                  std::unordered_map<string, GraphDef>* partitions) {
+
+  // 构思
+  //
+
+  PartitionOptions custom_opts;
+  DynamicPartition(custom_opts, g, partitions);
+
+  return; // 这样我就充分利用了 tensorflow 的设计
+
+  // 如何打印出或者保存 GraphDef ?
+  // TFBoard: https://stackoverflow.com/questions/47193564/i-want-to-use-a-graph-with-tensorboard-that-was-created-using-the-graphdef-and-a
+
+
   Status status;
   partitions->clear();
 
-  GraphInfo g_info;
+  GraphInfo g_info;  // This is the input.
+
   if (!opts.control_flow_added) {
     // Add the "code" for distributed execution of control flow. Code is
     // added only for the frames that are placed on multiple devices. The
@@ -1012,13 +1134,70 @@ Status Partition(const PartitionOptions& opts, Graph* g,
 
   int32_t num_data = 0;
   int32_t num_control = 0;
+
+  // tensorflow/core/common_runtime/direct_session.cc:1664:  
+  // popts.node_to_loc = [](const Node* node) {
+    
+  // ==================================================================
+
+  // tensorflow/core/common_runtime/partitioning_utils.cc:32:  
+  // partition_options.node_to_loc = [](const Node* node) 
+  //
+  // 对于 distributed 的 ps 这个例子, 进入的是这个函数.
+
+  // ==================================================================
+    
+  // tensorflow/core/distributed_runtime/master_session.cc:1668:  
+  // popts.node_to_loc = SplitByWorker;
+
+  // static string SplitByWorker(const Node* node) {
+  //   string task;
+  //   string device;
+  //   CHECK(DeviceNameUtils::SplitDeviceName(node->assigned_device_name(), &task,
+  //                                          &device))
+  //       << "node: " << node->name() << " dev: " << node->assigned_device_name();
+  //   return task;
+  // }
+
+  // ==================================================================
+
+  // tensorflow/core/distributed_runtime/graph_mgr.cc:168:  
+  // popts.node_to_loc = SplitByDevice;
+
+  // 具体:
+  // NOTE: node->device_name() is not set by GraphConstructor.  We
+  // expects that NodeDef in GraphDef given to workers fully specifies
+  // device names.
+  // static string SplitByDevice(const Node* node) {
+  //   return node->assigned_device_name();
+  // }
+
+
+
+
+
+  // 这个函数是完完全全地在重新构造一个 subgraph. node by node.
   for (const Node* dst : g->op_nodes()) {
     dstp = opts.node_to_loc(dst);
+    // e.g., dstp, destination position, a string
+    // https://stackoverflow.com/questions/46501450/tensorflow-whats-the-splitbyworker-exactly-done-in-distributed-version
+    // job, replica, task, CPU/GPU, index
+
+    // 思路: 
+    // 我可以人为地构造 device 和 position, 和不同的地方.
+
+    // std::unordered_map<string, GraphDef>* partitions
     GraphDef* dst_graph = &(*partitions)[dstp];
+
     NodeDef* dst_def = dst_graph->add_node();
     *dst_def = dst->def();
     MergeDebugInfo(NodeDebugInfo(dst->def()), dst_def);
+
+    
+    // node device setting 的核心.
     dst_def->set_device(dst->assigned_device_name());
+
+
     dst_def->clear_input();  // Inputs are filled below
     if (opts.need_to_record_start_times) {
       int64_t start_time;
@@ -1038,9 +1217,11 @@ Status Partition(const PartitionOptions& opts, Graph* g,
     inputs.resize(dst->num_inputs(), nullptr);
     ref_recvs.clear();
     ref_control_inputs.clear();
+
     const Edge* control_flow_edge = nullptr;
     int32_t num_control_flow_edges = 0;
     int32_t num_input_edges = 0;
+
     for (const Edge* edge : dst->in_edges()) {
       if (edge->IsControlEdge()) {
         if (IsMerge(edge->src()) && IsControlLoop(edge->src())) {
@@ -1071,9 +1252,12 @@ Status Partition(const PartitionOptions& opts, Graph* g,
       const Node* src = edge->src();
       if (!src->IsOp()) continue;  // Skip Sink/Source nodes.
 
+      // 一旦图改变, 这些过程都需要重新做一遍, 是不是?
+      // 是!!!
+
       GraphDef* src_graph = &(*partitions)[opts.node_to_loc(src)];
       if (src_graph == dst_graph && !NeedSameDeviceSendRecv(edge, g_info)) {
-        // Same partition and compatible memory types:
+        // Same partition and compatible memory types:        
         AddInput(dst_def, src->name(), edge->src_output());
         if (edge->IsControlEdge() ||
             !IsRefType(src->output_type(edge->src_output()))) {
@@ -1241,6 +1425,65 @@ Status Partition(const PartitionOptions& opts, Graph* g,
     }
   }
 
+  // 文件名: "partition_ ...."
+
+  // 如下是例子.
+  // (hm) wxf@seir19:~/tf2/tensorflow/experiments/graph_dump$ ls partition_*
+  // partition__job:ps_replica:0_task:0_device:CPU:0_139586580768776.pbtxt
+  // partition__job:ps_replica:0_task:0_device:CPU:0_139586778009960.pbtxt
+  // partition__job:ps_replica:0_task:0_device:CPU:0_139587243968328.pbtxt
+  // partition__job:ps_replica:0_task:0_device:CPU:0_139587244621208.pbtxt
+  // partition__job:ps_replica:0_task:1_device:CPU:0_139586584334456.pbtxt
+  // partition__job:ps_replica:0_task:1_device:CPU:0_139586779244264.pbtxt
+  // partition__job:ps_replica:0_task:1_device:CPU:0_139586840050680.pbtxt
+  // partition__job:ps_replica:0_task:1_device:CPU:0_139586974177160.pbtxt
+  // partition__job:worker_replica:0_task:0_device:CPU:0_139586646966920.pbtxt
+  // partition__job:worker_replica:0_task:0_device:CPU:0_139586650068312.pbtxt
+  // partition__job:worker_replica:0_task:0_device:CPU:0_139586650141768.pbtxt
+  // partition__job:worker_replica:0_task:0_device:CPU:0_139586650205944.pbtxt
+  // partition__job:worker_replica:0_task:0_device:CPU:0_139586650575320.pbtxt
+  // partition__job:worker_replica:0_task:0_device:CPU:0_139586650823400.pbtxt
+  // partition__job:worker_replica:0_task:0_device:CPU:0_139586650896920.pbtxt
+  // partition__job:worker_replica:0_task:0_device:CPU:0_139586650939368.pbtxt
+  // partition__job:worker_replica:0_task:0_device:CPU:0_139586651408856.pbtxt
+  // partition__job:worker_replica:0_task:0_device:CPU:0_139586780016024.pbtxt
+  // partition__job:worker_replica:0_task:0_device:GPU:0_139586649998904.pbtxt
+  // partition__job:worker_replica:0_task:0_device:GPU:0_139586650142776.pbtxt
+  // partition__job:worker_replica:0_task:0_device:GPU:0_139586776910152.pbtxt
+  // partition__job:worker_replica:0_task:0_device:GPU:1_139586650406328.pbtxt
+  // partition__job:worker_replica:0_task:0_device:GPU:1_139586650902248.pbtxt
+  // partition__job:worker_replica:0_task:0_device:GPU:1_139586780105016.pbtxt
+  // partition__job:worker_replica:0_task:0_device:GPU:2_139586650202040.pbtxt
+  // partition__job:worker_replica:0_task:0_device:GPU:2_139586650886632.pbtxt
+  // partition__job:worker_replica:0_task:0_device:GPU:2_139586780103800.pbtxt
+  // partition__job:worker_replica:0_task:0_device:GPU:3_139586650724184.pbtxt
+  // partition__job:worker_replica:0_task:0_device:GPU:3_139586651175224.pbtxt
+  // partition__job:worker_replica:0_task:0_device:GPU:3_139586775484904.pbtxt
+  // partition__job:worker_replica:0_task:1_device:CPU:0_139586577653688.pbtxt
+  // partition__job:worker_replica:0_task:1_device:CPU:0_139586578535384.pbtxt
+  // partition__job:worker_replica:0_task:1_device:CPU:0_139586578667464.pbtxt
+  // partition__job:worker_replica:0_task:1_device:CPU:0_139586578906824.pbtxt
+  // partition__job:worker_replica:0_task:1_device:CPU:0_139586579208360.pbtxt
+  // partition__job:worker_replica:0_task:1_device:CPU:0_139586579219608.pbtxt
+  // partition__job:worker_replica:0_task:1_device:CPU:0_139586579232888.pbtxt
+  // partition__job:worker_replica:0_task:1_device:CPU:0_139586579476264.pbtxt
+  // partition__job:worker_replica:0_task:1_device:CPU:0_139586579738120.pbtxt
+  // partition__job:worker_replica:0_task:1_device:CPU:0_139586584499544.pbtxt
+  // partition__job:worker_replica:0_task:1_device:GPU:0_139586578522904.pbtxt
+  // partition__job:worker_replica:0_task:1_device:GPU:0_139586578788984.pbtxt
+  // partition__job:worker_replica:0_task:1_device:GPU:0_139586584326936.pbtxt
+  // partition__job:worker_replica:0_task:1_device:GPU:1_139586579018664.pbtxt
+  // partition__job:worker_replica:0_task:1_device:GPU:1_139586579181160.pbtxt
+  // partition__job:worker_replica:0_task:1_device:GPU:1_139586582534440.pbtxt
+  // partition__job:worker_replica:0_task:1_device:GPU:2_139586579208904.pbtxt
+  // partition__job:worker_replica:0_task:1_device:GPU:2_139586579304504.pbtxt
+  // partition__job:worker_replica:0_task:1_device:GPU:2_139586583581656.pbtxt
+  // partition__job:worker_replica:0_task:1_device:GPU:3_139586579426104.pbtxt
+  // partition__job:worker_replica:0_task:1_device:GPU:3_139586579719272.pbtxt
+  // partition__job:worker_replica:0_task:1_device:GPU:3_139586585141208.pbtxt
+
+  //
+
   VLOG(1) << "Added send/recv: controls=" << num_control
           << ", data=" << num_data;
   if (VLOG_IS_ON(2)) {
@@ -1255,3 +1498,9 @@ Status Partition(const PartitionOptions& opts, Graph* g,
 }
 
 }  // namespace tensorflow
+
+// 1. 构造两个 server
+//    2021年11月29日12:06:55, start
+//    
+// 2. 执行分配
+// 3. 观察情况.
