@@ -59,3 +59,36 @@ message ServerDef {
   // NOTE: This is an experimental feature and only effective in TensorFlow 2.x.
   ClusterDeviceFilters cluster_device_filters = 7;
 }
+
+// API to use in cc file
+// =====================
+
+// create a instance/obj:
+// =====================
+// ServerDef* options;
+// ClusterDef* const cluster = options->mutable_cluster();
+//                                      ^^^^^^^
+// Returns a pointer to the mutable object that stores the field's value.
+// doc: https://developers.google.com/protocol-buffers/docs/reference/cpp-generated
+//
+// 
+// ===
+//
+// int *const is a constant pointer to integer
+// This means that the variable being declared is a constant pointer pointing to an integer.
+// this implies that the pointer shouldn’t point to some other address.
+// 
+// ===
+//
+// from `tensorflow/core/distributed_runtime/rpc/grpc_tensorflow_server_doc.cc`
+// https://stackoverflow.com/questions/53648009/google-protobuf-mutable-foo-or-set-allocated-foo
+
+// 
+// JobDef* const job_def = cluster->add_job();
+//                                  ^^^
+
+// set the value:
+// ==============
+// options->set_job_name(job_name);
+//          ^^^
+// 

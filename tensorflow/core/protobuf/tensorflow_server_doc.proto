@@ -53,6 +53,8 @@ message ServerDef {
 
   // The default configuration for sessions that run on this server.
   ConfigProto default_session_config = 4;
+  // 如果你不想写, 你可以写 NULL.
+  // NULL 怎么写?
 
   // The protocol to be used by this server.
   //

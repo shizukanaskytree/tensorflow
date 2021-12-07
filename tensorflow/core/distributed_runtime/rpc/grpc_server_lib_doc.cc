@@ -387,8 +387,13 @@ Status GrpcServer::WorkerCacheFactory(const WorkerCacheFactoryOptions& options,
     return errors::InvalidArgument(
         "rpc_options not set in WorkerCacheFactoryOptions");
   }
-  std::shared_ptr<GrpcChannelCache> channel_cache(NewGrpcChannelCache(
-      channel_spec, GetChannelCreationFunction(), *options.rpc_options));
+
+
+  std::shared_ptr<GrpcChannelCache> channel_cache(
+    NewGrpcChannelCache(
+      channel_spec, GetChannelCreationFunction(), *options.rpc_options)
+  );
+  
 
   string name_prefix = strings::StrCat("/job:", *options.job_name, "/replica:0",
                                        "/task:", options.task_index);
@@ -408,6 +413,10 @@ Status GrpcServer::WorkerCacheFactory(const WorkerCacheFactoryOptions& options,
   }
   *worker_cache = NewGrpcWorkerCacheWithLocalWorker(
       channel_cache, grpc_worker_env(), worker_impl(), name_prefix);
+  // - channel_cache 和构造 grpc channel 相关, 只要给 target address 就能构造本机到目标机器之间的通道.
+  // - NewGrpcWorkerCacheWithLocalWorker
+  //   - New Grpc Worker Cache With Local Worker
+
   return Status::OK();
 }
 
@@ -548,6 +557,7 @@ ChannelCreationFunction GrpcServer::GetChannelCreationFunction() const {
   // returned by the channel creation function
   return ConvertToChannelCreationFunction(NewHostPortGrpcChannel);
 }
+// NewHostPortGrpcChannel: create a channel to the target address
 
 std::unique_ptr<Master> GrpcServer::CreateMaster(MasterEnv* master_env) {
   return std::unique_ptr<Master>(new Master(master_env, 0.0));

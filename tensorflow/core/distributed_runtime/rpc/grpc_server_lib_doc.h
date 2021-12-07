@@ -72,6 +72,12 @@ struct GrpcServerOptions {
   DeviceMgr* local_device_mgr = nullptr;
 };
 
+
+// 他人之见:
+// https://www.dazhuanlan.com/maiyingaibtwq/topics/1749824
+// - 
+//   - /home/wxf/tf2/tensorflow/tensorflow/core/distributed_runtime/rpc/grpc_tensorflow_server.cc 
+
 class GrpcServer : public ServerInterface {
  protected:
   GrpcServer(const ServerDef& server_def, Env* env);
