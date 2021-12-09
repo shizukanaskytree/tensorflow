@@ -34,25 +34,25 @@ class TestPipe(mp.Process):
         # loop.add_reader(self._inner_pipe.fileno(), pipe_semaphore.release)
 
         async def _run():
-            # self.recv_msg()
-            """Start automatically"""
-            print("start recving")
+            self.recv_msg()
+            # """Start automatically"""
+            # print("start recving")
 
-            while True:
-                method, args, kwargs = self._inner_pipe.recv()
-                if method is not None:
-                    print(method, args, kwargs)
+            # while True:
+            #     method, args, kwargs = self._inner_pipe.recv()
+            #     if method is not None:
+            #         print(method, args, kwargs)
 
         loop.run_until_complete(_run())
 
-    # def recv_msg(self):
-    #     """Start automatically"""
-    #     print("start recving")
+    def recv_msg(self):
+        """Start automatically"""
+        print("start recving")
 
-    #     while True:
-    #         method, args, kwargs = self._inner_pipe.recv()
-    #         if method is not None:
-    #             print(method, args, kwargs)
+        while True:
+            method, args, kwargs = self._inner_pipe.recv()
+            if method is not None:
+                print(method, args, kwargs)
 
 
 test_pipe = TestPipe()
