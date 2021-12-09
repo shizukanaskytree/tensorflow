@@ -205,8 +205,13 @@ Status GrpcServer::Init(const GrpcServerOptions& opts) {
 
   if (opts.local_device_mgr == nullptr) {
     std::vector<std::unique_ptr<Device>> devices;
+
     TF_RETURN_IF_ERROR(
         DeviceFactory::AddDevices(sess_opts, name_prefix, &devices));
+    // 1.
+    // name_prefix can go to 
+    // Status BaseGPUDeviceFactory::CreateGPUDevice
+
     worker_env_.device_mgr = new DynamicDeviceMgr(std::move(devices));
     owned_device_manager_.reset(worker_env_.device_mgr);
   } else {

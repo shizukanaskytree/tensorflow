@@ -13,6 +13,45 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+
+
+
+// API to use in cc file
+// =====================
+
+// create a instance/obj:
+// =====================
+// ServerDef* options;
+// ClusterDef* const cluster = options->mutable_cluster();
+//                                      ^^^^^^^
+// Returns a pointer to the mutable object that stores the field's value.
+// doc: https://developers.google.com/protocol-buffers/docs/reference/cpp-generated
+//
+// 
+// ===
+//
+// int *const is a constant pointer to integer
+// This means that the variable being declared is a constant pointer pointing to an integer.
+// this implies that the pointer shouldn’t point to some other address.
+// 
+// ===
+//
+// from `tensorflow/core/distributed_runtime/rpc/grpc_tensorflow_server_doc.cc`
+// https://stackoverflow.com/questions/53648009/google-protobuf-mutable-foo-or-set-allocated-foo
+
+// 
+// JobDef* const job_def = cluster->add_job();
+//                                  ^^^
+
+// set the value:
+// ==============
+// options->set_job_name(job_name);
+//          ^^^
+// 
+
+
+
+
 syntax = "proto3";
 
 package tensorflow;
@@ -29,6 +68,13 @@ option go_package = "github.com/tensorflow/tensorflow/tensorflow/go/core/protobu
 
 // Defines the configuration of a single TensorFlow server.
 message ServerDef {
+
+  // 为什么一定要 ClusterDef 呢?
+  // tensorflow/core/protobuf/cluster_doc.proto
+  // 如果不写这个 server 就定义不起来吗? 
+  // 哪个步骤定义不起来?
+  // ================
+
   // The cluster of which this server is a member.
   ClusterDef cluster = 1;
 
@@ -46,6 +92,8 @@ message ServerDef {
 
   // The default configuration for sessions that run on this server.
   ConfigProto default_session_config = 4;
+  // 如果你不想写, 你可以写 NULL.
+  // NULL 怎么写?
 
   // The protocol to be used by this server.
   //
@@ -59,3 +107,4 @@ message ServerDef {
   // NOTE: This is an experimental feature and only effective in TensorFlow 2.x.
   ClusterDeviceFilters cluster_device_filters = 7;
 }
+

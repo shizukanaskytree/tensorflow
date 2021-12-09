@@ -10,7 +10,9 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"
 os.environ["TF_CPP_MAX_VLOG_LEVEL"] = "2"
 
 # tensorflow/core/util/dump_graph.cc:134] Failed to dump after_grouping_2_139915407473008 because dump location is not  specified through either TF_DUMP_GRAPH_PREFIX environment variable or function argument.
-os.environ["TF_DUMP_GRAPH_PREFIX"] = "/home/wxf/tf2/tensorflow/experiments/param_server/graph_dump"
+os.environ[
+    "TF_DUMP_GRAPH_PREFIX"
+] = "/home/wxf/tf2/tensorflow/experiments/param_server/graph_dump"
 import tensorflow as tf
 
 # to log placement, eg: https://gist.github.com/shizukanaskytree/f8131342bc6475e1d92164f5da6819d9
@@ -31,7 +33,7 @@ tf.debugging.set_log_device_placement(True)
 
 
 # Variables are created on parameter servers and they are read and updated by workers in each step.
-# tf.distribute.experimental.ParameterServerStrategy class distributes the training steps to 
+# tf.distribute.experimental.ParameterServerStrategy class distributes the training steps to
 # a cluster that scales up to thousands of workers (accompanied by parameter servers).
 
 # 在这个 cluster 里面有 5 个 server, coordinator 是自动被加入的, 我也不知道什么关系.
@@ -52,6 +54,13 @@ def create_in_process_cluster(num_workers, num_ps):
     # from the coordinator.
 
     cluster_dict = {}
+
+    # 在 ip 下构造 devices
+    # ip:port
+    # ip is localhost
+    # 这里的 cluste name 到最后直接和构造的 device name  相互挂钩.
+    # 有几个 server 你心里没有 B 数吗?
+    # server 代号是什么
     cluster_dict["worker"] = ["localhost:%s" % port for port in worker_ports]
     if num_ps > 0:
         cluster_dict["ps"] = ["localhost:%s" % port for port in ps_ports]
@@ -148,7 +157,8 @@ def dataset_fn(input_context):
 dc = tf.keras.utils.experimental.DatasetCreator(dataset_fn)
 
 with strategy.scope():
-    model = tf.keras.models.Sequential([tf.keras.layers.Dense(10)])
+    layers = [tf.keras.layers.Dense(10), tf.keras.layers.Dense(10)]
+    model = tf.keras.models.Sequential(layers)
 
 model.compile(tf.keras.optimizers.SGD(), loss="mse", steps_per_execution=10)
 

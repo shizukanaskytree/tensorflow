@@ -1,3 +1,13 @@
+目前想参考 `tensorflow_server.proto` 来看是如何增加一个 protobuf 文件到 tf 里面的.
+在两个地方加入文件 tf_proto_library 和 exports_files.
+
+=====================================
+
+
+
+
+
+
 # copybara:uncomment_begin(oss-unused)
 # load("//net/grpc/go/build_defs:go_grpc_library.bzl", "go_grpc_library")
 # load("//net/grpc/python:py_grpc_library.bzl", "py_grpc_library")
@@ -12,6 +22,11 @@ load(
     "tf_pyclif_proto_library",
 )
 
+从 tensorflow/core/platform/build_config.bzl 里面,
+import func tf_additional_all_protos, tf_proto_library, tf_pyclif_proto_library.
+
+========================================
+
 package(
     default_visibility = [
         "//tensorflow:internal",
@@ -20,6 +35,10 @@ package(
     ],
     licenses = ["notice"],
 )
+
+
+=====================================
+
 
 COMMON_PROTO_SRCS = [
     "bfc_memory_map.proto",
@@ -36,6 +55,58 @@ COMMON_PROTO_SRCS = [
     "status.proto",
     "verifier_config.proto",
 ]
+
+
+
+(hm) wxf@seir19:~/tf2/tensorflow/tensorflow/core/protobuf$ ls -1
+autotuning.proto
+bfc_memory_map.proto # COMMON_PROTO_SRCS
+BUILD
+BUILD_DOC
+cluster_DOC.proto
+cluster.proto # COMMON_PROTO_SRCS
+composite_tensor_variant.proto
+config.proto # COMMON_PROTO_SRCS
+control_flow.proto
+conv_autotuning.proto
+critical_section.proto
+data_service.proto
+debug_event.proto
+debug.proto # COMMON_PROTO_SRCS
+device_filters.proto # COMMON_PROTO_SRCS
+device_properties.proto # COMMON_PROTO_SRCS
+eager_service.proto
+error_codes.proto
+graph_debug_info.proto # COMMON_PROTO_SRCS
+master.proto
+master_service.proto
+meta_graph.proto
+named_tensor.proto
+queue_runner.proto # COMMON_PROTO_SRCS
+remote_tensor_handle.proto
+replay_log.proto
+rewriter_config.proto # COMMON_PROTO_SRCS
+saved_model.proto
+saved_object_graph.proto
+saver.proto # COMMON_PROTO_SRCS
+service_config.proto
+snapshot.proto
+status.proto # COMMON_PROTO_SRCS
+struct.proto
+tensor_bundle.proto # COMMON_PROTO_SRCS
+tensorflow_server_decentralized.proto
+tensorflow_server_DOC.proto
+tensorflow_server.proto
+tpu
+trackable_object_graph.proto
+transport_options.proto
+verifier_config.proto # COMMON_PROTO_SRCS
+worker.proto
+worker_service.proto
+
+
+=====================================
+
 
 [
     [
@@ -55,6 +126,10 @@ COMMON_PROTO_SRCS = [
         "tensorflow_server",
     ]
 ]
+
+========================================
+
+tf_proto_library 比较像生成 bin 代码的编译过程.
 
 tf_proto_library(
     name = "autotuning_proto",
@@ -157,8 +232,13 @@ exports_files(
         "saved_model.proto",
         "saved_object_graph.proto",
         "struct.proto",
+        
+        
+        # export file.
         "tensorflow_server.proto",
-        "tensorflow_server_decentralized.proto",
+        
+        
+        
         "trackable_object_graph.proto",
         "transport_options.proto",
     ],
@@ -189,8 +269,12 @@ tf_proto_library(
         "saved_model.proto",
         "saved_object_graph.proto",
         "struct.proto",
+        
+        
+        # 生成 lib 需要添加这个文件
         "tensorflow_server.proto",
-        "tensorflow_server_decentralized.proto",
+        
+        
         "trackable_object_graph.proto",
         "transport_options.proto",
     ],
