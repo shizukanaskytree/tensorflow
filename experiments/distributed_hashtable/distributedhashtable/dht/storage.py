@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Optional, Union
 
-from hivemind.dht.routing import DHTID, BinaryDHTValue, Subkey
-from hivemind.utils.serializer import MSGPackSerializer
-from hivemind.utils.timed_storage import DHTExpiration, KeyType, TimedStorage, ValueType
+from distributedhashtable.dht.routing import DHTID, BinaryDHTValue, Subkey
+from distributedhashtable.utils.serializer import MSGPackSerializer
+from distributedhashtable.utils.timed_storage import DHTExpiration, KeyType, TimedStorage, ValueType
 
 
 @MSGPackSerializer.ext_serializable(0x50)

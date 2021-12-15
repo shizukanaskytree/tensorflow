@@ -2,9 +2,10 @@ import dataclasses
 import re
 from typing import Optional
 
-from hivemind.dht.validation import DHTRecord, RecordValidatorBase
-from hivemind.utils import MSGPackSerializer, get_logger
-from hivemind.utils.crypto import RSAPrivateKey, RSAPublicKey
+from distributedhashtable.dht.validation import DHTRecord, RecordValidatorBase
+from distributedhashtable.utils.logging import get_logger
+from distributedhashtable.utils.serializer import MSGPackSerializer
+from distributedhashtable.utils.crypto import RSAPrivateKey, RSAPublicKey
 
 logger = get_logger(__name__)
 

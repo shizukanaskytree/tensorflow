@@ -22,11 +22,11 @@ from typing import Awaitable, Callable, Iterable, List, Optional, Sequence, Type
 
 from multiaddr import Multiaddr
 
-from hivemind.dht.node import DEFAULT_NUM_WORKERS, DHTNode
-from hivemind.dht.routing import DHTID, DHTKey, DHTValue, Subkey
-from hivemind.dht.validation import CompositeValidator, RecordValidatorBase
-from hivemind.p2p import P2P, PeerID
-from hivemind.utils import DHTExpiration, MPFuture, ValueWithExpiration, get_logger, switch_to_uvloop
+from distributedhashtable.dht.node import DEFAULT_NUM_WORKERS, DHTNode
+from distributedhashtable.dht.routing import DHTID, DHTKey, DHTValue, Subkey
+from distributedhashtable.dht.validation import CompositeValidator, RecordValidatorBase
+from distributedhashtable.p2p import P2P, PeerID
+from distributedhashtable.utils import DHTExpiration, MPFuture, ValueWithExpiration, get_logger, switch_to_uvloop
 
 logger = get_logger(__name__)
 

@@ -4,14 +4,14 @@ from __future__ import annotations
 import asyncio
 from typing import Collection, Dict, List, Optional, Sequence, Tuple, Union
 
-from hivemind.dht.crypto import DHTRecord, RecordValidatorBase
-from hivemind.dht.routing import DHTID, BinaryDHTValue, RoutingTable, Subkey
-from hivemind.dht.storage import DHTLocalStorage, DictionaryDHTValue
-from hivemind.p2p import P2P, P2PContext, PeerID, ServicerBase
-from hivemind.proto import dht_pb2
-from hivemind.utils import MSGPackSerializer, get_logger
-from hivemind.utils.auth import AuthorizerBase, AuthRole, AuthRPCWrapper
-from hivemind.utils.timed_storage import (
+from distributedhashtable.dht.crypto import DHTRecord, RecordValidatorBase
+from distributedhashtable.dht.routing import DHTID, BinaryDHTValue, RoutingTable, Subkey
+from distributedhashtable.dht.storage import DHTLocalStorage, DictionaryDHTValue
+from distributedhashtable.p2p import P2P, P2PContext, PeerID, ServicerBase
+from distributedhashtable.proto import dht_pb2
+from distributedhashtable.utils import MSGPackSerializer, get_logger
+from distributedhashtable.utils.auth import AuthorizerBase, AuthRole, AuthRPCWrapper
+from distributedhashtable.utils.timed_storage import (
     MAX_DHT_TIME_DISCREPANCY_SECONDS,
     DHTExpiration,
     ValueWithExpiration,

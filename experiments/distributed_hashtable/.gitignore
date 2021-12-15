@@ -1,0 +1,2 @@
+*.egg-info
+distributedhashtable/cli/p2pd

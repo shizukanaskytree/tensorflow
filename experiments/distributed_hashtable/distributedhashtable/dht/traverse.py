@@ -4,7 +4,7 @@ import heapq
 from collections import Counter
 from typing import Any, Awaitable, Callable, Collection, Dict, List, Optional, Set, Tuple
 
-from hivemind.dht.routing import DHTID
+from distributedhashtable.dht.routing import DHTID
 
 ROOT = 0  # alias for heap root
 

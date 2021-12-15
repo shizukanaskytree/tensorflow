@@ -3,11 +3,11 @@ from typing import Any, Dict, Optional, Type
 
 import pydantic
 
-from hivemind.dht.crypto import RSASignatureValidator
-from hivemind.dht.protocol import DHTProtocol
-from hivemind.dht.routing import DHTID
-from hivemind.dht.validation import DHTRecord, RecordValidatorBase
-from hivemind.utils import get_logger
+from distributedhashtable.dht.crypto import RSASignatureValidator
+from distributedhashtable.dht.protocol import DHTProtocol
+from distributedhashtable.dht.routing import DHTID
+from distributedhashtable.dht.validation import DHTRecord, RecordValidatorBase
+from distributedhashtable.utils import get_logger
 
 logger = get_logger(__name__)
 

@@ -26,15 +26,15 @@ from typing import (
 from multiaddr import Multiaddr
 from sortedcontainers import SortedSet
 
-from hivemind.dht.crypto import DHTRecord, RecordValidatorBase
-from hivemind.dht.protocol import DHTProtocol
-from hivemind.dht.routing import DHTID, BinaryDHTValue, DHTKey, DHTValue, Subkey, get_dht_time
-from hivemind.dht.storage import DictionaryDHTValue
-from hivemind.dht.traverse import traverse_dht
-from hivemind.p2p import P2P, PeerID
-from hivemind.utils import MSGPackSerializer, SerializerBase, get_logger
-from hivemind.utils.auth import AuthorizerBase
-from hivemind.utils.timed_storage import DHTExpiration, TimedStorage, ValueWithExpiration
+from distributedhashtable.dht.crypto import DHTRecord, RecordValidatorBase
+from distributedhashtable.dht.protocol import DHTProtocol
+from distributedhashtable.dht.routing import DHTID, BinaryDHTValue, DHTKey, DHTValue, Subkey, get_dht_time
+from distributedhashtable.dht.storage import DictionaryDHTValue
+from distributedhashtable.dht.traverse import traverse_dht
+from distributedhashtable.p2p import P2P, PeerID
+from distributedhashtable.utils import MSGPackSerializer, SerializerBase, get_logger
+from distributedhashtable.utils.auth import AuthorizerBase
+from distributedhashtable.utils.timed_storage import DHTExpiration, TimedStorage, ValueWithExpiration
 
 logger = get_logger(__name__)
 
