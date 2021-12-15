@@ -7,8 +7,7 @@ from distributedhashtable.utils.logging import get_logger, use_hivemind_log_hand
 # debugpy.wait_for_client()
 # debugpy.breakpoint()
 
-from transformers import HfArgumentParser
-from transformers import TrainingArguments
+from transformers import HfArgumentParser, TrainingArguments
 
 @dataclass
 class SenderArgs(TrainingArguments):

@@ -23,4 +23,24 @@ https://stackoverflow.com/questions/30306099/pip-install-editable-vs-python-setu
 python setup.py develop
 ```
 
+# Only example3 works
 
+How to run?
+
+1. go to folder example3
+
+```
+bash exec_dht_get.sh
+```
+
+2. 
+
+```
+bash exec_dht_store.sh
+```
+
+schema: 
+
+```
+{'ip0': ValueWithExpiration(value='192.168.0.1', expiration_time=1639596407.8455963), 'ip1': ValueWithExpiration(value='192.168.0.2', expiration_time=1639596421.6019454), 'ip2': ValueWithExpiration(value='DISABLE', expiration_time=1639596484.9601843)}
+```

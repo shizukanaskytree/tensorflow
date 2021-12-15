@@ -333,6 +333,6 @@ class DHT(mp.Process):
     async def _get_p2p_daemon_listen_maddr(_dht: DHT, node: DHTNode) -> Multiaddr:
         return node.p2p.daemon_listen_maddr
 
-    def __del__(self):
+    def __del__(self):        
         if self._parent_pid == os.getpid() and self.is_alive():
             self.shutdown()

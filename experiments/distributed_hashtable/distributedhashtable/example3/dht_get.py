@@ -3,7 +3,6 @@
 # debugpy.wait_for_client()
 # debugpy.breakpoint()
 
-
 from transformers import HfArgumentParser
 from typing import List, Optional
 from dataclasses import asdict, dataclass, field
@@ -12,6 +11,8 @@ from distributedhashtable.dht import DHT
 from distributedhashtable.utils.logging import get_logger, use_hivemind_log_handler
 import utils
 from arguments import BaseTrainingArguments
+import time
+
 use_hivemind_log_handler("in_root_logger")
 logger = get_logger(__name__)
 
@@ -84,22 +85,31 @@ validators, local_public_key = utils.make_validators(experiment_prefix)
 dht = DHT(
     start=True,
     initial_peers=monitor_args.initial_peers,
-    record_validators=validators,
-    use_ipfs=monitor_args.use_ipfs,
-    host_maddrs=monitor_args.host_maddrs,
-    announce_maddrs=monitor_args.announce_maddrs,
-    identity_path=monitor_args.identity_path,
+    # record_validators=validators,
+    # use_ipfs=monitor_args.use_ipfs,
+    # host_maddrs=monitor_args.host_maddrs,
+    # announce_maddrs=monitor_args.announce_maddrs,
+    # identity_path=monitor_args.identity_path,
 )
 
 utils.log_visible_maddrs(dht.get_visible_maddrs(), only_p2p=monitor_args.use_ipfs)
 
 while True:
     # metrics_dict = dht.get("store_test_key", latest=True)
-    recv = dht.get("key1")
+    recv = dht.get("cluster")
     if recv is not None:
-        print(recv.value) #  == "value1"
+        # cnt = 0
+        for item in recv:
+            # cnt += 1
+            print(item)
+            # {'ip2': ValueWithExpiration(value='192.168.0.3', expiration_time=1639596209.9649987), 'ip1': ValueWithExpiration(value='192.168.0.2', expiration_time=1639596250.6313906), 'ip0': ValueWithExpiration(value='192.168.0.1', expiration_time=1639596295.814378)}
+            time.sleep(0.1)
         
-        print(recv)
+        # print(cnt)
+            # print(item)
+        # print(recv.value) #  == "value1"
+        
+        # print(recv)
         # peer_info = [recv[peer].value for peer in recv]
         # print(peer_info)
-        break
+    time.sleep(0.1)

@@ -3,8 +3,8 @@ import inspect
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, List, Optional, Tuple, Type, get_type_hints
 
-from hivemind.p2p.p2p_daemon import P2P
-from hivemind.p2p.p2p_daemon_bindings.datastructures import PeerID
+from distributedhashtable.p2p.p2p_daemon import P2P
+from distributedhashtable.p2p.p2p_daemon_bindings.datastructures import PeerID
 
 
 @dataclass
