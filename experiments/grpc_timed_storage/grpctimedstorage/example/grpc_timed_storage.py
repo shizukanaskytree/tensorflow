@@ -17,7 +17,7 @@ channel_options = (("grpc.max_send_message_length", -1), ("grpc.max_receive_mess
 
 # 不需要直接调用 get_singleton, 因为 ChannelCache.get_stub 
 # channel_cache = ChannelCache.get_singleton()
-ChannelCache.get_stub(
+channel_stub = ChannelCache.get_stub(
     target="localhost:28282",
     stub_type=runtime_grpc.ConnectionHandlerStub,
     aio=False

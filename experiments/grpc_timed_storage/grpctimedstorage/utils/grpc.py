@@ -136,7 +136,7 @@ class ChannelCache(TimedStorage[ChannelInfo, Tuple[Union[grpc.Channel, grpc.aio.
             logger.debug(
                 f"Creating insecure {namespace} channel with options '{options}' " f"and compression '{compression}'"
             )
-            return namespace.insecure_channel(target, options=options, compression=compression)
+            return namespace.insecure_channel(target, options=options, compression=compression) # namespace: <module 'grpc' from '/home/wxf/hm_prj/hivemind/.eggs/grpcio-1.39.0-py3.8-linux-x86_64.egg/grpc/__init__.py'>
         else:
             logger.debug(
                 f"Creating secure {namespace} channel with credentials '{channel_credentials}', "
@@ -166,7 +166,7 @@ class ChannelCache(TimedStorage[ChannelInfo, Tuple[Union[grpc.Channel, grpc.aio.
             self._update_eviction_evt.set()
 
     def store(self, *args, **kwargs) -> ValueError:
-        raise ValueError(f"Please use {self.__class__.__name__}.get_stub to get or create stubs")
+        raise ValueError(f"Please use {self.__class__.__name__}.get_stub to get or create stubs") # self.__class__.__name__: 'ChannelCache'
 
     def get(self, *args, **kwargs) -> ValueError:
         raise ValueError(f"Please use {self.__class__.__name__}.get_stub to get or create stubs")
