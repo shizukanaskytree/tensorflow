@@ -27,3 +27,7 @@ Terminal 2: call rpc from the client side
 ```
 (hm) wxf@seir19:~/tf2/tensorflow/experiments/grpc_hivemind$ python client.py 
 ```
+
+# 测试 utils/grpc.py
+
+timed storage => grpc cache, ChannelCache

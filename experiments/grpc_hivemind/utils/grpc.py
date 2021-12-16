@@ -246,7 +246,7 @@ class ChannelCache(
         While `self._is_active` is True, the `_evict_stale_channels_in_background` function runs forever.
 
         If we do not set `self._nearest_expiration_time`, the initial value is infinite,
-        the timeout for `self._update_eviction_evt.wait()` is forever.
+        the timeout for `self._update_eviction_evt.wait()` is infinite, so wait forever.
 
         `self._update_eviction_evt` True or False?
         If `self._update_eviction_evt` is True,
