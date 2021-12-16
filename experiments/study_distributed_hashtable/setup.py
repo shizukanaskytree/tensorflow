@@ -14,7 +14,18 @@ from setuptools import setup, find_packages
 from setuptools.command.build_py import build_py
 from setuptools.command.develop import develop
 
+# import debugpy
+# debugpy.listen(5678)
+# debugpy.wait_for_client()
+# debugpy.breakpoint()
+
 here = os.path.abspath(os.path.dirname(__file__))
+# os.path.dirname: Return the directory name of pathname path. 具体是从 `python` 执行开始处数的 folder dir name.
+# __file__: 'setup.py'; 
+# * __file__ is the pathname of the file from which the module was loaded.
+#
+# os.path.dirname(__file__): ''; 
+# os.path.abspath(os.path.dirname(__file__)): '/home/wxf/tf2/tensorflow/experiments/study_distributed_hashtable'
 
 # https://stackoverflow.com/questions/6323860/sibling-package-imports
 # packages = find_packages()
@@ -47,13 +58,16 @@ def build_p2p_daemon():
 
     with tempfile.TemporaryDirectory() as tempdir:
         dest = os.path.join(tempdir, "libp2p-daemon.tar.gz")
+        # repo url: LIBP2P_TAR_URL, https://github.com/learning-at-home/go-libp2p-daemon
+        # repo is a go project: Go: 99.9%, Makefile:0.1%
         urllib.request.urlretrieve(LIBP2P_TAR_URL, dest)
 
         with tarfile.open(dest, "r:gz") as tar:
             tar.extractall(tempdir)
 
+        # p2pd 是最后编译的 binary 文件
         result = subprocess.run(
-            f'go build -o {shlex.quote(os.path.join(here, "hivemind", "hivemind_cli", "p2pd"))}',
+            f'go build -o {shlex.quote(os.path.join(here, "distributedhashtable", "cli", "p2pd"))}',
             cwd=os.path.join(tempdir, f"go-libp2p-daemon-{P2PD_VERSION[1:]}", "p2pd"),
             shell=True,
         )
@@ -106,7 +120,7 @@ def download_p2p_daemon():
 
 
 class BuildPy(build_py):
-    user_options = build_py.user_options + [("buildgo", None, "Builds p2pd from source")]
+    user_options = build_py.user_options + [("buildgo", None, "Builds p2pd from source")] # 增加一个编译的 option `buildgo`, 默认值是 `None`, option 的说明是 "Builds p2pd from source"
 
     def initialize_options(self):
         super().initialize_options()
@@ -119,10 +133,11 @@ class BuildPy(build_py):
             download_p2p_daemon()
 
         super().run()
-        print('self.build_lib: ', self.build_lib)
+        # print('self.build_lib: ', self.build_lib)
         proto_compile(os.path.join("distributedhashtable", "proto"))
 
-
+# 可以选择 `python setup.py build_py`, 或者 `python setup.py develop`
+# 编译开启 `self.buildgo`, `def build_p2p_daemon` 的命令是 `python setup.py build_py --buildgo`
 setup(
     name='distributedhashtable', 
     version='0.0.1', 
@@ -131,3 +146,4 @@ setup(
     package_data={"distributedhashtable": ["proto/*", "hivemind_cli/*"]},
     include_package_data=True
 )
+
