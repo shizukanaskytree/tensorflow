@@ -1,0 +1,6 @@
+README.md
+setup.py
+atom.egg-info/PKG-INFO
+atom.egg-info/SOURCES.txt
+atom.egg-info/dependency_links.txt
+atom.egg-info/top_level.txt
