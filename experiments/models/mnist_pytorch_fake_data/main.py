@@ -80,17 +80,17 @@ def train(epoch):
     for batch_idx, (data, target) in enumerate(train_loader):
         optimizer.zero_grad()        
         print('forward-ing')
-        
-        print(f'data.shape: {data.shape}')
+
+        print(f'data.shape: {data.shape}') # [64, 1, 28, 28]
         a = torch.FloatTensor(data.shape)
         
         # output = network(data)
         output = network(a)
         print('forward-ed')
-        
-        print(f'target.shape: {target.shape}')
+
+        print(f'target.shape: {target.shape}') # target.shape: torch.Size([64])
         b = np.zeros(shape=target.shape) 
-        b =  torch.LongTensor(b) # [64, 1, 28, 28]
+        b =  torch.LongTensor(b) 
         # loss = F.nll_loss(output, target) # origin  
         loss = F.nll_loss(output, b)
              
