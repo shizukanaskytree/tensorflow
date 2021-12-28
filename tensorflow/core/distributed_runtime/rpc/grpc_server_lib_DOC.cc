@@ -182,7 +182,7 @@ Status GrpcServer::Init(const GrpcServerOptions& opts) {
   int requested_port;
   TF_RETURN_IF_ERROR(GetHostAndPort(server_def_, &host_name_, &requested_port));
 
-  // 
+  //
   // host_name_
   // "localhost"
   // 
@@ -201,6 +201,9 @@ Status GrpcServer::Init(const GrpcServerOptions& opts) {
   string name_prefix =
       strings::StrCat("/job:", server_def_.job_name(), "/replica:0",
                       "/task:", server_def_.task_index());
+  // name_prefix 是给到了 AddDevices 函数里面.
+  // 如果 name_prefix 要改, AddDevices 要改
+  // 反之, 就想想怎么不改然后重用基建.
 
 
   if (opts.local_device_mgr == nullptr) {
@@ -573,11 +576,11 @@ Status GrpcServer::Create(const ServerDef& server_def, Env* env,
                           DeviceMgr* local_device_mgr,
                           std::unique_ptr<ServerInterface>* out_server) {
 
-  // 
+  //
   std::unique_ptr<GrpcServer> ret(
 
       // GrpcServer 构造函数
-      // 
+      //
       new GrpcServer(server_def, env == nullptr ? Env::Default() : env));
 
   GrpcServerOptions options;

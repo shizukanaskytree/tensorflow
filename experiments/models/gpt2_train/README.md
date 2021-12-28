@@ -1,0 +1,3 @@
+Code is from
+https://github.com/karpathy/minGPT/blob/master/play_char.ipynb
+

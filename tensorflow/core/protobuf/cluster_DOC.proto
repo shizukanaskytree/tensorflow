@@ -97,7 +97,7 @@ message JobDef {
 message ClusterDef {
   // The jobs that comprise the cluster.
   repeated JobDef job = 1;
-  // task_index 估计是自动在 list repeated 里面产生了. 
+  // task_index 估计是自动在 list repeated 里面产生了.
 }
 //    Servers:
 //      cluster { $CLUSTER } job_name: 'worker' task_index: 0

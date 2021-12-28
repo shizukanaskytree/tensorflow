@@ -142,10 +142,11 @@ class GPT2(nn.Module):
             return outputs
         return logits
 
+
 model = GPT2()
+
 # load pretrained_weights from hugging face
 # download file https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-pytorch_model.bin to `.`
-
 model_dict = model.state_dict() #currently with random initialization
 state_dict = torch.load("./gpt2-pytorch_model.bin") #pretrained weights
 
@@ -174,6 +175,7 @@ context   = torch.tensor([tokenizer.encode("The planet earth")])
 def generate(context, ntok=20):
     for _ in range(ntok):
         out = model(context)
+        print(out.shape)
         logits = out[:, -1, :]
         indices_to_remove = logits < torch.topk(logits, 10)[0][..., -1, None]
         logits[indices_to_remove] = np.NINF
@@ -181,5 +183,5 @@ def generate(context, ntok=20):
         context = torch.cat([context, next_tok.unsqueeze(-1)], dim=-1)
     return context
 
-out = generate(context, ntok=20)
-tokenizer.decode(out[0])
+out = generate(context, ntok=40)
+print(tokenizer.decode(out[0]))
