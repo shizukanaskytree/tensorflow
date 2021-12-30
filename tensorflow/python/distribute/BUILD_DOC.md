@@ -399,6 +399,8 @@ py_library(
     ],
 )
 
+
+```
 py_library(
     name = "collective_all_reduce_strategy",
     srcs = ["collective_all_reduce_strategy.py"],
@@ -430,39 +432,48 @@ py_library(
         "//tensorflow/python/util:tf_export",
     ],
 )
+```
+
+Dependent targets show import packages.
+For example, `collective_util` above in the `py_library` corresponds to `from tensorflow.python.distribute import collective_util` in the python code.
+
+* 通用的 targets:
+  * "//tensorflow/core:protos_all_py",
+  * "//tensorflow/python:array_ops",
+  * "//tensorflow/python:collective_ops",
+  * "//tensorflow/python:errors",
+  * "//tensorflow/python:framework_ops",
+  * "//tensorflow/python:platform",
+  * "//tensorflow/python:training",
+  * "//tensorflow/python:util",
+  * "//tensorflow/python/distribute/cluster_resolver:cluster_resolver_lib",
+  * "//tensorflow/python/eager:context",
+  * "//tensorflow/python/util:tf_export",
+
+特点: starting from `//tensorflow/...`
 
 
-py_library(
-    name = "collective_all_reduce_strategy_atom",
-    srcs = ["collective_all_reduce_strategy_atom.py"],
-    srcs_version = "PY3",
-    visibility = ["//tensorflow:internal"],
-    deps = [
-        ":collective_util",
-        ":cross_device_ops",
-        ":cross_device_utils",
-        ":device_util",
-        ":distribute_lib",
-        ":distribute_utils",
-        ":input_lib",
-        ":mirrored_strategy",
-        ":multi_worker_util",
-        ":numpy_dataset",
-        ":reduce_util",
-        ":values",
-        "//tensorflow/core:protos_all_py",
-        "//tensorflow/python:array_ops",
-        "//tensorflow/python:collective_ops",
-        "//tensorflow/python:errors",
-        "//tensorflow/python:framework_ops",
-        "//tensorflow/python:platform",
-        "//tensorflow/python:training",
-        "//tensorflow/python:util",
-        "//tensorflow/python/distribute/cluster_resolver:cluster_resolver_lib",
-        "//tensorflow/python/eager:context",
-        "//tensorflow/python/util:tf_export",
+```
+# DO NOT ADD ANY NEW EXCEPTIONS TO THIS LIST!
+# Instead, please use public APIs or public build rules TF provides.
+# If you need functionality that is not exposed, we will work with you to expand our public APIs.
+# TODO(b/173549186): Move Google-internal TF code out of learning/brain
+package_group(
+    name = "internal",
+    packages = [
+        "//learning/brain/keras/...",
+        "//learning/brain/mlir/...",
+        "//learning/brain/tfrt/...",
+        "//learning/lib/ami/simple_ml/...",
+        "//tensorflow/...",
+        "//tensorflow_decision_forests/...",
+        "//tensorflow_federated/...",
+        "//third_party/cloud_tpu/inference_converter/...",
+        "//third_party/py/envlogger/...",
+        "//third_party/yggdrasil_decision_forests/...",
     ],
 )
+```
 
 
 py_library(
