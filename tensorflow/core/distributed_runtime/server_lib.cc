@@ -17,6 +17,10 @@ limitations under the License.
 
 #include <unordered_map>
 
+#include <boost/stacktrace.hpp>
+#include <iostream>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/platform/mutex.h"
 
@@ -24,12 +28,14 @@ namespace tensorflow {
 
 namespace {
 mutex* get_server_factory_lock() {
+  std::cout << boost::stacktrace::stacktrace() << std::endl;
   static mutex server_factory_lock(LINKER_INITIALIZED);
   return &server_factory_lock;
 }
 
 typedef std::unordered_map<string, ServerFactory*> ServerFactories;
 ServerFactories* server_factories() {
+  std::cout << boost::stacktrace::stacktrace() << std::endl;
   static ServerFactories* factories = new ServerFactories;
   return factories;
 }
@@ -38,6 +44,7 @@ ServerFactories* server_factories() {
 /* static */
 void ServerFactory::Register(const string& server_type,
                              ServerFactory* factory) {
+  std::cout << boost::stacktrace::stacktrace() << std::endl;
   mutex_lock l(*get_server_factory_lock());
   if (!server_factories()->insert({server_type, factory}).second) {
     LOG(ERROR) << "Two server factories are being registered under "
@@ -48,6 +55,7 @@ void ServerFactory::Register(const string& server_type,
 /* static */
 Status ServerFactory::GetFactory(const ServerDef& server_def,
                                  ServerFactory** out_factory) {
+  std::cout << boost::stacktrace::stacktrace() << std::endl;
   mutex_lock l(*get_server_factory_lock());
   for (const auto& server_factory : *server_factories()) {
     if (server_factory.second->AcceptsOptions(server_def)) {
@@ -71,6 +79,7 @@ Status ServerFactory::GetFactory(const ServerDef& server_def,
 // `*out_server`. Returns OK on success, otherwise returns an error.
 Status NewServer(const ServerDef& server_def,
                  std::unique_ptr<ServerInterface>* out_server) {
+  std::cout << boost::stacktrace::stacktrace() << std::endl;
   ServerFactory* factory;
   TF_RETURN_IF_ERROR(ServerFactory::GetFactory(server_def, &factory));
   return factory->NewServer(server_def, ServerFactory::Options(), out_server);
@@ -81,6 +90,7 @@ Status NewServer(const ServerDef& server_def,
 Status NewServerWithOptions(const ServerDef& server_def,
                             const ServerFactory::Options& options,
                             std::unique_ptr<ServerInterface>* out_server) {
+  std::cout << boost::stacktrace::stacktrace() << std::endl;
   ServerFactory* factory;
   TF_RETURN_IF_ERROR(ServerFactory::GetFactory(server_def, &factory));
   return factory->NewServer(server_def, options, out_server);
