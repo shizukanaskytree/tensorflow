@@ -56,6 +56,10 @@ limitations under the License.
 #include "tensorflow/core/public/session_options.h"
 #include "tensorflow/core/util/env_var.h"
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 namespace tensorflow {
 
 namespace {
@@ -65,11 +69,14 @@ namespace {
 class NoReusePortOption : public ::grpc::ServerBuilderOption {
  public:
   void UpdateArguments(::grpc::ChannelArguments* args) override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     args->SetInt(GRPC_ARG_ALLOW_REUSEPORT, 0);
   }
 
   void UpdatePlugins(std::vector<std::unique_ptr<::grpc::ServerBuilderPlugin>>*
-                         plugins) override {}
+                         plugins) override {
+                          write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+                        }
 };
 
 // Define an option subclass in order to enable SO_REUSEPORT for the
@@ -77,24 +84,32 @@ class NoReusePortOption : public ::grpc::ServerBuilderOption {
 class ReusePortOption : public ::grpc::ServerBuilderOption {
  public:
   void UpdateArguments(::grpc::ChannelArguments* args) override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     args->SetInt(GRPC_ARG_ALLOW_REUSEPORT, 1);
   }
 
   void UpdatePlugins(std::vector<std::unique_ptr<::grpc::ServerBuilderPlugin>>*
-                         plugins) override {}
+                         plugins) override {
+                            write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+                         }
 };
 
 // static utility function
 RendezvousMgrInterface* NewRpcRendezvousMgr(const WorkerEnv* env) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return new RpcRendezvousMgr(env);
 }
 
 }  // namespace
 
 GrpcServer::GrpcServer(const ServerDef& server_def, Env* env)
-    : env_(env), state_(NEW), server_def_(server_def) {}
+    : env_(env), state_(NEW), server_def_(server_def) {
+      write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    }
 
 GrpcServer::~GrpcServer() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+
   TF_CHECK_OK(Stop());
   TF_CHECK_OK(Join());
 
@@ -131,6 +146,7 @@ GrpcServer::~GrpcServer() {
 // Look up the requested host name and port for this task in `server_def`.
 Status GrpcServer::GetHostAndPort(const ServerDef& server_def,
                                   string* host_name, int* port) const {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   *port = -1;
   *host_name = "localhost";
   for (const auto& job : server_def.cluster().job()) {
@@ -170,6 +186,7 @@ Status GrpcServer::GetHostAndPort(const ServerDef& server_def,
 }
 
 Status GrpcServer::Init(const GrpcServerOptions& opts) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock l(mu_);
   CHECK_EQ(state_, NEW);
   master_env_.env = env_;
@@ -335,6 +352,7 @@ Status GrpcServer::Init(const GrpcServerOptions& opts) {
 
 Status GrpcServer::ParseChannelSpec(const WorkerCacheFactoryOptions& options,
                                     GrpcChannelSpec* channel_spec) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   for (const auto& job : options.cluster_def->job()) {
     std::map<int, string> host_ports;
     for (const auto& task : job.tasks()) {
@@ -358,6 +376,7 @@ Status GrpcServer::ParseChannelSpec(const WorkerCacheFactoryOptions& options,
 
 Status GrpcServer::WorkerCacheFactory(const WorkerCacheFactoryOptions& options,
                                       WorkerCacheInterface** worker_cache) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   if (options.job_name == nullptr || options.job_name->empty()) {
     Status s = errors::InvalidArgument(
         "The master (current machine) is not included in the provided "
@@ -399,6 +418,7 @@ Status GrpcServer::WorkerCacheFactory(const WorkerCacheFactoryOptions& options,
 }
 
 Status GrpcServer::Start() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock l(mu_);
   switch (state_) {
     case NEW: {
@@ -439,12 +459,14 @@ Status GrpcServer::Start() {
 
 Status GrpcServer::AddMasterEagerContextToEagerService(
     const tensorflow::uint64 context_id, tensorflow::EagerContext* context) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   auto* eager_service =
       static_cast<eager::GrpcEagerServiceImpl*>(eager_service_);
   return eager_service->CreateMasterContext(context_id, context);
 }
 
 Status GrpcServer::UpdateServerDef(const ServerDef& server_def) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock l(mu_);
   server_def_ = server_def;
   WorkerCacheInterface* worker_cache;
@@ -479,11 +501,13 @@ Status GrpcServer::UpdateServerDef(const ServerDef& server_def) {
 // field inside the RPC coordination service handler.
 Status GrpcServer::SetCoordinationServiceAgentInstance(
     CoordinationServiceAgent* agent) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   // No op, coordination service is not implemented in open source.
   return Status::OK();
 }
 
 Status GrpcServer::Stop() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock l(mu_);
   switch (state_) {
     case NEW:
@@ -501,6 +525,7 @@ Status GrpcServer::Stop() {
 }
 
 Status GrpcServer::Join() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock l(mu_);
   switch (state_) {
     case NEW:
@@ -522,21 +547,25 @@ Status GrpcServer::Join() {
 }
 
 const string GrpcServer::target() const {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return strings::StrCat("grpc://", host_name_, ":", bound_port_);
 }
 
 std::shared_ptr<::grpc::ServerCredentials> GrpcServer::GetServerCredentials(
     const ServerDef& server_def) const {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return ::grpc::InsecureServerCredentials();
 }
 
 ChannelCreationFunction GrpcServer::GetChannelCreationFunction() const {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   // We can do this because SparseGrpcChannelCache is robust to nullptr being
   // returned by the channel creation function
   return ConvertToChannelCreationFunction(NewHostPortGrpcChannel);
 }
 
 std::unique_ptr<Master> GrpcServer::CreateMaster(MasterEnv* master_env) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return std::unique_ptr<Master>(new Master(master_env, 0.0));
 }
 
@@ -544,6 +573,7 @@ std::unique_ptr<Master> GrpcServer::CreateMaster(MasterEnv* master_env) {
 Status GrpcServer::Create(const ServerDef& server_def, Env* env,
                           DeviceMgr* local_device_mgr,
                           std::unique_ptr<ServerInterface>* out_server) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   std::unique_ptr<GrpcServer> ret(
       new GrpcServer(server_def, env == nullptr ? Env::Default() : env));
   GrpcServerOptions options;
@@ -561,12 +591,14 @@ Status GrpcServer::Create(const ServerDef& server_def, Env* env,
 /* static */
 Status GrpcServer::Create(const ServerDef& server_def, Env* env,
                           std::unique_ptr<ServerInterface>* out_server) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return Create(server_def, env, nullptr, out_server);
 }
 
 /* static */
 Status GrpcServer::Create(const ServerDef& server_def, Env* env,
                           std::unique_ptr<GrpcServer>* out_server) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   std::unique_ptr<ServerInterface> server;
   Status s = Create(server_def, env, nullptr, &server);
   if (!s.ok()) {
@@ -581,11 +613,13 @@ namespace {
 class GrpcServerFactory : public ServerFactory {
  public:
   bool AcceptsOptions(const ServerDef& server_def) override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     return server_def.protocol() == "grpc";
   }
 
   Status NewServer(const ServerDef& server_def, const Options& options,
                    std::unique_ptr<ServerInterface>* out_server) override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     return GrpcServer::Create(server_def, Env::Default(),
                               options.local_device_mgr, out_server);
   }
@@ -595,6 +629,7 @@ class GrpcServerFactory : public ServerFactory {
 class GrpcServerRegistrar {
  public:
   GrpcServerRegistrar() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     ServerFactory::Register("GRPC_SERVER", new GrpcServerFactory());
   }
 };

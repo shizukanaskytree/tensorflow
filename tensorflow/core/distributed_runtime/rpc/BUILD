@@ -146,6 +146,7 @@ cc_library(
     deps = [
         "//tensorflow/core:lib",
         "//tensorflow/core:lib_internal",
+        "@boost//:stacktrace",
     ] + tf_grpc_cc_dependencies(),
 )
 
@@ -342,6 +343,8 @@ cc_library(
         "//tensorflow/core/distributed_runtime:worker_env",
         "//tensorflow/core/distributed_runtime/rpc/eager:grpc_eager_service_impl",
         "//tensorflow/core/profiler/rpc:profiler_service_impl",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ] + tf_protos_profiler_service() + tf_grpc_dependencies() + tf_grpc_cc_dependencies(),
     alwayslink = 1,
 )

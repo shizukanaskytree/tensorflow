@@ -595,6 +595,14 @@ cc_library(
 )
 
 cc_library(
+    name = "write_log",
+    srcs = ["write_log.cc"],
+    hdrs = ["write_log.h"],
+    # deps = [
+    # ],
+)
+
+cc_library(
     name = "incremental_barrier",
     srcs = ["incremental_barrier.cc"],
     hdrs = ["incremental_barrier.h"],
