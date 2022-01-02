@@ -45,6 +45,7 @@ cc_library(
         ":worker_interface",
         "//tensorflow/core:framework",
         "//tensorflow/core:lib",
+        "//tensorflow/core/util:write_log",
         "@boost//:stacktrace",
     ],
 )
@@ -70,6 +71,8 @@ cc_library(
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core/protobuf:master_proto_cc",
         "//tensorflow/core/protobuf:worker_proto_cc",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -107,6 +110,7 @@ cc_library(
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core/protobuf:worker_proto_cc",
         "@com_google_absl//absl/types:optional",
+        "//tensorflow/core/util:write_log",
         "@boost//:stacktrace",
     ],
 )
@@ -147,6 +151,7 @@ cc_library(
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core:ptr_util",
         "//tensorflow/core/protobuf:worker_proto_cc",
+        "//tensorflow/core/util:write_log",
         "@boost//:stacktrace",
     ],
 )
@@ -170,7 +175,11 @@ tf_cc_test(
 cc_library(
     name = "worker_env",
     hdrs = ["worker_env.h"],
-    deps = ["//tensorflow/core:lib"],
+    deps = [
+        "//tensorflow/core:lib",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
+    ],
 )
 
 cc_library(
@@ -185,6 +194,8 @@ cc_library(
         "//tensorflow/core:lib",
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core/protobuf:worker_proto_cc",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -199,6 +210,8 @@ cc_library(
         "//tensorflow/core:core_cpu_internal",
         "//tensorflow/core:lib",
         "//tensorflow/core/protobuf:worker_proto_cc",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -221,6 +234,7 @@ tf_cuda_library(
         "//tensorflow/core:framework",
         "//tensorflow/core:lib_internal",
         "//tensorflow/core/profiler/lib:device_profiler_session",
+        "//tensorflow/core/util:write_log",
         "@boost//:stacktrace",
     ],
 )
@@ -231,6 +245,8 @@ cc_library(
     hdrs = ["call_options.h"],
     deps = [
         "//tensorflow/core:lib",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -254,6 +270,8 @@ cc_library(
         ":worker_cache",
         "//tensorflow/core:framework",
         "//tensorflow/core:lib",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -285,13 +303,19 @@ cc_library(
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core/distributed_runtime/coordination:coordination_client",
         "//tensorflow/core/distributed_runtime/eager:eager_client",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
 cc_library(
     name = "worker_cache_wrapper",
     hdrs = ["worker_cache_wrapper.h"],
-    deps = [":worker_cache"],
+    deps = [
+        ":worker_cache",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
+    ],
 )
 
 cc_library(
@@ -305,6 +329,8 @@ cc_library(
         "//tensorflow/core:framework",
         "//tensorflow/core:lib",
         "//tensorflow/core/protobuf:worker_proto_cc",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -317,6 +343,8 @@ cc_library(
         ":request_id",
         "//tensorflow/core:lib",
         "//tensorflow/core/protobuf:master_proto_cc",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -340,6 +368,8 @@ cc_library(
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core/protobuf:master_proto_cc",
         "//tensorflow/core/protobuf:worker_proto_cc",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -364,6 +394,8 @@ cc_library(
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core/debug:debug_graph_utils",
         "//tensorflow/core/protobuf:master_proto_cc",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -375,6 +407,8 @@ cc_library(
         ":master",
         ":master_interface",
         "//tensorflow/core:lib",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -386,6 +420,8 @@ cc_library(
         ":worker_env",
         "//tensorflow/core:framework_internal",
         "//tensorflow/core:lib",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -398,6 +434,8 @@ cc_library(
         "//tensorflow/core:framework",
         "//tensorflow/core:graph",
         "//tensorflow/core:tensorflow_opensource",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -419,6 +457,8 @@ cc_library(
         "//tensorflow/core:lib_internal",
         "//tensorflow/core/profiler/lib:scoped_memory_debug_annotation",
         "@com_google_absl//absl/container:flat_hash_map",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -429,6 +469,8 @@ cc_library(
         ":worker_cache",
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core:session_options",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -450,6 +492,8 @@ cc_library(
         "//tensorflow/core/profiler/lib:connected_traceme",
         "//tensorflow/core/profiler/lib:traceme_encode",
         "//tensorflow/core/protobuf:worker_proto_cc",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -464,6 +508,8 @@ cc_library(
         "//tensorflow/core:framework",
         "//tensorflow/core:lib",
         "//tensorflow/core/protobuf:worker_proto_cc",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -475,6 +521,8 @@ cc_library(
         "//tensorflow/core:core_cpu_internal",
         "//tensorflow/core:lib",
         "//tensorflow/core:protos_all_cc",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -486,6 +534,7 @@ cc_library(
         "//tensorflow/core:framework_internal",
         "//tensorflow/core:lib",
         "//tensorflow/core:protos_all_cc",
+        "//tensorflow/core/util:write_log",
         "@boost//:stacktrace",
     ],
 )
@@ -513,6 +562,8 @@ cc_library(
         "//tensorflow/core:core_cpu_internal",
         "//tensorflow/core:framework",
         "//tensorflow/core:lib_internal",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -551,6 +602,8 @@ cc_library(
         "//tensorflow/core/profiler/lib:scoped_memory_debug_annotation",
         "//tensorflow/core/protobuf:worker_proto_cc",
         "@com_google_absl//absl/memory",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -591,6 +644,8 @@ cc_library(
         "//tensorflow/core/platform:errors",
         "//tensorflow/core/platform:status",
         "@com_google_absl//absl/strings",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -602,6 +657,8 @@ cc_library(
         ":worker_cache",
         ":worker_interface",
         "//tensorflow/core:framework",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -642,6 +699,8 @@ cc_library(
         "//tensorflow/core/platform:errors",
         "//tensorflow/core/platform:status",
         "@com_google_absl//absl/container:flat_hash_map",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -769,6 +828,8 @@ cc_library(
     deps = [
         "//tensorflow/core:lib",
         "//tensorflow/core:lib_internal",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -791,6 +852,8 @@ cc_library(
         ":message_wrappers",
         "//tensorflow/core:lib",
         "//tensorflow/core/protobuf:worker_proto_cc",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 

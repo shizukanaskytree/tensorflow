@@ -22,6 +22,10 @@ limitations under the License.
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/threadpool.h"
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 namespace tensorflow {
 
 class GrpcWorkerEnv {
@@ -30,11 +34,18 @@ class GrpcWorkerEnv {
 
   ~GrpcWorkerEnv();
 
-  thread::ThreadPool* GetThreadPool() const { return threadpool_.get(); }
+  thread::ThreadPool* GetThreadPool() const {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    return threadpool_.get();
+  }
 
-  size_t CompletionQueueSize() const { return threads_.size(); }
+  size_t CompletionQueueSize() const {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    return threads_.size();
+  }
 
   ::grpc::CompletionQueue* GetCompletionQueue(size_t index) const {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     return threads_.at(index).completion_queue();
   }
 

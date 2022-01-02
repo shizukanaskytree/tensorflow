@@ -17,10 +17,15 @@ limitations under the License.
 #include "absl/types/optional.h"
 #include "tensorflow/core/platform/env.h"
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 namespace tensorflow {
 
 bool GrpcResponseCache::QueueRequest(int64_t request_id, int64_t step_id,
                                      const FinishResponseCB& cb) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   VLOG(1) << "GrpcResponseCache Lookup " << request_id;
 
   mu_.lock();
@@ -59,6 +64,7 @@ bool GrpcResponseCache::QueueRequest(int64_t request_id, int64_t step_id,
 void GrpcResponseCache::OnRequestFinished(int64_t request_id,
                                           const Tensor& tensor, bool is_dead,
                                           const Status& status) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   absl::optional<ResponseCacheEntry> entry_copy;
 
   {
@@ -94,11 +100,13 @@ void GrpcResponseCache::OnRequestFinished(int64_t request_id,
 }
 
 void GrpcResponseCache::EraseRequestId(int64_t request_id) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock m(mu_);
   response_cache_.erase(request_id);
 }
 
 void GrpcResponseCache::CleanEntriesForStep(int64_t step_id) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock m(mu_);
   // Remove all cache entries whose step id is the given step_id
   for (auto it = response_cache_.begin(), last = response_cache_.end();

@@ -16,9 +16,13 @@ limitations under the License.
 
 #include "absl/strings/str_format.h"
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
 namespace tensorflow {
 
 const char* ToString(UntypedStreamingRPCState::Tag::TagType tag_type) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   switch (tag_type) {
     case UntypedStreamingRPCState::Tag::TagType::kCallStarted:
       return "kCallStarted";
@@ -33,9 +37,12 @@ const char* ToString(UntypedStreamingRPCState::Tag::TagType tag_type) {
 
 UntypedStreamingRPCState::Tag::Tag(UntypedStreamingRPCState* streaming_state,
                                    Tag::TagType type)
-    : streaming_state_(streaming_state), type_(type) {}
+    : streaming_state_(streaming_state), type_(type) {
+      write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    }
 
 void UntypedStreamingRPCState::Tag::OnCompleted(bool ok) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   switch (type_) {
     case TagType::kCallStarted:
       streaming_state_->CallStarted(ok);
@@ -54,6 +61,7 @@ void UntypedStreamingRPCState::Tag::OnCompleted(bool ok) {
 }
 
 void Exchange::Complete(Status status) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   if (status.ok()) {
     if (!GrpcMaybeParseProto(&response_buf_, response_)) {
       status.Update(errors::Internal("could not parse rpc response"));
@@ -70,6 +78,7 @@ std::ostream& operator<<(std::ostream& os, const Exchange::State& state) {
 }
 
 const char* ToString(Exchange::State state) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   switch (state) {
     case Exchange::State::kExchangeCreated:
       return "ExchangeCreated";
@@ -83,17 +92,20 @@ const char* ToString(Exchange::State state) {
 }
 
 string Exchange::DebugString() const {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return absl::StrFormat("%p@%s_%s", this, ToString(state_), debug_string_);
 }
 
 void ExchangeQueue::Emplace(const ::grpc::ByteBuffer& request_buf,
                             protobuf::Message* response, StatusCallback cb,
                             string debug_string) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   exchanges_.emplace(exchanges_.end(), request_buf, response, std::move(cb),
                      debug_string);
 }
 
 Exchange* ExchangeQueue::GetReadyForRequestWriting() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   CheckInvariants();
   if (!call_started_) {
     return nullptr;
@@ -111,6 +123,7 @@ Exchange* ExchangeQueue::GetReadyForRequestWriting() {
 }
 
 Exchange* ExchangeQueue::GetReadyForResponseReading() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   CheckInvariants();
   if (!call_started_) {
     // We should never ask for response reading when call has not
@@ -128,6 +141,7 @@ Exchange* ExchangeQueue::GetReadyForResponseReading() {
 }
 
 void ExchangeQueue::MarkRequestWriteCompleted() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   CheckInvariants();
   // TODO(iga): Optimize to avoid linear search.
   for (Exchange& e : exchanges_) {
@@ -139,27 +153,32 @@ void ExchangeQueue::MarkRequestWriteCompleted() {
 }
 
 Exchange& ExchangeQueue::GetFront() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   CheckInvariants();
   return exchanges_.front();
 }
 
 void ExchangeQueue::PopFront() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   CheckInvariants();
   exchanges_.pop_front();
 }
 
 string ExchangeQueue::DebugString() const {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return absl::StrJoin(exchanges_, ", ", [](string* out, const Exchange& e) {
     out->append(e.DebugString());
   });
 }
 
 void ExchangeQueue::Swap(ExchangeQueue* other) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   exchanges_.swap(other->exchanges_);
   std::swap(call_started_, other->call_started_);
 }
 
 void ExchangeQueue::CompleteAll(Status status) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   for (Exchange& exchange : exchanges_) {
     exchange.Complete(status);
   }
@@ -168,6 +187,7 @@ void ExchangeQueue::CompleteAll(Status status) {
 namespace {
 std::set<std::pair<Exchange::State, Exchange::State>>*
 GetPossibleTransitions() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   std::set<std::pair<Exchange::State, Exchange::State>>* s =
       new std::set<std::pair<Exchange::State, Exchange::State>>();
   // Regular state transitions
@@ -196,6 +216,7 @@ GetPossibleTransitions() {
 }  // namespace
 
 void ExchangeQueue::CheckInvariants() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   static std::set<std::pair<Exchange::State, Exchange::State>>*
       possible_transitions = GetPossibleTransitions();
 

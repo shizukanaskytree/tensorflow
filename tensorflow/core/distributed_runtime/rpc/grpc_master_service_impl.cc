@@ -24,6 +24,10 @@ limitations under the License.
 #include "grpcpp/impl/codegen/service_type.h"
 #include "grpcpp/impl/codegen/sync_stream.h"
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 namespace tensorflow {
 
 namespace grpc {
@@ -44,6 +48,7 @@ static const char* grpcMasterService_method_names[] = {
 std::unique_ptr<MasterService::Stub> MasterService::NewStub(
     const std::shared_ptr< ::grpc::ChannelInterface>& channel,
     const ::grpc::StubOptions& options) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   std::unique_ptr<MasterService::Stub> stub(new MasterService::Stub(channel));
   return stub;
 }
@@ -74,11 +79,14 @@ MasterService::Stub::Stub(
                              ::grpc::internal::RpcMethod::NORMAL_RPC, channel),
       rpcmethod_ReleaseCallable_(grpcMasterService_method_names[9],
                                  ::grpc::internal::RpcMethod::NORMAL_RPC,
-                                 channel) {}
+                                 channel) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+}
 
 ::grpc::Status MasterService::Stub::CreateSession(
     ::grpc::ClientContext* context, const CreateSessionRequest& request,
     CreateSessionResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return ::grpc::internal::BlockingUnaryCall(
       channel_.get(), rpcmethod_CreateSession_, context, request, response);
 }
@@ -86,6 +94,7 @@ MasterService::Stub::Stub(
 ::grpc::Status MasterService::Stub::ExtendSession(
     ::grpc::ClientContext* context, const ExtendSessionRequest& request,
     ExtendSessionResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return ::grpc::internal::BlockingUnaryCall(
       channel_.get(), rpcmethod_ExtendSession_, context, request, response);
 }
@@ -93,6 +102,7 @@ MasterService::Stub::Stub(
 ::grpc::Status MasterService::Stub::PartialRunSetup(
     ::grpc::ClientContext* context, const PartialRunSetupRequest& request,
     PartialRunSetupResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return ::grpc::internal::BlockingUnaryCall(
       channel_.get(), rpcmethod_PartialRunSetup_, context, request, response);
 }
@@ -100,6 +110,7 @@ MasterService::Stub::Stub(
 ::grpc::Status MasterService::Stub::RunStep(::grpc::ClientContext* context,
                                             const RunStepRequest& request,
                                             RunStepResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return ::grpc::internal::BlockingUnaryCall(channel_.get(), rpcmethod_RunStep_,
                                              context, request, response);
 }
@@ -107,6 +118,7 @@ MasterService::Stub::Stub(
 ::grpc::Status MasterService::Stub::CloseSession(
     ::grpc::ClientContext* context, const CloseSessionRequest& request,
     CloseSessionResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return ::grpc::internal::BlockingUnaryCall(
       channel_.get(), rpcmethod_CloseSession_, context, request, response);
 }
@@ -114,6 +126,7 @@ MasterService::Stub::Stub(
 ::grpc::Status MasterService::Stub::ListDevices(
     ::grpc::ClientContext* context, const ListDevicesRequest& request,
     ListDevicesResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return ::grpc::internal::BlockingUnaryCall(
       channel_.get(), rpcmethod_ListDevices_, context, request, response);
 }
@@ -121,6 +134,7 @@ MasterService::Stub::Stub(
 ::grpc::Status MasterService::Stub::Reset(::grpc::ClientContext* context,
                                           const ResetRequest& request,
                                           ResetResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return ::grpc::internal::BlockingUnaryCall(channel_.get(), rpcmethod_Reset_,
                                              context, request, response);
 }
@@ -128,6 +142,7 @@ MasterService::Stub::Stub(
 ::grpc::Status MasterService::Stub::MakeCallable(
     ::grpc::ClientContext* context, const MakeCallableRequest& request,
     MakeCallableResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return ::grpc::internal::BlockingUnaryCall(
       channel_.get(), rpcmethod_MakeCallable_, context, request, response);
 }
@@ -135,6 +150,7 @@ MasterService::Stub::Stub(
 ::grpc::Status MasterService::Stub::RunCallable(
     ::grpc::ClientContext* context, const RunCallableRequest& request,
     RunCallableResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return ::grpc::internal::BlockingUnaryCall(
       channel_.get(), rpcmethod_RunCallable_, context, request, response);
 }
@@ -142,12 +158,14 @@ MasterService::Stub::Stub(
 ::grpc::Status MasterService::Stub::ReleaseCallable(
     ::grpc::ClientContext* context, const ReleaseCallableRequest& request,
     ReleaseCallableResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return ::grpc::internal::BlockingUnaryCall(
       channel_.get(), rpcmethod_ReleaseCallable_, context, request, response);
 }
 
 MasterService::AsyncService::AsyncService() {
-  int method_len = sizeof(grpcMasterService_method_names) / 
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  int method_len = sizeof(grpcMasterService_method_names) /
                     sizeof(grpcMasterService_method_names[0]);
   for (int i = 0; i < method_len; ++i) {
     AddMethod(new ::grpc::internal::RpcServiceMethod(
@@ -157,7 +175,9 @@ MasterService::AsyncService::AsyncService() {
   }
 }
 
-MasterService::AsyncService::~AsyncService() {}
+MasterService::AsyncService::~AsyncService() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+}
 
 }  // namespace grpc
 

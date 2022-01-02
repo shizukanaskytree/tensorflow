@@ -32,6 +32,10 @@ limitations under the License.
 #include "tensorflow/core/public/session_options.h"
 #include "tensorflow/core/util/command_line_flags.h"
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 // This binary starts a TensorFlow server (master and worker).
 //
 // TODO(mrry): Replace with a py_binary that uses `tf.GrpcServer()`.
@@ -40,6 +44,7 @@ namespace {
 
 Status FillServerDef(const string& cluster_spec, const string& job_name,
                      int task_index, ServerDef* options) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   options->set_protocol("grpc");
   options->set_job_name(job_name);
   options->set_task_index(task_index);
@@ -85,6 +90,7 @@ Status FillServerDef(const string& cluster_spec, const string& job_name,
 }  // namespace tensorflow
 
 void Usage(char* const argv_0) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   std::cerr << "Usage: " << argv_0
             << " --cluster_spec=SPEC --job_name=NAME --task_id=ID" << std::endl;
   std::cerr << "Where:" << std::endl;
@@ -96,6 +102,7 @@ void Usage(char* const argv_0) {
 }
 
 int main(int argc, char* argv[]) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   tensorflow::string cluster_spec;
   tensorflow::string job_name;
   int task_index = 0;

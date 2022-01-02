@@ -20,6 +20,10 @@ limitations under the License.
 #include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/platform/unbounded_work_queue.h"
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 namespace tensorflow {
 class WorkerCacheInterface;
 

@@ -37,11 +37,16 @@ class GenericCachingChannelCache : public ChannelCacheT {
  public:
   explicit GenericCachingChannelCache(int num_channels_per_target)
       : num_channels_per_target_(
-            num_channels_per_target > 0 ? num_channels_per_target : 1) {}
+            num_channels_per_target > 0 ? num_channels_per_target : 1) {
+              write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+            }
 
-  ~GenericCachingChannelCache() override {}
+  ~GenericCachingChannelCache() override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  }
 
   SharedGrpcChannelPtr FindWorkerChannel(const string& target) override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     {
       mutex_lock l(mu_);
       auto iter = channels_.find(target);
@@ -84,6 +89,7 @@ class GenericCachingChannelCache : public ChannelCacheT {
   // Should be called with mu_ held.
   SharedGrpcChannelPtr GetNextChannelPtrAndUpdateState(
       ChannelState& chan_state) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     // Following statement is marked as Crash OK as this is an invariant of
     // code flow in this class.
     CHECK_EQ(chan_state.channels.size(), num_channels_per_target_);  // Crash OK

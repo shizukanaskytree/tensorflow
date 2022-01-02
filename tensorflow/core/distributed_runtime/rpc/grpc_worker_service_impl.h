@@ -30,6 +30,10 @@ limitations under the License.
 #include "tensorflow/core/distributed_runtime/tensor_coding.h"
 #include "tensorflow/core/protobuf/worker.pb.h"
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 namespace grpc {
 
 // Support parsing/unparsing of tensorflow::TensorResponse.
@@ -41,11 +45,13 @@ class SerializationTraits<tensorflow::TensorResponse> {
  public:
   static Status Serialize(const tensorflow::TensorResponse& msg, ByteBuffer* bp,
                           bool* own_buffer) {
+    // tensorflow::write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     LOG(FATAL) << "TODO(sanjay,jeff): Implement";
     return Status();
   }
   static Status Deserialize(ByteBuffer* buffer,
                             tensorflow::TensorResponse* msg) {
+    // tensorflow::write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     if (buffer == nullptr) {
       return Status(StatusCode::INTERNAL, "No payload");
     }

@@ -27,6 +27,10 @@ limitations under the License.
 #include "tensorflow/core/platform/mutex.h"
 #include "tensorflow/core/platform/protobuf.h"
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 namespace tensorflow {
 
 // Given the total number of RPC retries attempted, return a randomized
@@ -42,12 +46,18 @@ int64_t ComputeBackoffMicroseconds(int current_retry_attempt,
 // efficient byte reader from which to decode a RecvTensorResponse.
 class GrpcByteSource : public TensorResponse::Source {
  public:
-  explicit GrpcByteSource(::grpc::ByteBuffer* buffer) : buffer_(buffer) {}
-  ~GrpcByteSource() override { DeleteStream(); }
+  explicit GrpcByteSource(::grpc::ByteBuffer* buffer) : buffer_(buffer) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  }
+  ~GrpcByteSource() override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    DeleteStream();
+  }
 
   typedef ::grpc::ProtoBufferReader Reader;
 
   protobuf::io::ZeroCopyInputStream* contents() override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     DeleteStream();
     stream_ = new (&space_) Reader(buffer_);
     return stream_;
@@ -55,6 +65,7 @@ class GrpcByteSource : public TensorResponse::Source {
 
  private:
   void DeleteStream() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     if (stream_) {
       stream_->~Reader();
     }
@@ -76,11 +87,13 @@ constexpr char kStreamRemovedMessage[] = "Stream removed";
 //
 // N.B. This is dependent on the error message from grpc remaining consistent.
 inline bool IsStreamRemovedError(const ::grpc::Status& s) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return !s.ok() && s.error_code() == ::grpc::StatusCode::UNKNOWN &&
          s.error_message() == kStreamRemovedMessage;
 }
 
 inline Status FromGrpcStatus(const ::grpc::Status& s) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   if (s.ok()) {
     return Status::OK();
   } else {
@@ -95,6 +108,7 @@ inline Status FromGrpcStatus(const ::grpc::Status& s) {
 }
 
 inline ::grpc::Status ToGrpcStatus(const ::tensorflow::Status& s) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   if (s.ok()) {
     return ::grpc::Status::OK;
   } else {
@@ -112,7 +126,10 @@ inline ::grpc::Status ToGrpcStatus(const ::tensorflow::Status& s) {
 
 typedef std::shared_ptr<::grpc::Channel> SharedGrpcChannelPtr;
 
-inline string GrpcIdKey() { return "tf-rpc"; }
+inline string GrpcIdKey() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  return "tf-rpc";
+}
 
 // Serialize src and store in *dst.
 ::grpc::Status GrpcMaybeUnparseProto(const protobuf::Message& src,

@@ -27,8 +27,12 @@ namespace tensorflow {
 // stored in a `grpc::CompletionQueue`.
 class GrpcClientCQTag {
  public:
-  GrpcClientCQTag() {}
-  virtual ~GrpcClientCQTag() {}
+  GrpcClientCQTag() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  }
+  virtual ~GrpcClientCQTag() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  }
 
   // OnCompleted is invoked when the RPC has finished.
   // Implementations of OnCompleted can delete *this.

@@ -26,6 +26,10 @@ limitations under the License.
 #include "tensorflow/core/common_runtime/device_set.h"
 #include "tensorflow/core/graph/costmodel.h"
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 namespace tensorflow {
 
 class SlackAnalysis {

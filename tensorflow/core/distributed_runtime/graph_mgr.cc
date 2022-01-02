@@ -54,6 +54,10 @@ limitations under the License.
 #include "tensorflow/core/protobuf/worker.pb.h"
 #include "tensorflow/core/util/env_var.h"
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 namespace tensorflow {
 
 GraphMgr::GraphMgr(const WorkerEnv* worker_env, const DeviceMgr* device_mgr)

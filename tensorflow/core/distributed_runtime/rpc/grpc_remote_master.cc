@@ -31,6 +31,10 @@ limitations under the License.
 #include "tensorflow/core/profiler/lib/traceme.h"
 #include "tensorflow/core/protobuf/master.pb.h"
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 namespace tensorflow {
 
 // GrpcRemoteMaster is an implementation of the MasterInterface
@@ -40,13 +44,18 @@ class GrpcRemoteMaster : public MasterInterface {
 
  public:
   explicit GrpcRemoteMaster(const SharedGrpcChannelPtr& client_channel)
-      : stub_(grpc::MasterService::NewStub(client_channel)) {}
+      : stub_(grpc::MasterService::NewStub(client_channel)) {
+        write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+      }
 
-  ~GrpcRemoteMaster() override {}
+  ~GrpcRemoteMaster() override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  }
 
   Status CreateSession(CallOptions* call_options,
                        const CreateSessionRequest* request,
                        CreateSessionResponse* response) override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     return CallWithRetry(call_options, request, response,
                          &MasterServiceStub::CreateSession);
   }
@@ -54,6 +63,7 @@ class GrpcRemoteMaster : public MasterInterface {
   Status ExtendSession(CallOptions* call_options,
                        const ExtendSessionRequest* request,
                        ExtendSessionResponse* response) override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     return CallWithRetry(call_options, request, response,
                          &MasterServiceStub::ExtendSession);
   }
@@ -61,12 +71,14 @@ class GrpcRemoteMaster : public MasterInterface {
   Status PartialRunSetup(CallOptions* call_options,
                          const PartialRunSetupRequest* request,
                          PartialRunSetupResponse* response) override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     return CallWithRetry(call_options, request, response,
                          &MasterServiceStub::PartialRunSetup);
   }
 
   Status RunStep(CallOptions* call_options, RunStepRequestWrapper* request,
                  MutableRunStepResponseWrapper* response) override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     return CallWithRetry(call_options, &request->ToProto(),
                          get_proto_from_wrapper(response),
                          &MasterServiceStub::RunStep, "RunStep/Client");
@@ -75,6 +87,7 @@ class GrpcRemoteMaster : public MasterInterface {
   Status CloseSession(CallOptions* call_options,
                       const CloseSessionRequest* request,
                       CloseSessionResponse* response) override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     return CallWithRetry(call_options, request, response,
                          &MasterServiceStub::CloseSession);
   }
@@ -82,12 +95,14 @@ class GrpcRemoteMaster : public MasterInterface {
   Status ListDevices(CallOptions* call_options,
                      const ListDevicesRequest* request,
                      ListDevicesResponse* response) override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     return CallWithRetry(call_options, request, response,
                          &MasterServiceStub::ListDevices);
   }
 
   Status Reset(CallOptions* call_options, const ResetRequest* request,
                ResetResponse* response) override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     return CallWithRetry(call_options, request, response,
                          &MasterServiceStub::Reset);
   }
@@ -95,18 +110,21 @@ class GrpcRemoteMaster : public MasterInterface {
   Status MakeCallable(CallOptions* call_options,
                       const MakeCallableRequest* request,
                       MakeCallableResponse* response) override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     return CallWithRetry(call_options, request, response,
                          &MasterServiceStub::MakeCallable);
   }
   Status RunCallable(CallOptions* call_options,
                      const RunCallableRequest* request,
                      RunCallableResponse* response) override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     return CallWithRetry(call_options, request, response,
                          &MasterServiceStub::RunCallable);
   }
   Status ReleaseCallable(CallOptions* call_options,
                          const ReleaseCallableRequest* request,
                          ReleaseCallableResponse* response) override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     return CallWithRetry(call_options, request, response,
                          &MasterServiceStub::ReleaseCallable);
   }
@@ -114,6 +132,7 @@ class GrpcRemoteMaster : public MasterInterface {
  private:
   // Start tracing, attaching a unique ID to both the trace and the RPC.
   profiler::TraceMe* NewTraceRpc(StringPiece name, ::grpc::ClientContext* ctx) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     string trace_id = strings::StrCat(tracing::GetUniqueArg());
     ctx->AddMetadata(GrpcIdKey(), trace_id);
     return new profiler::TraceMe(
@@ -127,6 +146,7 @@ class GrpcRemoteMaster : public MasterInterface {
                        ::grpc::Status (MasterServiceStub::*pfunc)(
                            ::grpc::ClientContext*, const Request&, Response*),
                        string trace_string = {}) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     absl::Duration timeout = absl::Milliseconds(call_options->GetTimeout());
     absl::Time expired_time = absl::FromUnixMicros(Env::Default()->NowMicros());
     if (timeout > absl::ZeroDuration()) {
@@ -185,6 +205,7 @@ class GrpcRemoteMaster : public MasterInterface {
 };
 
 MasterInterface* NewGrpcMaster(const SharedGrpcChannelPtr& channel) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return new GrpcRemoteMaster(channel);
 }
 

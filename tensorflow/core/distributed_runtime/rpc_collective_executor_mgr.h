@@ -18,6 +18,10 @@ limitations under the License.
 #include "tensorflow/core/common_runtime/collective_executor_mgr.h"
 #include "tensorflow/core/framework/collective.h"
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 namespace tensorflow {
 class CollectiveParamResolverDistributed;
 class ConfigProto;

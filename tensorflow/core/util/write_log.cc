@@ -12,6 +12,8 @@ using std::ofstream;
 
 namespace tensorflow {
 
+std::mutex write_mutex;
+
 // This program output values from an array to a file named example2.dat
 int write_log(const std::string& input) {
   std::lock_guard<std::mutex> write_guard(write_mutex);

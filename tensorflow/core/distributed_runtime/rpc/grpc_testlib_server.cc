@@ -31,6 +31,10 @@ limitations under the License.
 #include "tensorflow/core/public/session_options.h"
 #include "tensorflow/core/util/command_line_flags.h"
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 // This binary starts a TensorFlow server (master and worker) for test purposes.
 namespace tensorflow {
 namespace {
@@ -38,6 +42,7 @@ namespace {
 Status FillServerDef(const string& job_spec, const string& job_name,
                      int num_cpus, int num_gpus, int task_index,
                      ServerDef* options) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   options->set_protocol("grpc");
   options->set_job_name(job_name);
   options->set_task_index(task_index);
@@ -76,6 +81,7 @@ Status FillServerDef(const string& job_spec, const string& job_name,
 }  // namespace tensorflow
 
 int main(int argc, char* argv[]) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   tensorflow::port::InitMain(argv[0], &argc, &argv);
   tensorflow::string job_spec;
   tensorflow::string job_name;

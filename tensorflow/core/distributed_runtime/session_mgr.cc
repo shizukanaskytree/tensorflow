@@ -27,8 +27,8 @@ limitations under the License.
 #include "tensorflow/core/protobuf/tensorflow_server.pb.h"
 #include "tensorflow/core/util/ptr_util.h"
 
+#include "tensorflow/core/util/write_log.h"
 #include <boost/stacktrace.hpp>
-#include <iostream>
 #define BOOST_STACKTRACE_USE_ADDR2LINE
 
 namespace tensorflow {

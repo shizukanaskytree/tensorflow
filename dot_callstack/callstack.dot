@@ -1,0 +1,32 @@
+
+// "GrpcServer::Start()" -> "GrpcServer::target"
+
+digraph g {
+node [shape=plaintext];
+"tensorflow::EagerContextDistributedManager::EnableCollectiveOps" -> "tensorflow::NewServer" -> "tensorflow::(anonymous namespace)::GrpcServerFactory::NewServer" -> "tensorflow::GrpcServer::Create" -> "tensorflow::GrpcServer::Init" -> "tensorflow::GrpcServer::target"
+"TFE_EnableCollectiveOps" -> "tensorflow::EagerContext::EnableCollectiveOps" -> "tensorflow::EagerContextDistributedManager::EnableCollectiveOps" -> "tensorflow::GrpcServer::Start()" -> "tensorflow::GrpcServer::target"
+
+"tensorflow::GrpcServer::Init" -> "tensorflow::GrpcServer::WorkerCacheFactory" -> "tensorflow::(anonymous namespace)::SparseGrpcChannelCache::TranslateTask"
+
+"tensorflow::GrpcServer::WorkerCacheFactory" -> "tensorflow::NewGrpcChannelCache"
+"tensorflow::GrpcServer::WorkerCacheFactory" -> "tensorflow::GrpcServer::GetChannelCreationFunction" -> "tensorflow::ConvertToChannelCreationFunction"
+"tensorflow::GrpcServer::WorkerCacheFactory" -> "tensorflow::GrpcServer::ParseChannelSpec" -> "tensorflow::GrpcChannelSpec::AddHostPortsJob" -> "tensorflow::(anonymous namespace)::ValidateHostPortPair"
+
+"tensorflow::GrpcServer::Init" -> "grpc_impl::ServerBuilder::BuildAndStart()" -> "tensorflow::(anonymous namespace)::ReusePortOption::UpdatePlugins"
+"tensorflow::GrpcServer::Init" -> "tensorflow::GrpcServer::CreateMaster"
+"tensorflow::GrpcServer::Init" -> "tensorflow::GrpcServer::GetServerCredentials"
+
+"tensorflow::GrpcServer::Init" -> "tensorflow::(anonymous namespace)::NewRpcRendezvousMgr"
+
+
+  // A2 -> B2;
+	// A3 -> B3;
+
+	// A1 -> A2 [label=f];
+	// A2 -> A3 [label=g];
+	// B2 -> B3 [label="g'"];
+	// B1 -> B3 [label="(g o f)'" tailport=s headport=s];
+
+	// { rank=same; A1 A2 A3 }
+	// { rank=same; B1 B2 B3 } 
+}

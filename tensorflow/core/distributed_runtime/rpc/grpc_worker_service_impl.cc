@@ -24,9 +24,14 @@ limitations under the License.
 #include "grpcpp/impl/codegen/service_type.h"
 #include "grpcpp/impl/codegen/sync_stream.h"
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 namespace tensorflow {
 
 const char* GrpcWorkerMethodName(GrpcWorkerMethod id) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   switch (id) {
     case GrpcWorkerMethod::kGetStatus:
       return "/tensorflow.WorkerService/GetStatus";
@@ -69,6 +74,7 @@ const char* GrpcWorkerMethodName(GrpcWorkerMethod id) {
 namespace grpc {
 
 WorkerService::AsyncService::AsyncService() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   for (int i = 0; i < kGrpcNumWorkerMethods; ++i) {
     AddMethod(new ::grpc::internal::RpcServiceMethod(
         GrpcWorkerMethodName(static_cast<GrpcWorkerMethod>(i)),
@@ -77,7 +83,9 @@ WorkerService::AsyncService::AsyncService() {
   }
 }
 
-WorkerService::AsyncService::~AsyncService() {}
+WorkerService::AsyncService::~AsyncService() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+}
 
 }  // namespace grpc
 

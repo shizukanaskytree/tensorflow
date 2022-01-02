@@ -27,8 +27,8 @@ limitations under the License.
 #include "tensorflow/core/platform/tracing.h"
 #include "tensorflow/core/profiler/lib/device_profiler_session.h"
 
+#include "tensorflow/core/util/write_log.h"
 #include <boost/stacktrace.hpp>
-#include <iostream>
 #define BOOST_STACKTRACE_USE_ADDR2LINE
 
 namespace tensorflow {

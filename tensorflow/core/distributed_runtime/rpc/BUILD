@@ -49,6 +49,8 @@ cc_library(
         # Required to be able to overload TensorResponse parsing.
         "//tensorflow/core/distributed_runtime:tensor_coding",
         "//tensorflow/core:lib_internal",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ] + tf_grpc_dependencies() + tf_grpc_cc_dependencies(),
 )
 
@@ -59,6 +61,8 @@ cc_library(
     deps = [
         ":grpc_util",
         "//tensorflow/core:lib",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ] + tf_grpc_cc_dependencies(),
 )
 
@@ -74,6 +78,8 @@ cc_library(
         "//tensorflow/core:lib_internal",
         "//tensorflow/core/distributed_runtime:call_options",
         "//tensorflow/core/distributed_runtime:tensor_coding",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ] + tf_grpc_cc_dependencies(),
 )
 
@@ -95,6 +101,8 @@ cc_library(
         "//tensorflow/core/distributed_runtime:worker_cache_logger",
         "//tensorflow/core/distributed_runtime:worker_interface",
         "//tensorflow/core/protobuf:worker_proto_cc",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ] + tf_grpc_cc_dependencies(),
 )
 
@@ -106,6 +114,8 @@ cc_library(
         "//tensorflow/core:framework_lite",
         "//tensorflow/core:tflite_portable_logging",
         "@com_google_absl//absl/container:flat_hash_map",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -121,6 +131,8 @@ cc_library(
         "//tensorflow/core:lib",
         "//tensorflow/core:lib_internal",
         "//tensorflow/core:protos_all_cc",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ] + tf_grpc_cc_dependencies(),
 )
 
@@ -136,6 +148,8 @@ cc_library(
         "//tensorflow/core:lib",
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core/protobuf:worker_proto_cc",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ] + tf_grpc_cc_dependencies(),
 )
 
@@ -146,6 +160,7 @@ cc_library(
     deps = [
         "//tensorflow/core:lib",
         "//tensorflow/core:lib_internal",
+        "//tensorflow/core/util:write_log",
         "@boost//:stacktrace",
     ] + tf_grpc_cc_dependencies(),
 )
@@ -175,6 +190,8 @@ cc_library(
         "//tensorflow/core/distributed_runtime/rpc/coordination:grpc_coordination_client_impl",
         "//tensorflow/core/distributed_runtime/rpc/eager:grpc_eager_client",
         "//tensorflow/core/util:env_var",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -205,6 +222,8 @@ cc_library(
         "//tensorflow/core:framework",
         "//tensorflow/core:lib",
         "@com_google_absl//absl/types:optional",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -233,6 +252,8 @@ tf_cuda_library(
         "//tensorflow/core/distributed_runtime:worker_session",
         "//tensorflow/core/profiler/lib:scoped_memory_debug_annotation",
         "//tensorflow/core/protobuf:worker_proto_cc",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ] + tf_grpc_cc_dependencies(),
 )
 
@@ -244,6 +265,8 @@ cc_library(
         ":grpc_util",
         "//tensorflow/core/distributed_runtime:tensor_coding",
         "//tensorflow/core/protobuf:worker_proto_cc",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ] + tf_grpc_cc_dependencies(),
 )
 
@@ -261,6 +284,8 @@ cc_library(
         "//tensorflow/core/profiler/lib:traceme",
         "//tensorflow/core/protobuf:master_proto_cc",
         "@com_google_absl//absl/time",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
     alwayslink = 1,
 )
@@ -279,6 +304,8 @@ cc_library(
         "//tensorflow/core/distributed_runtime:master",
         "//tensorflow/core/profiler/lib:traceme",
         "//tensorflow/core/protobuf:master_proto_cc",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ] + tf_grpc_cc_dependencies(),
     alwayslink = 1,
 )
@@ -289,6 +316,8 @@ cc_library(
     hdrs = ["grpc_master_service_impl.h"],
     deps = [
         "//tensorflow/core/protobuf:master_proto_cc",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ] + tf_grpc_cc_dependencies(),
 )
 
@@ -306,6 +335,8 @@ cc_library(
         "//tensorflow/core/distributed_runtime:worker_cache",
         "//tensorflow/core/distributed_runtime:worker_env",
         "//tensorflow/core/distributed_runtime:worker_interface",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -377,6 +408,8 @@ tf_cc_binary(
         "//tensorflow/core:sendrecv_ops_op_lib",
         "//tensorflow/core/distributed_runtime:server_lib",
         "//tensorflow/core/kernels:data_flow",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ] + tf_grpc_cc_dependencies(),
 )
 
@@ -406,6 +439,8 @@ cc_library(
         "//tensorflow/core/kernels:matmul_op",
         "//tensorflow/core/kernels:reduction_ops",
         "//tensorflow/core/kernels:variable_ops",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ] + tf_grpc_cc_dependencies(),
     alwayslink = 1,
 )
@@ -455,6 +490,8 @@ cc_library(
         "//tensorflow/core/distributed_runtime:message_wrappers",
         "//tensorflow/core/distributed_runtime:request_id",
         "//tensorflow/core/protobuf:master_proto_cc",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
     alwayslink = 1,
 )

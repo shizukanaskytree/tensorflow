@@ -34,6 +34,10 @@ limitations under the License.
 #include "tensorflow/core/platform/notification.h"
 #include "tensorflow/core/platform/types.h"
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 namespace tensorflow {
 
 namespace {
@@ -41,7 +45,9 @@ namespace {
 class RpcRemoteRendezvous : public BaseRemoteRendezvous {
  public:
   RpcRemoteRendezvous(const WorkerEnv* env, int64_t step_id)
-      : BaseRemoteRendezvous(env, step_id) {}
+      : BaseRemoteRendezvous(env, step_id) {
+        write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+      }
 
  protected:
   void RecvFromRemoteAsync(const Rendezvous::ParsedKey& parsed,
@@ -49,7 +55,9 @@ class RpcRemoteRendezvous : public BaseRemoteRendezvous {
                            DoneCallback done) override;
 
  private:
-  ~RpcRemoteRendezvous() override {}
+  ~RpcRemoteRendezvous() override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  }
 
   TF_DISALLOW_COPY_AND_ASSIGN(RpcRemoteRendezvous);
 };
@@ -57,11 +65,15 @@ class RpcRemoteRendezvous : public BaseRemoteRendezvous {
 // Used only to retrieve tensors from remote processes.
 class RpcRecvTensorCall : public BaseRecvTensorCall {
  public:
-  RpcRecvTensorCall() : wi_(nullptr), dst_device_(nullptr) {}
+  RpcRecvTensorCall() : wi_(nullptr), dst_device_(nullptr) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  }
 
   void Init(WorkerInterface* wi, int64_t step_id, StringPiece key,
             AllocatorAttributes alloc_attrs, Device* dst_device,
             const Rendezvous::Args& recv_args, Rendezvous::DoneCallback done) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+
     wi_ = wi;
     alloc_attrs_ = alloc_attrs;
     dst_device_ = dst_device;
@@ -73,6 +85,8 @@ class RpcRecvTensorCall : public BaseRecvTensorCall {
   }
 
   void Reset() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+
     // The RpcRemoteRendezvous using this object is responsible for calling
     // ReleaseWorker() before Reset().
     DCHECK_EQ(static_cast<WorkerInterface*>(nullptr), wi_)
@@ -92,6 +106,8 @@ class RpcRecvTensorCall : public BaseRecvTensorCall {
   }
 
   ~RpcRecvTensorCall() override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+
     // Since only the RpcRecvTensorFreeList will delete an
     // RpcRecvTensorCall, we require that ReleaseWorker() has been called before
     // the user releases a Call object to the free list.
@@ -100,10 +116,13 @@ class RpcRecvTensorCall : public BaseRecvTensorCall {
   }
 
   void Start(std::function<void()> recv_done) override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+
     StartRTCall(std::move(recv_done));
   }
 
   void StartAbort(const Status& s) override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     {
       mutex_lock l(mu_);
       status_.Update(s);
@@ -112,30 +131,51 @@ class RpcRecvTensorCall : public BaseRecvTensorCall {
   }
 
   Status status() const override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+
     mutex_lock l(mu_);
     return status_;
   }
 
   void ReleaseWorker(WorkerCacheInterface* worker_cache) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+
     DCHECK_NE(static_cast<WorkerInterface*>(nullptr), wi_)
         << "RpcRecvTensorCall::ReleaseWorker() called twice.";
     worker_cache->ReleaseWorker(src_worker_, wi_);
     wi_ = nullptr;
   }
 
-  const Tensor& tensor() const { return resp_.tensor(); }
+  const Tensor& tensor() const {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    return resp_.tensor();
+  }
 
-  bool is_dead() const { return resp_.metadata().is_dead(); }
+  bool is_dead() const {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    return resp_.metadata().is_dead();
+  }
 
-  Device* dst_device() const { return dst_device_; }
-  const Rendezvous::Args& recv_args() const { return recv_args_; }
-  const Rendezvous::DoneCallback& done() const { return done_; }
+  Device* dst_device() const {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    return dst_device_;
+  }
+  const Rendezvous::Args& recv_args() const {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    return recv_args_;
+  }
+  const Rendezvous::DoneCallback& done() const {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    return done_;
+  }
 
  private:
   friend class RpcRemoteRendezvous;
 
   // Start the main RecvTensor call, checking for an async abort.
   void StartRTCall(std::function<void()> recv_done) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+
     resp_.InitAlloc(dst_device_, alloc_attrs_);
     auto abort_checked = std::make_shared<Notification>();
     auto cb = [this, abort_checked,
@@ -187,14 +227,18 @@ class RpcRecvTensorCall : public BaseRecvTensorCall {
 
 class RpcRecvTensorFreeList {
  public:
-  RpcRecvTensorFreeList() {}
+  RpcRecvTensorFreeList() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  }
   ~RpcRecvTensorFreeList() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     for (size_t i = 0; i < objects_.size(); i++) {
       delete objects_[i];
     }
   }
 
   RpcRecvTensorCall* New() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     {
       mutex_lock l(mu_);
       if (!objects_.empty()) {
@@ -207,6 +251,7 @@ class RpcRecvTensorFreeList {
   }
 
   void Release(RpcRecvTensorCall* obj) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     obj->Reset();
     {
       mutex_lock l(mu_);
@@ -226,6 +271,7 @@ class RpcRecvTensorFreeList {
 };
 
 static RpcRecvTensorFreeList* get_call_freelist() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   static RpcRecvTensorFreeList* call_freelist = new RpcRecvTensorFreeList();
   return call_freelist;
 }
@@ -233,6 +279,7 @@ static RpcRecvTensorFreeList* get_call_freelist() {
 void RpcRemoteRendezvous::RecvFromRemoteAsync(
     const Rendezvous::ParsedKey& parsed, const Rendezvous::Args& recv_args,
     DoneCallback done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   CHECK(is_initialized());
   Status s;
 
@@ -308,10 +355,13 @@ void RpcRemoteRendezvous::RecvFromRemoteAsync(
 }  // namespace
 
 RpcRendezvousMgr::RpcRendezvousMgr(const WorkerEnv* env)
-    : BaseRendezvousMgr(env) {}
+    : BaseRendezvousMgr(env) {
+      write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    }
 
 BaseRemoteRendezvous* RpcRendezvousMgr::Create(int64_t step_id,
                                                const WorkerEnv* worker_env) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return new RpcRemoteRendezvous(worker_env, step_id);
 }
 

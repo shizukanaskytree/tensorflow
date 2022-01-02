@@ -80,6 +80,10 @@ limitations under the License.
 #include "tensorflow/stream_executor/gpu/gpu_stream.h"
 #include "tensorflow/stream_executor/platform/dso_loader.h"
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 #if !defined(PLATFORM_GOOGLE)
 #if GOOGLE_CUDA
 #include "third_party/gpus/cuda/cuda_config.h"
@@ -1470,6 +1474,8 @@ Status BaseGPUDeviceFactory::CreateGPUDevice(
     TfDeviceId tf_device_id, int64_t memory_limit,
     const DeviceLocality& dev_locality, size_t num_tf_gpus,
     std::vector<std::unique_ptr<Device>>* devices) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+
   CHECK_GE(tf_device_id.value(), 0);
   const string device_name =
       strings::StrCat(name_prefix, "/device:GPU:", tf_device_id.value());

@@ -57,6 +57,10 @@ limitations under the License.
 #include "tensorflow/core/protobuf/transport_options.pb.h"
 #include "tensorflow/core/protobuf/worker.pb.h"
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 namespace tensorflow {
 
 namespace {
@@ -107,18 +111,24 @@ class GrpcWorkerServiceThread {
         cache_(cache),
         worker_service_(worker_service),
         is_shutdown_(false) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     cq_ = builder->AddCompletionQueue();
   }
 
   void Start() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     thread_.reset(
         worker_->env()->env->StartThread(ThreadOptions(), "grpc_worker_service",
                                          [this]() { HandleRPCsLoop(); }));
   }
 
-  void Join() { thread_.reset(); }  // Blocks until thread exits
+  void Join() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    thread_.reset();
+  }  // Blocks until thread exits
 
   void Shutdown() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     {
       mutex_lock lock(shutdown_mu_);
       is_shutdown_ = true;
@@ -130,6 +140,7 @@ class GrpcWorkerServiceThread {
   // Add one or more completion queue entries for each worker method, then
   // begin servicing requests from the completion queue.
   void HandleRPCsLoop() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     // TODO(ncteisen): This may require performance engineering. We can
     // change the number of threads, the number of handlers per thread,
     // or even decide to specialize certain threads to certain methods.
@@ -172,6 +183,7 @@ class GrpcWorkerServiceThread {
 
  private:
   void Schedule(std::function<void()> f) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     worker_->env()->compute_pool->Schedule(std::move(f));
   }
 
@@ -221,7 +233,9 @@ class GrpcWorkerServiceThread {
 
   void GetStepSequenceHandler(
       WorkerCall<GetStepSequenceRequest, GetStepSequenceResponse>* call) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     Schedule([this, call]() {
+      write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
       worker_->GetStepSequenceAsync(
           &call->request, &call->response, [call](const Status& s) {
             VLOG(3) << "Bad response from GetStepSequence:" << s;
@@ -233,6 +247,7 @@ class GrpcWorkerServiceThread {
 
   void MarkRecvFinishedHandler(
       WorkerCall<MarkRecvFinishedRequest, MarkRecvFinishedResponse>* call) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     VLOG(3) << "Clean cache entry for request " << call->request.request_id();
     worker_->RemoveCacheEntryForId(call->request.request_id());
     call->SendResponse(::grpc::Status::OK);
@@ -240,7 +255,11 @@ class GrpcWorkerServiceThread {
   }
 
   void RunGraphHandler(WorkerCall<RunGraphRequest, RunGraphResponse>* call) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+
     Schedule([this, call]() {
+      write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+
       CallOptions* call_opts = new CallOptions;
       ProtoRunGraphRequest* wrapped_request =
           new ProtoRunGraphRequest(&call->request);
@@ -266,7 +285,9 @@ class GrpcWorkerServiceThread {
 
   void RecvTensorHandlerRaw(
       WorkerCall<RecvTensorRequest, ::grpc::ByteBuffer>* call) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     Schedule([this, call]() {
+      write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
       CallOptions* call_opts = new CallOptions;
       call->SetCancelCallback([call_opts]() { call_opts->StartCancel(); });
 
@@ -285,7 +306,9 @@ class GrpcWorkerServiceThread {
   }
 
   void RecvBufHandler(WorkerCall<RecvBufRequest, RecvBufResponse>* call) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     Schedule([this, call]() {
+      write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
       CallOptions* call_opts = new CallOptions;
       call->SetCancelCallback([call_opts]() { call_opts->StartCancel(); });
       worker_->RecvBufAsync(call_opts, &call->request, &call->response,
@@ -303,7 +326,9 @@ class GrpcWorkerServiceThread {
 
   void CompleteGroupHandler(
       WorkerCall<CompleteGroupRequest, CompleteGroupResponse>* call) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     Schedule([this, call]() {
+      write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
       CallOptions* call_opts = new CallOptions;
       call->SetCancelCallback([call_opts]() { call_opts->StartCancel(); });
       worker_->CompleteGroupAsync(
@@ -322,7 +347,9 @@ class GrpcWorkerServiceThread {
 
   void CompleteInstanceHandler(
       WorkerCall<CompleteInstanceRequest, CompleteInstanceResponse>* call) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     Schedule([this, call]() {
+      write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
       CallOptions* call_opts = new CallOptions;
       call->SetCancelCallback([call_opts]() { call_opts->StartCancel(); });
       worker_->CompleteInstanceAsync(
@@ -341,6 +368,7 @@ class GrpcWorkerServiceThread {
 #undef ENQUEUE_REQUEST
 
   void EnqueueRecvTensorRequestRaw() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     mutex_lock l(shutdown_mu_);
     if (!is_shutdown_) {
       Call<GrpcWorkerServiceThread, grpc::WorkerService::AsyncService,
@@ -370,6 +398,7 @@ class GrpcWorkerService : public AsyncServiceInterface {
   GrpcWorkerService(GrpcWorker* worker, ::grpc::ServerBuilder* builder,
                     GrpcWorkerServiceOptions options)
       : is_shutdown_(false) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     builder->RegisterService(&worker_service_);
 
     for (int i = 0; i < options.num_serving_threads; i++) {
@@ -380,6 +409,7 @@ class GrpcWorkerService : public AsyncServiceInterface {
   }
 
   void Shutdown() override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     bool did_shutdown = false;
     {
       mutex_lock l(service_shutdown_mu_);
@@ -398,6 +428,7 @@ class GrpcWorkerService : public AsyncServiceInterface {
 
   // This method blocks forever handling requests from the completion queue.
   void HandleRPCsLoop() override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     for (auto& worker_thread : threads_) {
       worker_thread->Start();
     }
@@ -425,12 +456,14 @@ GrpcWorker::GrpcWorker(WorkerEnv* worker_env, const ConfigProto& config)
           config.experimental().recv_buf_max_chunk() > 0
               ? config.experimental().recv_buf_max_chunk()
               : (config.experimental().recv_buf_max_chunk() < 0 ? 0 : 4096)) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   if (config.rpc_options().cache_rpc_response()) {
     EnableResponseCache();
   }
 }
 
 void GrpcWorker::EnableResponseCache() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   VLOG(3) << "Enabling gRPC tensor response cache.";
   response_cache_ = absl::make_unique<GrpcResponseCache>();
 }
@@ -442,6 +475,7 @@ void GrpcWorker::GrpcRecvTensorAsync(CallOptions* opts,
                                      const RecvTensorRequest* request,
                                      ::grpc::ByteBuffer* response,
                                      StatusCallback done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   VLOG(3) << "GrpcRecvTensorAsync req: " << request->DebugString();
   const int64_t request_id = request->request_id();
   const int64_t step_id = request->step_id();
@@ -570,6 +604,7 @@ namespace {
 // and remove this function.
 void SetTensorInRecvBufResp(int64_t max_chunk_bytes, const Tensor* tensor,
                             RecvBufResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   RecvBufRespExtra extra;
   int64_t num_bytes = tensor->TotalBytes();
   const char* head = reinterpret_cast<const char*>(DMAHelper::base(tensor));
@@ -586,6 +621,7 @@ void SetTensorInRecvBufResp(int64_t max_chunk_bytes, const Tensor* tensor,
 
 void GrpcWorker::RecvBufAsync(CallOptions* opts, const RecvBufRequest* request,
                               RecvBufResponse* response, StatusCallback done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   const int64_t request_id = request->request_id();
   const int64_t step_id = request->step_id();
   bool cache_enabled = (response_cache_ != nullptr && request_id != 0);
@@ -704,6 +740,7 @@ void GrpcWorker::RecvBufAsync(CallOptions* opts, const RecvBufRequest* request,
 
 void GrpcWorker::LoggingAsync(const LoggingRequest* request,
                               LoggingResponse* response, StatusCallback done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   auto env = this->env();
   if (env) {
     auto session_mgr = env->session_mgr;
@@ -732,6 +769,7 @@ void GrpcWorker::LoggingAsync(const LoggingRequest* request,
 void GrpcWorker::CleanupGraphAsync(const CleanupGraphRequest* request,
                                    CleanupGraphResponse* response,
                                    StatusCallback done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   if (response_cache_) {
     // Cleanup any stale response cache entries for this step. This can occur if
     // a worker crashes before acking a request.
@@ -740,9 +778,13 @@ void GrpcWorker::CleanupGraphAsync(const CleanupGraphRequest* request,
   Worker::CleanupGraphAsync(request, response, done);
 }
 
-WorkerEnv* GrpcWorker::env() { return env_; }
+WorkerEnv* GrpcWorker::env() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  return env_;
+}
 
 void GrpcWorker::RemoveCacheEntryForId(int64_t request_id) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   if (response_cache_) {
     response_cache_->EraseRequestId(request_id);
   }
@@ -750,12 +792,14 @@ void GrpcWorker::RemoveCacheEntryForId(int64_t request_id) {
 
 std::unique_ptr<GrpcWorker> NewGrpcWorker(WorkerEnv* env,
                                           const ConfigProto& config) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return std::unique_ptr<GrpcWorker>(new GrpcWorker(env, config));
 }
 
 std::unique_ptr<AsyncServiceInterface> NewGrpcWorkerService(
     GrpcWorker* worker, ::grpc::ServerBuilder* builder,
     GrpcWorkerServiceOptions options) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return std::unique_ptr<AsyncServiceInterface>(
       new GrpcWorkerService(worker, builder, options));
 }

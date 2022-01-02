@@ -70,6 +70,7 @@ class NoReusePortOption : public ::grpc::ServerBuilderOption {
  public:
   void UpdateArguments(::grpc::ChannelArguments* args) override {
     write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+
     args->SetInt(GRPC_ARG_ALLOW_REUSEPORT, 0);
   }
 
@@ -187,6 +188,7 @@ Status GrpcServer::GetHostAndPort(const ServerDef& server_def,
 
 Status GrpcServer::Init(const GrpcServerOptions& opts) {
   write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+
   mutex_lock l(mu_);
   CHECK_EQ(state_, NEW);
   master_env_.env = env_;
@@ -377,6 +379,7 @@ Status GrpcServer::ParseChannelSpec(const WorkerCacheFactoryOptions& options,
 Status GrpcServer::WorkerCacheFactory(const WorkerCacheFactoryOptions& options,
                                       WorkerCacheInterface** worker_cache) {
   write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+
   if (options.job_name == nullptr || options.job_name->empty()) {
     Status s = errors::InvalidArgument(
         "The master (current machine) is not included in the provided "
@@ -400,6 +403,7 @@ Status GrpcServer::WorkerCacheFactory(const WorkerCacheFactoryOptions& options,
                                        "/task:", options.task_index);
 
   const string host_port = channel_cache->TranslateTask(name_prefix);
+  write_log("host_port: " + host_port);
   int requested_port;
 
   auto colon_index = host_port.find_last_of(':');
@@ -574,6 +578,7 @@ Status GrpcServer::Create(const ServerDef& server_def, Env* env,
                           DeviceMgr* local_device_mgr,
                           std::unique_ptr<ServerInterface>* out_server) {
   write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+
   std::unique_ptr<GrpcServer> ret(
       new GrpcServer(server_def, env == nullptr ? Env::Default() : env));
   GrpcServerOptions options;
