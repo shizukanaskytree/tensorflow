@@ -503,6 +503,17 @@ cc_test(
     ],
 )
 
+cc_binary(
+    name = "load_stacktrace",
+    srcs = [
+        "load_stacktrace.cc",
+    ],
+    deps = [
+        "@boost//:stacktrace",
+        "@boost//:filesystem",
+    ],
+)
+
 cc_test(
     name = "lockfree_test",
     size = "small",

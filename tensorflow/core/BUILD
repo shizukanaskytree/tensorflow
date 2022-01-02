@@ -1341,6 +1341,7 @@ cc_library(
         ":lib_proto_parsing",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
+        "//tensorflow/core/util:write_log",
         "//third_party/eigen3",
         "//tensorflow/core/lib/core:arena",
         "//tensorflow/core/lib/core:bitmap",

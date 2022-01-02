@@ -1,0 +1,1058 @@
+(base) wxf@seir19:~/tf2/tensorflow$ source /home/wxf/anaconda3/bin/activate
+(base) wxf@seir19:~/tf2/tensorflow$ conda activate hm
+(hm) wxf@seir19:~/tf2/tensorflow$ cd ~/tf2/tensorflow/experiments/distributed_examples_tf2/05-distributed-training/
+(hm) wxf@seir19:~/tf2/tensorflow/experiments/distributed_examples_tf2/05-distributed-training$ ls
+backtrace.dump  __pycache__  README.md  resnet.py  worker.py
+(hm) wxf@seir19:~/tf2/tensorflow/experiments/distributed_examples_tf2/05-distributed-training$ CUDA_VISIBLE_DEVICES=1 TF_CONFIG='{"cluster": {"worker": ["127.0.0.1:12345", "127.0.0.1:12346"]}, "task": {"index": 1, "type": "worker"}}' python worker.py
+ 0# tensorflow::ServerFactory::Register(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, tensorflow::ServerFactory*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5144D152 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# 0x00007F3B7516D6FA in /lib64/ld-linux-x86-64.so.2
+ 3# 0x00007F3B7516D80B in /lib64/ld-linux-x86-64.so.2
+ 4# 0x00007F3B75172922 in /lib64/ld-linux-x86-64.so.2
+ 5# 0x00007F3B7516D5A4 in /lib64/ld-linux-x86-64.so.2
+ 6# 0x00007F3B75171DE9 in /lib64/ld-linux-x86-64.so.2
+ 7# 0x00007F3B74972F09 in /lib/x86_64-linux-gnu/libdl.so.2
+ 8# 0x00007F3B7516D5A4 in /lib64/ld-linux-x86-64.so.2
+ 9# 0x00007F3B74973571 in /lib/x86_64-linux-gnu/libdl.so.2
+10# dlopen in /lib/x86_64-linux-gnu/libdl.so.2
+11# _PyImport_FindSharedFuncptr in python
+12# _PyImport_LoadDynamicModuleWithSpec in python
+13# 0x000055FCFBC927E2 in python
+14# 0x000055FCFBB8C699 in python
+15# PyVectorcall_Call in python
+16# _PyEval_EvalFrameDefault in python
+17# _PyEval_EvalCodeWithName in python
+18# _PyFunction_Vectorcall in python
+19# 0x000055FCFBB4C77F in python
+20# _PyFunction_Vectorcall in python
+21# 0x000055FCFBB4C75E in python
+22# _PyFunction_Vectorcall in python
+23# 0x000055FCFBB4AB84 in python
+24# _PyFunction_Vectorcall in python
+25# 0x000055FCFBB4AB84 in python
+26# _PyFunction_Vectorcall in python
+27# 0x000055FCFBB4AB84 in python
+28# _PyFunction_Vectorcall in python
+29# 0x000055FCFBACA2D6 in python
+30# _PyObject_CallMethodIdObjArgs in python
+31# PyImport_ImportModuleLevelObject in python
+32# _PyEval_EvalFrameDefault in python
+33# _PyEval_EvalCodeWithName in python
+34# PyEval_EvalCodeEx in python
+35# PyEval_EvalCode in python
+36# 0x000055FCFBC9B083 in python
+37# 0x000055FCFBB8C699 in python
+38# PyVectorcall_Call in python
+39# _PyEval_EvalFrameDefault in python
+40# _PyEval_EvalCodeWithName in python
+41# _PyFunction_Vectorcall in python
+42# 0x000055FCFBB4C77F in python
+43# _PyFunction_Vectorcall in python
+44# 0x000055FCFBB4C75E in python
+45# _PyFunction_Vectorcall in python
+46# 0x000055FCFBB4AB84 in python
+47# _PyFunction_Vectorcall in python
+48# 0x000055FCFBB4AB84 in python
+49# _PyFunction_Vectorcall in python
+50# 0x000055FCFBACA2D6 in python
+51# _PyObject_CallMethodIdObjArgs in python
+52# PyImport_ImportModuleLevelObject in python
+53# 0x000055FCFBC1369A in python
+54# PyCFunction_Call in python
+55# _PyEval_EvalFrameDefault in python
+56# _PyEval_EvalCodeWithName in python
+57# _PyFunction_Vectorcall in python
+58# 0x000055FCFBB4AB84 in python
+59# _PyEval_EvalCodeWithName in python
+60# _PyFunction_Vectorcall in python
+61# 0x000055FCFBACA2D6 in python
+62# _PyObject_CallMethodIdObjArgs in python
+63# PyImport_ImportModuleLevelObject in python
+64# _PyEval_EvalFrameDefault in python
+65# _PyEval_EvalCodeWithName in python
+66# PyEval_EvalCodeEx in python
+67# PyEval_EvalCode in python
+68# 0x000055FCFBC9B083 in python
+69# 0x000055FCFBB8C699 in python
+70# PyVectorcall_Call in python
+71# _PyEval_EvalFrameDefault in python
+72# _PyEval_EvalCodeWithName in python
+73# _PyFunction_Vectorcall in python
+74# 0x000055FCFBB4C77F in python
+75# _PyFunction_Vectorcall in python
+76# 0x000055FCFBB4C75E in python
+77# _PyFunction_Vectorcall in python
+78# 0x000055FCFBB4AB84 in python
+79# _PyFunction_Vectorcall in python
+80# 0x000055FCFBB4AB84 in python
+81# _PyFunction_Vectorcall in python
+82# 0x000055FCFBACA2D6 in python
+83# _PyObject_CallMethodIdObjArgs in python
+84# PyImport_ImportModuleLevelObject in python
+85# 0x000055FCFBC1369A in python
+86# PyCFunction_Call in python
+87# _PyEval_EvalFrameDefault in python
+88# _PyEval_EvalCodeWithName in python
+89# _PyFunction_Vectorcall in python
+90# 0x000055FCFBB4AB84 in python
+91# _PyFunction_Vectorcall in python
+92# 0x000055FCFBB4AB84 in python
+93# _PyFunction_Vectorcall in python
+94# 0x000055FCFBACA2D6 in python
+95# _PyObject_CallMethodIdObjArgs in python
+96# PyImport_ImportModuleLevelObject in python
+97# _PyEval_EvalFrameDefault in python
+98# _PyEval_EvalCodeWithName in python
+99# PyEval_EvalCodeEx in python
+100# PyEval_EvalCode in python
+101# 0x000055FCFBC9B083 in python
+102# 0x000055FCFBB8C699 in python
+103# PyVectorcall_Call in python
+104# _PyEval_EvalFrameDefault in python
+105# _PyEval_EvalCodeWithName in python
+106# _PyFunction_Vectorcall in python
+107# 0x000055FCFBB4C77F in python
+108# _PyFunction_Vectorcall in python
+109# 0x000055FCFBB4C75E in python
+110# _PyFunction_Vectorcall in python
+111# 0x000055FCFBB4AB84 in python
+112# _PyFunction_Vectorcall in python
+113# 0x000055FCFBB4AB84 in python
+114# _PyFunction_Vectorcall in python
+115# 0x000055FCFBACA2D6 in python
+116# _PyObject_CallMethodIdObjArgs in python
+117# PyImport_ImportModuleLevelObject in python
+118# _PyEval_EvalFrameDefault in python
+119# _PyEval_EvalCodeWithName in python
+120# PyEval_EvalCodeEx in python
+121# PyEval_EvalCode in python
+122# 0x000055FCFBC65F84 in python
+123# 0x000055FCFBC981F4 in python
+124# PyRun_FileExFlags in python
+125# PyRun_SimpleFileExFlags in python
+126# 0x000055FCFBB6198B in python
+127# Py_BytesMain in python
+128# __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+129# 0x000055FCFBC2AE93 in python
+ 0# 0x00007F3B594AC8B6 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# tensorflow::ServerFactory::Register(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, tensorflow::ServerFactory*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# 0x00007F3B5144D152 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# 0x00007F3B7516D6FA in /lib64/ld-linux-x86-64.so.2
+ 4# 0x00007F3B7516D80B in /lib64/ld-linux-x86-64.so.2
+ 5# 0x00007F3B75172922 in /lib64/ld-linux-x86-64.so.2
+ 6# 0x00007F3B7516D5A4 in /lib64/ld-linux-x86-64.so.2
+ 7# 0x00007F3B75171DE9 in /lib64/ld-linux-x86-64.so.2
+ 8# 0x00007F3B74972F09 in /lib/x86_64-linux-gnu/libdl.so.2
+ 9# 0x00007F3B7516D5A4 in /lib64/ld-linux-x86-64.so.2
+10# 0x00007F3B74973571 in /lib/x86_64-linux-gnu/libdl.so.2
+11# dlopen in /lib/x86_64-linux-gnu/libdl.so.2
+12# _PyImport_FindSharedFuncptr in python
+13# _PyImport_LoadDynamicModuleWithSpec in python
+14# 0x000055FCFBC927E2 in python
+15# 0x000055FCFBB8C699 in python
+16# PyVectorcall_Call in python
+17# _PyEval_EvalFrameDefault in python
+18# _PyEval_EvalCodeWithName in python
+19# _PyFunction_Vectorcall in python
+20# 0x000055FCFBB4C77F in python
+21# _PyFunction_Vectorcall in python
+22# 0x000055FCFBB4C75E in python
+23# _PyFunction_Vectorcall in python
+24# 0x000055FCFBB4AB84 in python
+25# _PyFunction_Vectorcall in python
+26# 0x000055FCFBB4AB84 in python
+27# _PyFunction_Vectorcall in python
+28# 0x000055FCFBB4AB84 in python
+29# _PyFunction_Vectorcall in python
+30# 0x000055FCFBACA2D6 in python
+31# _PyObject_CallMethodIdObjArgs in python
+32# PyImport_ImportModuleLevelObject in python
+33# _PyEval_EvalFrameDefault in python
+34# _PyEval_EvalCodeWithName in python
+35# PyEval_EvalCodeEx in python
+36# PyEval_EvalCode in python
+37# 0x000055FCFBC9B083 in python
+38# 0x000055FCFBB8C699 in python
+39# PyVectorcall_Call in python
+40# _PyEval_EvalFrameDefault in python
+41# _PyEval_EvalCodeWithName in python
+42# _PyFunction_Vectorcall in python
+43# 0x000055FCFBB4C77F in python
+44# _PyFunction_Vectorcall in python
+45# 0x000055FCFBB4C75E in python
+46# _PyFunction_Vectorcall in python
+47# 0x000055FCFBB4AB84 in python
+48# _PyFunction_Vectorcall in python
+49# 0x000055FCFBB4AB84 in python
+50# _PyFunction_Vectorcall in python
+51# 0x000055FCFBACA2D6 in python
+52# _PyObject_CallMethodIdObjArgs in python
+53# PyImport_ImportModuleLevelObject in python
+54# 0x000055FCFBC1369A in python
+55# PyCFunction_Call in python
+56# _PyEval_EvalFrameDefault in python
+57# _PyEval_EvalCodeWithName in python
+58# _PyFunction_Vectorcall in python
+59# 0x000055FCFBB4AB84 in python
+60# _PyEval_EvalCodeWithName in python
+61# _PyFunction_Vectorcall in python
+62# 0x000055FCFBACA2D6 in python
+63# _PyObject_CallMethodIdObjArgs in python
+64# PyImport_ImportModuleLevelObject in python
+65# _PyEval_EvalFrameDefault in python
+66# _PyEval_EvalCodeWithName in python
+67# PyEval_EvalCodeEx in python
+68# PyEval_EvalCode in python
+69# 0x000055FCFBC9B083 in python
+70# 0x000055FCFBB8C699 in python
+71# PyVectorcall_Call in python
+72# _PyEval_EvalFrameDefault in python
+73# _PyEval_EvalCodeWithName in python
+74# _PyFunction_Vectorcall in python
+75# 0x000055FCFBB4C77F in python
+76# _PyFunction_Vectorcall in python
+77# 0x000055FCFBB4C75E in python
+78# _PyFunction_Vectorcall in python
+79# 0x000055FCFBB4AB84 in python
+80# _PyFunction_Vectorcall in python
+81# 0x000055FCFBB4AB84 in python
+82# _PyFunction_Vectorcall in python
+83# 0x000055FCFBACA2D6 in python
+84# _PyObject_CallMethodIdObjArgs in python
+85# PyImport_ImportModuleLevelObject in python
+86# 0x000055FCFBC1369A in python
+87# PyCFunction_Call in python
+88# _PyEval_EvalFrameDefault in python
+89# _PyEval_EvalCodeWithName in python
+90# _PyFunction_Vectorcall in python
+91# 0x000055FCFBB4AB84 in python
+92# _PyFunction_Vectorcall in python
+93# 0x000055FCFBB4AB84 in python
+94# _PyFunction_Vectorcall in python
+95# 0x000055FCFBACA2D6 in python
+96# _PyObject_CallMethodIdObjArgs in python
+97# PyImport_ImportModuleLevelObject in python
+98# _PyEval_EvalFrameDefault in python
+99# _PyEval_EvalCodeWithName in python
+100# PyEval_EvalCodeEx in python
+101# PyEval_EvalCode in python
+102# 0x000055FCFBC9B083 in python
+103# 0x000055FCFBB8C699 in python
+104# PyVectorcall_Call in python
+105# _PyEval_EvalFrameDefault in python
+106# _PyEval_EvalCodeWithName in python
+107# _PyFunction_Vectorcall in python
+108# 0x000055FCFBB4C77F in python
+109# _PyFunction_Vectorcall in python
+110# 0x000055FCFBB4C75E in python
+111# _PyFunction_Vectorcall in python
+112# 0x000055FCFBB4AB84 in python
+113# _PyFunction_Vectorcall in python
+114# 0x000055FCFBB4AB84 in python
+115# _PyFunction_Vectorcall in python
+116# 0x000055FCFBACA2D6 in python
+117# _PyObject_CallMethodIdObjArgs in python
+118# PyImport_ImportModuleLevelObject in python
+119# _PyEval_EvalFrameDefault in python
+120# _PyEval_EvalCodeWithName in python
+121# PyEval_EvalCodeEx in python
+122# PyEval_EvalCode in python
+123# 0x000055FCFBC65F84 in python
+124# 0x000055FCFBC981F4 in python
+125# PyRun_FileExFlags in python
+126# PyRun_SimpleFileExFlags in python
+127# 0x000055FCFBB6198B in python
+128# Py_BytesMain in python
+129# __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+130# 0x000055FCFBC2AE93 in python
+WARNING:tensorflow:From worker.py:22: _CollectiveAllReduceStrategyExperimental.__init__ (from tensorflow.python.distribute.collective_all_reduce_strategy) is deprecated and will be removed in a future version.
+Instructions for updating:
+use distribute.MultiWorkerMirroredStrategy instead
+2021-12-31 01:04:56.189025: I tensorflow/core/platform/cpu_feature_guard.cc:151] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  SSE3 SSE4.1 SSE4.2 AVX AVX2 AVX512F FMA
+To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2021-12-31 01:04:56.849952: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1525] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 30990 MB memory:  -> device: 0, name: Tesla V100-SXM2-32GB, pci bus id: 0000:62:00.0, compute capability: 7.0
+ 0# tensorflow::NewServer(tensorflow::ServerDef const&, std::unique_ptr<tensorflow::ServerInterface, std::default_delete<tensorflow::ServerInterface> >*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# tensorflow::EagerContextDistributedManager::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# tensorflow::EagerContext::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# TFE_EnableCollectiveOps in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B46687208 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+ 5# 0x00007F3B46694932 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+ 6# PyCFunction_Call in python
+ 7# _PyObject_MakeTpCall in python
+ 8# _PyEval_EvalFrameDefault in python
+ 9# _PyFunction_Vectorcall in python
+10# 0x000055FCFBB4C75E in python
+11# _PyEval_EvalCodeWithName in python
+12# _PyFunction_Vectorcall in python
+13# 0x000055FCFBB4C75E in python
+14# _PyFunction_Vectorcall in python
+15# 0x000055FCFBB4C75E in python
+16# _PyEval_EvalCodeWithName in python
+17# _PyFunction_Vectorcall in python
+18# _PyObject_FastCallDict in python
+19# _PyObject_Call_Prepend in python
+20# 0x000055FCFBBD88CA in python
+21# _PyObject_MakeTpCall in python
+22# _PyEval_EvalFrameDefault in python
+23# _PyEval_EvalCodeWithName in python
+24# 0x000055FCFBBD7D20 in python
+25# 0x000055FCFBB4C77F in python
+26# _PyEval_EvalCodeWithName in python
+27# _PyFunction_Vectorcall in python
+28# PyVectorcall_Call in python
+29# _PyEval_EvalFrameDefault in python
+30# _PyEval_EvalCodeWithName in python
+31# _PyObject_FastCallDict in python
+32# _PyObject_Call_Prepend in python
+33# 0x000055FCFBBD88CA in python
+34# _PyObject_MakeTpCall in python
+35# _PyEval_EvalFrameDefault in python
+36# _PyEval_EvalCodeWithName in python
+37# PyEval_EvalCodeEx in python
+38# PyEval_EvalCode in python
+39# 0x000055FCFBC65F84 in python
+40# 0x000055FCFBC981F4 in python
+41# PyRun_FileExFlags in python
+42# PyRun_SimpleFileExFlags in python
+43# 0x000055FCFBB6198B in python
+44# Py_BytesMain in python
+45# __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+46# 0x000055FCFBC2AE93 in python
+ 0# tensorflow::ServerFactory::GetFactory(tensorflow::ServerDef const&, tensorflow::ServerFactory**) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# tensorflow::NewServer(tensorflow::ServerDef const&, std::unique_ptr<tensorflow::ServerInterface, std::default_delete<tensorflow::ServerInterface> >*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# tensorflow::EagerContextDistributedManager::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# tensorflow::EagerContext::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# TFE_EnableCollectiveOps in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 5# 0x00007F3B46687208 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+ 6# 0x00007F3B46694932 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+ 7# PyCFunction_Call in python
+ 8# _PyObject_MakeTpCall in python
+ 9# _PyEval_EvalFrameDefault in python
+10# _PyFunction_Vectorcall in python
+11# 0x000055FCFBB4C75E in python
+12# _PyEval_EvalCodeWithName in python
+13# _PyFunction_Vectorcall in python
+14# 0x000055FCFBB4C75E in python
+15# _PyFunction_Vectorcall in python
+16# 0x000055FCFBB4C75E in python
+17# _PyEval_EvalCodeWithName in python
+18# _PyFunction_Vectorcall in python
+19# _PyObject_FastCallDict in python
+20# _PyObject_Call_Prepend in python
+21# 0x000055FCFBBD88CA in python
+22# _PyObject_MakeTpCall in python
+23# _PyEval_EvalFrameDefault in python
+24# _PyEval_EvalCodeWithName in python
+25# 0x000055FCFBBD7D20 in python
+26# 0x000055FCFBB4C77F in python
+27# _PyEval_EvalCodeWithName in python
+28# _PyFunction_Vectorcall in python
+29# PyVectorcall_Call in python
+30# _PyEval_EvalFrameDefault in python
+31# _PyEval_EvalCodeWithName in python
+32# _PyObject_FastCallDict in python
+33# _PyObject_Call_Prepend in python
+34# 0x000055FCFBBD88CA in python
+35# _PyObject_MakeTpCall in python
+36# _PyEval_EvalFrameDefault in python
+37# _PyEval_EvalCodeWithName in python
+38# PyEval_EvalCodeEx in python
+39# PyEval_EvalCode in python
+40# 0x000055FCFBC65F84 in python
+41# 0x000055FCFBC981F4 in python
+42# PyRun_FileExFlags in python
+43# PyRun_SimpleFileExFlags in python
+44# 0x000055FCFBB6198B in python
+45# Py_BytesMain in python
+46# __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+47# 0x000055FCFBC2AE93 in python
+ 0# 0x00007F3B594AC8B6 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# tensorflow::ServerFactory::GetFactory(tensorflow::ServerDef const&, tensorflow::ServerFactory**) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# tensorflow::NewServer(tensorflow::ServerDef const&, std::unique_ptr<tensorflow::ServerInterface, std::default_delete<tensorflow::ServerInterface> >*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# tensorflow::EagerContextDistributedManager::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# tensorflow::EagerContext::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 5# TFE_EnableCollectiveOps in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 6# 0x00007F3B46687208 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+ 7# 0x00007F3B46694932 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+ 8# PyCFunction_Call in python
+ 9# _PyObject_MakeTpCall in python
+10# _PyEval_EvalFrameDefault in python
+11# _PyFunction_Vectorcall in python
+12# 0x000055FCFBB4C75E in python
+13# _PyEval_EvalCodeWithName in python
+14# _PyFunction_Vectorcall in python
+15# 0x000055FCFBB4C75E in python
+16# _PyFunction_Vectorcall in python
+17# 0x000055FCFBB4C75E in python
+18# _PyEval_EvalCodeWithName in python
+19# _PyFunction_Vectorcall in python
+20# _PyObject_FastCallDict in python
+21# _PyObject_Call_Prepend in python
+22# 0x000055FCFBBD88CA in python
+23# _PyObject_MakeTpCall in python
+24# _PyEval_EvalFrameDefault in python
+25# _PyEval_EvalCodeWithName in python
+26# 0x000055FCFBBD7D20 in python
+27# 0x000055FCFBB4C77F in python
+28# _PyEval_EvalCodeWithName in python
+29# _PyFunction_Vectorcall in python
+30# PyVectorcall_Call in python
+31# _PyEval_EvalFrameDefault in python
+32# _PyEval_EvalCodeWithName in python
+33# _PyObject_FastCallDict in python
+34# _PyObject_Call_Prepend in python
+35# 0x000055FCFBBD88CA in python
+36# _PyObject_MakeTpCall in python
+37# _PyEval_EvalFrameDefault in python
+38# _PyEval_EvalCodeWithName in python
+39# PyEval_EvalCodeEx in python
+40# PyEval_EvalCode in python
+41# 0x000055FCFBC65F84 in python
+42# 0x000055FCFBC981F4 in python
+43# PyRun_FileExFlags in python
+44# PyRun_SimpleFileExFlags in python
+45# 0x000055FCFBB6198B in python
+46# Py_BytesMain in python
+47# __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+48# 0x000055FCFBC2AE93 in python
+
+
+
+2021-12-31 01:04:56.936496: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1525] Created device /job:worker/replica:0/task:1/device:GPU:0 with 30990 MB memory:  -> device: 0, name: Tesla V100-SXM2-32GB, pci bus id: 0000:62:00.0, compute capability: 7.0
+
+
+
+ 0# tensorflow::Worker::Worker(tensorflow::WorkerEnv*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# tensorflow::GrpcWorker::GrpcWorker(tensorflow::WorkerEnv*, tensorflow::ConfigProto const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# tensorflow::NewGrpcWorker(tensorflow::WorkerEnv*, tensorflow::ConfigProto const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# tensorflow::GrpcServer::Init(tensorflow::GrpcServerOptions const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# tensorflow::GrpcServer::Create(tensorflow::ServerDef const&, tensorflow::Env*, tensorflow::DeviceMgr*, std::unique_ptr<tensorflow::ServerInterface, std::default_delete<tensorflow::ServerInterface> >*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 5# 0x00007F3B526581F4 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 6# tensorflow::NewServer(tensorflow::ServerDef const&, std::unique_ptr<tensorflow::ServerInterface, std::default_delete<tensorflow::ServerInterface> >*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 7# tensorflow::EagerContextDistributedManager::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 8# tensorflow::EagerContext::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 9# TFE_EnableCollectiveOps in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+10# 0x00007F3B46687208 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+11# 0x00007F3B46694932 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+12# PyCFunction_Call in python
+13# _PyObject_MakeTpCall in python
+14# _PyEval_EvalFrameDefault in python
+15# _PyFunction_Vectorcall in python
+16# 0x000055FCFBB4C75E in python
+17# _PyEval_EvalCodeWithName in python
+18# _PyFunction_Vectorcall in python
+19# 0x000055FCFBB4C75E in python
+20# _PyFunction_Vectorcall in python
+21# 0x000055FCFBB4C75E in python
+22# _PyEval_EvalCodeWithName in python
+23# _PyFunction_Vectorcall in python
+24# _PyObject_FastCallDict in python
+25# _PyObject_Call_Prepend in python
+26# 0x000055FCFBBD88CA in python
+27# _PyObject_MakeTpCall in python
+28# _PyEval_EvalFrameDefault in python
+29# _PyEval_EvalCodeWithName in python
+30# 0x000055FCFBBD7D20 in python
+31# 0x000055FCFBB4C77F in python
+32# _PyEval_EvalCodeWithName in python
+33# _PyFunction_Vectorcall in python
+34# PyVectorcall_Call in python
+35# _PyEval_EvalFrameDefault in python
+36# _PyEval_EvalCodeWithName in python
+37# _PyObject_FastCallDict in python
+38# _PyObject_Call_Prepend in python
+39# 0x000055FCFBBD88CA in python
+40# _PyObject_MakeTpCall in python
+41# _PyEval_EvalFrameDefault in python
+42# _PyEval_EvalCodeWithName in python
+43# PyEval_EvalCodeEx in python
+44# PyEval_EvalCode in python
+45# 0x000055FCFBC65F84 in python
+46# 0x000055FCFBC981F4 in python
+47# PyRun_FileExFlags in python
+48# PyRun_SimpleFileExFlags in python
+49# 0x000055FCFBB6198B in python
+50# Py_BytesMain in python
+51# __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+52# 0x000055FCFBC2AE93 in python
+
+
+2021-12-31 01:04:57.002797: I tensorflow/core/distributed_runtime/rpc/grpc_channel.cc:272] Initialize GrpcChannelCache for job worker -> {0 -> 127.0.0.1:12345, 1 -> 127.0.0.1:12346}
+
+
+ 0# tensorflow::SessionMgr::WorkerNameFromServerDef[abi:cxx11](tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# tensorflow::GrpcServer::Init(tensorflow::GrpcServerOptions const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# tensorflow::GrpcServer::Create(tensorflow::ServerDef const&, tensorflow::Env*, tensorflow::DeviceMgr*, std::unique_ptr<tensorflow::ServerInterface, std::default_delete<tensorflow::ServerInterface> >*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# 0x00007F3B526581F4 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# tensorflow::NewServer(tensorflow::ServerDef const&, std::unique_ptr<tensorflow::ServerInterface, std::default_delete<tensorflow::ServerInterface> >*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 5# tensorflow::EagerContextDistributedManager::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 6# tensorflow::EagerContext::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 7# TFE_EnableCollectiveOps in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 8# 0x00007F3B46687208 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+ 9# 0x00007F3B46694932 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+10# PyCFunction_Call in python
+11# _PyObject_MakeTpCall in python
+12# _PyEval_EvalFrameDefault in python
+13# _PyFunction_Vectorcall in python
+14# 0x000055FCFBB4C75E in python
+15# _PyEval_EvalCodeWithName in python
+16# _PyFunction_Vectorcall in python
+17# 0x000055FCFBB4C75E in python
+18# _PyFunction_Vectorcall in python
+19# 0x000055FCFBB4C75E in python
+20# _PyEval_EvalCodeWithName in python
+21# _PyFunction_Vectorcall in python
+22# _PyObject_FastCallDict in python
+23# _PyObject_Call_Prepend in python
+24# 0x000055FCFBBD88CA in python
+25# _PyObject_MakeTpCall in python
+26# _PyEval_EvalFrameDefault in python
+27# _PyEval_EvalCodeWithName in python
+28# 0x000055FCFBBD7D20 in python
+29# 0x000055FCFBB4C77F in python
+30# _PyEval_EvalCodeWithName in python
+31# _PyFunction_Vectorcall in python
+32# PyVectorcall_Call in python
+33# _PyEval_EvalFrameDefault in python
+34# _PyEval_EvalCodeWithName in python
+35# _PyObject_FastCallDict in python
+36# _PyObject_Call_Prepend in python
+37# 0x000055FCFBBD88CA in python
+38# _PyObject_MakeTpCall in python
+39# _PyEval_EvalFrameDefault in python
+40# _PyEval_EvalCodeWithName in python
+41# PyEval_EvalCodeEx in python
+42# PyEval_EvalCode in python
+43# 0x000055FCFBC65F84 in python
+44# 0x000055FCFBC981F4 in python
+45# PyRun_FileExFlags in python
+46# PyRun_SimpleFileExFlags in python
+47# 0x000055FCFBB6198B in python
+48# Py_BytesMain in python
+49# __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+50# 0x000055FCFBC2AE93 in python
+
+
+
+ 0# tensorflow::WorkerSession::CreateWithBorrowedDeviceMgr(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::unique_ptr<tensorflow::WorkerCacheInterface, std::default_delete<tensorflow::WorkerCacheInterface> >, tensorflow::DeviceMgr*, std::unique_ptr<tensorflow::GraphMgr, std::default_delete<tensorflow::GraphMgr> >, std::unique_ptr<tensorflow::DynamicDeviceMgr, std::default_delete<tensorflow::DynamicDeviceMgr> >) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# tensorflow::SessionMgr::SessionMgr(tensorflow::WorkerEnv*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::unique_ptr<tensorflow::WorkerCacheInterface, std::default_delete<tensorflow::WorkerCacheInterface> >, std::function<tensorflow::Status (tensorflow::ServerDef const&, tensorflow::WorkerCacheInterface**)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# tensorflow::GrpcServer::Init(tensorflow::GrpcServerOptions const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# tensorflow::GrpcServer::Create(tensorflow::ServerDef const&, tensorflow::Env*, tensorflow::DeviceMgr*, std::unique_ptr<tensorflow::ServerInterface, std::default_delete<tensorflow::ServerInterface> >*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B526581F4 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 5# tensorflow::NewServer(tensorflow::ServerDef const&, std::unique_ptr<tensorflow::ServerInterface, std::default_delete<tensorflow::ServerInterface> >*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 6# tensorflow::EagerContextDistributedManager::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 7# tensorflow::EagerContext::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 8# TFE_EnableCollectiveOps in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 9# 0x00007F3B46687208 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+10# 0x00007F3B46694932 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+11# PyCFunction_Call in python
+12# _PyObject_MakeTpCall in python
+13# _PyEval_EvalFrameDefault in python
+14# _PyFunction_Vectorcall in python
+15# 0x000055FCFBB4C75E in python
+16# _PyEval_EvalCodeWithName in python
+17# _PyFunction_Vectorcall in python
+18# 0x000055FCFBB4C75E in python
+19# _PyFunction_Vectorcall in python
+20# 0x000055FCFBB4C75E in python
+21# _PyEval_EvalCodeWithName in python
+22# _PyFunction_Vectorcall in python
+23# _PyObject_FastCallDict in python
+24# _PyObject_Call_Prepend in python
+25# 0x000055FCFBBD88CA in python
+26# _PyObject_MakeTpCall in python
+27# _PyEval_EvalFrameDefault in python
+28# _PyEval_EvalCodeWithName in python
+29# 0x000055FCFBBD7D20 in python
+30# 0x000055FCFBB4C77F in python
+31# _PyEval_EvalCodeWithName in python
+32# _PyFunction_Vectorcall in python
+33# PyVectorcall_Call in python
+34# _PyEval_EvalFrameDefault in python
+35# _PyEval_EvalCodeWithName in python
+36# _PyObject_FastCallDict in python
+37# _PyObject_Call_Prepend in python
+38# 0x000055FCFBBD88CA in python
+39# _PyObject_MakeTpCall in python
+40# _PyEval_EvalFrameDefault in python
+41# _PyEval_EvalCodeWithName in python
+42# PyEval_EvalCodeEx in python
+43# PyEval_EvalCode in python
+44# 0x000055FCFBC65F84 in python
+45# 0x000055FCFBC981F4 in python
+46# PyRun_FileExFlags in python
+47# PyRun_SimpleFileExFlags in python
+48# 0x000055FCFBB6198B in python
+49# Py_BytesMain in python
+50# __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+51# 0x000055FCFBC2AE93 in python
+ 0# tensorflow::WorkerSession::WorkerSession(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::unique_ptr<tensorflow::WorkerCacheInterface, std::default_delete<tensorflow::WorkerCacheInterface> >, tensorflow::DeviceMgr*, std::unique_ptr<tensorflow::GraphMgr, std::default_delete<tensorflow::GraphMgr> >, std::unique_ptr<tensorflow::DynamicDeviceMgr, std::default_delete<tensorflow::DynamicDeviceMgr> >) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# tensorflow::WorkerSession::CreateWithBorrowedDeviceMgr(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::unique_ptr<tensorflow::WorkerCacheInterface, std::default_delete<tensorflow::WorkerCacheInterface> >, tensorflow::DeviceMgr*, std::unique_ptr<tensorflow::GraphMgr, std::default_delete<tensorflow::GraphMgr> >, std::unique_ptr<tensorflow::DynamicDeviceMgr, std::default_delete<tensorflow::DynamicDeviceMgr> >) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# tensorflow::SessionMgr::SessionMgr(tensorflow::WorkerEnv*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::unique_ptr<tensorflow::WorkerCacheInterface, std::default_delete<tensorflow::WorkerCacheInterface> >, std::function<tensorflow::Status (tensorflow::ServerDef const&, tensorflow::WorkerCacheInterface**)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# tensorflow::GrpcServer::Init(tensorflow::GrpcServerOptions const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# tensorflow::GrpcServer::Create(tensorflow::ServerDef const&, tensorflow::Env*, tensorflow::DeviceMgr*, std::unique_ptr<tensorflow::ServerInterface, std::default_delete<tensorflow::ServerInterface> >*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 5# 0x00007F3B526581F4 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 6# tensorflow::NewServer(tensorflow::ServerDef const&, std::unique_ptr<tensorflow::ServerInterface, std::default_delete<tensorflow::ServerInterface> >*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 7# tensorflow::EagerContextDistributedManager::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 8# tensorflow::EagerContext::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 9# TFE_EnableCollectiveOps in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+10# 0x00007F3B46687208 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+11# 0x00007F3B46694932 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+12# PyCFunction_Call in python
+13# _PyObject_MakeTpCall in python
+14# _PyEval_EvalFrameDefault in python
+15# _PyFunction_Vectorcall in python
+16# 0x000055FCFBB4C75E in python
+17# _PyEval_EvalCodeWithName in python
+18# _PyFunction_Vectorcall in python
+19# 0x000055FCFBB4C75E in python
+20# _PyFunction_Vectorcall in python
+21# 0x000055FCFBB4C75E in python
+22# _PyEval_EvalCodeWithName in python
+23# _PyFunction_Vectorcall in python
+24# _PyObject_FastCallDict in python
+25# _PyObject_Call_Prepend in python
+26# 0x000055FCFBBD88CA in python
+27# _PyObject_MakeTpCall in python
+28# _PyEval_EvalFrameDefault in python
+29# _PyEval_EvalCodeWithName in python
+30# 0x000055FCFBBD7D20 in python
+31# 0x000055FCFBB4C77F in python
+32# _PyEval_EvalCodeWithName in python
+33# _PyFunction_Vectorcall in python
+34# PyVectorcall_Call in python
+35# _PyEval_EvalFrameDefault in python
+36# _PyEval_EvalCodeWithName in python
+37# _PyObject_FastCallDict in python
+38# _PyObject_Call_Prepend in python
+39# 0x000055FCFBBD88CA in python
+40# _PyObject_MakeTpCall in python
+41# _PyEval_EvalFrameDefault in python
+42# _PyEval_EvalCodeWithName in python
+43# PyEval_EvalCodeEx in python
+44# PyEval_EvalCode in python
+45# 0x000055FCFBC65F84 in python
+46# 0x000055FCFBC981F4 in python
+47# PyRun_FileExFlags in python
+48# PyRun_SimpleFileExFlags in python
+49# 0x000055FCFBB6198B in python
+50# Py_BytesMain in python
+51# __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+52# 0x000055FCFBC2AE93 in python
+ 0# tensorflow::WorkerSession::WorkerSession(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::unique_ptr<tensorflow::WorkerCacheInterface, std::default_delete<tensorflow::WorkerCacheInterface> >, tensorflow::DeviceMgr*, std::unique_ptr<tensorflow::GraphMgr, std::default_delete<tensorflow::GraphMgr> >, std::unique_ptr<tensorflow::DynamicDeviceMgr, std::default_delete<tensorflow::DynamicDeviceMgr> >) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# tensorflow::WorkerSession::CreateWithBorrowedDeviceMgr(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::unique_ptr<tensorflow::WorkerCacheInterface, std::default_delete<tensorflow::WorkerCacheInterface> >, tensorflow::DeviceMgr*, std::unique_ptr<tensorflow::GraphMgr, std::default_delete<tensorflow::GraphMgr> >, std::unique_ptr<tensorflow::DynamicDeviceMgr, std::default_delete<tensorflow::DynamicDeviceMgr> >) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# tensorflow::SessionMgr::SessionMgr(tensorflow::WorkerEnv*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::unique_ptr<tensorflow::WorkerCacheInterface, std::default_delete<tensorflow::WorkerCacheInterface> >, std::function<tensorflow::Status (tensorflow::ServerDef const&, tensorflow::WorkerCacheInterface**)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# tensorflow::GrpcServer::Init(tensorflow::GrpcServerOptions const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# tensorflow::GrpcServer::Create(tensorflow::ServerDef const&, tensorflow::Env*, tensorflow::DeviceMgr*, std::unique_ptr<tensorflow::ServerInterface, std::default_delete<tensorflow::ServerInterface> >*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 5# 0x00007F3B526581F4 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 6# tensorflow::NewServer(tensorflow::ServerDef const&, std::unique_ptr<tensorflow::ServerInterface, std::default_delete<tensorflow::ServerInterface> >*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 7# tensorflow::EagerContextDistributedManager::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 8# tensorflow::EagerContext::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 9# TFE_EnableCollectiveOps in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+10# 0x00007F3B46687208 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+11# 0x00007F3B46694932 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+12# PyCFunction_Call in python
+13# _PyObject_MakeTpCall in python
+14# _PyEval_EvalFrameDefault in python
+15# _PyFunction_Vectorcall in python
+16# 0x000055FCFBB4C75E in python
+17# _PyEval_EvalCodeWithName in python
+18# _PyFunction_Vectorcall in python
+19# 0x000055FCFBB4C75E in python
+20# _PyFunction_Vectorcall in python
+21# 0x000055FCFBB4C75E in python
+22# _PyEval_EvalCodeWithName in python
+23# _PyFunction_Vectorcall in python
+24# _PyObject_FastCallDict in python
+25# _PyObject_Call_Prepend in python
+26# 0x000055FCFBBD88CA in python
+27# _PyObject_MakeTpCall in python
+28# _PyEval_EvalFrameDefault in python
+29# _PyEval_EvalCodeWithName in python
+30# 0x000055FCFBBD7D20 in python
+31# 0x000055FCFBB4C77F in python
+32# _PyEval_EvalCodeWithName in python
+33# _PyFunction_Vectorcall in python
+34# PyVectorcall_Call in python
+35# _PyEval_EvalFrameDefault in python
+36# _PyEval_EvalCodeWithName in python
+37# _PyObject_FastCallDict in python
+38# _PyObject_Call_Prepend in python
+39# 0x000055FCFBBD88CA in python
+40# _PyObject_MakeTpCall in python
+41# _PyEval_EvalFrameDefault in python
+42# _PyEval_EvalCodeWithName in python
+43# PyEval_EvalCodeEx in python
+44# PyEval_EvalCode in python
+45# 0x000055FCFBC65F84 in python
+46# 0x000055FCFBC981F4 in python
+47# PyRun_FileExFlags in python
+48# PyRun_SimpleFileExFlags in python
+49# 0x000055FCFBB6198B in python
+50# Py_BytesMain in python
+51# __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+52# 0x000055FCFBC2AE93 in python
+ 0# tensorflow::SessionMgr::SessionMgr(tensorflow::WorkerEnv*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::unique_ptr<tensorflow::WorkerCacheInterface, std::default_delete<tensorflow::WorkerCacheInterface> >, std::function<tensorflow::Status (tensorflow::ServerDef const&, tensorflow::WorkerCacheInterface**)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# tensorflow::GrpcServer::Init(tensorflow::GrpcServerOptions const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# tensorflow::GrpcServer::Create(tensorflow::ServerDef const&, tensorflow::Env*, tensorflow::DeviceMgr*, std::unique_ptr<tensorflow::ServerInterface, std::default_delete<tensorflow::ServerInterface> >*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# 0x00007F3B526581F4 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# tensorflow::NewServer(tensorflow::ServerDef const&, std::unique_ptr<tensorflow::ServerInterface, std::default_delete<tensorflow::ServerInterface> >*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 5# tensorflow::EagerContextDistributedManager::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 6# tensorflow::EagerContext::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 7# TFE_EnableCollectiveOps in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 8# 0x00007F3B46687208 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+ 9# 0x00007F3B46694932 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+10# PyCFunction_Call in python
+11# _PyObject_MakeTpCall in python
+12# _PyEval_EvalFrameDefault in python
+13# _PyFunction_Vectorcall in python
+14# 0x000055FCFBB4C75E in python
+15# _PyEval_EvalCodeWithName in python
+16# _PyFunction_Vectorcall in python
+17# 0x000055FCFBB4C75E in python
+18# _PyFunction_Vectorcall in python
+19# 0x000055FCFBB4C75E in python
+20# _PyEval_EvalCodeWithName in python
+21# _PyFunction_Vectorcall in python
+22# _PyObject_FastCallDict in python
+23# _PyObject_Call_Prepend in python
+24# 0x000055FCFBBD88CA in python
+25# _PyObject_MakeTpCall in python
+26# _PyEval_EvalFrameDefault in python
+27# _PyEval_EvalCodeWithName in python
+28# 0x000055FCFBBD7D20 in python
+29# 0x000055FCFBB4C77F in python
+30# _PyEval_EvalCodeWithName in python
+31# _PyFunction_Vectorcall in python
+32# PyVectorcall_Call in python
+33# _PyEval_EvalFrameDefault in python
+34# _PyEval_EvalCodeWithName in python
+35# _PyObject_FastCallDict in python
+36# _PyObject_Call_Prepend in python
+37# 0x000055FCFBBD88CA in python
+38# _PyObject_MakeTpCall in python
+39# _PyEval_EvalFrameDefault in python
+40# _PyEval_EvalCodeWithName in python
+41# PyEval_EvalCodeEx in python
+42# PyEval_EvalCode in python
+43# 0x000055FCFBC65F84 in python
+44# 0x000055FCFBC981F4 in python
+45# PyRun_FileExFlags in python
+46# PyRun_SimpleFileExFlags in python
+47# 0x000055FCFBB6198B in python
+48# Py_BytesMain in python
+49# __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+50# 0x000055FCFBC2AE93 in python
+ 0# tensorflow::SessionMgr::LegacySession() in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# tensorflow::EagerContextDistributedManager::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# tensorflow::EagerContext::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# TFE_EnableCollectiveOps in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B46687208 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+ 5# 0x00007F3B46694932 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+ 6# PyCFunction_Call in python
+ 7# _PyObject_MakeTpCall in python
+ 8# _PyEval_EvalFrameDefault in python
+ 9# _PyFunction_Vectorcall in python
+10# 0x000055FCFBB4C75E in python
+11# _PyEval_EvalCodeWithName in python
+12# _PyFunction_Vectorcall in python
+13# 0x000055FCFBB4C75E in python
+14# _PyFunction_Vectorcall in python
+15# 0x000055FCFBB4C75E in python
+16# _PyEval_EvalCodeWithName in python
+17# _PyFunction_Vectorcall in python
+18# _PyObject_FastCallDict in python
+19# _PyObject_Call_Prepend in python
+20# 0x000055FCFBBD88CA in python
+21# _PyObject_MakeTpCall in python
+22# _PyEval_EvalFrameDefault in python
+23# _PyEval_EvalCodeWithName in python
+24# 0x000055FCFBBD7D20 in python
+25# 0x000055FCFBB4C77F in python
+26# _PyEval_EvalCodeWithName in python
+27# _PyFunction_Vectorcall in python
+28# PyVectorcall_Call in python
+29# _PyEval_EvalFrameDefault in python
+30# _PyEval_EvalCodeWithName in python
+31# _PyObject_FastCallDict in python
+32# _PyObject_Call_Prepend in python
+33# 0x000055FCFBBD88CA in python
+34# _PyObject_MakeTpCall in python
+35# _PyEval_EvalFrameDefault in python
+36# _PyEval_EvalCodeWithName in python
+37# PyEval_EvalCodeEx in python
+38# PyEval_EvalCode in python
+39# 0x000055FCFBC65F84 in python
+40# 0x000055FCFBC981F4 in python
+41# PyRun_FileExFlags in python
+42# PyRun_SimpleFileExFlags in python
+43# 0x000055FCFBB6198B in python
+44# Py_BytesMain in python
+45# __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+46# 0x000055FCFBC2AE93 in python
+2021-12-31 01:04:57.143228: I tensorflow/core/distributed_runtime/rpc/grpc_server_lib.cc:427] Started server with target: grpc://127.0.0.1:12346
+ 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+2021-12-31 01:05:16.862181: W tensorflow/core/grappler/optimizers/data/auto_shard.cc:766] AUTO sharding policy will apply DATA sharding policy as it failed to apply FILE sharding policy because of the following reason: Found an unshardable source dataset: name: "TensorSliceDataset/_2"
+op: "TensorSliceDataset"
+input: "Placeholder/_0"
+input: "Placeholder/_1"
+attr {
+  key: "Toutput_types"
+  value {
+    list {
+      type: DT_UINT8
+      type: DT_UINT8
+    }
+  }
+}
+attr {
+  key: "_cardinality"
+  value {
+    i: 50000
+  }
+}
+attr {
+  key: "is_files"
+  value {
+    b: false
+  }
+}
+attr {
+  key: "metadata"
+  value {
+    s: "\n\024TensorSliceDataset:0"
+  }
+}
+attr {
+  key: "output_shapes"
+  value {
+    list {
+      shape {
+        dim {
+          size: 32
+        }
+        dim {
+          size: 32
+        }
+        dim {
+          size: 3
+        }
+      }
+      shape {
+        dim {
+          size: 1
+        }
+      }
+    }
+  }
+}
+
+Epoch 1/60
+ 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+2021-12-31 01:05:46.496429: I tensorflow/stream_executor/cuda/cuda_dnn.cc:366] Loaded cuDNN version 7605
+ 64/195 [========>.....................] - ETA: 21s - loss: 3.5944 - sparse_categorical_accuracy: 0.1062 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+195/195 [==============================] - 62s 164ms/step - loss: 3.2404 - sparse_categorical_accuracy: 0.1420
+Epoch 2/60
+ 13/195 [=>............................] - ETA: 31s - loss: 2.7972 - sparse_categorical_accuracy: 0.2512 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+195/195 [==============================] - 38s 165ms/step - loss: 2.5620 - sparse_categorical_accuracy: 0.3175
+ 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+Epoch 3/60
+146/195 [=====================>........] - ETA: 8s - loss: 2.2116 - sparse_categorical_accuracy: 0.4415 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+195/195 [==============================] - 38s 165ms/step - loss: 2.1698 - sparse_categorical_accuracy: 0.4554
+Epoch 4/60
+ 98/195 [==============>...............] - ETA: 15s - loss: 1.9016 - sparse_categorical_accuracy: 0.5374 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+195/195 [==============================] - 38s 165ms/step - loss: 1.8436 - sparse_categorical_accuracy: 0.5555
+Epoch 5/60
+ 44/195 [=====>........................] - ETA: 25s - loss: 1.6721 - sparse_categorical_accuracy: 0.6048 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+195/195 [==============================] - 39s 167ms/step - loss: 1.5822 - sparse_categorical_accuracy: 0.6335
+Epoch 6/60
+ 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+177/195 [==========================>...] - ETA: 2s - loss: 1.3578 - sparse_categorical_accuracy: 0.7001 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+195/195 [==============================] - 38s 165ms/step - loss: 1.3535 - sparse_categorical_accuracy: 0.7012
+Epoch 7/60
+126/195 [==================>...........] - ETA: 11s - loss: 1.2039 - sparse_categorical_accuracy: 0.7422 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+195/195 [==============================] - 38s 167ms/step - loss: 1.1935 - sparse_categorical_accuracy: 0.7442
+Epoch 8/60
+ 77/195 [==========>...................] - ETA: 19s - loss: 1.0811 - sparse_categorical_accuracy: 0.7775 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+195/195 [==============================] - 38s 166ms/step - loss: 1.0749 - sparse_categorical_accuracy: 0.7773
+Epoch 9/60
+ 30/195 [===>..........................] - ETA: 27s - loss: 0.9562 - sparse_categorical_accuracy: 0.8145 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+195/195 [==============================] - 38s 166ms/step - loss: 0.9811 - sparse_categorical_accuracy: 0.8008
+Epoch 10/60
+ 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+166/195 [========================>.....] - ETA: 4s - loss: 0.9112 - sparse_categorical_accuracy: 0.8202 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+195/195 [==============================] - 37s 164ms/step - loss: 0.9118 - sparse_categorical_accuracy: 0.8196
+Epoch 11/60
+117/195 [=================>............] - ETA: 12s - loss: 0.8364 - sparse_categorical_accuracy: 0.8389 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+195/195 [==============================] - 38s 167ms/step - loss: 0.8470 - sparse_categorical_accuracy: 0.8360
+Epoch 12/60
+ 67/195 [=========>....................] - ETA: 21s - loss: 0.7565 - sparse_categorical_accuracy: 0.8652 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+195/195 [==============================] - 38s 166ms/step - loss: 0.7957 - sparse_categorical_accuracy: 0.8509
+Epoch 13/60
+ 18/195 [=>............................] - ETA: 29s - loss: 0.6935 - sparse_categorical_accuracy: 0.8889 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+195/195 [==============================] - 38s 165ms/step - loss: 0.7554 - sparse_categorical_accuracy: 0.8634
+Epoch 14/60
+ 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+149/195 [=====================>........] - ETA: 7s - loss: 0.7184 - sparse_categorical_accuracy: 0.8748 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+195/195 [==============================] - 38s 166ms/step - loss: 0.7189 - sparse_categorical_accuracy: 0.8740
+Epoch 15/60
+ 99/195 [==============>...............] - ETA: 16s - loss: 0.6824 - sparse_categorical_accuracy: 0.8848 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+195/195 [==============================] - 38s 167ms/step - loss: 0.7048 - sparse_categorical_accuracy: 0.8785
+Epoch 16/60
+ 50/195 [======>.......................] - ETA: 23s - loss: 0.6142 - sparse_categorical_accuracy: 0.9081 0# tensorflow::Worker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# 0x00007F3B5904770F in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# Eigen::ThreadPoolTempl<tensorflow::thread::EigenEnvironment>::WorkerLoop(int) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# std::_Function_handler<void (), tensorflow::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}>::_M_invoke(std::_Any_data const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007F3B4D18D177 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+ 5# 0x00007F3B74F476BA in /lib/x86_64-linux-gnu/libpthread.so.0
+ 6# clone in /lib/x86_64-linux-gnu/libc.so.6
+121/195 [=================>............] - ETA: 12s - loss: 0.6489 - sparse_categorical_accuracy: 0.8961^CTraceback (most recent call last):
+  File "worker.py", line 85, in <module>
+    model.fit(train_dataset,
+  File "/home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/keras/utils/traceback_utils.py", line 64, in error_handler
+    return fn(*args, **kwargs)
+  File "/home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/keras/engine/training.py", line 1216, in fit
+    tmp_logs = self.train_function(iterator)
+  File "/home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/util/traceback_utils.py", line 150, in error_handler
+    return fn(*args, **kwargs)
+  File "/home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/eager/def_function.py", line 910, in __call__
+    result = self._call(*args, **kwds)
+  File "/home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/eager/def_function.py", line 942, in _call
+    return self._stateless_fn(*args, **kwds)  # pylint: disable=not-callable
+  File "/home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/eager/function.py", line 3130, in __call__
+    return graph_function._call_flat(
+  File "/home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/eager/function.py", line 1959, in _call_flat
+    return self._build_call_outputs(self._inference_function.call(
+  File "/home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/eager/function.py", line 598, in call
+    outputs = execute.execute(
+  File "/home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/eager/execute.py", line 58, in quick_execute
+    tensors = pywrap_tfe.TFE_Py_Execute(ctx._handle, device_name, op_name,
+KeyboardInterrupt
+
+(hm) wxf@seir19:~/tf2/tensorflow/experiments/distributed_examples_tf2/05-distributed-training$

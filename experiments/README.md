@@ -29,8 +29,11 @@ cmd+shift+p: remark
 | async_grpc                     |               How to implement a async grpc python server?               |        TODO |
 | task_pool                      |                                                                          |             |
 | models/gpt2_eval               |                   gpt2 evaluation building from scratch                  |             |
-| tf_distribute_Server           |                                                                          |             |
+| tf_distribute_server           |                                                                          |             |
 | distribute_default_strategy    | <https://www.tensorflow.org/guide/distributed_training#other_strategies> |             |
 | distributed_examples           |       <https://github.com/tmulc18/Distributed-TensorFlow-Guide.git>      |             |
+| test_new_python_file           |                     增加文件构建 tf, test_new_python_file/README.md                      |             |
+
+
 
 

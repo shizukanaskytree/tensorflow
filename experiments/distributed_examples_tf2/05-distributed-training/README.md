@@ -90,3 +90,7 @@ In this tutorial, we need to run the training script manually on each node with 
 
 To reproduce results in this tutorial, please refer to this [TensorFlow 2 distributed training tutorial github repository](https://github.com/lambdal/TensorFlow2-tutorial/tree/master/05-distributed-training).
 
+
+# print log
+
+* https://www.quora.com/Is-a-mutex-lock-valid-across-processes-or-only-within-threads-of-a-process

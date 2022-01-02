@@ -1,7 +1,7 @@
-import debugpy
-debugpy.listen(5678)
-debugpy.wait_for_client()
-debugpy.breakpoint()
+# import debugpy
+# debugpy.listen(5678)
+# debugpy.wait_for_client()
+# debugpy.breakpoint()
 
 # from __future__ import absolute_import, division, print_function, unicode_literals
 import tensorflow as tf
@@ -19,7 +19,8 @@ For example:
 export TF_CONFIG='{"cluster": {"worker": ["10.1.10.58:12345", "10.1.10.250:12345"]}, "task": {"index": 0, "type": "worker"}}'
 """
 
-strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()
+# distribute.MultiWorkerMirroredStrategy
+strategy = tf.distribute.MultiWorkerMirroredStrategy()
 
 
 NUM_GPUS = 2

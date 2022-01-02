@@ -33,6 +33,12 @@ ServerFactories* server_factories() {
   static ServerFactories* factories = new ServerFactories;
   return factories;
 }
+
+ 0# 0x00007FEDAE837398 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# tensorflow::ServerFactory::Register(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, tensorflow::ServerFactory*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# 0x00007FEDA67D9392 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# 0x00007FEDCA4F96FA in /lib64/ld-linux-x86-64.so.2
+
 }  // namespace
 
 /* static */
@@ -44,6 +50,11 @@ void ServerFactory::Register(const string& server_type,
                << server_type;
   }
 }
+
+0# tensorflow::ServerFactory::Register(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, tensorflow::ServerFactory*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+1# 0x00007FEDA67D9392 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+2# 0x00007FEDCA4F96FA in /lib64/ld-linux-x86-64.so.2
+
 
 /* static */
 Status ServerFactory::GetFactory(const ServerDef& server_def,
@@ -75,6 +86,16 @@ Status NewServer(const ServerDef& server_def,
   TF_RETURN_IF_ERROR(ServerFactory::GetFactory(server_def, &factory));
   return factory->NewServer(server_def, ServerFactory::Options(), out_server);
 }
+
+ 0# tensorflow::NewServer(tensorflow::ServerDef const&, std::unique_ptr<tensorflow::ServerInterface, std::default_delete<tensorflow::ServerInterface> >*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# tensorflow::EagerContextDistributedManager::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# tensorflow::EagerContext::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# TFE_EnableCollectiveOps in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# 0x00007FED9BA13208 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+ 5# 0x00007FED9BA20932 in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+ 6# PyCFunction_Call in python
+ 7# _PyObject_MakeTpCall in python
+
 
 // Creates a server based on the given `server_def`, and stores it in
 // `*out_server`. Returns OK on success, otherwise returns an error.

@@ -43,6 +43,10 @@ limitations under the License.
 #include "tensorflow/core/profiler/lib/traceme.h"
 #include "tensorflow/core/protobuf/master.pb.h"
 
+#include <boost/stacktrace.hpp>
+#include <iostream>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 namespace tensorflow {
 
 class GrpcMasterService : public AsyncServiceInterface {

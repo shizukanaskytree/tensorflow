@@ -435,7 +435,8 @@ py_library(
 ```
 
 Dependent targets show import packages.
-For example, `collective_util` above in the `py_library` corresponds to `from tensorflow.python.distribute import collective_util` in the python code.
+For example, `collective_util` above in the `py_library` corresponds to
+`from tensorflow.python.distribute import collective_util` in the python code.
 
 * 通用的 targets:
   * "//tensorflow/core:protos_all_py",

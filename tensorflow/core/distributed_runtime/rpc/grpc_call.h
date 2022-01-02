@@ -26,6 +26,12 @@ limitations under the License.
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/platform/mutex.h"
 
+
+#include <boost/stacktrace.hpp>
+#include <iostream>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
+
 namespace tensorflow {
 
 // CALL STRUCTURES

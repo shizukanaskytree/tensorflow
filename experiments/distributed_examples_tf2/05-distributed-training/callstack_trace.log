@@ -1,0 +1,44 @@
+ 0# tensorflow::GrpcServer::GrpcServer(tensorflow::ServerDef const&, tensorflow::Env*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 1# tensorflow::GrpcServer::Create(tensorflow::ServerDef const&, tensorflow::Env*, tensorflow::DeviceMgr*, std::unique_ptr<tensorflow::ServerInterface, std::default_delete<tensorflow::ServerInterface> >*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 2# tensorflow::(anonymous namespace)::GrpcServerFactory::NewServer(tensorflow::ServerDef const&, tensorflow::ServerFactory::Options const&, std::unique_ptr<tensorflow::ServerInterface, std::default_delete<tensorflow::ServerInterface> >*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 3# tensorflow::NewServer(tensorflow::ServerDef const&, std::unique_ptr<tensorflow::ServerInterface, std::default_delete<tensorflow::ServerInterface> >*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 4# tensorflow::EagerContextDistributedManager::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 5# tensorflow::EagerContext::EnableCollectiveOps(tensorflow::ServerDef const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 6# TFE_EnableCollectiveOps in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+ 7# pybind11::cpp_function::initialize<pybind11_init__pywrap_tfe(pybind11::module_&)::{lambda(pybind11::handle const&, pybind11::bytes)#87}, void, pybind11::handle const&, pybind11::bytes, pybind11::name, pybind11::scope, pybind11::sibling>(pybind11_init__pywrap_tfe(pybind11::module_&)::{lambda(pybind11::handle const&, pybind11::bytes)#87}&&, void (*)(pybind11::handle const&, pybind11::bytes), pybind11::name const&, pybind11::scope const&, pybind11::sibling const&)::{lambda(pybind11::detail::function_call&)#3}::_FUN(pybind11::detail::function_call) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+ 8# pybind11::cpp_function::dispatcher(_object*, _object*, _object*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
+ 9# PyCFunction_Call at /tmp/build/80754af9/python_1599203911753/work/Objects/call.c:772
+10# _PyObject_MakeTpCall at /tmp/build/80754af9/python_1599203911753/work/Objects/call.c:159
+11# _PyEval_EvalFrameDefault at /tmp/build/80754af9/python_1599203911753/work/Python/ceval.c:3469
+12# _PyFunction_Vectorcall at /tmp/build/80754af9/python_1599203911753/work/Objects/call.c:410
+13# _PyEval_EvalFrameDefault.cold.2790 at /tmp/build/80754af9/python_1599203911753/work/Python/ceval.c:3486
+14# _PyEval_EvalCodeWithName at /tmp/build/80754af9/python_1599203911753/work/Python/ceval.c:4308
+15# _PyFunction_Vectorcall at /tmp/build/80754af9/python_1599203911753/work/Objects/call.c:435
+16# _PyEval_EvalFrameDefault.cold.2790 at /tmp/build/80754af9/python_1599203911753/work/Python/ceval.c:3486
+17# _PyFunction_Vectorcall at /tmp/build/80754af9/python_1599203911753/work/Objects/call.c:410
+18# _PyEval_EvalFrameDefault.cold.2790 at /tmp/build/80754af9/python_1599203911753/work/Python/ceval.c:3486
+19# _PyEval_EvalCodeWithName at /tmp/build/80754af9/python_1599203911753/work/Python/ceval.c:4308
+20# _PyFunction_Vectorcall at /tmp/build/80754af9/python_1599203911753/work/Objects/call.c:435
+21# _PyObject_FastCallDict at /tmp/build/80754af9/python_1599203911753/work/Objects/call.c:105
+22# _PyObject_Call_Prepend at /tmp/build/80754af9/python_1599203911753/work/Objects/call.c:894
+23# slot_tp_init at /tmp/build/80754af9/python_1599203911753/work/Objects/typeobject.c:6792
+24# _PyObject_MakeTpCall at /tmp/build/80754af9/python_1599203911753/work/Objects/call.c:159
+25# _PyEval_EvalFrameDefault at /tmp/build/80754af9/python_1599203911753/work/Python/ceval.c:3515
+26# _PyEval_EvalCodeWithName at /tmp/build/80754af9/python_1599203911753/work/Python/ceval.c:4308
+27# _PyObject_FastCallDict at /tmp/build/80754af9/python_1599203911753/work/Objects/call.c:96
+28# _PyObject_Call_Prepend at /tmp/build/80754af9/python_1599203911753/work/Objects/call.c:894
+29# slot_tp_init at /tmp/build/80754af9/python_1599203911753/work/Objects/typeobject.c:6792
+30# _PyObject_MakeTpCall at /tmp/build/80754af9/python_1599203911753/work/Objects/call.c:159
+31# _PyEval_EvalFrameDefault at /tmp/build/80754af9/python_1599203911753/work/Python/ceval.c:3469
+32# _PyEval_EvalCodeWithName at /tmp/build/80754af9/python_1599203911753/work/Python/ceval.c:4308
+33# PyEval_EvalCodeEx at /tmp/build/80754af9/python_1599203911753/work/Python/ceval.c:4327
+34# PyEval_EvalCode at /tmp/build/80754af9/python_1599203911753/work/Python/ceval.c:724
+35# run_eval_code_obj at /tmp/build/80754af9/python_1599203911753/work/Python/pythonrun.c:1125
+36# run_mod at /tmp/build/80754af9/python_1599203911753/work/Python/pythonrun.c:1148
+37# PyRun_FileExFlags at /tmp/build/80754af9/python_1599203911753/work/Python/pythonrun.c:1063
+38# PyRun_SimpleFileExFlags at /tmp/build/80754af9/python_1599203911753/work/Python/pythonrun.c:428
+39# Py_RunMain.cold.2916 at /tmp/build/80754af9/python_1599203911753/work/Modules/main.c:691
+40# Py_BytesMain at /tmp/build/80754af9/python_1599203911753/work/Modules/main.c:1138
+41# __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+42# 0x000055914864CE93 at ../sysdeps/x86_64/elf/start.S:116
+

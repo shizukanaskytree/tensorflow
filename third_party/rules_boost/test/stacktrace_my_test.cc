@@ -14,7 +14,8 @@
 #include <boost/stacktrace.hpp>
 
 void my_func_2(void) {
-    std::cout << boost::stacktrace::stacktrace() << std::endl;
+    // std::cout << boost::stacktrace::stacktrace() << std::endl;
+    boost::stacktrace::safe_dump_to("./backtrace.dump");
 }
 
 void my_func_1(double f) {

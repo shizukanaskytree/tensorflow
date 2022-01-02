@@ -1,3 +1,4 @@
+# Error
 
 ```
 Traceback (most recent call last):
@@ -10,13 +11,18 @@ AttributeError: module 'tensorflow._api.v2.distribute' has no attribute 'Collect
 tensorflow/_api/v2/distribute
 ```
 
+# Study `collective_all_reduce_strategy`
 
 ```
 grep -wnr "collective_all_reduce_strategy" --exclude="*test*.py" --exclude="*.py" --exclude="*DOC*" --exclude="*.pbtxt"
 ```
 
+```
+grep -wnr "collective_all_reduce_strategy" --include="BUILD" -C25
+```
 
 
+# Search `_api`
 
 ```
 tensorflow/BUILD:1274:    output_dir = "_api/v2/",
@@ -48,7 +54,7 @@ gen_api_init_files(
 ```
 
 
-依赖关系 - all path:
+# 依赖关系 - all path:
 
 
 ```
@@ -148,10 +154,9 @@ bazel query "allpaths(//tensorflow:tf_python_api_gen_v2, //tensorflow/python/dis
 //tensorflow/python/keras/mixed_precision:loss_scale_optimizer
 //tensorflow/python/distribute:collective_all_reduce_strategy
 Loading: 0 packages loaded
-(hm) wxf@seir19:~/tf2/tensorflow$
 ```
 
-依赖关系 - some path:
+# 依赖关系 - some path:
 
 ```
 (hm) wxf@seir19:~/tf2/tensorflow$ bazel query "somepath(//tensorflow:tf_python_api_gen_v2, //tensorflow/python/distribute:collective_all_reduce_strategy)"
@@ -161,6 +166,25 @@ Loading: 0 packages loaded
 //tensorflow/python/distribute:combinations
 //tensorflow/python/distribute:collective_all_reduce_strategy
 Loading: 0 packages loaded
-(hm) wxf@seir19:~/tf2/tensorflow$
+```
+
+
+
+# Next error
+
+```
+(hm) wxf@seir19:~/tf2/tensorflow/experiments/test_new_python_file$ python test_dist_allreduce.py
+Traceback (most recent call last):
+  File "test_dist_allreduce.py", line 4, in <module>
+    test = tf.distribute.CollectiveAllReduceStrategyAtom()
+AttributeError: module 'tensorflow._api.v2.distribute' has no attribute 'CollectiveAllReduceStrategyAtom'
+```
+
+# Summary of how to add a file : collective_all_reduce_strategy_atom.py
+
+grep `collective_all_reduce_strategy_atom`
+
+```
+grep -wnr "collective_all_reduce_strategy_atom" --include="BUILD" -C20
 ```
 

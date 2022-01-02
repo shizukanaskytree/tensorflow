@@ -45,6 +45,7 @@ cc_library(
         ":worker_interface",
         "//tensorflow/core:framework",
         "//tensorflow/core:lib",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -106,6 +107,7 @@ cc_library(
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core/protobuf:worker_proto_cc",
         "@com_google_absl//absl/types:optional",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -145,6 +147,7 @@ cc_library(
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core:ptr_util",
         "//tensorflow/core/protobuf:worker_proto_cc",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -218,6 +221,7 @@ tf_cuda_library(
         "//tensorflow/core:framework",
         "//tensorflow/core:lib_internal",
         "//tensorflow/core/profiler/lib:device_profiler_session",
+        "@boost//:stacktrace",
     ],
 )
 
@@ -482,6 +486,7 @@ cc_library(
         "//tensorflow/core:framework_internal",
         "//tensorflow/core:lib",
         "//tensorflow/core:protos_all_cc",
+        "@boost//:stacktrace",
     ],
 )
 

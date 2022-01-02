@@ -921,6 +921,7 @@ py_library(
     ],
     deps = [
         ":collective_all_reduce_strategy",
+        ":collective_all_reduce_strategy_atom",
         ":distribute_lib",
         ":multi_process_runner",
         ":multi_worker_test_base",
@@ -966,6 +967,7 @@ py_library(
     deps = [
         ":central_storage_strategy",
         ":collective_all_reduce_strategy",
+        ":collective_all_reduce_strategy_atom",
         ":combinations",
         ":distribute_lib",
         ":mirrored_strategy",

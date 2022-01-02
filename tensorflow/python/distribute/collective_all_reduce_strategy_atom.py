@@ -1,3 +1,8 @@
+# My test
+#
+#
+#
+#
 # Copyright 2018 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +17,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""My test"""
 """Class CollectiveAllReduceStrategy implementing DistributionStrategy."""
 
 from __future__ import absolute_import
@@ -52,6 +56,7 @@ from tensorflow.python.training.tracking import base
 from tensorflow.python.util import deprecation
 from tensorflow.python.util.tf_export import tf_export
 
+# This is a test to show how to add a file and export the
 @tf_export("distribute.CollectiveAllReduceStrategyAtom", v1=[])
 class CollectiveAllReduceStrategyAtom(distribute_lib.Strategy):
   def __init__(self):
