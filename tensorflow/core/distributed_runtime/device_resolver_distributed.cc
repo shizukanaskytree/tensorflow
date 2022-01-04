@@ -25,6 +25,7 @@ limitations under the License.
 namespace tensorflow {
 
 DeviceResolverDistributed::DeviceResolverDistributed(const DeviceMgr* dev_mgr) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock l(mu_);
   for (Device* device : dev_mgr->ListDevices()) {
     attr_table_[device->name()] = device->attributes();
@@ -33,6 +34,7 @@ DeviceResolverDistributed::DeviceResolverDistributed(const DeviceMgr* dev_mgr) {
 
 Status DeviceResolverDistributed::GetDeviceAttributes(
     const string& device, DeviceAttributes* attributes) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock l(mu_);
   auto it = attr_table_.find(device);
   if (it == attr_table_.end()) {
@@ -44,6 +46,7 @@ Status DeviceResolverDistributed::GetDeviceAttributes(
 
 Status DeviceResolverDistributed::GetAllDeviceAttributes(
     const string& task, std::vector<DeviceAttributes>* attributes) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock l(mu_);
   attributes->clear();
   for (const auto& it : attr_table_) {
@@ -60,6 +63,7 @@ Status DeviceResolverDistributed::GetAllDeviceAttributes(
 
 Status DeviceResolverDistributed::UpdateDeviceAttributes(
     const std::vector<DeviceAttributes>& attributes) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock l(mu_);
   for (const DeviceAttributes& attr : attributes) {
     auto item = attr_table_.insert({attr.name(), attr});

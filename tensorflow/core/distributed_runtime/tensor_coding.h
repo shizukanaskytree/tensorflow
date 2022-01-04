@@ -38,7 +38,9 @@ class TensorProto;
 // into Tensor contents as well as associated metadata.
 class TensorResponse {
  public:
-  TensorResponse() {}
+  TensorResponse() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  }
 
   // Reset to initial state.
   void Clear();
@@ -85,15 +87,24 @@ class TensorResponse {
 
   // Return a reference to the parsed tensor.  The tensor will remain
   // live only until *this is destroyed or modified.
-  const Tensor& tensor() const { return tensor_; }
+  const Tensor& tensor() const {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    return tensor_;
+  }
 
   // Return a reference to the parsed tensor metadata (no contents).
   // The result will remain live only until *this is destroyed or
   // modified.
-  const RecvTensorResponse& metadata() const { return meta_; }
+  const RecvTensorResponse& metadata() const {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    return meta_;
+  }
 
   // Return pointer to the device hosting the tensor.
-  DeviceBase* device() const { return device_; }
+  DeviceBase* device() const {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    return device_;
+  }
 
  private:
   bool ParseTensorSubmessage(protobuf::io::CodedInputStream* input,

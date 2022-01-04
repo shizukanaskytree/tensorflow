@@ -15,11 +15,10 @@ namespace tensorflow {
 std::mutex write_mutex;
 
 // This program output values from an array to a file named example2.dat
-int write_log(const std::string& input) {
+int write_log(const std::string& input, const std::string& f_name) {
   std::lock_guard<std::mutex> write_guard(write_mutex);
-
   ofstream outdata;
-  outdata.open("callstack_trace.log", std::ios_base::app); // opens the file
+  outdata.open(f_name, std::ios_base::app); // opens the file
   if( !outdata ) { // file couldn't be opened
     cerr << "Error: file could not be opened" << endl;
     exit(1);

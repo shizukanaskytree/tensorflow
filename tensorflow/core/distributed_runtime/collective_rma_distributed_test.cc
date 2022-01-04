@@ -35,6 +35,10 @@ limitations under the License.
 #include "tensorflow/core/protobuf/transport_options.pb.h"
 #include "tensorflow/core/protobuf/worker.pb.h"
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 // The only interesting method on CollectiveRemoteAccessDistributed
 // that's not on CollectiveRemoteAccessLocal is RecvFromPeer which
 // issues a RecvBufAsync call against a WorkerInterface.  That's all
@@ -45,9 +49,15 @@ limitations under the License.
 namespace tensorflow {
 namespace {
 
+std::string FILE_NAME = "/home/wxf/tf2/tensorflow/tensorflow/core/distributed_runtime/debug.log";
+
 class FakeAllocator : public Allocator {
  public:
-  string Name() override { return "fake"; }
+  string Name() override {
+    // write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()), 0, FILE_NAME);
+    return "fake";
+  }
+
   void* AllocateRaw(size_t alignment, size_t num_bytes) override {
     return port::AlignedMalloc(num_bytes, alignment);
   }
@@ -56,12 +66,21 @@ class FakeAllocator : public Allocator {
 
 static std::unique_ptr<Device> NewDevice(const string& type, const string& name,
                                          Allocator* allocator) {
+  // write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()), 0, FILE_NAME);
   class FakeDevice : public Device {
    public:
     explicit FakeDevice(const DeviceAttributes& attr, Allocator* allocator)
-        : Device(nullptr, attr), allocator_(allocator) {}
-    Status Sync() override { return Status::OK(); }
-    Allocator* GetAllocator(AllocatorAttributes) override { return allocator_; }
+        : Device(nullptr, attr), allocator_(allocator) {
+          // write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()), 0, FILE_NAME);
+        }
+    Status Sync() override {
+      // write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()), 0, FILE_NAME);
+      return Status::OK();
+    }
+    Allocator* GetAllocator(AllocatorAttributes) override {
+      // write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()), 0, FILE_NAME);
+      return allocator_;
+    }
 
    private:
     Allocator* const allocator_;
@@ -88,9 +107,16 @@ class FakeWorker : public TestWorkerInterface {
         is_failed_(is_failed),
         set_tensor_in_extra_(set_tensor_in_extra) {}
 
+  // std::string DebugString(){
+  //   std::string log;
+  // }
+
   // Direct access to a BufRendezvous that holds whatever the remote
   // worker is supposed to have.
-  BufRendezvous* buf_rendezvous() { return &buf_rendezvous_; }
+  BufRendezvous* buf_rendezvous() {
+
+    return &buf_rendezvous_;
+  }
 
   void GetStatusAsync(CallOptions* opts, const GetStatusRequest* request,
                       GetStatusResponse* response, bool fail_fast,
@@ -244,6 +270,7 @@ class CollRMADistTest
     const int num_workers = 2;
     const int num_devices = 1;
     string device_type = "CPU";
+
     string dev0_worker_name;
     for (int w = 0; w < num_workers; ++w) {
       string name = strings::StrCat("/job:worker/replica:0/task:", w);
@@ -251,6 +278,7 @@ class CollRMADistTest
         dev0_worker_name = name;
       }
       DefineWorker(name, device_type, num_devices);
+      // write_log("SetUp", 0, FILE_NAME);
     }
     // All tests simulate requests from worker 0 to worker 1.
     rma_.reset(new CollectiveRemoteAccessDistributed(
@@ -315,6 +343,7 @@ class CollRMADistTest
 
   void RestartWorker(const string& worker_name, const string& device_type,
                      int num_devices, bool is_failed = false) {
+    // write_log(worker_name, FILE_NAME);
     auto it = dev_resolvers_.find(worker_name);
     if (it != dev_resolvers_.end()) {
       delete it->second;
@@ -370,12 +399,15 @@ class CollRMADistTest
 
 TEST_P(CollRMADistTest, ProdFirstOK) {
   ResolveDeviceAttributes();
+  // write_log("ProdFirstOK", 1); // pass
+
   Notification consumer_note;
   Notification producer_note;
   Status consumer_status;
   Status producer_status;
   FakeWorker* wi = workers_[1];
   const string kBufKey = "fake_buf_key";
+
   wi->buf_rendezvous()->ProvideBuf(
       kBufKey, nullptr /*device*/, nullptr /*dev_ctx*/, &expected_value_,
       AllocatorAttributes(),
@@ -384,6 +416,7 @@ TEST_P(CollRMADistTest, ProdFirstOK) {
         producer_note.Notify();
       },
       nullptr /*cancellation_manager*/);
+
   Device* dst_device = nullptr;
   string dev_name = "CPU:0";
   TF_EXPECT_OK(device_mgrs_[0]->LookupDevice(dev_name, &dst_device));
@@ -519,6 +552,7 @@ TEST_P(CollRMADistTest, WorkerRestart) {
   Status consumer_status;
   Status producer_status;
   FakeWorker* wi = workers_[1];
+
   const string buf_key = "fake_buf_key";
   Device* dst_device = nullptr;
   string dev_name = "CPU:0";
@@ -571,6 +605,9 @@ TEST_P(CollRMADistTest, WorkerRestart) {
 TEST_P(CollRMADistTest, CheckHealthOKWithCachedAttr) {
   ResolveDeviceAttributes();
   Status check_health_status;
+
+  // write_log(check_health_status.ToString(), 0, FILE_NAME);
+
   Notification check_health_done;
   rma_->CheckPeerHealth(
       "/job:worker/replica:0/task:1", /*timeout_in_ms=*/0,

@@ -25,6 +25,11 @@ limitations under the License.
 #include "tensorflow/core/framework/device_attributes.pb.h"  // for DeviceLocality
 #include "tensorflow/core/lib/core/status.h"
 
+// error to import boost
+// #include "tensorflow/core/util/write_log.h"
+// #include <boost/stacktrace.hpp>
+// #define BOOST_STACKTRACE_USE_ADDR2LINE
+
 namespace tensorflow {
 typedef std::function<void(const Status&)> StatusCallback;
 
@@ -33,7 +38,9 @@ class StepStats;
 
 class WorkerCacheInterface {
  public:
-  virtual ~WorkerCacheInterface() {}
+  virtual ~WorkerCacheInterface() {
+    // write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  }
 
   // Updates *workers with strings naming the remote worker tasks to
   // which open channels have been established.
@@ -53,6 +60,7 @@ class WorkerCacheInterface {
   // TODO(jeff,sanjay): Unify all worker-cache impls and factor out a
   //                    per-rpc-subsystem WorkerInterface creator.
   virtual void ReleaseWorker(const string& target, WorkerInterface* worker) {
+    // write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     // Subclasses may override to reuse worker objects.
     delete worker;
   }
@@ -83,14 +91,21 @@ class WorkerCacheInterface {
       std::unique_ptr<CoordinationClientCache>* coordination_client_cache) = 0;
 
   // Start/stop logging activity.
-  virtual void SetLogging(bool active) {}
+  virtual void SetLogging(bool active) {
+    // write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  }
 
   // Discard any saved log data.
-  virtual void ClearLogs() {}
+  virtual void ClearLogs() {
+    // write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  }
 
   // Return logs for the identified step in *ss.  Any returned data will no
   // longer be stored.
-  virtual bool RetrieveLogs(int64_t step_id, StepStats* ss) { return false; }
+  virtual bool RetrieveLogs(int64_t step_id, StepStats* ss) {
+    // write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    return false;
+  }
 };
 }  // namespace tensorflow
 #endif  // TENSORFLOW_CORE_DISTRIBUTED_RUNTIME_WORKER_CACHE_H_

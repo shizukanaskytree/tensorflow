@@ -32,6 +32,7 @@ namespace {
 
 // Initialize the pending count for each node.
 void InitializePending(const Graph* graph, std::vector<int>* pending) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   pending->resize(graph->num_node_ids());
   for (const Node* node : graph->nodes()) {
     const int id = node->id();
@@ -54,6 +55,7 @@ void InitializePending(const Graph* graph, std::vector<int>* pending) {
 
 // Return true if the update makes the destination of the edge ready to run.
 bool UpdatePending(const Edge* edge, std::vector<int>* pending_count) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   const Node* out = edge->dst();
   if (IsMerge(out)) {
     if (edge->IsControlEdge()) {
@@ -76,9 +78,12 @@ bool UpdatePending(const Edge* edge, std::vector<int>* pending_count) {
 }  // end namespace
 
 SlackAnalysis::SlackAnalysis(const Graph* g, const CostModel* cost_model)
-    : graph_(g), cost_model_(cost_model) {}
+    : graph_(g), cost_model_(cost_model) {
+      write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    }
 
 Microseconds SlackAnalysis::ComputeAsap(std::vector<Microseconds>* asap_times) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   asap_times->resize(graph_->num_node_ids());
 
   std::vector<int> pending_count(graph_->num_node_ids());
@@ -121,6 +126,7 @@ Microseconds SlackAnalysis::ComputeAsap(std::vector<Microseconds>* asap_times) {
 }
 
 Microseconds SlackAnalysis::ComputeAlap(std::vector<Microseconds>* alap_times) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   alap_times->resize(graph_->num_node_ids());
 
   std::vector<int> pending_count;
@@ -177,6 +183,7 @@ Microseconds SlackAnalysis::ComputeAlap(std::vector<Microseconds>* alap_times) {
 }
 
 void SlackAnalysis::ComputeSlack(std::vector<int64_t>* slacks) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   std::vector<Microseconds> asap_times;
   std::vector<Microseconds> alap_times;
   ComputeAsap(&asap_times);
@@ -197,6 +204,7 @@ GreedyScheduler::GreedyScheduler(const DeviceSet* devices,
       cost_model_(cost_model),
       graph_(g),
       priority_(priority) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   for (Device* d : devices_->devices()) {
     Sim* s = new Sim;
     // The number of compute units on a device. Set to 2 for now.
@@ -207,6 +215,7 @@ GreedyScheduler::GreedyScheduler(const DeviceSet* devices,
 }
 
 GreedyScheduler::~GreedyScheduler() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   for (auto& ds : device_states_) {
     delete ds.second;
   }
@@ -214,6 +223,7 @@ GreedyScheduler::~GreedyScheduler() {
 
 Microseconds GreedyScheduler::ComputeSchedule(
     std::vector<Microseconds>* start_times) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   // Initialize pending_count
   std::vector<int> pending_count(graph_->num_node_ids());
   InitializePending(graph_, &pending_count);
@@ -283,6 +293,7 @@ Microseconds GreedyScheduler::ComputeSchedule(
 
 const Node* GreedyScheduler::GetNodeWithHighestPriority(
     const std::vector<const Node*>& nodes) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   const Node* curr_node = nullptr;
   int64_t curr_priority = kint64max;
   for (const Node* n : nodes) {
@@ -297,10 +308,13 @@ const Node* GreedyScheduler::GetNodeWithHighestPriority(
 PriorityScheduler::PriorityScheduler(const DeviceSet* devices,
                                      const CostModel* cost_model,
                                      const Graph* g)
-    : devices_(devices), cost_model_(cost_model), graph_(g) {}
+    : devices_(devices), cost_model_(cost_model), graph_(g) {
+      write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    }
 
 Microseconds PriorityScheduler::ComputeSchedule(
     std::vector<Microseconds>* start_times) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   std::vector<int64_t> slacks;
   SlackAnalysis slack(graph_, cost_model_);
   slack.ComputeSlack(&slacks);
@@ -310,6 +324,7 @@ Microseconds PriorityScheduler::ComputeSchedule(
 
 Microseconds PriorityScheduler::AssignPriorities(
     std::vector<int64_t>* priorities) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   std::vector<Microseconds> start_times;
   Microseconds makespan = ComputeSchedule(&start_times);
 

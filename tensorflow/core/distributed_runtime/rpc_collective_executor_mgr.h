@@ -75,7 +75,9 @@ class RpcCollectiveExecutorMgr : public CollectiveExecutorMgr {
   // collective_graph_key.
   struct GraphKeySequence {
     explicit GraphKeySequence(int64_t k)
-        : graph_key_(k), next_step_id_(CollectiveExecutor::kInvalidId) {}
+        : graph_key_(k), next_step_id_(CollectiveExecutor::kInvalidId) {
+          write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+        }
 
     const int64_t graph_key_;
     int64_t next_step_id_;

@@ -41,20 +41,35 @@ class RemoteDevice : public Device {
  public:
   RemoteDevice(Env* env, const DeviceAttributes& da)
       : Device(env, da),
-        local_dev_name_(DeviceNameUtils::LocalName(da.name())) {}
+        local_dev_name_(DeviceNameUtils::LocalName(da.name())) {
+          write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+        }
 
-  Status Sync() override { return Status::OK(); }
-  Allocator* GetAllocator(AllocatorAttributes attr) override { return nullptr; }
+  Status Sync() override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    return Status::OK();
+  }
+  Allocator* GetAllocator(AllocatorAttributes attr) override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    return nullptr;
+  }
 
   ResourceMgr* resource_manager() override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     LOG(FATAL) << "Accessing the resource manager of a remote device is not "
                << "supported.";
     std::abort();
   }
 
-  bool IsLocal() const override { return false; }
+  bool IsLocal() const override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    return false;
+  }
 
-  bool IsRemoteCallAllowed() const override { return true; }
+  bool IsRemoteCallAllowed() const override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    return true;
+  }
 
  private:
   const string local_dev_name_;
@@ -67,6 +82,7 @@ void AsRemoteDevices(
     const protobuf::RepeatedPtrField<DeviceAttributes>& device_attributes,
     LookupLocalDevice lookup_local_device,
     std::vector<std::unique_ptr<Device>>* remote_devices) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   for (const auto& da : device_attributes) {
     Device* local_device;
     if (lookup_local_device != nullptr &&
@@ -82,6 +98,7 @@ void AsRemoteDevices(
 
 void NewRemoteDevices(Env* env, WorkerCacheInterface* worker_cache,
                       const string& worker_name, NewRemoteDevicesDone done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   WorkerInterface* wi = worker_cache->GetOrCreateWorker(worker_name);
   if (wi == nullptr) {
     std::vector<Device*> empty;
@@ -155,6 +172,7 @@ void NewRemoteDevices(Env* env, WorkerCacheInterface* worker_cache,
 
 std::unique_ptr<Device> NewRemoteDevice(Env* env,
                                         DeviceAttributes device_attribute) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return std::make_unique<RemoteDevice>(env, device_attribute);
 }
 

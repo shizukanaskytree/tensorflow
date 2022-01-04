@@ -54,6 +54,7 @@ class WorkerCacheLogger {
   // Return true if there is any outstanding request for logging on
   // the RPC channels.
   bool LoggingActive() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     mutex_lock l(count_mu_);
     return want_logging_count_ > 0;
   }

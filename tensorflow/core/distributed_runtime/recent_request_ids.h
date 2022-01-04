@@ -86,6 +86,7 @@ template <typename RequestWrapper>
 Status RecentRequestIds::TrackUnique(int64_t request_id,
                                      const string& method_name,
                                      const RequestWrapper* wrapper) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   if (Insert(request_id)) {
     return Status::OK();
   } else {

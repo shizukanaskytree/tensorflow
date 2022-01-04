@@ -30,6 +30,7 @@ namespace {
 Status WaitForNotification(CallOptions* call_options,
                            const int64_t default_timeout_in_ms,
                            Notification* n) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   int64_t timeout_in_ms = call_options->GetTimeout();
   if (timeout_in_ms == 0) {
     timeout_in_ms = default_timeout_in_ms;
@@ -54,11 +55,14 @@ Status WaitForNotification(CallOptions* call_options,
 LocalMaster::LocalMaster(Master* master_impl,
                          const int64_t default_timeout_in_ms)
     : master_impl_(master_impl),
-      default_timeout_in_ms_(default_timeout_in_ms) {}
+      default_timeout_in_ms_(default_timeout_in_ms) {
+        write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+      }
 
 Status LocalMaster::CreateSession(CallOptions* call_options,
                                   const CreateSessionRequest* request,
                                   CreateSessionResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   Notification n;
   Status ret;
   master_impl_->CreateSession(request, response, [&n, &ret](const Status& s) {
@@ -73,6 +77,7 @@ Status LocalMaster::CreateSession(CallOptions* call_options,
 Status LocalMaster::ExtendSession(CallOptions* call_options,
                                   const ExtendSessionRequest* request,
                                   ExtendSessionResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   Notification n;
   Status ret;
   master_impl_->ExtendSession(request, response, [&n, &ret](const Status& s) {
@@ -87,6 +92,7 @@ Status LocalMaster::ExtendSession(CallOptions* call_options,
 Status LocalMaster::PartialRunSetup(CallOptions* call_options,
                                     const PartialRunSetupRequest* request,
                                     PartialRunSetupResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   Notification n;
   Status ret;
   master_impl_->PartialRunSetup(request, response, [&n, &ret](const Status& s) {
@@ -101,6 +107,7 @@ Status LocalMaster::PartialRunSetup(CallOptions* call_options,
 Status LocalMaster::RunStep(CallOptions* call_options,
                             RunStepRequestWrapper* request,
                             MutableRunStepResponseWrapper* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   Notification n;
   Status ret;
   master_impl_->RunStep(call_options, request, response,
@@ -114,16 +121,19 @@ Status LocalMaster::RunStep(CallOptions* call_options,
 }
 
 MutableRunStepRequestWrapper* LocalMaster::CreateRunStepRequest() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return new InMemoryRunStepRequest;
 }
 
 MutableRunStepResponseWrapper* LocalMaster::CreateRunStepResponse() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return new InMemoryRunStepResponse;
 }
 
 Status LocalMaster::CloseSession(CallOptions* call_options,
                                  const CloseSessionRequest* request,
                                  CloseSessionResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   Notification n;
   Status ret;
   master_impl_->CloseSession(request, response, [&n, &ret](const Status& s) {
@@ -138,6 +148,7 @@ Status LocalMaster::CloseSession(CallOptions* call_options,
 Status LocalMaster::ListDevices(CallOptions* call_options,
                                 const ListDevicesRequest* request,
                                 ListDevicesResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   Notification n;
   Status ret;
   master_impl_->ListDevices(request, response, [&n, &ret](const Status& s) {
@@ -152,6 +163,7 @@ Status LocalMaster::ListDevices(CallOptions* call_options,
 Status LocalMaster::Reset(CallOptions* call_options,
                           const ResetRequest* request,
                           ResetResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   Notification n;
   Status ret;
   master_impl_->Reset(request, response, [&n, &ret](const Status& s) {
@@ -166,6 +178,7 @@ Status LocalMaster::Reset(CallOptions* call_options,
 Status LocalMaster::MakeCallable(CallOptions* call_options,
                                  const MakeCallableRequest* request,
                                  MakeCallableResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   Notification n;
   Status ret;
   master_impl_->MakeCallable(request, response, [&n, &ret](const Status& s) {
@@ -179,6 +192,7 @@ Status LocalMaster::MakeCallable(CallOptions* call_options,
 Status LocalMaster::RunCallable(CallOptions* call_options,
                                 const RunCallableRequest* request,
                                 RunCallableResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   Notification n;
   Status ret;
   master_impl_->RunCallable(call_options, request, response,
@@ -193,6 +207,7 @@ Status LocalMaster::RunCallable(CallOptions* call_options,
 Status LocalMaster::ReleaseCallable(CallOptions* call_options,
                                     const ReleaseCallableRequest* request,
                                     ReleaseCallableResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   Notification n;
   Status ret;
   master_impl_->ReleaseCallable(request, response, [&n, &ret](const Status& s) {
@@ -220,6 +235,7 @@ struct MasterInfo {
 
 typedef std::unordered_map<string, MasterInfo> LocalMasterRegistry;
 LocalMasterRegistry* local_master_registry() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   static LocalMasterRegistry* local_master_registry_ = new LocalMasterRegistry;
   return local_master_registry_;
 }
@@ -228,6 +244,7 @@ LocalMasterRegistry* local_master_registry() {
 /* static */
 void LocalMaster::Register(const string& target, Master* master,
                            int64_t default_timeout_in_ms) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock l(*get_local_master_registry_lock());
   local_master_registry()->insert(
       {target, MasterInfo(master, default_timeout_in_ms)});
@@ -235,6 +252,7 @@ void LocalMaster::Register(const string& target, Master* master,
 
 /* static */
 std::unique_ptr<LocalMaster> LocalMaster::Lookup(const string& target) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   std::unique_ptr<LocalMaster> ret;
   mutex_lock l(*get_local_master_registry_lock());
   auto iter = local_master_registry()->find(target);

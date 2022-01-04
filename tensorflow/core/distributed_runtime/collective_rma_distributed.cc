@@ -50,6 +50,7 @@ class RecvBufCall : public CancellableCall {
               const DeviceAttributes& server_attributes,
               CancellationManager* cancel_mgr, WorkerCacheInterface* wc)
       : CancellableCall(cancel_mgr, peer_task, wc) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     req_.set_step_id(step_id);
     req_.set_buf_rendezvous_key(key);
     *req_.mutable_client_locality() = client_locality;
@@ -62,9 +63,12 @@ class RecvBufCall : public CancellableCall {
     req_.set_request_id(GetUniqueRequestId());
   }
 
-  ~RecvBufCall() override {}
+  ~RecvBufCall() override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  }
 
   void IssueCall(const StatusCallback& done) override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     wi_->RecvBufAsync(&opts_, &req_, &resp_, done);
   }
 
@@ -74,6 +78,7 @@ class RecvBufCall : public CancellableCall {
 
 void PopulateTensorFromExtra(const RecvBufRespExtra& extra,
                              Tensor* cpu_tensor) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   char* head = reinterpret_cast<char*>(DMAHelper::base(cpu_tensor));
   for (const auto& tensor_content_chunk : extra.tensor_content()) {
     memcpy(head, std::string(tensor_content_chunk).data(),
@@ -84,6 +89,7 @@ void PopulateTensorFromExtra(const RecvBufRespExtra& extra,
 
 Status PopulateTensorFromResponse(const RecvBufResponse& response,
                                   Tensor* cpu_tensor) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   const bool has_transport_options = response.has_transport_options();
 
   // If there are no transport options, then the tensor has already been
@@ -115,6 +121,7 @@ void CollectiveRemoteAccessDistributed::RecvFromPeer(
     const AllocatorAttributes& to_alloc_attr, Tensor* to_tensor,
     const DeviceLocality& client_locality, int dev_to_dev_stream_index,
     CancellationManager* cancellation_manager, const StatusCallback& done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   if (peer_is_local) {
     CollectiveRemoteAccessLocal::RecvFromPeer(
         peer_device, peer_task, peer_is_local, key, to_device, to_device_ctx,
@@ -237,6 +244,7 @@ void CollectiveRemoteAccessDistributed::RecvFromPeer(
 void CollectiveRemoteAccessDistributed::CheckPeerHealth(
     const string& peer_task, int64_t timeout_in_ms,
     const StatusCallback& done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   if (peer_task == task_name_) {
     // Fast path if the peer is the worker itself.
     done(Status::OK());
@@ -296,6 +304,7 @@ void CollectiveRemoteAccessDistributed::CheckPeerHealth(
 }
 
 void CollectiveRemoteAccessDistributed::StartAbort(const Status& s) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   CollectiveRemoteAccessLocal::StartAbort(s);
   abortion_cancel_mgr_.StartCancel();
 }

@@ -40,18 +40,21 @@ RpcCollectiveExecutorMgr::RpcCollectiveExecutorMgr(
                             std::move(nccl_communicator)),
       worker_cache_(worker_cache),
       task_name_(task_name) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   group_leader_ = (task_name == config.experimental().collective_group_leader())
                       ? ""
                       : config.experimental().collective_group_leader();
 }
 
 RpcCollectiveExecutorMgr::~RpcCollectiveExecutorMgr() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   for (auto it : sequence_table_) {
     delete it.second;
   }
 }
 
 CollectiveExecutor* RpcCollectiveExecutorMgr::Create(int64_t step_id) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   CollectiveRemoteAccessDistributed* rma =
       new CollectiveRemoteAccessDistributed(dev_mgr_, dev_resolver_.get(),
                                             work_queue_, worker_cache_, step_id,
@@ -64,6 +67,7 @@ namespace {
 static const int64_t kStepIdMask = (((1uLL << 56) - 1) | (1uLL << 56));
 
 int64_t NewRandomStepId() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   int64_t step_id = random::New64();
   // Leave MS 8 bits clear for future use.
   step_id &= kStepIdMask;
@@ -73,6 +77,7 @@ int64_t NewRandomStepId() {
 
 void RpcCollectiveExecutorMgr::RefreshStepIdSequenceAsync(
     int64_t graph_key, const StatusCallback& done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   if (group_leader_.empty()) {
     mutex_lock l(sequence_mu_);
     GraphKeySequence* gks = nullptr;
@@ -109,6 +114,7 @@ void RpcCollectiveExecutorMgr::RefreshStepIdSequenceAsync(
 void RpcCollectiveExecutorMgr::GetStepSequenceAsync(
     const GetStepSequenceRequest* request, GetStepSequenceResponse* response,
     const StatusCallback& done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   if (!group_leader_.empty()) {
     LOG(ERROR) << "GetStepSequence called at non-group-leader";
     done(errors::Internal("GetStepSequenceAsync called at non-group-leader"));
@@ -134,6 +140,7 @@ void RpcCollectiveExecutorMgr::GetStepSequenceAsync(
 
 Status RpcCollectiveExecutorMgr::UpdateStepSequences(
     const GetStepSequenceResponse& resp) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock l(sequence_mu_);
   for (const StepSequence& ss : resp.step_sequence()) {
     GraphKeySequence* gks = nullptr;
@@ -150,6 +157,7 @@ Status RpcCollectiveExecutorMgr::UpdateStepSequences(
 }
 
 int64_t RpcCollectiveExecutorMgr::NextStepId(int64_t graph_key) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock l(sequence_mu_);
   auto it = sequence_table_.find(graph_key);
   if (it != sequence_table_.end()) {
@@ -160,6 +168,7 @@ int64_t RpcCollectiveExecutorMgr::NextStepId(int64_t graph_key) {
 
 void RpcCollectiveExecutorMgr::RetireStepId(int64_t graph_key,
                                             int64_t step_id) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock l(sequence_mu_);
   auto it = sequence_table_.find(graph_key);
   if (it != sequence_table_.end()) {
@@ -177,6 +186,7 @@ std::unique_ptr<RpcCollectiveExecutorMgr> CreateProdRpcCollectiveExecutorMgr(
     const ConfigProto& config, const DeviceMgr* device_mgr,
     std::unique_ptr<NcclCommunicatorInterface> nccl_communicator,
     WorkerCacheInterface* worker_cache, const string& default_worker_name) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   auto dev_resolver = absl::make_unique<DeviceResolverDistributed>(device_mgr);
   auto param_resolver = absl::make_unique<CollectiveParamResolverDistributed>(
       config, device_mgr, dev_resolver.get(), nccl_communicator.get(),

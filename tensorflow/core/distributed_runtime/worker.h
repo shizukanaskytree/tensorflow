@@ -48,7 +48,7 @@ class Worker : public WorkerInterface {
  public:
   Worker(WorkerEnv* env);
   virtual ~Worker() {
-    // std::cout << boost::stacktrace::stacktrace(); // boost c++ stacktrace
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   }
 
   void GetStatusAsync(CallOptions* opts, const GetStatusRequest* request,

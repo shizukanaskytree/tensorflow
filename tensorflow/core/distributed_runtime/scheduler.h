@@ -99,7 +99,9 @@ class PriorityScheduler {
   PriorityScheduler(const DeviceSet* devices, const CostModel* cost_model,
                     const Graph* g);
 
-  ~PriorityScheduler() {}
+  ~PriorityScheduler() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  }
 
   // Computes a schedule of the ideal start time for each node.
   // Returns the makespan (the total running time).

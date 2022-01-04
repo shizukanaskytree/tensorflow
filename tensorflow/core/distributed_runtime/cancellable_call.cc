@@ -21,6 +21,7 @@ limitations under the License.
 namespace tensorflow {
 
 void CancellableCall::Start(const StatusCallback& done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   if (cancel_mgr_ == nullptr) {
     IssueCall(done);
     return;
@@ -39,6 +40,7 @@ void CancellableCall::Start(const StatusCallback& done) {
 }
 
 void CancellableCall::Cancel() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   {
     mutex_lock l(mu_);
     if (is_cancelled_) {

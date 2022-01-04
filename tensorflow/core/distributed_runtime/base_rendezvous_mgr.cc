@@ -44,14 +44,18 @@ limitations under the License.
 namespace tensorflow {
 
 static void StartAbortRendevous(Rendezvous* rendez, const Status& s) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   rendez->StartAbort(s);
   rendez->Unref();
 }
 
 BaseRendezvousMgr::BaseRendezvousMgr(const WorkerEnv* worker_env)
-    : worker_env_(worker_env) {}
+    : worker_env_(worker_env) {
+      write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    }
 
 BaseRendezvousMgr::~BaseRendezvousMgr() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   for (auto& p : table_) {
     auto rendez = p.second;
     StartAbortRendevous(rendez, errors::Aborted("Shutdown"));
@@ -59,10 +63,12 @@ BaseRendezvousMgr::~BaseRendezvousMgr() {
 }
 
 RemoteRendezvous* BaseRendezvousMgr::Find(int64_t step_id) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return FindOrCreate(step_id);
 }
 
 BaseRemoteRendezvous* BaseRendezvousMgr::FindOrCreate(int64_t step_id) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock l(mu_);
   auto iter = table_.find(step_id);
   if (iter == table_.end()) {
@@ -76,6 +82,7 @@ BaseRemoteRendezvous* BaseRendezvousMgr::FindOrCreate(int64_t step_id) {
 void BaseRendezvousMgr::RecvLocalAsync(int64_t step_id,
                                        const Rendezvous::ParsedKey& parsed,
                                        Rendezvous::DoneCallback done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   auto rendez = FindOrCreate(step_id);
   auto done_cb = [rendez, done = std::move(done)](
                      const Status& s, const Rendezvous::Args& send_args,
@@ -90,6 +97,7 @@ void BaseRendezvousMgr::RecvLocalAsync(int64_t step_id,
 Status BaseRendezvousMgr::RecvLocal(int64_t step_id,
                                     const Rendezvous::ParsedKey& parsed,
                                     Tensor* val, bool* is_dead) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   Status ret;
   Notification n;
   RecvLocalAsync(step_id, parsed,
@@ -107,6 +115,7 @@ Status BaseRendezvousMgr::RecvLocal(int64_t step_id,
 }
 
 void BaseRendezvousMgr::Cleanup(int64_t step_id) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   Rendezvous* rendez = nullptr;
   {
     mutex_lock l(mu_);
@@ -126,9 +135,13 @@ BaseRemoteRendezvous::BaseRemoteRendezvous(const WorkerEnv* env,
     : env_(env),
       step_id_(step_id),
       local_(NewLocalRendezvous()),
-      session_(nullptr) {}
+      session_(nullptr) {
+
+        write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+      }
 
 BaseRemoteRendezvous::~BaseRemoteRendezvous() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   CHECK(active_.empty());
   local_->Unref();
 }
@@ -138,10 +151,12 @@ BaseRemoteRendezvous::~BaseRemoteRendezvous() {
 // and device name and does no lookups in the worker->device_mgr.
 static bool IsLocalDevice(const StringPiece worker_name,
                           const StringPiece device_name) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return absl::StartsWith(device_name, worker_name);
 }
 
 Status BaseRemoteRendezvous::Initialize(WorkerSession* session) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   CHECK_NE(session, nullptr) << "session must not be null!";
   std::vector<DeferredCall> deferred_calls;
   {
@@ -167,11 +182,13 @@ Status BaseRemoteRendezvous::Initialize(WorkerSession* session) {
 }
 
 WorkerSession* BaseRemoteRendezvous::session() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   tf_shared_lock l(mu_);
   return session_;
 }
 
 bool BaseRemoteRendezvous::is_initialized() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   tf_shared_lock l(mu_);
   return is_initialized_locked();
 }
@@ -179,6 +196,7 @@ bool BaseRemoteRendezvous::is_initialized() {
 Status BaseRemoteRendezvous::Send(const Rendezvous::ParsedKey& parsed,
                                   const Rendezvous::Args& args,
                                   const Tensor& val, const bool is_dead) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   VLOG(1) << "BaseRemoteRendezvous Send " << this << " " << parsed.FullKey();
   WorkerSession* sess = nullptr;
   {
@@ -200,6 +218,7 @@ Status BaseRemoteRendezvous::Send(const Rendezvous::ParsedKey& parsed,
 
 Status BaseRemoteRendezvous::ValidateDevices(const ParsedKey& parsed,
                                              bool is_src) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   // Cache session pointer to avoid repeatedly taking & releasing the lock
   // (e.g. calling session())
   WorkerSession* sess = nullptr;
@@ -228,6 +247,7 @@ void BaseRemoteRendezvous::SameWorkerRecvDone(
     const Rendezvous::ParsedKey& parsed, const Rendezvous::Args& send_args,
     const Rendezvous::Args& recv_args, const Tensor& in, Tensor* out,
     StatusCallback done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   // Do a quick copy (sharing the underlying buffer) if both tensors
   // are on host memory.
   const bool src_host =
@@ -298,12 +318,14 @@ void BaseRemoteRendezvous::SameWorkerRecvDone(
 
 bool BaseRemoteRendezvous::IsSameWorker(DeviceNameUtils::ParsedName src,
                                         DeviceNameUtils::ParsedName dst) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return DeviceNameUtils::IsSameAddressSpace(src, dst);
 }
 
 void BaseRemoteRendezvous::RecvAsync(const ParsedKey& parsed,
                                      const Rendezvous::Args& recv_args,
                                      DoneCallback done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   VLOG(1) << "RemoteRendezvous Recv " << this << " " << parsed.FullKey();
   Status s = ValidateDevices(parsed, false /*!is_src*/);
   if (!s.ok()) {
@@ -349,6 +371,7 @@ void BaseRemoteRendezvous::RecvAsync(const ParsedKey& parsed,
 
 void BaseRemoteRendezvous::RecvLocalAsync(const ParsedKey& parsed,
                                           DoneCallback done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   // Test whether the rendezvous is initialized using a shared lock, to avoid
   // the need for exclusive access in the common case.
   if (TF_PREDICT_FALSE(!is_initialized())) {
@@ -371,6 +394,7 @@ void BaseRemoteRendezvous::RecvLocalAsync(const ParsedKey& parsed,
 
 void BaseRemoteRendezvous::RecvLocalAsyncInternal(const ParsedKey& parsed,
                                                   DoneCallback done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   Status s = ValidateDevices(parsed, true /* is_src */);
   if (!s.ok()) {
     done(s, Args(), Args(), Tensor(), false);
@@ -380,6 +404,7 @@ void BaseRemoteRendezvous::RecvLocalAsyncInternal(const ParsedKey& parsed,
 }
 
 void BaseRemoteRendezvous::StartAbort(const Status& s) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   CHECK(!s.ok());
   // If the status passed in is a cancelled or aborted error, mark it as
   // "derived" for the rendezvous. Derived status messages are ignored when
@@ -407,6 +432,7 @@ void BaseRemoteRendezvous::StartAbort(const Status& s) {
 
 void BaseRemoteRendezvous::RegisterCall(BaseRecvTensorCall* call,
                                         const Rendezvous::Args& args) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   CancellationManager* cm = args.cancellation_manager;
   bool already_cancelled = false;
   InactiveCallback callback = [] {};
@@ -437,6 +463,7 @@ void BaseRemoteRendezvous::RegisterCall(BaseRecvTensorCall* call,
 }
 
 void BaseRemoteRendezvous::DeregisterCall(BaseRecvTensorCall* call) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock l(mu_);
   auto it = active_.find(call);
   if (it != active_.end()) {
@@ -448,6 +475,8 @@ void BaseRemoteRendezvous::DeregisterCall(BaseRecvTensorCall* call) {
 
 BaseRemoteRendezvous::DeferredCall::DeferredCall(const ParsedKey& parsed,
                                                  DoneCallback done)
-    : parsed(parsed), done(std::move(done)) {}
+    : parsed(parsed), done(std::move(done)) {
+      write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    }
 
 }  // end namespace tensorflow

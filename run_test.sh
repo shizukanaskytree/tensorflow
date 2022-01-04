@@ -1,3 +1,7 @@
+bazel run //tensorflow/core/distributed_runtime:collective_rma_distributed_test
+
+
+
 ### All tests (for C++ changes).
 # $ bazel test //tensorflow/...
 

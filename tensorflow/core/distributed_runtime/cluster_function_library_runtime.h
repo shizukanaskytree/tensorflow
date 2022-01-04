@@ -37,7 +37,9 @@ class ClusterFunctionLibraryRuntime : public DistributedFunctionLibraryRuntime {
                                 DeviceMgr* remote_device_mgr)
       : worker_session_(worker_session),
         create_worker_session_called_(create_worker_session_called),
-        remote_device_mgr_(remote_device_mgr) {}
+        remote_device_mgr_(remote_device_mgr) {
+          write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+        }
 
   ~ClusterFunctionLibraryRuntime() override;
 
@@ -60,7 +62,10 @@ class ClusterFunctionLibraryRuntime : public DistributedFunctionLibraryRuntime {
   void CleanUp(uint64 step_id, FunctionLibraryRuntime::LocalHandle handle,
                FunctionLibraryRuntime::DoneCallback done) override;
 
-  DeviceMgr* remote_device_mgr() const override { return remote_device_mgr_; }
+  DeviceMgr* remote_device_mgr() const override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    return remote_device_mgr_;
+  }
 
  private:
   static Status ConstructFunctionGraph(

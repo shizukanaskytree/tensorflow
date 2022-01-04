@@ -22,6 +22,10 @@ limitations under the License.
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/protobuf/tensorflow_server.pb.h"
 
+// #include "tensorflow/core/util/write_log.h"
+// #include <boost/stacktrace.hpp>
+// #define BOOST_STACKTRACE_USE_ADDR2LINE
+
 namespace tensorflow {
 
 class CoordinationServiceAgent;
@@ -41,8 +45,12 @@ class MasterEnv;
 // services.
 class ServerInterface {
  public:
-  ServerInterface() {}
-  virtual ~ServerInterface() {}
+  ServerInterface() {
+    // write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  }
+  virtual ~ServerInterface() {
+    // write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  }
 
   // Starts the server running asynchronously. Returns OK on success, otherwise
   // returns an error.

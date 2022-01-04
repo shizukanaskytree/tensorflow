@@ -23,9 +23,12 @@ limitations under the License.
 
 namespace tensorflow {
 
-CallOptions::CallOptions() {}
+CallOptions::CallOptions() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+}
 
 void CallOptions::StartCancel() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock l(mu_);
   if (cancel_func_ != nullptr) {
     // NOTE: We must call the cancel_func_ with mu_ held. This ensure
@@ -36,21 +39,25 @@ void CallOptions::StartCancel() {
 }
 
 void CallOptions::SetCancelCallback(CancelFunction cancel_func) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock l(mu_);
   cancel_func_ = std::move(cancel_func);
 }
 
 void CallOptions::ClearCancelCallback() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock l(mu_);
   cancel_func_ = nullptr;
 }
 
 int64_t CallOptions::GetTimeout() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock l(mu_);
   return timeout_in_ms_;
 }
 
 void CallOptions::SetTimeout(int64_t ms) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock l(mu_);
   timeout_in_ms_ = ms;
 }

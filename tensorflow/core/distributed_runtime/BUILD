@@ -627,6 +627,8 @@ tf_cc_test(
         "//tensorflow/core:test_main",
         "//tensorflow/core:testlib",
         "//tensorflow/core/protobuf:worker_proto_cc",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ],
 )
 

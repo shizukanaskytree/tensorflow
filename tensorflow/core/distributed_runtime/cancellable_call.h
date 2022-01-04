@@ -37,9 +37,14 @@ class CancellableCall {
         cancel_mgr_(cancel_mgr),
         remote_worker_(remote_worker),
         wc_(wc),
-        wi_(wc_->GetOrCreateWorker(remote_worker_)) {}
+        wi_(wc_->GetOrCreateWorker(remote_worker_)) {
+          write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+        }
 
-  virtual ~CancellableCall() { wc_->ReleaseWorker(remote_worker_, wi_); }
+  virtual ~CancellableCall() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    wc_->ReleaseWorker(remote_worker_, wi_);
+  }
 
   virtual void IssueCall(const StatusCallback& done) = 0;
 

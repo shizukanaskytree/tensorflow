@@ -48,7 +48,9 @@ class SessionMgr {
       WorkerEnv* worker_env, const string& default_worker_name,
       std::unique_ptr<WorkerCacheInterface> default_worker_cache,
       WorkerCacheFactory worker_cache_factory);
-  ~SessionMgr() {}
+  ~SessionMgr() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  }
 
   // Allocates state for a new session.
   Status CreateSession(const string& session, const ServerDef& server_def,

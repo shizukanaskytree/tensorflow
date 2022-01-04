@@ -32,6 +32,7 @@ namespace tensorflow {
 
 bool WorkerCachePartial::GetDeviceLocalityNonBlocking(
     const string& device_name, DeviceLocality* locality) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock lock(mu_);  // could use reader lock
   auto iter = device_status_cache_.find(device_name);
   if (iter != device_status_cache_.end()) {
@@ -44,6 +45,7 @@ bool WorkerCachePartial::GetDeviceLocalityNonBlocking(
 void WorkerCachePartial::GetDeviceLocalityAsync(const string& device_name,
                                                 DeviceLocality* locality,
                                                 StatusCallback done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   if (!GetDeviceLocalityNonBlocking(device_name, locality)) {
     // If cache entry was empty, make one try to fill it by RPC.
     SchedClosure([this, &device_name, locality, done]() {
@@ -59,6 +61,7 @@ void WorkerCachePartial::GetDeviceLocalityAsync(const string& device_name,
 }
 
 Status WorkerCachePartial::RefreshDeviceStatus(const string& device_name) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   string task;
   string device;
   Status s;
@@ -90,6 +93,7 @@ Status WorkerCachePartial::RefreshDeviceStatus(const string& device_name) {
 }
 
 void WorkerCachePartial::FlushStatusCache() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   mutex_lock lock(mu_);
   device_status_cache_.clear();
 }

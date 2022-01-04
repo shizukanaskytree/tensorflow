@@ -117,6 +117,18 @@ const ::grpc::ChannelArguments* GetDefaultChannelArguments() {
 ::grpc::ChannelArguments GetChannelArguments(const RPCOptions* rpc_options) {
   write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
 
+  // RPCOptions
+  // DebugString()
+
+  // execution error but without compile error!
+  // std::string debug_log = "rpc_options->DebugString(): " + rpc_options->DebugString();
+  // write_log(debug_log, 1);
+
+  // __LINE__, __FILE__
+
+  std::string loc = strings::StrCat(__LINE__, ":", __FILE__);
+  write_log(loc, "/home/wxf/tf2/tensorflow/debug_var.log");
+
   // TODO(mrry): Implement secure channels.
   ::grpc::ChannelArguments args = *GetDefaultChannelArguments();
   args.SetInt(GRPC_ARG_MAX_MESSAGE_LENGTH, std::numeric_limits<int32>::max());

@@ -42,6 +42,7 @@ Status ClusterFunctionLibraryRuntime::ConstructFunctionGraph(
     const FunctionLibraryRuntime::InstantiateOptions& options,
     const FunctionLibraryDefinition& flib_def, GraphDef* gdef,
     std::vector<string>* send_keys, std::vector<string>* recv_keys) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   const string& target = options.target;
   const string& func_name = sig.name();
   const FunctionDef* func_def = flib_def.Find(sig.name());
@@ -176,6 +177,7 @@ Status ClusterFunctionLibraryRuntime::ConstructFunctionGraph(
 }
 
 ClusterFunctionLibraryRuntime::~ClusterFunctionLibraryRuntime() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   for (auto& function_data : function_data_) {
     worker_session_->worker_cache()->ReleaseWorker(function_data.target,
                                                    function_data.wi);
@@ -187,6 +189,7 @@ void ClusterFunctionLibraryRuntime::Instantiate(
     AttrSlice attrs, const FunctionLibraryRuntime::InstantiateOptions& options,
     FunctionLibraryRuntime::LocalHandle* handle,
     FunctionLibraryRuntime::DoneCallback done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   auto target = options.target;
   VLOG(1) << "CFLR::Instantiate: " << function_name << " on " << target
           << " (this: " << this << ")";
@@ -262,6 +265,7 @@ void ClusterFunctionLibraryRuntime::Run(
     const FunctionLibraryRuntime::Options& opts,
     FunctionLibraryRuntime::LocalHandle handle, gtl::ArraySlice<Tensor> args,
     std::vector<Tensor>* rets, FunctionLibraryRuntime::DoneCallback done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   FunctionData* function_data = nullptr;
   {
     mutex_lock l(mu_);
@@ -339,6 +343,7 @@ void ClusterFunctionLibraryRuntime::Run(
     FunctionLibraryRuntime::LocalHandle handle,
     gtl::ArraySlice<FunctionArg> args, std::vector<FunctionRet>* rets,
     FunctionLibraryRuntime::DoneCallback done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   std::vector<Tensor> tensors;
   for (const auto& arg : args) {
     if (arg.index() == 0) {
@@ -366,6 +371,7 @@ void ClusterFunctionLibraryRuntime::Run(
 void ClusterFunctionLibraryRuntime::CleanUp(
     uint64 step_id, FunctionLibraryRuntime::LocalHandle handle,
     FunctionLibraryRuntime::DoneCallback done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   FunctionData* function_data = nullptr;
   {
     mutex_lock l(mu_);

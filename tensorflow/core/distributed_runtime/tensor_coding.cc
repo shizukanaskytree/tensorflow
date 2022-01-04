@@ -30,6 +30,7 @@ namespace tensorflow {
 TensorResponse::Source::~Source() {}
 
 void TensorResponse::Clear() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   on_host_ = false;
   device_ = nullptr;
   alloc_attrs_ = AllocatorAttributes();
@@ -39,11 +40,13 @@ void TensorResponse::Clear() {
 }
 
 void TensorResponse::ClearTensor() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   meta_.Clear();
   tensor_ = Tensor();
 }
 
 void TensorResponse::InitAlloc(DeviceBase* d, const AllocatorAttributes& aa) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   Clear();
   device_ = d;
   alloc_attrs_ = aa;
@@ -55,6 +58,7 @@ void TensorResponse::InitAlloc(DeviceBase* d, const AllocatorAttributes& aa) {
 }
 
 Status TensorResponse::InitFrom(RecvTensorResponse* response) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   Status s;
   meta_.Swap(response);
   if (on_host_) {
@@ -74,6 +78,7 @@ Status TensorResponse::InitFrom(RecvTensorResponse* response) {
 
 void TensorResponse::InitPartial(const RecvTensorResponse& response,
                                  const AllocationAttributes& allocation_attr) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   // Everything except content is present in *response.  Content will
   // arrive later; allocate a Tensor with appropriate storage for that
   // content.
@@ -84,6 +89,7 @@ void TensorResponse::InitPartial(const RecvTensorResponse& response,
 }
 
 Status TensorResponse::ParseFrom(Source* source) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   if (!on_host_) {
     protobuf::io::CodedInputStream input(source->contents());
 
@@ -118,12 +124,17 @@ enum WireType {
   WIRETYPE_VARINT = 0,
   WIRETYPE_LENGTH_DELIMITED = 2,
 };
-inline int GetTagFieldNumber(uint32 tag) { return tag >> 3; }
+inline int GetTagFieldNumber(uint32 tag) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  return tag >> 3;
+}
 inline WireType GetTagWireType(uint32 tag) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return static_cast<WireType>(tag & 0x7);
 }
 
 bool ReadVarintSizeAsInt(protobuf::io::CodedInputStream* input, int* result) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   protobuf_uint64 v;
   if (input->ReadVarint64(&v) && v <= static_cast<uint64>(INT_MAX)) {
     *result = static_cast<int>(v);
@@ -135,6 +146,7 @@ bool ReadVarintSizeAsInt(protobuf::io::CodedInputStream* input, int* result) {
 
 bool ReadNestedMessage(protobuf::io::CodedInputStream* input,
                        protobuf::Message* value) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   int length;
   if (!ReadVarintSizeAsInt(input, &length)) return false;
   std::pair<protobuf::io::CodedInputStream::Limit, int> p =
@@ -149,6 +161,7 @@ bool ReadNestedMessage(protobuf::io::CodedInputStream* input,
 
 bool TensorResponse::ParseTensorSubmessage(
     protobuf::io::CodedInputStream* input, TensorProto* tensor_meta) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   bool seen_tensor_content = false;
   while (true) {
     auto p = input->ReadTagWithCutoff(127);
@@ -220,6 +233,7 @@ bool TensorResponse::ParseTensorSubmessage(
 }
 
 bool TensorResponse::ParseFast(Source* source) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   protobuf::io::CodedInputStream input(source->contents());
   while (true) {
     auto p = input.ReadTagWithCutoff(127);
@@ -280,6 +294,7 @@ bool TensorResponse::ParseFast(Source* source) {
 }
 
 bool TensorResponse::ParseSlow(Source* source) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   if (!meta_.ParseFromZeroCopyStream(source->contents())) {
     return false;
   }

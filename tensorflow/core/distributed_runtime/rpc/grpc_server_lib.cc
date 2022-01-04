@@ -403,7 +403,7 @@ Status GrpcServer::WorkerCacheFactory(const WorkerCacheFactoryOptions& options,
                                        "/task:", options.task_index);
 
   const string host_port = channel_cache->TranslateTask(name_prefix);
-  write_log("host_port: " + host_port);
+  // write_log("host_port: " + host_port);
   int requested_port;
 
   auto colon_index = host_port.find_last_of(':');

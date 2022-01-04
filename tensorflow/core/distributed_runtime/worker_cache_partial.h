@@ -41,7 +41,9 @@ class WorkerCachePartial : public WorkerCacheInterface {
   void GetDeviceLocalityAsync(const string& device, DeviceLocality* locality,
                               StatusCallback) override;
 
-  ~WorkerCachePartial() override {}
+  ~WorkerCachePartial() override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  }
 
   // Clear all entries from the DeviceStatus cache.
   void FlushStatusCache();

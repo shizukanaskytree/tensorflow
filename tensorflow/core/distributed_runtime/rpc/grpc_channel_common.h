@@ -24,6 +24,10 @@ limitations under the License.
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/mutex.h"
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+
 namespace tensorflow {
 
 // GenericCachingChannelCache that caches results to FindWorkerChannel() calls.
@@ -47,6 +51,7 @@ class GenericCachingChannelCache : public ChannelCacheT {
 
   SharedGrpcChannelPtr FindWorkerChannel(const string& target) override {
     write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+
     {
       mutex_lock l(mu_);
       auto iter = channels_.find(target);
@@ -90,6 +95,7 @@ class GenericCachingChannelCache : public ChannelCacheT {
   SharedGrpcChannelPtr GetNextChannelPtrAndUpdateState(
       ChannelState& chan_state) {
     write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+
     // Following statement is marked as Crash OK as this is an invariant of
     // code flow in this class.
     CHECK_EQ(chan_state.channels.size(), num_channels_per_target_);  // Crash OK

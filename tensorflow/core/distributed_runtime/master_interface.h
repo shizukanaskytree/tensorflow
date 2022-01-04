@@ -58,6 +58,7 @@ class MasterInterface {
   virtual Status RunStep(CallOptions* call_options,
                          const RunStepRequest* request,
                          RunStepResponse* response) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     std::unique_ptr<RunStepRequestWrapper> wrapped_request(
         new ProtoRunStepRequest(request));
     std::unique_ptr<MutableRunStepResponseWrapper> wrapped_response(
@@ -71,6 +72,7 @@ class MasterInterface {
   // The message returned from this method must only be used in a
   // `RunStep()` call on the same `MasterInterface` instance.
   virtual MutableRunStepRequestWrapper* CreateRunStepRequest() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     MutableProtoRunStepRequest* ret = new MutableProtoRunStepRequest;
     ret->request_.set_request_id(GetUniqueRequestId());
     return ret;
@@ -82,6 +84,7 @@ class MasterInterface {
   // The message returned from this method must only be used in a
   // `RunStep()` call on the same `MasterInterface` instance.
   virtual MutableRunStepResponseWrapper* CreateRunStepResponse() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     return new OwnedProtoRunStepResponse;
   }
 
@@ -112,6 +115,7 @@ class MasterInterface {
   // proto-based wrappers for the RunStepResponse message.
   RunStepResponse* get_proto_from_wrapper(
       MutableRunStepResponseWrapper* wrapper) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     return wrapper->get_proto();
   }
 };

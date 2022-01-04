@@ -71,6 +71,7 @@ Master::Master(MasterEnv* env, double session_gc_seconds)
       step_count_(0),
       session_gc_seconds_(session_gc_seconds),
       recent_request_ids_(10000) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   // Right now, a master service must be co-located with a device.
   // Otherwise, fetches do not work.
   CHECK(!env->local_devices.empty());
@@ -84,6 +85,7 @@ Master::Master(MasterEnv* env, double session_gc_seconds)
 }
 
 Master::~Master() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   if (gc_thread_) {
     mutex_lock l(mu_);
     shutdown_ = true;
@@ -93,6 +95,7 @@ Master::~Master() {
 }
 
 void Master::GC() {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   Env* env = Env::Default();
   while (true) {
     mutex_lock l(mu_);
@@ -124,6 +127,7 @@ void Master::GC() {
 }
 
 MasterSession* Master::FindMasterSession(const string& handle) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   MasterSession* session = nullptr;
   {
     mutex_lock l(mu_);
@@ -141,6 +145,7 @@ class DeviceFinder {
       const protobuf::RepeatedPtrField<string>& device_filters, MasterEnv* env,
       WorkerCacheInterface* worker_cache,
       std::vector<std::unique_ptr<Device>>* out_remote) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     DeviceFinder finder(device_filters, env, worker_cache);
     finder.Start();
     TF_RETURN_IF_ERROR(finder.Wait());
@@ -151,6 +156,7 @@ class DeviceFinder {
   static void GetRemoteWorkers(
       const protobuf::RepeatedPtrField<string>& device_filters, MasterEnv* env,
       WorkerCacheInterface* worker_cache, std::vector<string>* workers) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     DeviceFinder finder(device_filters, env, worker_cache);
     *workers = finder.targets_;
   }
@@ -160,6 +166,7 @@ class DeviceFinder {
       const protobuf::RepeatedPtrField<string>& device_filters, MasterEnv* env,
       WorkerCacheInterface* worker_cache)
       : env_(env), worker_cache_(worker_cache) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     CHECK(worker_cache) << "Worker cache was null!";
     auto process_filter = [this](const string& filter) {
       DeviceNameUtils::ParsedName parsed;
@@ -234,10 +241,12 @@ class DeviceFinder {
   }
 
   ~DeviceFinder() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     for (Device* dev : found_) delete dev;
   }
 
   void Start() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     {
       mutex_lock l(mu_);
       num_pending_ = targets_.size();
@@ -262,6 +271,7 @@ class DeviceFinder {
   const int32 kLoggingPeriodMs = 10 * 1000;
 
   Status Wait() {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     mutex_lock l(mu_);
     // TODO(mrry): Propagate a timeout here, since `num_pending_` may
     // never become zero.
@@ -283,6 +293,7 @@ class DeviceFinder {
   // The caller takes the ownership of returned remote devices.
   void GetRemoteDevices(const std::vector<Device*>& local,
                         std::vector<std::unique_ptr<Device>>* remote) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     std::unordered_set<string> names(local.size());
     for (Device* dev : local) names.insert(dev->name());
     mutex_lock l(mu_);
@@ -315,6 +326,7 @@ class DeviceFinder {
 
   void WhenFound(int target_index, const Status& s,
                  std::vector<Device*>* devices) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     mutex_lock l(mu_);
     seen_targets_[target_index] = true;
     if (!s.ok()) {
@@ -335,6 +347,7 @@ class DeviceFinder {
   // with the set of devices allowed by 'y'.
   bool Intersects(const DeviceNameUtils::ParsedName& x,
                   const DeviceNameUtils::ParsedName& y) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     return (!x.has_job || !y.has_job || x.job == y.job) &&
            (!x.has_replica || !y.has_replica || x.replica == y.replica) &&
            (!x.has_task || !y.has_task || x.task == y.task) &&
@@ -344,6 +357,7 @@ class DeviceFinder {
 
   // Returns true iff 'name' matches one of the filters_.
   bool MatchFilters(const string& name) {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
     if (filters_.empty()) return true;
     DeviceNameUtils::ParsedName x;
     if (DeviceNameUtils::ParseFullName(name, &x)) {
@@ -359,6 +373,7 @@ class DeviceFinder {
 
 void Master::CreateSession(const CreateSessionRequest* req,
                            CreateSessionResponse* resp, MyClosure done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   SchedClosure([this, req, resp, done]() {
     Status status;
     WorkerCacheFactoryOptions worker_cache_factory_options;
@@ -498,6 +513,7 @@ void Master::CreateSession(const CreateSessionRequest* req,
 
 void Master::ExtendSession(const ExtendSessionRequest* req,
                            ExtendSessionResponse* resp, MyClosure done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   auto session = FindMasterSession(req->session_handle());
   if (session == nullptr) {
     done(errors::Aborted("Session ", req->session_handle(), " is not found."));
@@ -516,6 +532,7 @@ void Master::ExtendSession(const ExtendSessionRequest* req,
 
 void Master::PartialRunSetup(const PartialRunSetupRequest* req,
                              PartialRunSetupResponse* resp, MyClosure done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   Status s = recent_request_ids_.TrackUnique(req->request_id(),
                                              "PartialRunSetup (Master)", *req);
   if (!s.ok()) {
@@ -537,6 +554,7 @@ void Master::PartialRunSetup(const PartialRunSetupRequest* req,
 
 void Master::RunStep(CallOptions* opts, const RunStepRequestWrapper* req,
                      MutableRunStepResponseWrapper* resp, MyClosure done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   Status s = recent_request_ids_.TrackUnique(req->request_id(),
                                              "RunStep (Master)", req);
   if (!s.ok()) {
@@ -563,6 +581,7 @@ void Master::RunStep(CallOptions* opts, const RunStepRequestWrapper* req,
 
 void Master::CloseSession(const CloseSessionRequest* req,
                           CloseSessionResponse* resp, MyClosure done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   MasterSession* session = nullptr;
   {
     mu_.lock();
@@ -592,6 +611,7 @@ void Master::CloseSession(const CloseSessionRequest* req,
 
 void Master::ListDevices(const ListDevicesRequest* req,
                          ListDevicesResponse* resp, MyClosure done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   SchedClosure([this, req, resp, done]() {
     if (!req->session_handle().empty()) {
       auto session = FindMasterSession(req->session_handle());
@@ -622,6 +642,7 @@ void Master::ListDevices(const ListDevicesRequest* req,
 }
 
 void Master::CleanupWorkers(const ResetRequest& reset) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   std::vector<string> worker_names;
   DeviceFinder::GetRemoteWorkers(reset.device_filters(), env_,
                                  env_->worker_cache, &worker_names);
@@ -655,6 +676,7 @@ void Master::CleanupWorkers(const ResetRequest& reset) {
 
 void Master::Reset(const ResetRequest* req, ResetResponse* resp,
                    MyClosure done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   // Vector to hold the session pointers present in the sessions_
   // (string->Session*) map.
   std::vector<MasterSession*> sessions_to_close;
@@ -682,6 +704,7 @@ void Master::Reset(const ResetRequest* req, ResetResponse* resp,
 
 void Master::MakeCallable(const MakeCallableRequest* req,
                           MakeCallableResponse* resp, MyClosure done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   Status s = recent_request_ids_.TrackUnique(req->request_id(),
                                              "MakeCallable (Master)", *req);
   if (!s.ok()) {
@@ -703,6 +726,7 @@ void Master::MakeCallable(const MakeCallableRequest* req,
 
 void Master::RunCallable(CallOptions* opts, const RunCallableRequest* req,
                          RunCallableResponse* resp, MyClosure done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   Status s = recent_request_ids_.TrackUnique(req->request_id(),
                                              "RunCallable (Master)", *req);
   if (!s.ok()) {
@@ -724,6 +748,7 @@ void Master::RunCallable(CallOptions* opts, const RunCallableRequest* req,
 
 void Master::ReleaseCallable(const ReleaseCallableRequest* req,
                              ReleaseCallableResponse* resp, MyClosure done) {
+  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   auto session = FindMasterSession(req->session_handle());
   if (session == nullptr) {
     done(errors::Aborted("Session ", req->session_handle(), " is not found."));

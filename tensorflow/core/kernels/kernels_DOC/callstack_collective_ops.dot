@@ -1,0 +1,37 @@
+
+//  0# tensorflow::GetChannelArguments(tensorflow::RPCOptions const*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+//  1# tensorflow::NewHostPortGrpcChannel(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, tensorflow::RPCOptions const*, std::shared_ptr<grpc_impl::Channel>*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+//  2# std::_Function_handler<tensorflow::Status (std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, tensorflow::RPCOptions const*, std::shared_ptr<grpc_impl::Channel>*), tensorflow::Status (*)(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, tensorflow::RPCOptions const*, std::shared_ptr<grpc_impl::Channel>*)>::_M_invoke(std::_Any_data const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&&, tensorflow::RPCOptions const*&&, std::shared_ptr<grpc_impl::Channel>*&&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+//  3# std::_Function_handler<std::shared_ptr<grpc_impl::Channel> (std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >), tensorflow::ConvertToChannelCreationFunction(std::function<tensorflow::Status (std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, tensorflow::RPCOptions const*, std::shared_ptr<grpc_impl::Channel>*)> const&)::{lambda(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)#1}>::_M_invoke(std::_Any_data const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+//  4# tensorflow::(anonymous namespace)::SparseGrpcChannelCache::FindChannelOnce(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+//  5# tensorflow::GenericCachingChannelCache<tensorflow::GrpcChannelCache>::FindWorkerChannel(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+//  6# tensorflow::(anonymous namespace)::GrpcWorkerCache::GetOrCreateWorker(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+//  7# tensorflow::CancellableCall::CancellableCall(tensorflow::CancellationManager*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, tensorflow::WorkerCacheInterface*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+//  8# tensorflow::CollectiveParamResolverDistributed::CompleteGroupDistributed(tensorflow::DeviceAttributes const&, tensorflow::CollGroupParams*, tensorflow::CancellationManager*, std::function<void (tensorflow::Status const&)> const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+//  9# tensorflow::CollectiveParamResolverDistributed::CompleteParamsAsync(tensorflow::DeviceAttributes const&, tensorflow::CollectiveParams*, tensorflow::CancellationManager*, std::function<void (tensorflow::Status const&)> const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+// 10# tensorflow::BaseCollectiveExecutor::CompleteParamsAsync(tensorflow::DeviceAttributes const&, tensorflow::CollectiveParams*, tensorflow::CancellationManager*, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+// 11# tensorflow::(anonymous namespace)::CollectiveOpV2Kernel::Run(tensorflow::OpKernelContext*, tensorflow::CollectiveParams*, std::function<void ()>)::{lambda()#1}::operator()() const in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
+// 12# tensorflow::UnboundedWorkQueue::PooledThreadFunc() in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+// 13# tensorflow::(anonymous namespace)::PThread::ThreadFn(void*) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/../libtensorflow_framework.so.2
+// 14# start_thread in /lib/x86_64-linux-gnu/libpthread.so.0
+// 15# clone in /lib/x86_64-linux-gnu/libc.so.6
+
+
+digraph g {
+node [shape=plaintext];
+"start_thread"
+-> "tensorflow::(anonymous namespace)::PThread::ThreadFn(void*)"
+-> "tensorflow::UnboundedWorkQueue::PooledThreadFunc()"
+-> "tensorflow::(anonymous namespace)::CollectiveOpV2Kernel::Run"
+-> "tensorflow::BaseCollectiveExecutor::CompleteParamsAsync"
+-> "tensorflow::CollectiveParamResolverDistributed::CompleteParamsAsync"
+-> "tensorflow::CollectiveParamResolverDistributed::CompleteGroupDistributed"
+-> "tensorflow::CancellableCall::CancellableCall"
+-> "tensorflow::(anonymous namespace)::GrpcWorkerCache::GetOrCreateWorker"
+-> "tensorflow::GenericCachingChannelCache<tensorflow::GrpcChannelCache>::FindWorkerChannel"
+-> "tensorflow::(anonymous namespace)::SparseGrpcChannelCache::FindChannelOnce"
+-> "tensorflow::NewHostPortGrpcChannel"
+-> "tensorflow::GetChannelArguments"
+-> "END"
+}
+

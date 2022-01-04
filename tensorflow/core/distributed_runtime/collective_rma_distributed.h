@@ -37,9 +37,13 @@ class CollectiveRemoteAccessDistributed : public CollectiveRemoteAccessLocal {
       : CollectiveRemoteAccessLocal(dev_mgr, dev_resolver, step_id),
         worker_cache_(worker_cache),
         work_queue_(std::move(work_queue)),
-        task_name_(std::move(task_name)) {}
+        task_name_(std::move(task_name)) {
+          write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+        }
 
-  ~CollectiveRemoteAccessDistributed() override {}
+  ~CollectiveRemoteAccessDistributed() override {
+    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  }
 
   void RecvFromPeer(const string& peer_device, const string& peer_task,
                     bool peer_is_local, const string& key, Device* to_device,
