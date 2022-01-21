@@ -45,13 +45,13 @@ class SerializationTraits<tensorflow::TensorResponse> {
  public:
   static Status Serialize(const tensorflow::TensorResponse& msg, ByteBuffer* bp,
                           bool* own_buffer) {
-    // tensorflow::write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    // tensorflow:://write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     LOG(FATAL) << "TODO(sanjay,jeff): Implement";
     return Status();
   }
   static Status Deserialize(ByteBuffer* buffer,
                             tensorflow::TensorResponse* msg) {
-    // tensorflow::write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    // tensorflow:://write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     if (buffer == nullptr) {
       return Status(StatusCode::INTERNAL, "No payload");
     }

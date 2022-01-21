@@ -39,7 +39,7 @@ class StepStats;
 class WorkerCacheInterface {
  public:
   virtual ~WorkerCacheInterface() {
-    // write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    // //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   // Updates *workers with strings naming the remote worker tasks to
@@ -60,7 +60,7 @@ class WorkerCacheInterface {
   // TODO(jeff,sanjay): Unify all worker-cache impls and factor out a
   //                    per-rpc-subsystem WorkerInterface creator.
   virtual void ReleaseWorker(const string& target, WorkerInterface* worker) {
-    // write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    // //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     // Subclasses may override to reuse worker objects.
     delete worker;
   }
@@ -92,18 +92,18 @@ class WorkerCacheInterface {
 
   // Start/stop logging activity.
   virtual void SetLogging(bool active) {
-    // write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    // //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   // Discard any saved log data.
   virtual void ClearLogs() {
-    // write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    // //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   // Return logs for the identified step in *ss.  Any returned data will no
   // longer be stored.
   virtual bool RetrieveLogs(int64_t step_id, StepStats* ss) {
-    // write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    // //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return false;
   }
 };

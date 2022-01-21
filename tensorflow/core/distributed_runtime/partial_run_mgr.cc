@@ -26,7 +26,7 @@ namespace tensorflow {
 bool PartialRunMgr::FindOrCreate(int step_id,
                                  CancellationManager** cancellation_manager) {
   mutex_lock l(mu_);
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   auto it = step_id_to_partial_run_.find(step_id);
   if (it != step_id_to_partial_run_.end()) {
     *cancellation_manager = it->second->cancellation_manager.get();
@@ -43,7 +43,7 @@ bool PartialRunMgr::FindOrCreate(int step_id,
 }
 
 void PartialRunMgr::ExecutorDone(int step_id, const Status& executor_status) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   StatusCallback done;
   Status callback_status;
   {
@@ -72,7 +72,7 @@ void PartialRunMgr::ExecutorDone(int step_id, const Status& executor_status) {
 
 void PartialRunMgr::PartialRunDone(int step_id, StatusCallback done,
                                    const Status& status) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   Status callback_status;
   {
     mutex_lock l(mu_);

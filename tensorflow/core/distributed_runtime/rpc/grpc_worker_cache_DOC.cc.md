@@ -45,22 +45,22 @@ class GrpcWorkerCache : public WorkerCachePartial {
         channel_cache_(channel_cache),
         worker_env_(worker_env),
         next_round_robin_assignment_(0) {
-          write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+          //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
         }
 
   void ListWorkers(std::vector<string>* workers) const override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     channel_cache_->ListWorkers(workers);
   }
 
   void ListWorkersInJob(const string& job_name,
                         std::vector<string>* workers) const override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     channel_cache_->ListWorkersInJob(job_name, workers);
   }
 
   WorkerInterface* GetOrCreateWorker(const string& target) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     if (target == local_target_) {
       return local_worker_;
     } else {
@@ -76,7 +76,7 @@ class GrpcWorkerCache : public WorkerCachePartial {
   }
 
   void ReleaseWorker(const string& target, WorkerInterface* worker) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     if (target == local_target_) {
       CHECK_EQ(worker, local_worker_)
           << "Releasing a worker that was not returned by this WorkerCache";
@@ -87,14 +87,14 @@ class GrpcWorkerCache : public WorkerCachePartial {
 
   Status GetEagerClientCache(
       std::unique_ptr<eager::EagerClientCache>* eager_client_cache) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     eager_client_cache->reset(eager::NewGrpcEagerClientCache(channel_cache_));
     return Status::OK();
   }
 
   Status GetCoordinationClientCache(std::unique_ptr<CoordinationClientCache>*
                                         coordination_client_cache) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 #if defined(PLATFORM_GOOGLE)
     coordination_client_cache->reset(
         NewGrpcCoordinationClientCache(channel_cache_));
@@ -115,7 +115,7 @@ class GrpcWorkerCache : public WorkerCachePartial {
 
  private:
   size_t AssignWorkerToThread(const string& target) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     // Round-robin target assignment, but keeps the same target on the same
     // polling thread always, as this is important for gRPC performance
     mutex_lock lock(assignment_mu_);
@@ -149,19 +149,19 @@ GrpcWorkerEnv::GrpcWorkerEnv(size_t num_completion_queues, size_t num_threads)
           Env::Default(), ThreadOptions(), "GrpcWorkerEnvQueues", num_threads,
           /*low_latency_hint=*/false, /*allocator=*/nullptr)),
       threads_(num_completion_queues) {
-        write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+        //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
       }
 
 GrpcWorkerEnv::~GrpcWorkerEnv() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   threads_.clear();
 }
 
 GrpcWorkerEnv::GrpcWorkerCacheThread::GrpcWorkerCacheThread() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   thread_.reset(Env::Default()->StartThread(
       ThreadOptions(), "GrpcWorkerEnvPool", [this]() {
-        write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+        //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
         void* tag;
         bool ok;
@@ -173,13 +173,13 @@ GrpcWorkerEnv::GrpcWorkerCacheThread::GrpcWorkerCacheThread() {
 }
 
 GrpcWorkerEnv::GrpcWorkerCacheThread::~GrpcWorkerCacheThread() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   completion_queue_.Shutdown();
   thread_.reset();
 }
 
 GrpcWorkerEnv* CreateGrpcWorkerEnv() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   int num_cpus = port::NumSchedulableCPUs();
   int64_t num_completion_queues;
   Status status = ReadInt64FromEnvVar("TF_GRPC_WORKER_CACHE_QUEUES", 64,
@@ -198,7 +198,7 @@ GrpcWorkerEnv* CreateGrpcWorkerEnv() {
 
 WorkerCacheInterface* NewGrpcWorkerCache(std::shared_ptr<GrpcChannelCache> cc,
                                          GrpcWorkerEnv* worker_env) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return new GrpcWorkerCache(cc, /*local_worker=*/nullptr, /*local_target=*/"",
                              worker_env);
 }
@@ -206,7 +206,7 @@ WorkerCacheInterface* NewGrpcWorkerCache(std::shared_ptr<GrpcChannelCache> cc,
 WorkerCacheInterface* NewGrpcWorkerCacheWithLocalWorker(
     std::shared_ptr<GrpcChannelCache> cc, GrpcWorkerEnv* worker_env,
     WorkerInterface* local_worker, const string& local_target) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return new GrpcWorkerCache(cc, local_worker, local_target, worker_env);
 }
 

@@ -24,11 +24,11 @@ limitations under the License.
 namespace tensorflow {
 
 CallOptions::CallOptions() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 }
 
 void CallOptions::StartCancel() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(mu_);
   if (cancel_func_ != nullptr) {
     // NOTE: We must call the cancel_func_ with mu_ held. This ensure
@@ -39,25 +39,25 @@ void CallOptions::StartCancel() {
 }
 
 void CallOptions::SetCancelCallback(CancelFunction cancel_func) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(mu_);
   cancel_func_ = std::move(cancel_func);
 }
 
 void CallOptions::ClearCancelCallback() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(mu_);
   cancel_func_ = nullptr;
 }
 
 int64_t CallOptions::GetTimeout() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(mu_);
   return timeout_in_ms_;
 }
 
 void CallOptions::SetTimeout(int64_t ms) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(mu_);
   timeout_in_ms_ = ms;
 }

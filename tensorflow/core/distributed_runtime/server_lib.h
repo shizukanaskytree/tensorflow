@@ -46,10 +46,10 @@ class MasterEnv;
 class ServerInterface {
  public:
   ServerInterface() {
-    // write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    // //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
   virtual ~ServerInterface() {
-    // write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    // //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   // Starts the server running asynchronously. Returns OK on success, otherwise

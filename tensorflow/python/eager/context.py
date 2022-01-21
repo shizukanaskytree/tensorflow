@@ -47,6 +47,39 @@ from tensorflow.python.util import tf_contextlib
 from tensorflow.python.util.deprecation import deprecated
 from tensorflow.python.util.tf_export import tf_export
 
+import sys, traceback
+import logging
+def get_logger(module_name: str) -> logging.Logger:
+    # trim package name
+    name_without_prefix = '.'.join(module_name.split('.')[1:])
+    loglevel = os.getenv('LOGLEVEL', 'INFO')
+
+    logging.addLevelName(logging.WARNING, 'WARN')
+    formatter = logging.Formatter(
+      fmt='[{asctime}.{msecs:03.0f}][{levelname}][{name}.{funcName}:{lineno}] {message}',
+                                  style='{', datefmt='%Y/%m/%d %H:%M:%S')
+    # handler = logging.StreamHandler() # terminal printing
+    handler = logging.FileHandler('/home/wxf/tf2/tensorflow/py_debug_logging.log') # file handler
+
+    handler.setFormatter(formatter)
+    logger = logging.getLogger(name_without_prefix)
+    logger.setLevel(loglevel)
+    logger.addHandler(handler)
+    logger.propagate = False
+    return logger
+
+logger = get_logger(__name__)
+
+"""
+How to use:
+
+(1) just to see tracing.
+logger.info("")
+
+(2) callstack
+logger.info(traceback.format_stack())
+"""
+
 GRAPH_MODE = 0
 EAGER_MODE = 1
 
@@ -93,18 +126,21 @@ def enable_run_eager_op_as_function():
   TF2 programs in the runtime, thereby improving consistency (in terms of
   optimizations and rewrites for instance) and maintainability.
   """
+  logger.info("")
   # Must be called before context is actually built.
   global _RUN_EAGER_OP_AS_FUNCTION_ENABLED
   _RUN_EAGER_OP_AS_FUNCTION_ENABLED = True
 
 
 def disable_run_eager_op_as_function():
+  logger.info("")
   # Must be called before context is actually built.
   global _RUN_EAGER_OP_AS_FUNCTION_ENABLED
   _RUN_EAGER_OP_AS_FUNCTION_ENABLED = False
 
 
 def run_eager_op_as_function_enabled():
+  logger.info("")
   return _RUN_EAGER_OP_AS_FUNCTION_ENABLED
 
 
@@ -118,11 +154,13 @@ class _EagerTensorCache(object):
   __slots__ = ["_data", "_max_items", "_max_tensor_size"]
 
   def __init__(self, max_items=256, max_tensor_size=10000):
+    logger.info("")
     self._data = collections.OrderedDict()
     self._max_items = max_items
     self._max_tensor_size = max_tensor_size
 
   def put(self, key, value):
+    logger.info("")
     if value._num_elements() > self._max_tensor_size:  # pylint: disable=protected-access
       return
 
@@ -132,9 +170,11 @@ class _EagerTensorCache(object):
       self._data.popitem(last=False)
 
   def get(self, key):
+    logger.info("")
     return self._data.get(key, None)
 
   def flush(self):
+    logger.info("")
     self._data.clear()
 
 
@@ -159,23 +199,28 @@ class FunctionCallOptions(object):
         called. Changing config_proto after the first call has no effect. If
         config_proto is None, an empty RewriterConfig will be used.
     """
+    logger.info("")
     self.config_proto_serialized = config_proto
     self.executor_type = executor_type
 
   @property
   def executor_type(self):
+    logger.info("")
     return self._executor_type
 
   @executor_type.setter
   def executor_type(self, executor_type):
+    logger.info("")
     self._executor_type = executor_type
 
   @property
   def config_proto_serialized(self):
+    logger.info("")
     return self._config_proto_serialized
 
   @config_proto_serialized.setter
   def config_proto_serialized(self, config):
+    logger.info("")
     if isinstance(config, config_pb2.ConfigProto):
       self._config_proto_serialized = config.SerializeToString(
           deterministic=True)
@@ -202,18 +247,21 @@ class _TensorCaches(threading.local):
   __slots__ = ["_ones_rank_cache", "_zeros_cache"]
 
   def __init__(self):
+    logger.info("")
     super(_TensorCaches, self).__init__()
     self._ones_rank_cache = None
     self._zeros_cache = None
 
   @property
   def ones_rank_cache(self):
+    logger.info("")
     if not self._ones_rank_cache:
       self._ones_rank_cache = _EagerTensorCache()
     return self._ones_rank_cache
 
   @property
   def zeros_cache(self):
+    logger.info("")
     if not self._zeros_cache:
       self._zeros_cache = _EagerTensorCache()
     return self._zeros_cache
@@ -230,6 +278,8 @@ class _ContextSwitchStack(threading.local):
   """A thread-local stack of context switches."""
 
   def __init__(self, eager):
+    logger.info(traceback.format_stack())
+
     super(_ContextSwitchStack, self).__init__()
     self.stack = []
     if eager:
@@ -260,12 +310,14 @@ class _ContextSwitchStack(threading.local):
         used.
     """
 
+    logger.info("")
     self.stack.append(
         ContextSwitch(is_building_function, enter_context_fn, device_stack))
 
   def pop(self):
     """Pop the stack."""
 
+    logger.info("")
     self.stack.pop()
 
 
@@ -311,6 +363,7 @@ class LogicalDeviceConfiguration(
   """
 
   def __new__(cls, memory_limit=None, experimental_priority=None):
+    logger.info("")
     return super(LogicalDeviceConfiguration,
                  cls).__new__(cls, memory_limit, experimental_priority)
 
@@ -346,10 +399,12 @@ class _AtomicCounter(object):
   __slots__ = ["_value", "_lock"]
 
   def __init__(self):
+    logger.info("")
     self._value = 0
     self._lock = threading.Lock()
 
   def increment_and_get(self):
+    logger.info("")
     with self._lock:
       self._value += 1
       return self._value
@@ -364,9 +419,11 @@ class _TensorCacheDeleter(object):
   __slots__ = ["_context_id"]
 
   def __init__(self, context_id):
+    logger.info("")
     self._context_id = context_id
 
   def __del__(self):
+    logger.info("")
     if _tensor_caches_map is None:
       return
     if self._context_id in _tensor_caches_map:
@@ -422,6 +479,8 @@ class Context(object):
     Raises:
      ValueError: If execution_mode is not valid.
     """
+    logger.info("")
+
     # This _id is used only to index the tensor caches.
     # TODO(iga): Remove this when tensor caches are moved to C++.
     self._id = _context_id_counter.increment_and_get()
@@ -482,6 +541,7 @@ class Context(object):
 
   def _set_global_seed(self, seed):
     """Set a global eager mode seed for random ops."""
+    logger.info("")
     self._seed = seed
     # `random.Random(seed)` needs `seed` to be hashable, while values of type
     # e.g. `np.int64` or `np.ndarray` are not. We use `int(...)` to convert them
@@ -505,10 +565,12 @@ class Context(object):
     Returns:
       A fake operation seed based on global seed.
     """
+    logger.info("")
     return self._rng.randint(0, _MAXINT32)
 
   def _initialize_logical_devices(self):
     """Helper to initialize devices."""
+    logger.info("")
     # Store list of devices
     logical_devices = []
     context_devices = []
@@ -541,6 +603,7 @@ class Context(object):
 
   def ensure_initialized(self):
     """Initialize handle and devices if not already done so."""
+    # logger.info("")
     if self._initialized:
       return
     with self._initialize_lock:
@@ -587,11 +650,13 @@ class Context(object):
       self._initialized = True
 
   def _clear_caches(self):
+    logger.info("")
     self.ones_rank_cache().flush()
     self.zeros_cache().flush()
     pywrap_tfe.TFE_ClearScalarCache()
 
   def get_server_def(self):
+    logger.info("")
     return self._server_def
 
   def set_server_def(self, server_def, keep_alive_secs=_KEEP_ALIVE_SECS):
@@ -613,6 +678,7 @@ class Context(object):
     Raises:
       ValueError: if server_def is None.
     """
+    logger.info("")
     if not server_def:
       raise ValueError("server_def is None.")
 
@@ -642,6 +708,7 @@ class Context(object):
     Raises:
       ValueError: if server_def is None.
     """
+    logger.info("")
     if not server_def:
       raise ValueError("server_def is None.")
 
@@ -668,6 +735,7 @@ class Context(object):
     Raises:
       ValueError: if context is not initialized.
     """
+    logger.info("")
     # TODO(yuefengz): support checking multiple workers.
     if self._context_handle:
       return pywrap_tfe.TFE_ContextCheckAlive(self._context_handle, worker_name)
@@ -686,6 +754,7 @@ class Context(object):
     Raises:
       ValueError: if context is not initialized.
     """
+    logger.info("")
     if self._context_handle:
       pywrap_tfe.TFE_ContextSyncExecutors(self._context_handle)
     else:
@@ -702,12 +771,14 @@ class Context(object):
     Raises:
       ValueError: if context is not initialized.
     """
+    logger.info("")
     if self._context_handle:
       pywrap_tfe.TFE_ContextClearExecutors(self._context_handle)
     else:
       raise ValueError("Context is not initialized.")
 
   def enable_coordination_service(self, service_type):
+    logger.info("")
     if self._context_handle:
       logging.warning("Configuring coordination service type may not be "
                       "effective because the context is already initialized.")
@@ -715,6 +786,7 @@ class Context(object):
 
   @property
   def coordination_service(self):
+    logger.info("")
     return self._coordination_service
 
   def set_config_key_value(self, key, value):
@@ -722,6 +794,7 @@ class Context(object):
     pywrap_tfe.TFE_InsertConfigKeyValue(self._context_handle, key, value)
 
   def get_config_key_value(self, key):
+    logger.info("")
     ensure_initialized()
     with c_api_util.tf_buffer() as buffer_:
       pywrap_tfe.TFE_GetConfigKeyValue(self._context_handle, key, buffer_)
@@ -729,6 +802,7 @@ class Context(object):
     return value
 
   def delete_config_key_value(self, key):
+    logger.info("")
     ensure_initialized()
     pywrap_tfe.TFE_DeleteConfigKeyValue(self._context_handle, key)
 
@@ -739,6 +813,7 @@ class Context(object):
       error_code: a `tf.errors` error code.
       error_message: a string. The error message.
     """
+    logger.info("")
     if self._context_handle:
       pywrap_tfe.TFE_ReportErrorToCluster(self._context_handle, error_code,
                                           error_message)
@@ -747,6 +822,7 @@ class Context(object):
 
   def clear_kernel_cache(self):
     """Clear kernel cache and reset all stateful kernels."""
+    logger.info("")
     if self._context_handle is not None:
       pywrap_tfe.TFE_ContextClearCaches(self._context_handle)
 
@@ -761,6 +837,7 @@ class Context(object):
       ValueError: if server_def is None.
       RuntimeError: if this method is not called at program startup.
     """
+    logger.info("")
     if not server_def:
       raise ValueError("server_def is None.")
 
@@ -803,6 +880,7 @@ class Context(object):
     Raises:
       RuntimeError: if this method is not called at program startup.
     """
+    logger.info("")
     if self._collective_leader is not None:
       if (self._collective_leader != collective_leader or
           self._collective_scoped_allocator_enabled_ops !=
@@ -833,6 +911,7 @@ class Context(object):
       code: a `tf.errors` error code.
       message: a string. The error message.
     """
+    logger.info("")
     self.ensure_initialized()
     pywrap_tfe.TFE_AbortCollectiveOps(self._handle, code, message)
 
@@ -854,12 +933,16 @@ class Context(object):
         one this task has talked to, e.g. the peer has restarted.
       tf.errors.InvalidArgumentError: when the task string is invalid.
     """
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     self.ensure_initialized()
     pywrap_tfe.TFE_CollectiveOpsCheckPeerHealth(self._handle, task,
                                                 timeout_in_ms)
 
   @property
   def _handle(self):
+    # logger.info("")
     if self._context_handle is None:
       raise AssertionError("Context must be initialized first.")
 
@@ -867,12 +950,14 @@ class Context(object):
 
   @property
   def _devices(self):
+    logger.info("")
     if self._context_devices is None:
       raise AssertionError("Context must be initialized first.")
 
     return self._context_devices
 
   def __str__(self):
+    logger.info("")
     if self._context_handle is None:
       return "Eager TensorFlow Context. Devices currently uninitialized."
     else:
@@ -885,6 +970,7 @@ class Context(object):
   @tf_contextlib.contextmanager
   def _mode(self, mode):
     """A context manager to allow setting the mode to EAGER/GRAPH."""
+    logger.info("")
     ctx = self._thread_local_data
     old_is_eager = ctx.is_eager
     ctx.is_eager = mode == EAGER_MODE
@@ -902,37 +988,45 @@ class Context(object):
 
   def executing_eagerly(self):
     """Returns True if current thread has eager executing enabled."""
+    logger.info("")
     return self._thread_local_data.is_eager
 
   def ones_rank_cache(self):
     """Per-device cache for scalars."""
+    logger.info("")
     return _tensor_caches_map[self._id].ones_rank_cache
 
   def zeros_cache(self):
     """Per-device cache for scalars."""
+    logger.info("")
     return _tensor_caches_map[self._id].zeros_cache
 
   @property
   def scope_name(self):
     """Returns scope name for the current thread."""
+    logger.info("")
     return self._thread_local_data.scope_name
 
   @scope_name.setter
   def scope_name(self, s):
     """Sets scope name for the current thread."""
+    logger.info("")
     self._thread_local_data.scope_name = s
 
   @property
   def device_name(self):
     """Returns the device name for the current thread."""
+    logger.info("")
     return self._thread_local_data.device_name
 
   @property
   def device_spec(self):
     """Returns the device spec for the current thread."""
+    logger.info("")
     return self._thread_local_data.device_spec
 
   def _set_device(self, device_name, device_spec):
+    logger.info("")
     self._thread_local_data.device_name = device_name
     self._thread_local_data.device_spec = device_spec
 
@@ -949,6 +1043,7 @@ class Context(object):
       ValueError: If name is not a string or is an invalid device name.
       RuntimeError: If device scopes are not properly nested.
     """
+    logger.info("")
     if isinstance(name, LogicalDevice):
       name = name.name
     elif pydev.is_device_spec(name):
@@ -957,9 +1052,11 @@ class Context(object):
 
   def devices(self):
     """List of the names of devices available to execute operations."""
+    logger.info("")
     return self._devices
 
   def host_address_space(self):
+    logger.info("")
     self.ensure_initialized()
     with c_api_util.tf_buffer() as buffer_:
       pywrap_tfe.TFE_HostAddressSpace(self._context_handle, buffer_)
@@ -970,11 +1067,13 @@ class Context(object):
   @property
   def execution_mode(self):
     """Gets execution mode for current thread."""
+    logger.info("")
     return ASYNC if self.is_async() else SYNC
 
   @execution_mode.setter
   def execution_mode(self, mode):
     """Sets execution mode for current thread."""
+    logger.info("")
     if mode not in (None, SYNC, ASYNC):
       raise ValueError("Execution mode should be None/SYNC/ASYNC. Got %s" %
                        mode)
@@ -995,6 +1094,7 @@ class Context(object):
         self._default_is_async = enable_async
 
   def is_async(self):
+    logger.info("")
     if self._context_handle is not None:
       return self.executor.is_async()
     else:
@@ -1002,18 +1102,21 @@ class Context(object):
 
   @property
   def executor(self):
+    logger.info("")
     self.ensure_initialized()
     return executor.Executor(
         pywrap_tfe.TFE_ContextGetExecutorForThread(self._context_handle))
 
   @executor.setter
   def executor(self, e):
+    logger.info("")
     self.ensure_initialized()
     pywrap_tfe.TFE_ContextSetExecutorForThread(self._context_handle, e.handle())
 
   @property
   def config(self):
     """Return the ConfigProto with all runtime deltas applied."""
+    logger.info("")
     # Ensure physical devices have been discovered and config has been imported
     self._initialize_physical_devices()
 
@@ -1058,6 +1161,7 @@ class Context(object):
                if toggle else rewriter_config_pb2.RewriterConfig.OFF))
 
     def rewriter_bool(option):
+      logger.info("")
       toggle = self._optimizer_experimental_options.get(option, None)
       if toggle is None:
         return
@@ -1126,6 +1230,7 @@ class Context(object):
 
   def _compute_gpu_options(self):
     """Build the GPUOptions proto."""
+    logger.info("")
     visible_device_list = []
     virtual_devices = []
     gpu_index = -1
@@ -1180,6 +1285,7 @@ class Context(object):
 
     Returns: the FunctionCallOptions for current thread.
     """
+    logger.info("")
     if self._thread_local_data.function_call_options is None:
       config = self.config
 
@@ -1194,10 +1300,12 @@ class Context(object):
   @function_call_options.setter
   def function_call_options(self, options):
     """Returns function call options for current thread."""
+    logger.info("")
     self._thread_local_data.function_call_options = options
 
   def num_gpus(self):
     """The number of GPUs available to execute operations."""
+    logger.info("")
     self.ensure_initialized()
     return self._num_gpus
 
@@ -1210,6 +1318,7 @@ class Context(object):
     Args:
       fn: A wrapped TF_Function (returned from TF_GraphToFunction_wrapper).
     """
+    logger.info("")
     self.ensure_initialized()
     pywrap_tfe.TFE_ContextAddFunction(self._handle, fn)
 
@@ -1222,6 +1331,7 @@ class Context(object):
     Args:
       fdef: A FunctionDef protocol buffer message.
     """
+    logger.info("")
     self.ensure_initialized()
     fdef_string = fdef.SerializeToString()
     pywrap_tfe.TFE_ContextAddFunctionDef(self._handle, fdef_string,
@@ -1239,6 +1349,7 @@ class Context(object):
     Raises:
       tf.errors.NotFoundError: if name is not the name of a registered function.
     """
+    logger.info("")
     with c_api_util.tf_buffer() as buffer_:
       pywrap_tfe.TFE_ContextGetFunctionDef(self._handle, name, buffer_)
       proto_data = pywrap_tf_session.TF_GetBuffer(buffer_)
@@ -1250,6 +1361,7 @@ class Context(object):
   def register_custom_device(self, device_capsule, device_name,
                              device_info_capsule):
     """Calls TFE_RegisterCustomDevice. See the non-member function."""
+    logger.info("")
     self.ensure_initialized()
     pywrap_tfe.TFE_Py_RegisterCustomDevice(self._handle, device_capsule,
                                            device_name, device_info_capsule)
@@ -1263,6 +1375,7 @@ class Context(object):
     Returns:
       A packed EagerTensor.
     """
+    logger.info("")
     self.ensure_initialized()
     return pywrap_tfe.TFE_Py_PackEagerTensors(self._handle, tensors)
 
@@ -1272,6 +1385,7 @@ class Context(object):
     Returns:
       A set of names of all registered functions for the context.
     """
+    logger.info("")
     self.ensure_initialized()
     return set(pywrap_tfe.TFE_ContextListFunctionNames(self._handle))
 
@@ -1283,11 +1397,13 @@ class Context(object):
     Args:
       name: function signature name.
     """
+    # logger.info("")
     self.ensure_initialized()
     pywrap_tfe.TFE_ContextRemoveFunction(self._handle, name)
 
   def has_function(self, name):
     """Check if a function `name` is registered."""
+    logger.info("")
     self.ensure_initialized()
     return bool(pywrap_tfe.TFE_ContextHasFunction(self._handle, name))
 
@@ -1305,6 +1421,7 @@ class Context(object):
         op_name=None, graph=None)`. See doc strings in `op_callbacks.py` for
         details on the function signature and its semantics.
     """
+    logger.info("")
     if callback not in self._thread_local_data.op_callbacks:
       self._thread_local_data.op_callbacks.append(callback)
 
@@ -1317,6 +1434,7 @@ class Context(object):
     Raises:
       KeyError: If `callback` is not already registered.
     """
+    logger.info("")
     if callback not in self._thread_local_data.op_callbacks:
       raise KeyError("The specified op callback has not been registered, "
                      "and hence cannot be removed.")
@@ -1325,14 +1443,17 @@ class Context(object):
 
   @property
   def op_callbacks(self):
+    logger.info("")
     return self._thread_local_data.op_callbacks
 
   @property
   def invoking_op_callbacks(self):
+    logger.info("")
     return self._thread_local_data.invoking_op_callbacks
 
   @invoking_op_callbacks.setter
   def invoking_op_callbacks(self, value):
+    logger.info("")
     self._thread_local_data.invoking_op_callbacks = value
 
   def _initialize_physical_devices(self, reinitialize=False):
@@ -1342,6 +1463,7 @@ class Context(object):
       reinitialize: If True, reinitializes self._physical_devices  so that
         dynamic registered devices will also be visible to the python front-end.
     """
+    logger.info("")
     # We lazy initialize self._physical_devices since we do not want to do this
     # the constructor since the backend may not be initialized yet.
     with self._device_lock:
@@ -1367,6 +1489,7 @@ class Context(object):
 
   def reinitialize_physical_devices(self):
     """Gets local devices visible to the system."""
+    logger.info("")
     # Reinitialize the physical device list after registering
     # the pluggable device.
     self._initialize_physical_devices(True)
@@ -1384,6 +1507,7 @@ class Context(object):
     Returns:
       List of PhysicalDevice objects.
     """
+    logger.info("")
     self._initialize_physical_devices()
 
     if device_type is None:
@@ -1401,6 +1525,7 @@ class Context(object):
     Returns:
       A dict with string keys.
     """
+    logger.info("")
     if not isinstance(device, PhysicalDevice):
       raise ValueError("device must be a tf.config.PhysicalDevice, but got: "
                        "%s" % (device,))
@@ -1430,6 +1555,7 @@ class Context(object):
     various pieces we might be replacing and import then into our internal
     class representation.
     """
+    logger.info("")
     if self._config is None:
       return
 
@@ -1470,6 +1596,7 @@ class Context(object):
 
   def list_logical_devices(self, device_type=None):
     """Return logical devices."""
+    logger.info("")
     self.ensure_initialized()
     if device_type is None:
       return list(self._logical_devices)
@@ -1478,6 +1605,7 @@ class Context(object):
 
   def get_visible_devices(self, device_type=None):
     """Get the list of visible devices."""
+    logger.info("")
     self._initialize_physical_devices()
 
     if device_type is None:
@@ -1489,6 +1617,7 @@ class Context(object):
 
   def set_visible_devices(self, devices, device_type=None):
     """Set the list of visible devices."""
+    logger.info("")
     self._initialize_physical_devices()
 
     if not isinstance(devices, list):
@@ -1519,18 +1648,21 @@ class Context(object):
 
   def get_memory_info(self, dev):
     """Returns a dict of memory info for the device."""
+    logger.info("")
     self._initialize_physical_devices()
     self.ensure_initialized()
     return pywrap_tfe.TFE_GetMemoryInfo(self._context_handle, dev)
 
   def reset_memory_stats(self, dev):
     """Resets the tracked memory stats for the device."""
+    logger.info("")
     self._initialize_physical_devices()
     self.ensure_initialized()
     pywrap_tfe.TFE_ResetMemoryStats(self._context_handle, dev)
 
   def get_memory_growth(self, dev):
     """Get if memory growth is enabled for a PhysicalDevice."""
+    logger.info("")
     self._initialize_physical_devices()
 
     if dev not in self._physical_devices:
@@ -1540,6 +1672,7 @@ class Context(object):
 
   def set_memory_growth(self, dev, enable):
     """Set if memory growth should be enabled for a PhysicalDevice."""
+    logger.info("")
     self._initialize_physical_devices()
 
     if dev not in self._physical_devices:
@@ -1563,6 +1696,7 @@ class Context(object):
 
   def get_logical_device_configuration(self, dev):
     """Get the virtual device configuration for a PhysicalDevice."""
+    logger.info("")
     self._initialize_physical_devices()
 
     if dev not in self._physical_devices:
@@ -1572,6 +1706,7 @@ class Context(object):
 
   def set_logical_device_configuration(self, dev, virtual_devices):
     """Set the virtual device configuration for a PhysicalDevice."""
+    logger.info("")
     self._initialize_physical_devices()
 
     if dev not in self._physical_devices:
@@ -1618,6 +1753,7 @@ class Context(object):
      RuntimeError: If virtual CPUs are already configured at context
      initialization.
     """
+    logger.info("")
     server_def = self._server_def or self._collective_ops_server_def
     local_prefix = ["/device"]
     if server_def is not None:
@@ -1634,6 +1770,7 @@ class Context(object):
     self._initialize_logical_devices()
 
   def get_compiler_ir(self, device_name, function_name, args, stage="hlo"):
+    logger.info("")
     return pywrap_tfe.TF_GetCompilerIr(self._context_handle, function_name,
                                        stage, device_name, args)
 
@@ -1641,34 +1778,41 @@ class Context(object):
       None, "XLA:CPU and XLA:GPU devices are deprecated", warn_once=True)
   def enable_xla_devices(self):
     """Enables XLA:CPU and XLA:GPU devices registration."""
+    logger.info("")
     pywrap_tfe.TF_EnableXlaDevices()
 
   @property
   def enable_mlir_bridge(self):
+    logger.info("")
     return pywrap_tfe.TF_IsMlirBridgeEnabled()
 
   @property
   def enable_mlir_graph_optimization(self):
+    logger.info("")
     return self._enable_mlir_graph_optimization
 
   @enable_mlir_bridge.setter
   def enable_mlir_bridge(self, enabled):
+    logger.info("")
     pywrap_tfe.TF_EnableMlirBridge(enabled)
     self._thread_local_data.function_call_options = None
 
   @enable_mlir_graph_optimization.setter
   def enable_mlir_graph_optimization(self, enabled):
+    logger.info("")
     self._enable_mlir_graph_optimization = enabled
     self._thread_local_data.function_call_options = None
 
   @property
   def optimizer_jit(self):
+    logger.info("")
     level = self.config.graph_options.optimizer_options.global_jit_level
     return (level == config_pb2.OptimizerOptions.ON_1 or
             level == config_pb2.OptimizerOptions.ON_2)
 
   @optimizer_jit.setter
   def optimizer_jit(self, enabled):
+    logger.info("")
     self._optimizer_jit = enabled
 
     self._thread_local_data.function_call_options = None
@@ -1679,15 +1823,18 @@ class Context(object):
     Returns:
       Dictionary of current option values
     """
+    logger.info("")
     rewrite_options = self.config.graph_options.rewrite_options
     options = {}
 
     def rewriter_toggle(option):
+      logger.info("")
       attr = getattr(rewrite_options, option)
       if attr != 0:
         options[option] = (attr == rewriter_config_pb2.RewriterConfig.ON)
 
     def rewriter_bool(option):
+      logger.info("")
       options[option] = getattr(rewrite_options, option)
 
     rewriter_toggle("layout_optimizer")
@@ -1718,16 +1865,19 @@ class Context(object):
     Args:
       options: Dictionary of options to modify
     """
+    logger.info("")
     self._optimizer_experimental_options.update(options)
 
     self._thread_local_data.function_call_options = None
 
   @property
   def intra_op_parallelism_threads(self):
+    logger.info("")
     return self.config.intra_op_parallelism_threads
 
   @intra_op_parallelism_threads.setter
   def intra_op_parallelism_threads(self, num_threads):
+    logger.info("")
     if self._intra_op_parallelism_threads == num_threads:
       return
 
@@ -1739,10 +1889,12 @@ class Context(object):
 
   @property
   def inter_op_parallelism_threads(self):
+    logger.info("")
     return self.config.inter_op_parallelism_threads
 
   @inter_op_parallelism_threads.setter
   def inter_op_parallelism_threads(self, num_threads):
+    logger.info("")
     if self._inter_op_parallelism_threads == num_threads:
       return
 
@@ -1754,10 +1906,12 @@ class Context(object):
 
   @property
   def soft_device_placement(self):
+    logger.info("")
     return self.config.allow_soft_placement
 
   @soft_device_placement.setter
   def soft_device_placement(self, enable):
+    logger.info("")
     if self._context_handle is not None:
       pywrap_tfe.TFE_ContextSetSoftDevicePlacement(self._handle, enable)
 
@@ -1766,10 +1920,12 @@ class Context(object):
 
   @property
   def log_device_placement(self):
+    logger.info("")
     return self.config.log_device_placement
 
   @log_device_placement.setter
   def log_device_placement(self, enable):
+    logger.info("")
     if self._context_handle is not None:
       pywrap_tfe.TFE_ContextSetLogDevicePlacement(self._handle, enable)
 
@@ -1778,6 +1934,7 @@ class Context(object):
 
   @property
   def device_policy(self):
+    logger.info("")
     # Only get the policy from the context if it has already been initialized
     if self._context_handle is not None:
       return pywrap_tfe.TFE_ContextGetDevicePlacementPolicy(self._handle)
@@ -1786,6 +1943,7 @@ class Context(object):
 
   @device_policy.setter
   def device_policy(self, policy):
+    logger.info("")
     if policy is None:
       policy = DEVICE_PLACEMENT_SILENT
 
@@ -1799,11 +1957,13 @@ class Context(object):
 
   @property
   def use_tfrt(self):
+    logger.info("")
     return self._use_tfrt
 
   @use_tfrt.setter
   def use_tfrt(self, tfrt):
     """Sets whether to use TFRT."""
+    logger.info("")
     if not isinstance(tfrt, bool):
       raise ValueError("Expecting a boolean but got %s" % type(tfrt))
 
@@ -1814,6 +1974,7 @@ class Context(object):
 
   @property
   def use_tfrt_distributed_runtime(self):
+    logger.info("")
     return self._use_tfrt_distributed_runtime
 
   @use_tfrt_distributed_runtime.setter
@@ -1826,6 +1987,7 @@ class Context(object):
     Args:
       enable: A boolean to set whether to use TFRT distributed runtime.
     """
+    logger.info("")
     if not isinstance(enable, bool):
       raise ValueError("Expecting a boolean but got %s" % type(enable))
 
@@ -1840,11 +2002,13 @@ class Context(object):
     To retrieve the accumulated metadata call context.export_run_metadata()
     and to stop tracing call context.disable_run_metadata().
     """
+    logger.info("")
     self.ensure_initialized()
     pywrap_tfe.TFE_ContextEnableRunMetadata(self._handle)
 
   def disable_run_metadata(self):
     """Disables tracing of op execution via RunMetadata."""
+    logger.info("")
     if not self._context_handle:
       return
     pywrap_tfe.TFE_ContextDisableRunMetadata(self._context_handle)
@@ -1855,11 +2019,13 @@ class Context(object):
     To retrieve the accumulated graphs call context.export_run_metadata()
     and to stop collecting graphs call context.disable_graph_collection().
     """
+    logger.info("")
     self.ensure_initialized()
     pywrap_tfe.TFE_ContextEnableGraphCollection(self._handle)
 
   def disable_graph_collection(self):
     """Disables graph collection of executed functions."""
+    logger.info("")
     if not self._context_handle:
       return
     pywrap_tfe.TFE_ContextDisableGraphCollection(self._context_handle)
@@ -1873,6 +2039,7 @@ class Context(object):
     Returns:
       A RunMetadata protocol buffer. Or None if not enabled.
     """
+    logger.info("")
     if not self._context_handle:
       return None
     with c_api_util.tf_buffer() as buffer_:
@@ -1885,6 +2052,7 @@ class Context(object):
   @property
   def context_switches(self):
     """Returns a stack of context switches."""
+    logger.info("")
     return self._context_switches
 
 
@@ -1894,6 +2062,7 @@ class _EagerDeviceContext(object):
   __slots__ = ["_device_name", "_ctx", "_stack"]
 
   def __init__(self, ctx, device_name):
+    logger.info("")
     self._device_name = device_name
     self._ctx = ctx
     self._stack = []
@@ -1901,6 +2070,7 @@ class _EagerDeviceContext(object):
   # TODO(b/189233748): Consolidate the device string parsing logic with
   # tensorflow/core/util/device_name_utils.cc.
   def __enter__(self):
+    logger.info("")
     ctx = self._ctx
     old_device_name = ctx.device_name
     old_device_spec = ctx.device_spec
@@ -1935,6 +2105,7 @@ class _EagerDeviceContext(object):
     self._stack.append((old_device_name, old_device_spec, new_device_spec))
 
   def __exit__(self, *ex_info):
+    logger.info("")
     ctx = self._ctx
     old_device_name, old_device_spec, new_device_spec = self._stack[-1]
     if ctx.device_spec is not new_device_spec:
@@ -1949,17 +2120,20 @@ _context_lock = threading.Lock()
 
 
 def _set_context_locked(ctx):
+  logger.info("")
   global _context
   pywrap_tfe.TFE_Py_SetEagerContext(ctx)
   _context = ctx
 
 
 def _set_context(ctx):
+  logger.info("")
   with _context_lock:
     _set_context_locked(ctx)
 
 
 def _create_context():
+  logger.info("")
   with _context_lock:
     if _context is None:
       ctx = Context()
@@ -1971,6 +2145,7 @@ def _reset_context():
 
   Should only be used for testing.
   """
+  logger.info("")
   global _context
   global _device_parsing_cache
 
@@ -1988,6 +2163,7 @@ def _reset_context():
 
 def context():
   """Returns a singleton context object."""
+  logger.info("")
   if _context is None:
     _create_context()
   return _context
@@ -1995,31 +2171,37 @@ def context():
 
 def context_safe():
   """Returns current context (or None if one hasn't been initialized)."""
+  # logger.info("")
   return _context
 
 
 def ensure_initialized():
   """Initialize the context."""
+  logger.info("")
   context().ensure_initialized()
 
 
 def initialize_logical_devices():
   """Initialize the virtual devices."""
+  logger.info("")
   context()._initialize_logical_devices()  # pylint: disable=protected-access
 
 
 def set_global_seed(seed):
   """Sets the eager mode seed."""
+  logger.info("")
   context()._set_global_seed(seed)  # pylint: disable=protected-access
 
 
 def global_seed():
   """Returns the eager mode seed."""
+  logger.info("")
   return context()._seed  # pylint: disable=protected-access
 
 
 def internal_operation_seed():
   """Returns the operation seed generated based on global seed."""
+  logger.info("")
   return context()._internal_operation_seed()  # pylint: disable=protected-access
 
 
@@ -2077,6 +2259,7 @@ def executing_eagerly():
   Returns:
     `True` if the current thread has eager execution enabled.
   """
+  logger.info("")
   ctx = context_safe()
   if ctx is None:
     return default_execution_mode == EAGER_MODE
@@ -2144,11 +2327,13 @@ def executing_eagerly_v1():
   Returns:
     `True` if the current thread has eager execution enabled.
   """
+  logger.info("")
   return executing_eagerly()
 
 
 def in_eager_mode():
   """Use executing_eagerly() instead. This function will be removed."""
+  logger.info("")
   return executing_eagerly()
 
 
@@ -2163,6 +2348,7 @@ def anonymous_name():
     The anonymous shared name.
   """
 
+  logger.info("")
   # The magic value is defined as
   # `tensorflow::ResourceHandle::ANONYMOUS_NAME` in C++.
   return "cd2c89b7-88b7-44c8-ad83-06c2a9158347"
@@ -2170,6 +2356,7 @@ def anonymous_name():
 
 def graph_mode():
   """Context-manager to disable eager execution for the current thread."""
+  logger.info("")
   return context()._mode(GRAPH_MODE)  # pylint: disable=protected-access
 
 
@@ -2177,11 +2364,13 @@ def graph_mode():
 @tf_export("__internal__.eager_context.eager_mode", v1=[])
 def eager_mode():
   """Context-manager to enable eager execution for the current thread."""
+  logger.info("")
   return context()._mode(EAGER_MODE)  # pylint: disable=protected-access
 
 
 def scope_name():
   """Name of the current scope."""
+  logger.info("")
   return context().scope_name
 
 
@@ -2205,6 +2394,7 @@ def device(name):
   Returns:
     Context manager for setting the device.
   """
+  logger.info("")
   ensure_initialized()
   return context().device(name)
 
@@ -2217,6 +2407,7 @@ def get_config():
   Returns:
     The ConfigProto of Context.
   """
+  logger.info("")
   return context().config
 
 
@@ -2227,6 +2418,7 @@ def get_device_name():
   Returns:
     The device name for the current thread.
   """
+  logger.info("")
   return context().device_name
 
 
@@ -2237,6 +2429,7 @@ def set_soft_device_placement(enabled):
   Args:
     enabled: Whether to enable soft device placement.
   """
+  logger.info("")
   context().soft_device_placement = enabled
 
 
@@ -2247,6 +2440,7 @@ def get_executor():
   Returns:
     The Executor of the current thread.
   """
+  logger.info("")
   return context().executor
 
 
@@ -2257,6 +2451,7 @@ def get_log_device_placement():
   Returns:
     If device placements are logged.
   """
+  logger.info("")
   return context().log_device_placement
 
 
@@ -2292,12 +2487,14 @@ def set_log_device_placement(enabled):
   Args:
     enabled: Whether to enabled device placement logging.
   """
+  logger.info("")
   context().log_device_placement = enabled
 
 
 @tf_contextlib.contextmanager
 def device_policy(policy):
   """Context manager for setting device placement policy for current thread."""
+  logger.info("")
   ctx = context()
   old_policy = ctx.device_policy
   try:
@@ -2309,6 +2506,7 @@ def device_policy(policy):
 
 def set_execution_mode(mode):
   """Sets execution mode for the current thread."""
+  logger.info("")
   context().execution_mode = mode
 
 
@@ -2316,6 +2514,7 @@ def set_execution_mode(mode):
 @tf_contextlib.contextmanager
 def execution_mode(mode):
   """Context manager for setting execution mode for current thread."""
+  logger.info("")
   if mode is None:
     yield
   else:
@@ -2342,6 +2541,7 @@ def executor_scope(e):
   Yields:
     Context manager for setting the executor for current thread.
   """
+  logger.info("")
   ctx = context()
   executor_old = ctx.executor
   try:
@@ -2365,6 +2565,7 @@ def function_executor_type(executor_type):
   Yields:
     Context manager for setting the executor of eager defined functions.
   """
+  logger.info("")
   current_options = context().function_call_options
   old_options = copy.copy(current_options)
   try:
@@ -2376,6 +2577,7 @@ def function_executor_type(executor_type):
 
 def is_async():
   """Returns true if current thread is in async mode."""
+  logger.info("")
   return context().is_async()
 
 
@@ -2385,6 +2587,7 @@ def num_gpus():
   Returns:
     The number of available GPU devices.
   """
+  logger.info("")
   return context().num_gpus()
 
 
@@ -2394,11 +2597,13 @@ def enable_run_metadata():
   To retrieve the accumulated metadata call context.export_run_metadata()
   and to stop tracing call context.disable_run_metadata().
   """
+  logger.info("")
   context().enable_run_metadata()
 
 
 def disable_run_metadata():
   """Disables tracing of op execution via RunMetadata."""
+  logger.info("")
   context().disable_run_metadata()
 
 
@@ -2408,11 +2613,13 @@ def enable_graph_collection():
   To retrieve the accumulated graphs call context.export_run_metadata()
   and to stop collecting graphs call context.disable_graph_collection().
   """
+  logger.info("")
   context().enable_graph_collection()
 
 
 def disable_graph_collection():
   """Disables graph collection of executed functions."""
+  logger.info("")
   context().disable_graph_collection()
 
 
@@ -2425,6 +2632,7 @@ def export_run_metadata():
   Returns:
     A RunMetadata protocol buffer.
   """
+  logger.info("")
   return context().export_run_metadata()
 
 
@@ -2455,6 +2663,7 @@ def collect_graphs(optimized=True):
   Yields:
     A list of GraphDefs, populated when the context manager exits.
   """
+  logger.info("")
   ctx = context()
   ctx.enable_graph_collection()
   try:
@@ -2471,18 +2680,22 @@ def collect_graphs(optimized=True):
 
 
 def get_server_def():
+  logger.info("")
   return context().get_server_def()
 
 
 def set_server_def(server_def):
+  logger.info("")
   context().set_server_def(server_def)
 
 
 def update_server_def(server_def):
+  logger.info("")
   context().update_server_def(server_def)
 
 
 def check_alive(worker_name):
+  logger.info("")
   return context().check_alive(worker_name)
 
 
@@ -2516,6 +2729,8 @@ def async_scope():
   Yields:
     Context manager for grouping async operations.
   """
+  logger.info("")
+
   # TODO(haoyuzhang): replace env var once we have a config method to turn on
   # and off async streaming RPC
   remote_async_env_var = "TF_ENABLE_EAGER_CLIENT_STREAMING_ENQUEUE"
@@ -2543,6 +2758,7 @@ def async_wait():
   are finished, potentially raising exceptions if async execution results in
   an error state. It is a no-op if the context is not initialized.
   """
+  logger.info("")
   disable_async_executor_env_var = "TF_PS_DISABLE_ASYNC_EXECUTOR_GLOBALLY"
   if os.environ.get(disable_async_executor_env_var) == str(True):
     return
@@ -2571,20 +2787,24 @@ def async_clear_error():
   logging.info('loss = %s', loss.numpy())
   ```
   """
+  logger.info("")
   context().clear_executor_errors()
 
 
 def add_function(fdef):
   """Add a function definition to the context."""
+  logger.info("")
   context().add_function(fdef)
 
 
 def remove_function(name):
   """Remove a function from the context."""
+  logger.info("")
   context().remove_function(name)
 
 
 def get_function_def(name):
+  logger.info("")
   return context().get_function_def(name)
 
 
@@ -2610,6 +2830,7 @@ def register_custom_device(device_capsule, device_name, device_info_capsule):
       argument to TFE_RegisterCustomDevice). This method takes ownership of the
       memory and clears the capsule destructor.
   """
+  logger.info("")
   context().register_custom_device(device_capsule, device_name,
                                    device_info_capsule)
 
@@ -2619,6 +2840,7 @@ def register_custom_device(device_capsule, device_name, device_info_capsule):
 # but they do all import this file.  Note that IS_IN_GRAPH_MODE and
 # in_graph_mode are both parameterless functions.
 def _tmp_in_graph_mode():
+  logger.info("")
   if context_safe() is None:
     # Context not yet initialized. Assume graph mode following the
     # default implementation in `is_in_graph_mode`.

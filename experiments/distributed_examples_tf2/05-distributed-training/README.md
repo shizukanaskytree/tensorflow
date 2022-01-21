@@ -3,7 +3,12 @@ Distributed training allows scaling up deep learning task so bigger models can b
 * Code boilerplate for multi-node distributed training.
 * Example code runs multiple machines.
 
-To reproduce this tutorial, please refer to this [distributed training with TensorFlow 2 github repository](https://github.com/lambdal/TensorFlow2-tutorial/tree/master/05-distributed-training). 
+To reproduce this tutorial, please refer to this [distributed training with TensorFlow 2 github repository](https://github.com/lambdal/TensorFlow2-tutorial/tree/master/05-distributed-training).
+
+
+# Another official tutorial
+
+https://www.tensorflow.org/tutorials/distribute/multi_worker_with_keras
 
 ## Code Boilerplate
 

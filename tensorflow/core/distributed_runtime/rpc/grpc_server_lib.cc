@@ -69,14 +69,14 @@ namespace {
 class NoReusePortOption : public ::grpc::ServerBuilderOption {
  public:
   void UpdateArguments(::grpc::ChannelArguments* args) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     args->SetInt(GRPC_ARG_ALLOW_REUSEPORT, 0);
   }
 
   void UpdatePlugins(std::vector<std::unique_ptr<::grpc::ServerBuilderPlugin>>*
                          plugins) override {
-                          write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+                          //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
                         }
 };
 
@@ -85,19 +85,19 @@ class NoReusePortOption : public ::grpc::ServerBuilderOption {
 class ReusePortOption : public ::grpc::ServerBuilderOption {
  public:
   void UpdateArguments(::grpc::ChannelArguments* args) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     args->SetInt(GRPC_ARG_ALLOW_REUSEPORT, 1);
   }
 
   void UpdatePlugins(std::vector<std::unique_ptr<::grpc::ServerBuilderPlugin>>*
                          plugins) override {
-                            write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+                            //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
                          }
 };
 
 // static utility function
 RendezvousMgrInterface* NewRpcRendezvousMgr(const WorkerEnv* env) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return new RpcRendezvousMgr(env);
 }
 
@@ -105,11 +105,11 @@ RendezvousMgrInterface* NewRpcRendezvousMgr(const WorkerEnv* env) {
 
 GrpcServer::GrpcServer(const ServerDef& server_def, Env* env)
     : env_(env), state_(NEW), server_def_(server_def) {
-      write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+      //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     }
 
 GrpcServer::~GrpcServer() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   TF_CHECK_OK(Stop());
   TF_CHECK_OK(Join());
@@ -147,7 +147,8 @@ GrpcServer::~GrpcServer() {
 // Look up the requested host name and port for this task in `server_def`.
 Status GrpcServer::GetHostAndPort(const ServerDef& server_def,
                                   string* host_name, int* port) const {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
+
   *port = -1;
   *host_name = "localhost";
   for (const auto& job : server_def.cluster().job()) {
@@ -187,7 +188,7 @@ Status GrpcServer::GetHostAndPort(const ServerDef& server_def,
 }
 
 Status GrpcServer::Init(const GrpcServerOptions& opts) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   mutex_lock l(mu_);
   CHECK_EQ(state_, NEW);
@@ -354,7 +355,7 @@ Status GrpcServer::Init(const GrpcServerOptions& opts) {
 
 Status GrpcServer::ParseChannelSpec(const WorkerCacheFactoryOptions& options,
                                     GrpcChannelSpec* channel_spec) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   for (const auto& job : options.cluster_def->job()) {
     std::map<int, string> host_ports;
     for (const auto& task : job.tasks()) {
@@ -378,7 +379,7 @@ Status GrpcServer::ParseChannelSpec(const WorkerCacheFactoryOptions& options,
 
 Status GrpcServer::WorkerCacheFactory(const WorkerCacheFactoryOptions& options,
                                       WorkerCacheInterface** worker_cache) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   if (options.job_name == nullptr || options.job_name->empty()) {
     Status s = errors::InvalidArgument(
@@ -422,7 +423,7 @@ Status GrpcServer::WorkerCacheFactory(const WorkerCacheFactoryOptions& options,
 }
 
 Status GrpcServer::Start() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(mu_);
   switch (state_) {
     case NEW: {
@@ -463,14 +464,14 @@ Status GrpcServer::Start() {
 
 Status GrpcServer::AddMasterEagerContextToEagerService(
     const tensorflow::uint64 context_id, tensorflow::EagerContext* context) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   auto* eager_service =
       static_cast<eager::GrpcEagerServiceImpl*>(eager_service_);
   return eager_service->CreateMasterContext(context_id, context);
 }
 
 Status GrpcServer::UpdateServerDef(const ServerDef& server_def) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(mu_);
   server_def_ = server_def;
   WorkerCacheInterface* worker_cache;
@@ -505,13 +506,13 @@ Status GrpcServer::UpdateServerDef(const ServerDef& server_def) {
 // field inside the RPC coordination service handler.
 Status GrpcServer::SetCoordinationServiceAgentInstance(
     CoordinationServiceAgent* agent) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   // No op, coordination service is not implemented in open source.
   return Status::OK();
 }
 
 Status GrpcServer::Stop() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(mu_);
   switch (state_) {
     case NEW:
@@ -529,7 +530,7 @@ Status GrpcServer::Stop() {
 }
 
 Status GrpcServer::Join() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(mu_);
   switch (state_) {
     case NEW:
@@ -551,25 +552,25 @@ Status GrpcServer::Join() {
 }
 
 const string GrpcServer::target() const {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/debug_var.log", boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
   return strings::StrCat("grpc://", host_name_, ":", bound_port_);
 }
 
 std::shared_ptr<::grpc::ServerCredentials> GrpcServer::GetServerCredentials(
     const ServerDef& server_def) const {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return ::grpc::InsecureServerCredentials();
 }
 
 ChannelCreationFunction GrpcServer::GetChannelCreationFunction() const {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   // We can do this because SparseGrpcChannelCache is robust to nullptr being
   // returned by the channel creation function
   return ConvertToChannelCreationFunction(NewHostPortGrpcChannel);
 }
 
 std::unique_ptr<Master> GrpcServer::CreateMaster(MasterEnv* master_env) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return std::unique_ptr<Master>(new Master(master_env, 0.0));
 }
 
@@ -577,7 +578,7 @@ std::unique_ptr<Master> GrpcServer::CreateMaster(MasterEnv* master_env) {
 Status GrpcServer::Create(const ServerDef& server_def, Env* env,
                           DeviceMgr* local_device_mgr,
                           std::unique_ptr<ServerInterface>* out_server) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   std::unique_ptr<GrpcServer> ret(
       new GrpcServer(server_def, env == nullptr ? Env::Default() : env));
@@ -596,14 +597,14 @@ Status GrpcServer::Create(const ServerDef& server_def, Env* env,
 /* static */
 Status GrpcServer::Create(const ServerDef& server_def, Env* env,
                           std::unique_ptr<ServerInterface>* out_server) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return Create(server_def, env, nullptr, out_server);
 }
 
 /* static */
 Status GrpcServer::Create(const ServerDef& server_def, Env* env,
                           std::unique_ptr<GrpcServer>* out_server) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   std::unique_ptr<ServerInterface> server;
   Status s = Create(server_def, env, nullptr, &server);
   if (!s.ok()) {
@@ -618,13 +619,13 @@ namespace {
 class GrpcServerFactory : public ServerFactory {
  public:
   bool AcceptsOptions(const ServerDef& server_def) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return server_def.protocol() == "grpc";
   }
 
   Status NewServer(const ServerDef& server_def, const Options& options,
                    std::unique_ptr<ServerInterface>* out_server) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return GrpcServer::Create(server_def, Env::Default(),
                               options.local_device_mgr, out_server);
   }
@@ -634,7 +635,7 @@ class GrpcServerFactory : public ServerFactory {
 class GrpcServerRegistrar {
  public:
   GrpcServerRegistrar() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     ServerFactory::Register("GRPC_SERVER", new GrpcServerFactory());
   }
 };

@@ -65,7 +65,7 @@ class RPCState : public GrpcClientCQTag {
             // on worker task failures, except a few cases such as GetStatus
             // in cluster initialization and collective param resolution.
             [fail_fast, &done]() -> bool {
-              write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+              //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
               string fail_fast_env;
               TF_CHECK_OK(ReadStringFromEnvVar("GRPC_FAIL_FAST", "use_caller",
@@ -104,7 +104,7 @@ class RPCState : public GrpcClientCQTag {
         method_(method),
         fail_fast_(fail_fast),
         target_(target) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     response_ = response;
     ::grpc::Status s = GrpcMaybeUnparseProto(request, &request_buf_);
@@ -120,7 +120,7 @@ class RPCState : public GrpcClientCQTag {
   }
 
   void StartCall() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     context_.reset(new ::grpc::ClientContext());
     context_->set_wait_for_ready(!fail_fast_);
@@ -140,7 +140,7 @@ class RPCState : public GrpcClientCQTag {
   }
 
   void OnCompleted(bool ok) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     if (call_opts_) {
       call_opts_->ClearCancelCallback();
@@ -204,7 +204,7 @@ class RPCState : public GrpcClientCQTag {
   }
 
   void ParseAndCallDone() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     Status s;
     if (!GrpcMaybeParseProto(&response_buf_, response_)) {
@@ -216,7 +216,7 @@ class RPCState : public GrpcClientCQTag {
 
  private:
   void ComputeRetryBackoffMs(int min_backoff_ms, int max_backoff_ms) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     constexpr float kBackoffBase = 1.3;
     if (retry_backoff_ms_ < 0) {
@@ -315,31 +315,31 @@ class Exchange {
         response_(response),
         cb_(std::move(cb)),
         debug_string_(std::move(debug_string)) {
-          write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+          //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
         }
 
   const ::grpc::ByteBuffer& request_buf() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return request_buf_;
   }
 
   ::grpc::ByteBuffer* response_buf() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return &response_buf_;
   }
 
   void MarkRequestWriteIssued() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     DCHECK(state_ == State::kExchangeCreated);
     state_ = State::kRequestWriteIssued;
   }
   void MarkRequestWriteCompleted() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     DCHECK(state_ == State::kRequestWriteIssued);
     state_ = State::kRequestWriteCompleted;
   }
   void MarkResponseReadIssued() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     DCHECK(state_ == State::kRequestWriteCompleted);
     state_ = State::kResponseReadIssued;
   }
@@ -350,7 +350,7 @@ class Exchange {
   void Complete(Status status);
 
   const State& state() const {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return state_;
   }
 
@@ -427,7 +427,7 @@ class ExchangeQueue {
   void CompleteAll(Status status);
 
   void CallStarted() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     call_started_ = true;
   }
 
@@ -455,7 +455,7 @@ class StreamingRPCState : public UntypedStreamingRPCState {
   StreamingRPCState(std::unique_ptr<grpc::GenericClientAsyncReaderWriter> call,
                     const std::shared_ptr<::grpc::ClientContext>& context)
       : context_(context), call_(std::move(call)), call_state_(State::kActive) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     Ref();
     VLOG(3) << "Created new StreamingRPCState " << this;
@@ -464,7 +464,7 @@ class StreamingRPCState : public UntypedStreamingRPCState {
   }
 
   ~StreamingRPCState() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     VLOG(3) << "Destructing StreamingRPCState " << this;
   }
 
@@ -478,7 +478,7 @@ class StreamingRPCState : public UntypedStreamingRPCState {
   // returned.
   bool SendNextRequest(const protobuf::Message& request, Response* response,
                        const StatusCallback& done) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     ::grpc::ByteBuffer request_buf;
     ::grpc::Status s = GrpcMaybeUnparseProto(request, &request_buf);
     if (!s.ok()) {
@@ -507,7 +507,7 @@ class StreamingRPCState : public UntypedStreamingRPCState {
   }
 
   void CallStarted(bool ok) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     VLOG(3) << "StreamingRPCState(" << this << ")::CallStarted(ok=" << ok
             << ")";
     mutex_lock l(mu_);
@@ -521,7 +521,7 @@ class StreamingRPCState : public UntypedStreamingRPCState {
   }
 
   void RequestWriteCompleted(bool ok) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     VLOG(3) << "StreamingRPCState(" << this
             << ")::RequestWriteCompleted(ok=" << ok << ")";
     mu_.lock();
@@ -544,7 +544,7 @@ class StreamingRPCState : public UntypedStreamingRPCState {
   }
 
   void ResponseReadCompleted(bool ok) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     VLOG(3) << "StreamingRPCState(" << this
             << ")::ResponseReadCompleted(ok=" << ok << ")";
     mu_.lock();
@@ -577,7 +577,7 @@ class StreamingRPCState : public UntypedStreamingRPCState {
   }
 
   void CallFinished(bool ok) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     VLOG(3) << "StreamingRPCState(" << this << ")::CallFinished(ok=" << ok
             << ")";
     mu_.lock();
@@ -599,7 +599,7 @@ class StreamingRPCState : public UntypedStreamingRPCState {
   }
 
   string DebugString() const override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     mutex_lock l(mu_);
     return exchanges_.DebugString();
   }
@@ -613,7 +613,7 @@ class StreamingRPCState : public UntypedStreamingRPCState {
 
   void MarkDoneAndCompleteExchanges(Status status)
       TF_EXCLUSIVE_LOCKS_REQUIRED(mu_) TF_UNLOCK_FUNCTION(mu_) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     call_state_ = State::kDone;
     VLOG(2) << "Ending gRPC streaming call on the client side due to "
             << status.ToString();
@@ -628,7 +628,7 @@ class StreamingRPCState : public UntypedStreamingRPCState {
   }
 
   void MaybeIssueRequestWriteLocked() TF_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     Exchange* exchange = exchanges_.GetReadyForRequestWriting();
     if (exchange == nullptr) {
@@ -643,7 +643,7 @@ class StreamingRPCState : public UntypedStreamingRPCState {
   }
 
   void MaybeIssueResponseReadLocked() TF_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     Exchange* exchange = exchanges_.GetReadyForResponseReading();
     if (exchange == nullptr) {
@@ -656,7 +656,7 @@ class StreamingRPCState : public UntypedStreamingRPCState {
   }
 
   void IssueCallFinishLocked() TF_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     call_state_ = State::kFinishing;
     Ref();
     VLOG(3) << "StreamingRPCState(" << this << ") calling grpc::Finish";
@@ -713,7 +713,7 @@ class StreamingRPCDispatcher {
   StreamingRPCDispatcher(::grpc::GenericStub* stub, ::grpc::CompletionQueue* cq,
                          const ::grpc::string& method)
       : stub_(stub), cq_(cq), method_(method) {
-        write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+        //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
       }
 
   // Attempts to send the next request. If there is no active streaming call,
@@ -722,7 +722,7 @@ class StreamingRPCDispatcher {
   // is an error. `done` can be invoked before SendNextRequest returns.
   void SendNextRequest(const protobuf::Message& request, Response* response,
                        StatusCallback done) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     mutex_lock l(mu_);
     if (state_ == nullptr) {
       CreateStreamingState();
@@ -747,7 +747,7 @@ class StreamingRPCDispatcher {
 
   // Request to cancel the current streaming call. Non-blocking.
   void CancelCall() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     mutex_lock l(mu_);
     if (state_ == nullptr) {
       return;
@@ -758,7 +758,7 @@ class StreamingRPCDispatcher {
 
  private:
   void CreateStreamingState() TF_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     // ClientContext cannot be reused across calls.
     context_ = std::make_shared<::grpc::ClientContext>();
     // Don't immediately fail StartCall if the channel is not ready. Wait for

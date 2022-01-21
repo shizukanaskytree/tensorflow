@@ -29,12 +29,12 @@ namespace tensorflow {
 
 RecentRequestIds::RecentRequestIds(int num_tracked_request_ids)
     : circular_buffer_(num_tracked_request_ids) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   set_.reserve(num_tracked_request_ids);
 }
 
 bool RecentRequestIds::Insert(int64_t request_id) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (request_id == 0) {
     // For backwards compatibility, allow all requests with request_id 0.
     return true;
@@ -62,7 +62,7 @@ bool RecentRequestIds::Insert(int64_t request_id) {
 Status RecentRequestIds::TrackUnique(int64_t request_id,
                                      const string& method_name,
                                      const protobuf::Message& request) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (Insert(request_id)) {
     return Status::OK();
   } else {

@@ -100,7 +100,7 @@ class PriorityScheduler {
                     const Graph* g);
 
   ~PriorityScheduler() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   // Computes a schedule of the ideal start time for each node.

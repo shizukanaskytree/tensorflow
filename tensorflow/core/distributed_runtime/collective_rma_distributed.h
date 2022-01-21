@@ -27,6 +27,10 @@ limitations under the License.
 namespace tensorflow {
 class WorkerCacheInterface;
 
+
+// export as a python api:
+
+
 // Extend CollectiveRemoteAccessLocal with access to remote peers.
 class CollectiveRemoteAccessDistributed : public CollectiveRemoteAccessLocal {
  public:
@@ -38,11 +42,12 @@ class CollectiveRemoteAccessDistributed : public CollectiveRemoteAccessLocal {
         worker_cache_(worker_cache),
         work_queue_(std::move(work_queue)),
         task_name_(std::move(task_name)) {
-          write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+          //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
+          write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_stacktrace.log", boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
         }
 
   ~CollectiveRemoteAccessDistributed() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   void RecvFromPeer(const string& peer_device, const string& peer_task,

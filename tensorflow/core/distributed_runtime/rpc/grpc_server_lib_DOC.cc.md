@@ -17,7 +17,7 @@ limitations under the License.
 
 GrpcServer::GrpcServer(const ServerDef& server_def, Env* env)
     : env_(env), state_(NEW), server_def_(server_def) {
-      write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+      //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     }
 
 
@@ -144,6 +144,12 @@ GrpcServer::~GrpcServer() {
   // - worker_env_.compute_pool
 }
 
+
+================================================================================
+
+关键的一句是 如果这个 `if (job.name() == server_def.job_name())` 是自己, 就取出 IP:Port.
+
+```cpp
 // Look up the requested host name and port for this task in `server_def`.
 Status GrpcServer::GetHostAndPort(const ServerDef& server_def,
                                   string* host_name, int* port) const {
@@ -184,7 +190,13 @@ Status GrpcServer::GetHostAndPort(const ServerDef& server_def,
 
   return Status::OK();
 }
+```
 
+
+
+GrpcServer::Init 是初始化这台机器上的 server.
+
+```cpp
 Status GrpcServer::Init(const GrpcServerOptions& opts) {
   mutex_lock l(mu_);
   CHECK_EQ(state_, NEW);
@@ -368,6 +380,7 @@ Status GrpcServer::Init(const GrpcServerOptions& opts) {
 
   return Status::OK();
 }
+```
 
 Status GrpcServer::ParseChannelSpec(const WorkerCacheFactoryOptions& options,
                                     GrpcChannelSpec* channel_spec) {

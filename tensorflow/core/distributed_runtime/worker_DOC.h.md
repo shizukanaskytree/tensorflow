@@ -1,3 +1,4 @@
+```cpp
 /* Copyright 2016 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +13,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
+```
 
+```cpp
 #ifndef TENSORFLOW_CORE_DISTRIBUTED_RUNTIME_WORKER_H_
 #define TENSORFLOW_CORE_DISTRIBUTED_RUNTIME_WORKER_H_
 
@@ -23,9 +26,15 @@ limitations under the License.
 #include "tensorflow/core/distributed_runtime/recent_request_ids.h"
 #include "tensorflow/core/distributed_runtime/session_mgr.h"
 #include "tensorflow/core/distributed_runtime/worker_interface.h"
+```
 
-// 通过 rpc 的方式把调用的函数和参数发送到对应的地方执行.
 
+通过 rpc 的方式把调用的函数和参数发送到对应的地方执行.
+
+
+
+
+```cpp
 namespace tensorflow {
 
 class CancellationManager;
@@ -42,6 +51,14 @@ class WorkerSession;
 // particular methods for different transport mechanism. For example,
 // `GrpcWorker` specializes the `RecvTensorAsync()` method to support a more
 // efficient gRPC data structure for handling large binary data.
+```
+
+`GrpcWorker` 在 `tensorflow/core/distributed_runtime/rpc/grpc_worker_service.h`
+`class GrpcWorker : public Worker`
+
+
+
+```cpp
 class Worker : public WorkerInterface {
  public:
   Worker(WorkerEnv* env);
@@ -142,3 +159,4 @@ class Worker : public WorkerInterface {
 }  // namespace tensorflow
 
 #endif  // TENSORFLOW_CORE_DISTRIBUTED_RUNTIME_WORKER_H_
+```

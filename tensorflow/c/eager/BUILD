@@ -102,6 +102,8 @@ tf_cuda_library(
         "//tensorflow/core/distributed_runtime:worker_env",
         "//tensorflow/core/distributed_runtime:worker_interface",
         "//tensorflow/core:gpu_runtime",
+        "//tensorflow/core/util:write_log",
+        "@boost//:stacktrace",
     ] + internal_tfrt_deps(),
     alwayslink = 1,
 )

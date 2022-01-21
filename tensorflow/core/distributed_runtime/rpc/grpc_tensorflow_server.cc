@@ -44,7 +44,7 @@ namespace {
 
 Status FillServerDef(const string& cluster_spec, const string& job_name,
                      int task_index, ServerDef* options) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   options->set_protocol("grpc");
   options->set_job_name(job_name);
   options->set_task_index(task_index);
@@ -90,7 +90,7 @@ Status FillServerDef(const string& cluster_spec, const string& job_name,
 }  // namespace tensorflow
 
 void Usage(char* const argv_0) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   std::cerr << "Usage: " << argv_0
             << " --cluster_spec=SPEC --job_name=NAME --task_id=ID" << std::endl;
   std::cerr << "Where:" << std::endl;
@@ -102,7 +102,7 @@ void Usage(char* const argv_0) {
 }
 
 int main(int argc, char* argv[]) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   tensorflow::string cluster_spec;
   tensorflow::string job_name;
   int task_index = 0;

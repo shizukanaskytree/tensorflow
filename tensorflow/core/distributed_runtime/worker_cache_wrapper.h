@@ -30,18 +30,18 @@ namespace tensorflow {
 class WorkerCacheWrapper : public WorkerCacheInterface {
  public:
   WorkerCacheWrapper(WorkerCacheInterface* wrapped) : wrapped_(wrapped) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   // Updates *workers with strings naming the remote worker tasks to
   // which open channels have been established.
   void ListWorkers(std::vector<string>* workers) const override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return wrapped_->ListWorkers(workers);
   }
   void ListWorkersInJob(const string& job_name,
                         std::vector<string>* workers) const override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return wrapped_->ListWorkersInJob(job_name, workers);
   }
 
@@ -50,7 +50,7 @@ class WorkerCacheWrapper : public WorkerCacheInterface {
   // wrapping that channel. The returned value must be destroyed by
   // calling `this->ReleaseWorker(target, ret)`
   WorkerInterface* GetOrCreateWorker(const string& target) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return wrapped_->GetOrCreateWorker(target);
   }
 
@@ -60,19 +60,19 @@ class WorkerCacheWrapper : public WorkerCacheInterface {
   // TODO(jeff,sanjay): Unify all worker-cache impls and factor out a
   //                    per-rpc-subsystem WorkerInterface creator.
   void ReleaseWorker(const string& target, WorkerInterface* worker) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return wrapped_->ReleaseWorker(target, worker);
   }
 
   Status GetEagerClientCache(
       std::unique_ptr<eager::EagerClientCache>* eager_client_cache) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return wrapped_->GetEagerClientCache(eager_client_cache);
   }
 
   Status GetCoordinationClientCache(std::unique_ptr<CoordinationClientCache>*
                                         coordination_client_cache) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return wrapped_->GetCoordinationClientCache(coordination_client_cache);
   }
 
@@ -82,7 +82,7 @@ class WorkerCacheWrapper : public WorkerCacheInterface {
   // if status data for that device was not available.  Never blocks.
   bool GetDeviceLocalityNonBlocking(const string& device,
                                     DeviceLocality* locality) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return wrapped_->GetDeviceLocalityNonBlocking(device, locality);
   }
 
@@ -91,26 +91,26 @@ class WorkerCacheWrapper : public WorkerCacheInterface {
   // was set.
   void GetDeviceLocalityAsync(const string& device, DeviceLocality* locality,
                               StatusCallback done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return wrapped_->GetDeviceLocalityAsync(device, locality, std::move(done));
   }
 
   // Start/stop logging activity.
   void SetLogging(bool active) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     wrapped_->SetLogging(active);
   }
 
   // Discard any saved log data.
   void ClearLogs() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     wrapped_->ClearLogs();
   }
 
   // Return logs for the identified step in *ss.  Any returned data will no
   // longer be stored.
   bool RetrieveLogs(int64_t step_id, StepStats* ss) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return wrapped_->RetrieveLogs(step_id, ss);
   }
 

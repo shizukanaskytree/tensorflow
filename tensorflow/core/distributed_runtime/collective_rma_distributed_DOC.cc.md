@@ -50,7 +50,7 @@ class RecvBufCall : public CancellableCall {
               const DeviceAttributes& server_attributes,
               CancellationManager* cancel_mgr, WorkerCacheInterface* wc)
       : CancellableCall(cancel_mgr, peer_task, wc) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     req_.set_step_id(step_id);
     req_.set_buf_rendezvous_key(key);
     *req_.mutable_client_locality() = client_locality;
@@ -64,11 +64,11 @@ class RecvBufCall : public CancellableCall {
   }
 
   ~RecvBufCall() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   void IssueCall(const StatusCallback& done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     wi_->RecvBufAsync(&opts_, &req_, &resp_, done);
   }
 
@@ -78,7 +78,7 @@ class RecvBufCall : public CancellableCall {
 
 void PopulateTensorFromExtra(const RecvBufRespExtra& extra,
                              Tensor* cpu_tensor) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   char* head = reinterpret_cast<char*>(DMAHelper::base(cpu_tensor));
   for (const auto& tensor_content_chunk : extra.tensor_content()) {
     memcpy(head, std::string(tensor_content_chunk).data(),
@@ -89,7 +89,7 @@ void PopulateTensorFromExtra(const RecvBufRespExtra& extra,
 
 Status PopulateTensorFromResponse(const RecvBufResponse& response,
                                   Tensor* cpu_tensor) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   const bool has_transport_options = response.has_transport_options();
 
   // If there are no transport options, then the tensor has already been
@@ -121,7 +121,7 @@ void CollectiveRemoteAccessDistributed::RecvFromPeer(
     const AllocatorAttributes& to_alloc_attr, Tensor* to_tensor,
     const DeviceLocality& client_locality, int dev_to_dev_stream_index,
     CancellationManager* cancellation_manager, const StatusCallback& done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (peer_is_local) {
     CollectiveRemoteAccessLocal::RecvFromPeer(
         peer_device, peer_task, peer_is_local, key, to_device, to_device_ctx,
@@ -247,14 +247,20 @@ void CollectiveRemoteAccessDistributed::RecvFromPeer(
 
 # =============================================================
 
+CheckPeerHealth 说明:
+
+We send a GetStatus RPC to check the health of a peer task. If the RPC
+succeeds, we verify if the peer_device incarnation matches the local record
+if we have it. Note that DeviceResolverInterface always caches the device
+attributes.
+
+
 CheckPeerHealth callstack:
 
  0# tensorflow::GrpcRemoteWorker::IssueRequest(google::protobuf::Message const*, google::protobuf::Message*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::function<void (tensorflow::Status const&)>, tensorflow::CallOptions*, bool) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
  1# tensorflow::GrpcRemoteWorker::GetStatusAsync(tensorflow::CallOptions*, tensorflow::GetStatusRequest const*, tensorflow::GetStatusResponse*, bool, std::function<void (tensorflow::Status const&)>) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
 
-
  2# tensorflow::CollectiveRemoteAccessDistributed::CheckPeerHealth(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, long, std::function<void (tensorflow::Status const&)> const&) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
-
 
  3# TFE_CollectiveOpsCheckPeerHealth in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tensorflow_internal.so
  4# pybind11::cpp_function::initialize<pybind11_init__pywrap_tfe(pybind11::module_&)::{lambda(pybind11::handle const&, char const*, long)#89}, void, pybind11::handle const&, char const*, long, pybind11::name, pybind11::scope, pybind11::sibling>(pybind11_init__pywrap_tfe(pybind11::module_&)::{lambda(pybind11::handle const&, char const*, long)#89}&&, void (*)(pybind11::handle const&, char const*, long), pybind11::name const&, pybind11::scope const&, pybind11::sibling const&)::{lambda(pybind11::detail::function_call&)#3}::_FUN(pybind11::detail::function_call) in /home/wxf/anaconda3/envs/hm/lib/python3.8/site-packages/tensorflow/python/_pywrap_tfe.so
@@ -284,11 +290,11 @@ CheckPeerHealth callstack:
 # =============================================================
 
 
-
+```cpp
 void CollectiveRemoteAccessDistributed::CheckPeerHealth(
     const string& peer_task, int64_t timeout_in_ms,
     const StatusCallback& done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   if (peer_task == task_name_) {
     // Fast path if the peer is the worker itself.
@@ -322,6 +328,8 @@ void CollectiveRemoteAccessDistributed::CheckPeerHealth(
         }
         if (s.ok()) {
           absl::flat_hash_set<uint64> remote_incarnations;
+          // absl::flat_hash_set is a set, storing hash value.
+
           for (const DeviceAttributes& da : resp->device_attributes()) {
             remote_incarnations.insert(da.incarnation());
           }
@@ -347,11 +355,12 @@ void CollectiveRemoteAccessDistributed::CheckPeerHealth(
         done(s);
       });
 }
+```
 
 StartAbort:
 
 void CollectiveRemoteAccessDistributed::StartAbort(const Status& s) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   CollectiveRemoteAccessLocal::StartAbort(s);
   abortion_cancel_mgr_.StartCancel();
 }

@@ -1,7 +1,6 @@
 # import debugpy
 # debugpy.listen(5678)
 # debugpy.wait_for_client()
-# debugpy.breakpoint()
 
 # from __future__ import absolute_import, division, print_function, unicode_literals
 import tensorflow as tf

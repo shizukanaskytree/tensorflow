@@ -47,17 +47,17 @@ int64_t ComputeBackoffMicroseconds(int current_retry_attempt,
 class GrpcByteSource : public TensorResponse::Source {
  public:
   explicit GrpcByteSource(::grpc::ByteBuffer* buffer) : buffer_(buffer) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
   ~GrpcByteSource() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     DeleteStream();
   }
 
   typedef ::grpc::ProtoBufferReader Reader;
 
   protobuf::io::ZeroCopyInputStream* contents() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     DeleteStream();
     stream_ = new (&space_) Reader(buffer_);
     return stream_;
@@ -65,7 +65,7 @@ class GrpcByteSource : public TensorResponse::Source {
 
  private:
   void DeleteStream() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     if (stream_) {
       stream_->~Reader();
     }
@@ -87,13 +87,13 @@ constexpr char kStreamRemovedMessage[] = "Stream removed";
 //
 // N.B. This is dependent on the error message from grpc remaining consistent.
 inline bool IsStreamRemovedError(const ::grpc::Status& s) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return !s.ok() && s.error_code() == ::grpc::StatusCode::UNKNOWN &&
          s.error_message() == kStreamRemovedMessage;
 }
 
 inline Status FromGrpcStatus(const ::grpc::Status& s) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (s.ok()) {
     return Status::OK();
   } else {
@@ -108,7 +108,7 @@ inline Status FromGrpcStatus(const ::grpc::Status& s) {
 }
 
 inline ::grpc::Status ToGrpcStatus(const ::tensorflow::Status& s) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (s.ok()) {
     return ::grpc::Status::OK;
   } else {
@@ -127,7 +127,7 @@ inline ::grpc::Status ToGrpcStatus(const ::tensorflow::Status& s) {
 typedef std::shared_ptr<::grpc::Channel> SharedGrpcChannelPtr;
 
 inline string GrpcIdKey() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return "tf-rpc";
 }
 

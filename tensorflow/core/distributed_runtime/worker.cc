@@ -34,8 +34,8 @@ limitations under the License.
 namespace tensorflow {
 
 Worker::Worker(WorkerEnv* env) : env_(env), recent_request_ids_(100000) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
+  // //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   // Enable log history collection in StatusGroup so that recent warning and
   // error log messages will be attached to the root error status to be
@@ -46,7 +46,7 @@ Worker::Worker(WorkerEnv* env) : env_(env), recent_request_ids_(100000) {
 void Worker::GetStatusAsync(CallOptions* opts, const GetStatusRequest* request,
                             GetStatusResponse* response, bool fail_fast,
                             StatusCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   const DeviceMgr* dm = env_->device_mgr;
   std::vector<DeviceAttributes> devices;
@@ -61,7 +61,7 @@ void Worker::GetStatusAsync(CallOptions* opts, const GetStatusRequest* request,
 void Worker::CreateWorkerSessionAsync(const CreateWorkerSessionRequest* request,
                                       CreateWorkerSessionResponse* response,
                                       StatusCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   Status s = env_->session_mgr->CreateSession(
       request->session_handle(), request->server_def(),
@@ -74,7 +74,7 @@ void Worker::DeleteWorkerSessionAsync(CallOptions* opts,
                                       const DeleteWorkerSessionRequest* request,
                                       DeleteWorkerSessionResponse* response,
                                       StatusCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   Status s = env_->session_mgr->DeleteSession(request->session_handle());
   done(s);
 }
@@ -82,7 +82,7 @@ void Worker::DeleteWorkerSessionAsync(CallOptions* opts,
 void Worker::RegisterGraphAsync(const RegisterGraphRequest* request,
                                 RegisterGraphResponse* response,
                                 StatusCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   std::shared_ptr<WorkerSession> session;
   Status s;
   if (request->create_worker_session_called()) {
@@ -104,7 +104,7 @@ void Worker::RegisterGraphAsync(const RegisterGraphRequest* request,
 void Worker::DeregisterGraphAsync(const DeregisterGraphRequest* request,
                                   DeregisterGraphResponse* response,
                                   StatusCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   std::shared_ptr<WorkerSession> session;
   Status s;
   if (request->create_worker_session_called()) {
@@ -121,7 +121,7 @@ void Worker::DeregisterGraphAsync(const DeregisterGraphRequest* request,
 }
 
 void Worker::AbortStep(int64_t step_id) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   Rendezvous* rendez = env_->rendezvous_mgr->Find(step_id);
   SchedNonBlockingClosureAfter(1000000, [rendez, step_id]() {
     // Delay a bit before aborting the step. This way, the root
@@ -136,7 +136,7 @@ void Worker::AbortStep(int64_t step_id) {
 Status Worker::PrepareRunGraph(RunGraphRequestWrapper* req,
                                GraphMgr::NamedTensors* in,
                                GraphMgr::NamedTensors* out) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   static Tensor empty_tensor(DT_FLOAT);
   if (req->num_sends() > 0) {
     Tensor val;
@@ -154,7 +154,7 @@ Status Worker::PrepareRunGraph(RunGraphRequestWrapper* req,
 void Worker::RunGraphAsync(CallOptions* opts, RunGraphRequestWrapper* request,
                            MutableRunGraphResponseWrapper* response,
                            StatusCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (request->store_errors_in_response_body()) {
     done = [response, done](const Status& status) {
       response->set_status(status);
@@ -169,19 +169,19 @@ void Worker::RunGraphAsync(CallOptions* opts, RunGraphRequestWrapper* request,
 }
 
 MutableRunGraphRequestWrapper* Worker::CreateRunGraphRequest() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return new InMemoryRunGraphRequest;
 }
 
 MutableRunGraphResponseWrapper* Worker::CreateRunGraphResponse() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return new InMemoryRunGraphResponse;
 }
 
 void Worker::DoRunGraph(CallOptions* opts, RunGraphRequestWrapper* request,
                         MutableRunGraphResponseWrapper* response,
                         StatusCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   const int64_t step_id = request->step_id();
   TRACEPRINTF("RunGraph: %lld", step_id);
   Status s = recent_request_ids_.TrackUnique(request->request_id(),
@@ -280,7 +280,7 @@ void Worker::DoPartialRunGraph(CallOptions* opts,
                                RunGraphRequestWrapper* request,
                                MutableRunGraphResponseWrapper* response,
                                StatusCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   const int64_t step_id = request->step_id();
   const string& graph_handle = request->graph_handle();
   TRACEPRINTF("PartialRunGraph: %lld", step_id);
@@ -370,7 +370,7 @@ void Worker::DoPartialRunGraph(CallOptions* opts,
 void Worker::CleanupGraphAsync(const CleanupGraphRequest* request,
                                CleanupGraphResponse* response,
                                StatusCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   const int64_t step_id = request->step_id();
   env_->rendezvous_mgr->Cleanup(step_id);
   if (env_->collective_executor_mgr) {
@@ -396,19 +396,19 @@ void Worker::CleanupAllAsync(const CleanupAllRequest* request,
 
 void Worker::LoggingAsync(const LoggingRequest* request,
                           LoggingResponse* response, StatusCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   done(errors::Unimplemented("Logging"));
 }
 
 void Worker::TracingAsync(const TracingRequest* request,
                           TracingResponse* response, StatusCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   done(errors::Unimplemented("Tracing"));
 }
 
 void Worker::RecvBufAsync(CallOptions* opts, const RecvBufRequest* request,
                           RecvBufResponse* response, StatusCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   // The base Worker class does not implement RecvBufAsync because
   // it is not currently used for worker-to-worker communication. Use a
   // transport-specific implementation (such as `GrpcWorker::RecvBufAsync()`)
@@ -420,7 +420,7 @@ void Worker::CompleteGroupAsync(CallOptions* opts,
                                 const CompleteGroupRequest* request,
                                 CompleteGroupResponse* response,
                                 StatusCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (!request->has_device_attributes()) {
     done(errors::Internal(
         "CompleteGroupRequest device_attributes is not set. Make sure you're "
@@ -461,7 +461,7 @@ void Worker::CompleteInstanceAsync(CallOptions* opts,
                                    const CompleteInstanceRequest* request,
                                    CompleteInstanceResponse* response,
                                    StatusCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (env_->collective_executor_mgr) {
     env_->collective_executor_mgr->GetParamResolver()->CompleteInstanceAsync(
         request, response, &cancellation_manager_, done);
@@ -474,7 +474,7 @@ void Worker::CompleteInstanceAsync(CallOptions* opts,
 void Worker::GetStepSequenceAsync(const GetStepSequenceRequest* request,
                                   GetStepSequenceResponse* response,
                                   StatusCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (env_->collective_executor_mgr) {
     env_->collective_executor_mgr->GetStepSequenceAsync(request, response,
                                                         done);
@@ -488,7 +488,7 @@ void Worker::GetStepSequenceAsync(const GetStepSequenceRequest* request,
 // device in "*src_dev".
 Status Worker::PrepareRecvTensor(const Rendezvous::ParsedKey& parsed,
                                  Device** src_dev) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   // Figures out which device the tensor is hosted on.
   string local_name = DeviceNameUtils::LocalName(parsed.src_device);
   TF_RETURN_IF_ERROR(env_->device_mgr->LookupDevice(local_name, src_dev));
@@ -510,7 +510,7 @@ Status Worker::PrepareRecvTensor(const Rendezvous::ParsedKey& parsed,
 void Worker::RecvTensorAsync(CallOptions* opts,
                              const RecvTensorRequest* request,
                              TensorResponse* response, StatusCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   // The base Worker class does not implement RecvTensorAsync, because
   // it is not currently used for worker-to-worker communication. Use a
   // transport-specific implementation (such as `GrpcWorker::RecvTensorAsync()`)

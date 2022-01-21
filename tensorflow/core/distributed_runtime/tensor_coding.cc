@@ -30,7 +30,7 @@ namespace tensorflow {
 TensorResponse::Source::~Source() {}
 
 void TensorResponse::Clear() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   on_host_ = false;
   device_ = nullptr;
   alloc_attrs_ = AllocatorAttributes();
@@ -40,13 +40,13 @@ void TensorResponse::Clear() {
 }
 
 void TensorResponse::ClearTensor() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   meta_.Clear();
   tensor_ = Tensor();
 }
 
 void TensorResponse::InitAlloc(DeviceBase* d, const AllocatorAttributes& aa) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   Clear();
   device_ = d;
   alloc_attrs_ = aa;
@@ -58,7 +58,7 @@ void TensorResponse::InitAlloc(DeviceBase* d, const AllocatorAttributes& aa) {
 }
 
 Status TensorResponse::InitFrom(RecvTensorResponse* response) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   Status s;
   meta_.Swap(response);
   if (on_host_) {
@@ -78,7 +78,7 @@ Status TensorResponse::InitFrom(RecvTensorResponse* response) {
 
 void TensorResponse::InitPartial(const RecvTensorResponse& response,
                                  const AllocationAttributes& allocation_attr) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   // Everything except content is present in *response.  Content will
   // arrive later; allocate a Tensor with appropriate storage for that
   // content.
@@ -89,7 +89,7 @@ void TensorResponse::InitPartial(const RecvTensorResponse& response,
 }
 
 Status TensorResponse::ParseFrom(Source* source) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (!on_host_) {
     protobuf::io::CodedInputStream input(source->contents());
 
@@ -125,16 +125,16 @@ enum WireType {
   WIRETYPE_LENGTH_DELIMITED = 2,
 };
 inline int GetTagFieldNumber(uint32 tag) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return tag >> 3;
 }
 inline WireType GetTagWireType(uint32 tag) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return static_cast<WireType>(tag & 0x7);
 }
 
 bool ReadVarintSizeAsInt(protobuf::io::CodedInputStream* input, int* result) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   protobuf_uint64 v;
   if (input->ReadVarint64(&v) && v <= static_cast<uint64>(INT_MAX)) {
     *result = static_cast<int>(v);
@@ -146,7 +146,7 @@ bool ReadVarintSizeAsInt(protobuf::io::CodedInputStream* input, int* result) {
 
 bool ReadNestedMessage(protobuf::io::CodedInputStream* input,
                        protobuf::Message* value) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   int length;
   if (!ReadVarintSizeAsInt(input, &length)) return false;
   std::pair<protobuf::io::CodedInputStream::Limit, int> p =
@@ -161,7 +161,7 @@ bool ReadNestedMessage(protobuf::io::CodedInputStream* input,
 
 bool TensorResponse::ParseTensorSubmessage(
     protobuf::io::CodedInputStream* input, TensorProto* tensor_meta) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   bool seen_tensor_content = false;
   while (true) {
     auto p = input->ReadTagWithCutoff(127);
@@ -233,7 +233,7 @@ bool TensorResponse::ParseTensorSubmessage(
 }
 
 bool TensorResponse::ParseFast(Source* source) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   protobuf::io::CodedInputStream input(source->contents());
   while (true) {
     auto p = input.ReadTagWithCutoff(127);
@@ -294,7 +294,7 @@ bool TensorResponse::ParseFast(Source* source) {
 }
 
 bool TensorResponse::ParseSlow(Source* source) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (!meta_.ParseFromZeroCopyStream(source->contents())) {
     return false;
   }

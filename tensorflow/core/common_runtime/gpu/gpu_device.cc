@@ -1474,7 +1474,7 @@ Status BaseGPUDeviceFactory::CreateGPUDevice(
     TfDeviceId tf_device_id, int64_t memory_limit,
     const DeviceLocality& dev_locality, size_t num_tf_gpus,
     std::vector<std::unique_ptr<Device>>* devices) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   CHECK_GE(tf_device_id.value(), 0);
   const string device_name =

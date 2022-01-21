@@ -21,7 +21,7 @@ limitations under the License.
 namespace tensorflow {
 
 void CancellableCall::Start(const StatusCallback& done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (cancel_mgr_ == nullptr) {
     IssueCall(done);
     return;
@@ -40,7 +40,7 @@ void CancellableCall::Start(const StatusCallback& done) {
 }
 
 void CancellableCall::Cancel() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   {
     mutex_lock l(mu_);
     if (is_cancelled_) {

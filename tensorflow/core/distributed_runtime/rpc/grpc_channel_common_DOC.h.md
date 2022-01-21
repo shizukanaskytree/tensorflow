@@ -1,3 +1,4 @@
+```cpp
 /* Copyright 2016 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +13,21 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
+```
 
+
+GenericCachingChannelCache
+
+
+
+
+
+
+
+
+
+
+```cpp
 #ifndef TENSORFLOW_CORE_DISTRIBUTED_RUNTIME_RPC_GRPC_CHANNEL_COMMON_H_
 #define TENSORFLOW_CORE_DISTRIBUTED_RUNTIME_RPC_GRPC_CHANNEL_COMMON_H_
 
@@ -125,7 +140,7 @@ FindWorkerChannel:
   const int num_channels_per_target_;
   // TODO(zhifengc): Eviction when the map becomes too big.
   mutex mu_;
-  
+
   // 这个是 n-to-n 的 channel
   absl::flat_hash_map<string, ChannelState> channels_ TF_GUARDED_BY(mu_);
 };
@@ -133,3 +148,4 @@ FindWorkerChannel:
 }  // namespace tensorflow
 
 #endif  // TENSORFLOW_CORE_DISTRIBUTED_RUNTIME_RPC_GRPC_CHANNEL_COMMON_H_
+```

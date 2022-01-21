@@ -24,7 +24,7 @@ limitations under the License.
 namespace tensorflow {
 
 int64_t GetUniqueRequestId() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   int64_t request_id = 0;
   while (request_id == 0) {
     request_id = random::New64();

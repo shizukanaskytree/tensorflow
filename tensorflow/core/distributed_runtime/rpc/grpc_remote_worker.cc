@@ -72,17 +72,17 @@ class GrpcRemoteWorker : public WorkerInterface {
         markrecvfinished_(Method(GrpcWorkerMethod::kMarkRecvFinished)),
         logger_(logger),
         target_(target) {
-          write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+          //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
         }
 
   ~GrpcRemoteWorker() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   void GetStatusAsync(CallOptions* call_opts, const GetStatusRequest* request,
                       GetStatusResponse* response, bool fail_fast,
                       StatusCallback done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     IssueRequest(request, response, getstatus_, std::move(done), call_opts,
                  fail_fast);
   }
@@ -90,7 +90,7 @@ class GrpcRemoteWorker : public WorkerInterface {
   void CreateWorkerSessionAsync(const CreateWorkerSessionRequest* request,
                                 CreateWorkerSessionResponse* response,
                                 StatusCallback done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     IssueRequest(request, response, createworkersession_, std::move(done));
   }
 
@@ -98,7 +98,7 @@ class GrpcRemoteWorker : public WorkerInterface {
                                 const DeleteWorkerSessionRequest* request,
                                 DeleteWorkerSessionResponse* response,
                                 StatusCallback done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     IssueRequest(request, response, deleteworkersession_, std::move(done),
                  call_opts);
   }
@@ -106,26 +106,26 @@ class GrpcRemoteWorker : public WorkerInterface {
   void RegisterGraphAsync(const RegisterGraphRequest* request,
                           RegisterGraphResponse* response,
                           StatusCallback done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     IssueRequest(request, response, registergraph_, std::move(done));
   }
 
   void DeregisterGraphAsync(const DeregisterGraphRequest* request,
                             DeregisterGraphResponse* response,
                             StatusCallback done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     IssueRequest(request, response, deregistergraph_, std::move(done));
   }
 
   void RunGraphAsync(CallOptions* call_opts, const RunGraphRequest* request,
                      RunGraphResponse* response, StatusCallback done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     IssueRequest(request, response, rungraph_, std::move(done), call_opts);
   }
   void RunGraphAsync(CallOptions* call_opts, RunGraphRequestWrapper* request,
                      MutableRunGraphResponseWrapper* response,
                      StatusCallback done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     IssueRequest(&request->ToProto(), get_proto_from_wrapper(response),
                  rungraph_, std::move(done), call_opts);
   }
@@ -133,20 +133,20 @@ class GrpcRemoteWorker : public WorkerInterface {
   void CleanupGraphAsync(const CleanupGraphRequest* request,
                          CleanupGraphResponse* response,
                          StatusCallback done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     IssueRequest(request, response, cleanupgraph_, std::move(done));
   }
 
   void CleanupAllAsync(const CleanupAllRequest* request,
                        CleanupAllResponse* response,
                        StatusCallback done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     IssueRequest(request, response, cleanupall_, std::move(done));
   }
 
   void RecvBufAsync(CallOptions* call_opts, const RecvBufRequest* request,
                     RecvBufResponse* response, StatusCallback done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     int64_t start_usec = Env::Default()->NowMicros();
     // Type-specialized logging for this method.
     bool logging_active = logger_->LoggingActive() || VLOG_IS_ON(2);
@@ -194,7 +194,7 @@ class GrpcRemoteWorker : public WorkerInterface {
                           const CompleteGroupRequest* request,
                           CompleteGroupResponse* response,
                           StatusCallback done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     IssueRequest(request, response, completegroup_, std::move(done), call_opts,
                  /*fail_fast=*/false);
   }
@@ -203,7 +203,7 @@ class GrpcRemoteWorker : public WorkerInterface {
                              const CompleteInstanceRequest* request,
                              CompleteInstanceResponse* response,
                              StatusCallback done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     IssueRequest(request, response, instancesource_, std::move(done),
                  call_opts);
   }
@@ -211,13 +211,13 @@ class GrpcRemoteWorker : public WorkerInterface {
   void GetStepSequenceAsync(const GetStepSequenceRequest* request,
                             GetStepSequenceResponse* response,
                             StatusCallback done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     IssueRequest(request, response, getstepsequence_, std::move(done));
   }
 
   void RecvTensorAsync(CallOptions* call_opts, const RecvTensorRequest* request,
                        TensorResponse* response, StatusCallback done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     VLOG(1) << "RecvTensorAsync req: " << request->DebugString();
     int64_t start_usec = Env::Default()->NowMicros();
     // Type-specialized logging for this method.
@@ -279,13 +279,13 @@ class GrpcRemoteWorker : public WorkerInterface {
 
   void LoggingAsync(const LoggingRequest* request, LoggingResponse* response,
                     StatusCallback done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     IssueRequest(request, response, logging_, done);
   }
 
   void TracingAsync(const TracingRequest* request, TracingResponse* response,
                     StatusCallback done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     IssueRequest(request, response, tracing_, done);
   }
 
@@ -296,7 +296,7 @@ class GrpcRemoteWorker : public WorkerInterface {
                     protobuf::Message* response, const ::grpc::string& method,
                     StatusCallback done, CallOptions* call_opts = nullptr,
                     bool fail_fast = true) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     new RPCState<protobuf::Message>(
         &stub_, cq_, method, *request, response, std::move(done), call_opts,
         callback_threadpool_, MaxRetries(), fail_fast, &target_);
@@ -305,7 +305,7 @@ class GrpcRemoteWorker : public WorkerInterface {
   void IssueRequest(const protobuf::Message* request, TensorResponse* response,
                     const ::grpc::string& method, StatusCallback done,
                     CallOptions* call_opts = nullptr) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     new RPCState<TensorResponse>(&stub_, cq_, method, *request, response,
                                  std::move(done), call_opts,
                                  callback_threadpool_, MaxRetries(),
@@ -313,7 +313,7 @@ class GrpcRemoteWorker : public WorkerInterface {
   }
 
   void IssueMarkRecvFinishedRequest(int64_t request_id) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     VLOG(2) << "Send MarkRecvFinishedRequest for request " << request_id;
     MarkRecvFinishedRequest request;
     request.set_request_id(request_id);
@@ -325,14 +325,14 @@ class GrpcRemoteWorker : public WorkerInterface {
 
   // Helper function for initializing the RpcMethod objects below.
   const char* Method(GrpcWorkerMethod id) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return GrpcWorkerMethodName(id);
   }
 
   // Helper function for configuring max GRPC retries. Defaults to 0 (no
   // retries).
   const int64_t MaxRetries() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     int64_t max_retries = -1;
     TF_CHECK_OK(ReadInt64FromEnvVar("GRPC_MAX_RETRIES", 0, &max_retries));
     return max_retries;
@@ -372,7 +372,7 @@ WorkerInterface* NewGrpcRemoteWorker(SharedGrpcChannelPtr channel,
                                      thread::ThreadPool* callback_threadpool,
                                      WorkerCacheLogger* logger,
                                      const string& target) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return new GrpcRemoteWorker(std::move(channel), completion_queue,
                               callback_threadpool, logger, target);
 }

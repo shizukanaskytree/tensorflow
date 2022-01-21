@@ -74,6 +74,11 @@ limitations under the License.
 
 using tensorflow::string;
 
+#include "tensorflow/core/util/write_log.h"
+#include <boost/stacktrace.hpp>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+std::string FILE_NAME = "/home/wxf/tf2/tensorflow/cc_stack_debug.log";
+
 namespace {
 
 string DeviceName(const tensorflow::Device* d) {
@@ -204,6 +209,9 @@ TF_CAPI_EXPORT extern void TFE_ContextUpdateServerDef(TFE_Context* ctx,
                                                       const void* proto,
                                                       size_t proto_len,
                                                       TF_Status* status) {
+  // write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
+  // write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()), 0, FILE_NAME);
+
 #if defined(IS_MOBILE_PLATFORM)
   status->status = tensorflow::errors::Unimplemented(
       "TFE_ContextSetServerDef not supported on mobile");

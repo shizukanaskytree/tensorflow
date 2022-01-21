@@ -42,7 +42,7 @@ class WorkerCachePartial : public WorkerCacheInterface {
                               StatusCallback) override;
 
   ~WorkerCachePartial() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   // Clear all entries from the DeviceStatus cache.

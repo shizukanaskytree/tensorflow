@@ -82,7 +82,7 @@ template <class Service>
 class GrpcCallTag {
  public:
   virtual ~GrpcCallTag() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   // Calls the callback associated with this tag.
@@ -94,7 +94,7 @@ template <class Service>
 class UntypedCall : public core::RefCounted {
  public:
   virtual ~UntypedCall() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   // The implementation of this method should use `service` to handle
@@ -124,14 +124,14 @@ class UntypedCall : public core::RefCounted {
     enum Callback { kRequestReceived, kResponseSent, kCancelled };
 
     Tag(UntypedCall* call, Callback cb) : call_(call), callback_(cb) {
-      write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+      // //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     }
 
     // Calls the callback associated with this tag.
     //
     // The callback takes ownership of `this->call_`.
     void OnCompleted(Service* service, bool ok) override {
-      write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+      //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
       switch (callback_) {
         case kRequestReceived:
           call_->RequestReceived(service, ok);
@@ -173,15 +173,15 @@ class Call : public UntypedCall<Service> {
 
   Call(HandleRequestFunction handle_request_function)
       : handle_request_function_(handle_request_function), responder_(&ctx_) {
-        write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+        // //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
       }
 
   virtual ~Call() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   void RequestReceived(Service* service, bool ok) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     if (ok) {
       this->Ref();
       (service->*handle_request_function_)(this);
@@ -189,14 +189,14 @@ class Call : public UntypedCall<Service> {
   }
 
   void SendResponse(::grpc::Status status) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     this->Ref();  // Ref for grpc; released in Tag callback.
     responder_.Finish(response, status, &response_sent_tag_);
     this->Unref();
   }
 
   void RequestCancelled(Service* service, bool ok) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     if (ctx_.IsCancelled()) {
       mutex_lock l(mu_);
       if (cancel_callback_) {
@@ -208,14 +208,14 @@ class Call : public UntypedCall<Service> {
   // Registers `callback` as the function that should be called if and when this
   // call is canceled by the client.
   void SetCancelCallback(std::function<void()> callback) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     mutex_lock l(mu_);
     cancel_callback_ = std::move(callback);
   }
 
   // Clears any cancellation callback that has been registered for this call.
   void ClearCancelCallback() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     mutex_lock l(mu_);
     cancel_callback_ = nullptr;
   }
@@ -230,7 +230,7 @@ class Call : public UntypedCall<Service> {
                              EnqueueFunction enqueue_function,
                              HandleRequestFunction handle_request_function,
                              bool supports_cancel) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     auto call = new Call<Service, GrpcService, RequestMessage, ResponseMessage>(
         handle_request_function);
     if (supports_cancel) {
@@ -252,7 +252,7 @@ class Call : public UntypedCall<Service> {
       GrpcService* grpc_service, ::grpc::ServerCompletionQueue* cq,
       int method_id, HandleRequestFunction handle_request_function,
       bool supports_cancel) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     auto call = new Call<Service, GrpcService, RequestMessage, ResponseMessage>(
         handle_request_function);
     if (supports_cancel) {
@@ -270,7 +270,7 @@ class Call : public UntypedCall<Service> {
 
   const std::multimap<::grpc::string_ref, ::grpc::string_ref>& client_metadata()
       const {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return ctx_.client_metadata();
   }
 
@@ -279,7 +279,7 @@ class Call : public UntypedCall<Service> {
   // NOTE: This method must be called before this call is enqueued on a
   // completion queue.
   void RegisterCancellationHandler() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    // //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     this->Ref();  // Ref for grpc; released in Tag callback.
     ctx_.AsyncNotifyWhenDone(&cancelled_tag_);
   }
@@ -347,12 +347,12 @@ class ServerUntypedBidirectionalStreamingCall : public core::RefCounted {
 
     Tag(ServerUntypedBidirectionalStreamingCall* call, TagType cb)
         : call_(call), callback_(cb) {
-          write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+          //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
         }
 
     // Calls the callback associated with this tag and Unrefs this->call_.
     void OnCompleted(Service* service, bool ok) override {
-      write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+      //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
       switch (callback_) {
         case TagType::kCallOpen:
           // Non-ok value indicates that the server has been shutdown before we
@@ -453,17 +453,17 @@ class ServerBidirectionalStreamingCall
         grpc_service_(grpc_service),
         cq_(cq),
         enqueue_function_(enqueue_function) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     VLOG(3) << "Creating ServerBidirectionalStreamingCall " << this;
   }
 
   ~ServerBidirectionalStreamingCall() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     VLOG(3) << "Destroying ServerBidirectionalStreamingCall " << this;
   }
 
   void CallOpen() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     // Let gRPC know that we can accept another call.
     ServerBidirectionalStreamingCall<
         Service, GrpcService, RequestMessage,
@@ -473,21 +473,21 @@ class ServerBidirectionalStreamingCall
   }
 
   void RequestRead() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     this->Ref();
     request_.Clear();
     stream_.Read(&request_, &request_received_tag_);
   }
 
   void RequestReceived(Service* service) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     this->Ref();
     // Request handling should result in a call to SendResponse or Finish.
     (service->*handle_request_function_)(this);
   }
 
   void SendResponse() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     // Transferring ownership of this to the response_sent_tag_.
     stream_.Write(response_, &response_sent_tag_);
     // stream_.Write does not save references to response_. We are free to muck
@@ -497,7 +497,7 @@ class ServerBidirectionalStreamingCall
   }
 
   void Finish(::grpc::Status status) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     // Transferring ownership of this to the server_finished_tag_.
     stream_.Finish(status, &server_finished_tag_);
   }
@@ -510,7 +510,7 @@ class ServerBidirectionalStreamingCall
                              ::grpc::ServerCompletionQueue* cq,
                              EnqueueFunction enqueue_function,
                              HandleRequestFunction handle_request_function) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     auto call =
         new ServerBidirectionalStreamingCall<Service, GrpcService,
                                              RequestMessage, ResponseMessage>(
@@ -522,11 +522,11 @@ class ServerBidirectionalStreamingCall
   }
 
   const RequestMessage& request() const {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return request_;
   }
   ResponseMessage* mutable_response() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return &response_;
   }
 

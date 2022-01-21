@@ -42,32 +42,32 @@ class RemoteDevice : public Device {
   RemoteDevice(Env* env, const DeviceAttributes& da)
       : Device(env, da),
         local_dev_name_(DeviceNameUtils::LocalName(da.name())) {
-          write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+          //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
         }
 
   Status Sync() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return Status::OK();
   }
   Allocator* GetAllocator(AllocatorAttributes attr) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return nullptr;
   }
 
   ResourceMgr* resource_manager() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     LOG(FATAL) << "Accessing the resource manager of a remote device is not "
                << "supported.";
     std::abort();
   }
 
   bool IsLocal() const override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return false;
   }
 
   bool IsRemoteCallAllowed() const override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return true;
   }
 
@@ -82,7 +82,7 @@ void AsRemoteDevices(
     const protobuf::RepeatedPtrField<DeviceAttributes>& device_attributes,
     LookupLocalDevice lookup_local_device,
     std::vector<std::unique_ptr<Device>>* remote_devices) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   for (const auto& da : device_attributes) {
     Device* local_device;
     if (lookup_local_device != nullptr &&
@@ -98,7 +98,7 @@ void AsRemoteDevices(
 
 void NewRemoteDevices(Env* env, WorkerCacheInterface* worker_cache,
                       const string& worker_name, NewRemoteDevicesDone done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   WorkerInterface* wi = worker_cache->GetOrCreateWorker(worker_name);
   if (wi == nullptr) {
     std::vector<Device*> empty;
@@ -172,7 +172,7 @@ void NewRemoteDevices(Env* env, WorkerCacheInterface* worker_cache,
 
 std::unique_ptr<Device> NewRemoteDevice(Env* env,
                                         DeviceAttributes device_attribute) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return std::make_unique<RemoteDevice>(env, device_attribute);
 }
 

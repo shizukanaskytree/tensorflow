@@ -44,7 +44,7 @@ JOB_NAME = "remote_device"
 
 
 def get_server_def(job_name, local_server_port, remote_server_addresses,
-                   task_index):
+                   task_index) -> tensorflow_server_pb2.ServerDef:
   """Returns a server def with a single job + multiple tasks."""
   cluster_def = cluster_pb2.ClusterDef()
   job_def = cluster_def.job.add()

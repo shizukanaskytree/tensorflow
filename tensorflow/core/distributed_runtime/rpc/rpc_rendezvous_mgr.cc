@@ -46,7 +46,7 @@ class RpcRemoteRendezvous : public BaseRemoteRendezvous {
  public:
   RpcRemoteRendezvous(const WorkerEnv* env, int64_t step_id)
       : BaseRemoteRendezvous(env, step_id) {
-        write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+        //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
       }
 
  protected:
@@ -56,7 +56,7 @@ class RpcRemoteRendezvous : public BaseRemoteRendezvous {
 
  private:
   ~RpcRemoteRendezvous() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   TF_DISALLOW_COPY_AND_ASSIGN(RpcRemoteRendezvous);
@@ -66,13 +66,13 @@ class RpcRemoteRendezvous : public BaseRemoteRendezvous {
 class RpcRecvTensorCall : public BaseRecvTensorCall {
  public:
   RpcRecvTensorCall() : wi_(nullptr), dst_device_(nullptr) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   void Init(WorkerInterface* wi, int64_t step_id, StringPiece key,
             AllocatorAttributes alloc_attrs, Device* dst_device,
             const Rendezvous::Args& recv_args, Rendezvous::DoneCallback done) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     wi_ = wi;
     alloc_attrs_ = alloc_attrs;
@@ -85,7 +85,7 @@ class RpcRecvTensorCall : public BaseRecvTensorCall {
   }
 
   void Reset() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     // The RpcRemoteRendezvous using this object is responsible for calling
     // ReleaseWorker() before Reset().
@@ -106,7 +106,7 @@ class RpcRecvTensorCall : public BaseRecvTensorCall {
   }
 
   ~RpcRecvTensorCall() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     // Since only the RpcRecvTensorFreeList will delete an
     // RpcRecvTensorCall, we require that ReleaseWorker() has been called before
@@ -116,13 +116,13 @@ class RpcRecvTensorCall : public BaseRecvTensorCall {
   }
 
   void Start(std::function<void()> recv_done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     StartRTCall(std::move(recv_done));
   }
 
   void StartAbort(const Status& s) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     {
       mutex_lock l(mu_);
       status_.Update(s);
@@ -131,14 +131,14 @@ class RpcRecvTensorCall : public BaseRecvTensorCall {
   }
 
   Status status() const override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     mutex_lock l(mu_);
     return status_;
   }
 
   void ReleaseWorker(WorkerCacheInterface* worker_cache) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     DCHECK_NE(static_cast<WorkerInterface*>(nullptr), wi_)
         << "RpcRecvTensorCall::ReleaseWorker() called twice.";
@@ -147,25 +147,25 @@ class RpcRecvTensorCall : public BaseRecvTensorCall {
   }
 
   const Tensor& tensor() const {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return resp_.tensor();
   }
 
   bool is_dead() const {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return resp_.metadata().is_dead();
   }
 
   Device* dst_device() const {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return dst_device_;
   }
   const Rendezvous::Args& recv_args() const {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return recv_args_;
   }
   const Rendezvous::DoneCallback& done() const {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return done_;
   }
 
@@ -174,7 +174,7 @@ class RpcRecvTensorCall : public BaseRecvTensorCall {
 
   // Start the main RecvTensor call, checking for an async abort.
   void StartRTCall(std::function<void()> recv_done) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     resp_.InitAlloc(dst_device_, alloc_attrs_);
     auto abort_checked = std::make_shared<Notification>();
@@ -228,17 +228,17 @@ class RpcRecvTensorCall : public BaseRecvTensorCall {
 class RpcRecvTensorFreeList {
  public:
   RpcRecvTensorFreeList() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
   ~RpcRecvTensorFreeList() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     for (size_t i = 0; i < objects_.size(); i++) {
       delete objects_[i];
     }
   }
 
   RpcRecvTensorCall* New() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     {
       mutex_lock l(mu_);
       if (!objects_.empty()) {
@@ -251,7 +251,7 @@ class RpcRecvTensorFreeList {
   }
 
   void Release(RpcRecvTensorCall* obj) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     obj->Reset();
     {
       mutex_lock l(mu_);
@@ -271,7 +271,7 @@ class RpcRecvTensorFreeList {
 };
 
 static RpcRecvTensorFreeList* get_call_freelist() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   static RpcRecvTensorFreeList* call_freelist = new RpcRecvTensorFreeList();
   return call_freelist;
 }
@@ -279,7 +279,7 @@ static RpcRecvTensorFreeList* get_call_freelist() {
 void RpcRemoteRendezvous::RecvFromRemoteAsync(
     const Rendezvous::ParsedKey& parsed, const Rendezvous::Args& recv_args,
     DoneCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   CHECK(is_initialized());
   Status s;
 
@@ -356,12 +356,12 @@ void RpcRemoteRendezvous::RecvFromRemoteAsync(
 
 RpcRendezvousMgr::RpcRendezvousMgr(const WorkerEnv* env)
     : BaseRendezvousMgr(env) {
-      write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+      //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     }
 
 BaseRemoteRendezvous* RpcRendezvousMgr::Create(int64_t step_id,
                                                const WorkerEnv* worker_env) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return new RpcRemoteRendezvous(worker_env, step_id);
 }
 

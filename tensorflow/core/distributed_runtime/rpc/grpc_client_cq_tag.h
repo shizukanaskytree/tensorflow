@@ -28,10 +28,10 @@ namespace tensorflow {
 class GrpcClientCQTag {
  public:
   GrpcClientCQTag() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
   virtual ~GrpcClientCQTag() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   // OnCompleted is invoked when the RPC has finished.

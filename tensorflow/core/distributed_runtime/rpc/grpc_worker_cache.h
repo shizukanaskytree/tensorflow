@@ -35,17 +35,17 @@ class GrpcWorkerEnv {
   ~GrpcWorkerEnv();
 
   thread::ThreadPool* GetThreadPool() const {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return threadpool_.get();
   }
 
   size_t CompletionQueueSize() const {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return threads_.size();
   }
 
   ::grpc::CompletionQueue* GetCompletionQueue(size_t index) const {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return threads_.at(index).completion_queue();
   }
 

@@ -26,12 +26,12 @@ namespace tensorflow {
 namespace {
 
 double GenerateUniformRandomNumber() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return random::New64() * (1.0 / std::numeric_limits<uint64>::max());
 }
 
 double GenerateUniformRandomNumberBetween(double a, double b) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (a == b) return a;
   DCHECK_LT(a, b);
   return a + GenerateUniformRandomNumber() * (b - a);
@@ -41,7 +41,7 @@ double GenerateUniformRandomNumberBetween(double a, double b) {
 
 int64_t ComputeBackoffMicroseconds(int current_retry_attempt, int64_t min_delay,
                                    int64_t max_delay) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   DCHECK_GE(current_retry_attempt, 0);
 
   // This function with the constants below is calculating:
@@ -79,7 +79,7 @@ int64_t ComputeBackoffMicroseconds(int current_retry_attempt, int64_t min_delay,
 
 ::grpc::Status GrpcMaybeUnparseProto(const protobuf::Message& src,
                                      grpc::ByteBuffer* dst) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   bool own_buffer;
   return ::grpc::GenericSerialize<::grpc::ProtoBufferWriter,
                                   protobuf::Message>(src, dst, &own_buffer);
@@ -88,7 +88,7 @@ int64_t ComputeBackoffMicroseconds(int current_retry_attempt, int64_t min_delay,
 // GrpcMaybeUnparseProto from a string simply copies the string to the
 // ByteBuffer.
 ::grpc::Status GrpcMaybeUnparseProto(const string& src, grpc::ByteBuffer* dst) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   ::grpc::Slice s(src.data(), src.size());
   ::grpc::ByteBuffer buffer(&s, 1);
   dst->Swap(&buffer);
@@ -96,7 +96,7 @@ int64_t ComputeBackoffMicroseconds(int current_retry_attempt, int64_t min_delay,
 }
 
 bool GrpcMaybeParseProto(::grpc::ByteBuffer* src, protobuf::Message* dst) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   ::grpc::ProtoBufferReader reader(src);
   return dst->ParseFromZeroCopyStream(&reader);
 }
@@ -105,7 +105,7 @@ bool GrpcMaybeParseProto(::grpc::ByteBuffer* src, protobuf::Message* dst) {
 // extra copying.  This overload is used by the RPCState class in
 // grpc_state.h.
 bool GrpcMaybeParseProto(::grpc::ByteBuffer* src, TensorResponse* dst) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   ::tensorflow::GrpcByteSource byte_source(src);
   auto s = dst->ParseFrom(&byte_source);
   return s.ok();
@@ -113,7 +113,7 @@ bool GrpcMaybeParseProto(::grpc::ByteBuffer* src, TensorResponse* dst) {
 
 // GrpcMaybeParseProto simply copies bytes into the string.
 bool GrpcMaybeParseProto(grpc::ByteBuffer* src, string* dst) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   dst->clear();
   dst->reserve(src->Length());
   std::vector<::grpc::Slice> slices;
@@ -128,7 +128,7 @@ bool GrpcMaybeParseProto(grpc::ByteBuffer* src, string* dst) {
 
 // GrpcMaybeParseProto simply copies bytes into the tstring.
 bool GrpcMaybeParseProto(grpc::ByteBuffer* src, tstring* dst) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   dst->clear();
   dst->reserve(src->Length());
   std::vector<::grpc::Slice> slices;

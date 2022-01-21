@@ -43,7 +43,7 @@ const size_t kSchemePrefixLength = strlen(kSchemePrefix);
 
 GrpcSession::GrpcSession(const SessionOptions& options)
     : options_(options), current_graph_version_(-1) {
-      write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+      //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     }
 
 GrpcSession::~GrpcSession() {}
@@ -51,7 +51,7 @@ GrpcSession::~GrpcSession() {}
 /* static */
 Status GrpcSession::Create(const SessionOptions& options,
                            std::unique_ptr<GrpcSession>* out_session) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   std::unique_ptr<GrpcSession> session(new GrpcSession(options));
   std::unique_ptr<MasterInterface> master;
@@ -79,7 +79,7 @@ namespace {
 // tensor_content, which is slightly better (less copies and lower peak
 // memory usage) when used with rpc subsystems.
 void ReEncodeConsts(GraphDef* gdef) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   for (NodeDef& ndef : *(gdef->mutable_node())) {
     if (ndef.op() == "Const") {
@@ -108,7 +108,7 @@ void ReEncodeConsts(GraphDef* gdef) {
 
 void GrpcSession::SetHandleAndGraphVersion(string handle,
                                            int64_t graph_version) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   mutex_lock l(mu_);
   handle_ = std::move(handle);
@@ -116,7 +116,7 @@ void GrpcSession::SetHandleAndGraphVersion(string handle,
 }
 
 Status GrpcSession::Handle(string* out_handle) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   mutex_lock l(mu_);
   if (handle_.empty()) {
@@ -127,7 +127,7 @@ Status GrpcSession::Handle(string* out_handle) {
 }
 
 Status GrpcSession::CreateImpl(CallOptions* call_options, GraphDef graph) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   {
     mutex_lock l(mu_);
@@ -149,20 +149,20 @@ Status GrpcSession::CreateImpl(CallOptions* call_options, GraphDef graph) {
 }
 
 Status GrpcSession::Create(const GraphDef& graph) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   return Create(GraphDef(graph));
 }
 
 Status GrpcSession::Create(const RunOptions& run_options,
                            const GraphDef& graph) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   return Create(run_options, GraphDef(graph));
 }
 
 Status GrpcSession::Create(GraphDef&& graph) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   CallOptions call_options;
   call_options.SetTimeout(options_.config.operation_timeout_in_ms());
@@ -170,7 +170,7 @@ Status GrpcSession::Create(GraphDef&& graph) {
 }
 
 Status GrpcSession::Create(const RunOptions& run_options, GraphDef&& graph) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   CallOptions call_options;
   call_options.SetTimeout(run_options.timeout_in_ms());
@@ -178,7 +178,7 @@ Status GrpcSession::Create(const RunOptions& run_options, GraphDef&& graph) {
 }
 
 Status GrpcSession::ExtendImpl(CallOptions* call_options, GraphDef graph) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   bool handle_is_empty;
   {
@@ -203,20 +203,20 @@ Status GrpcSession::ExtendImpl(CallOptions* call_options, GraphDef graph) {
 }
 
 Status GrpcSession::Extend(const GraphDef& graph) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   return Extend(GraphDef(graph));
 }
 
 Status GrpcSession::Extend(const RunOptions& run_options,
                            const GraphDef& graph) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   return Extend(run_options, GraphDef(graph));
 }
 
 Status GrpcSession::Extend(GraphDef&& graph) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   CallOptions call_options;
   call_options.SetTimeout(options_.config.operation_timeout_in_ms());
@@ -224,7 +224,7 @@ Status GrpcSession::Extend(GraphDef&& graph) {
 }
 
 Status GrpcSession::Extend(const RunOptions& run_options, GraphDef&& graph) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   CallOptions call_options;
   call_options.SetTimeout(run_options.timeout_in_ms());
@@ -237,7 +237,7 @@ Status GrpcSession::RunHelper(
     const std::vector<string>& output_tensor_names,
     const std::vector<string>& target_node_names, std::vector<Tensor>* outputs,
     RunMetadata* run_metadata, const string& prun_handle) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   // Convert to proto
   std::unique_ptr<MutableRunStepRequestWrapper> req(
@@ -326,7 +326,7 @@ Status GrpcSession::Run(const RunOptions& run_options,
                         const std::vector<string>& target_node_names,
                         std::vector<Tensor>* outputs,
                         RunMetadata* run_metadata) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   return RunHelper(run_options, inputs, output_tensor_names, target_node_names,
                    outputs, run_metadata, /* prun_handle */ "");
@@ -336,7 +336,7 @@ Status GrpcSession::Run(const std::vector<std::pair<string, Tensor>>& inputs,
                         const std::vector<string>& output_tensor_names,
                         const std::vector<string>& target_node_names,
                         std::vector<Tensor>* outputs) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   RunOptions run_options;
   run_options.set_timeout_in_ms(options_.config.operation_timeout_in_ms());
@@ -347,7 +347,7 @@ Status GrpcSession::Run(const std::vector<std::pair<string, Tensor>>& inputs,
 Status GrpcSession::RunProto(CallOptions* call_options,
                              MutableRunStepRequestWrapper* req,
                              MutableRunStepResponseWrapper* resp) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   string handle;
   TF_RETURN_IF_ERROR(Handle(&handle));
@@ -359,7 +359,7 @@ Status GrpcSession::PRunSetup(const std::vector<string>& input_names,
                               const std::vector<string>& output_names,
                               const std::vector<string>& target_nodes,
                               string* handle) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   // Convert to proto
   PartialRunSetupRequest req;
@@ -386,7 +386,7 @@ Status GrpcSession::PRun(const string& handle,
                          const std::vector<std::pair<string, Tensor>>& inputs,
                          const std::vector<string>& output_names,
                          std::vector<Tensor>* outputs) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   RunOptions run_options;
   run_options.set_timeout_in_ms(options_.config.operation_timeout_in_ms());
@@ -395,7 +395,7 @@ Status GrpcSession::PRun(const string& handle,
 }
 
 Status GrpcSession::Close() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   CloseSessionRequest req;
   {
@@ -413,7 +413,7 @@ Status GrpcSession::Close() {
 }
 
 Status GrpcSession::ListDevices(std::vector<DeviceAttributes>* response) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   ListDevicesRequest req;
   {
@@ -452,7 +452,7 @@ Status GrpcSession::ListDevices(std::vector<DeviceAttributes>* response) {
 }
 
 void GrpcSession::SetRemoteMaster(std::unique_ptr<MasterInterface> master) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   master_ = std::move(master);
 }
@@ -460,7 +460,7 @@ void GrpcSession::SetRemoteMaster(std::unique_ptr<MasterInterface> master) {
 // Static method.
 Status GrpcSession::Reset(const SessionOptions& options,
                           const std::vector<string>& containers) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   SharedGrpcChannelPtr master_channel;
   TF_RETURN_IF_ERROR(
@@ -480,7 +480,7 @@ Status GrpcSession::Reset(const SessionOptions& options,
 
 Status GrpcSession::MakeCallable(const CallableOptions& callable_options,
                                  CallableHandle* out_handle) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   MakeCallableRequest req;
   TF_RETURN_IF_ERROR(Handle(req.mutable_session_handle()));
@@ -498,7 +498,7 @@ Status GrpcSession::RunCallable(CallableHandle handle,
                                 const std::vector<Tensor>& feed_tensors,
                                 std::vector<Tensor>* fetch_tensors,
                                 RunMetadata* run_metadata) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   RunCallableRequest req;
   TF_RETURN_IF_ERROR(Handle(req.mutable_session_handle()));
@@ -524,7 +524,7 @@ Status GrpcSession::RunCallable(CallableHandle handle,
 }
 
 Status GrpcSession::ReleaseCallable(CallableHandle handle) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   ReleaseCallableRequest req;
   TF_RETURN_IF_ERROR(Handle(req.mutable_session_handle()));
@@ -538,14 +538,14 @@ Status GrpcSession::ReleaseCallable(CallableHandle handle) {
 class GrpcSessionFactory : public SessionFactory {
  public:
   bool AcceptsOptions(const SessionOptions& options) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     return absl::StartsWith(options.target, kSchemePrefix);
   }
 
   Status NewSession(const SessionOptions& options,
                     Session** out_session) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     std::unique_ptr<GrpcSession> session;
     TF_RETURN_IF_ERROR(GrpcSession::Create(options, &session));
@@ -556,7 +556,7 @@ class GrpcSessionFactory : public SessionFactory {
   // Invokes the session specific static method to reset containers.
   Status Reset(const SessionOptions& options,
                const std::vector<string>& containers) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     return GrpcSession::Reset(options, containers);
   }
@@ -565,7 +565,7 @@ class GrpcSessionFactory : public SessionFactory {
 class GrpcSessionRegistrar {
  public:
   GrpcSessionRegistrar() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     SessionFactory::Register("GRPC_SESSION", new GrpcSessionFactory());
   }

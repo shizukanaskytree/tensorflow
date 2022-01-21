@@ -31,7 +31,7 @@ limitations under the License.
 namespace tensorflow {
 
 const char* GrpcWorkerMethodName(GrpcWorkerMethod id) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   switch (id) {
     case GrpcWorkerMethod::kGetStatus:
       return "/tensorflow.WorkerService/GetStatus";
@@ -74,7 +74,7 @@ const char* GrpcWorkerMethodName(GrpcWorkerMethod id) {
 namespace grpc {
 
 WorkerService::AsyncService::AsyncService() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   for (int i = 0; i < kGrpcNumWorkerMethods; ++i) {
     AddMethod(new ::grpc::internal::RpcServiceMethod(
         GrpcWorkerMethodName(static_cast<GrpcWorkerMethod>(i)),
@@ -84,7 +84,7 @@ WorkerService::AsyncService::AsyncService() {
 }
 
 WorkerService::AsyncService::~AsyncService() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 }
 
 }  // namespace grpc

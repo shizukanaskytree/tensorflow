@@ -38,11 +38,11 @@ class CancellableCall {
         remote_worker_(remote_worker),
         wc_(wc),
         wi_(wc_->GetOrCreateWorker(remote_worker_)) {
-          write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+          //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
         }
 
   virtual ~CancellableCall() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     wc_->ReleaseWorker(remote_worker_, wi_);
   }
 

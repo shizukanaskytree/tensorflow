@@ -49,3 +49,8 @@ bazel run //tensorflow/core/distributed_runtime:collective_rma_distributed_test
 # INFO: 18922 processes: 3032 internal, 15890 local.
 # INFO: Build completed successfully, 18922 total actions
 # INFO: Build completed successfully, 18922 total actions
+
+
+# Case 2:
+# Go to see:
+# tensorflow/python/kernel_tests/collective_ops_multi_worker_test_exec.sh

@@ -598,6 +598,7 @@ cc_library(
     name = "write_log",
     srcs = ["write_log.cc"],
     hdrs = ["write_log.h"],
+    visibility = ["//visibility:public"],
     # deps = [
     # ],
 )

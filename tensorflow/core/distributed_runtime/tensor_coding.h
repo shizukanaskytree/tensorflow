@@ -39,7 +39,7 @@ class TensorProto;
 class TensorResponse {
  public:
   TensorResponse() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   // Reset to initial state.
@@ -88,7 +88,7 @@ class TensorResponse {
   // Return a reference to the parsed tensor.  The tensor will remain
   // live only until *this is destroyed or modified.
   const Tensor& tensor() const {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return tensor_;
   }
 
@@ -96,13 +96,13 @@ class TensorResponse {
   // The result will remain live only until *this is destroyed or
   // modified.
   const RecvTensorResponse& metadata() const {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return meta_;
   }
 
   // Return pointer to the device hosting the tensor.
   DeviceBase* device() const {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return device_;
   }
 

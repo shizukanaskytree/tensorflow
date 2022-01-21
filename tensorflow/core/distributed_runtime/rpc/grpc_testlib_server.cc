@@ -42,7 +42,7 @@ namespace {
 Status FillServerDef(const string& job_spec, const string& job_name,
                      int num_cpus, int num_gpus, int task_index,
                      ServerDef* options) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   options->set_protocol("grpc");
   options->set_job_name(job_name);
   options->set_task_index(task_index);
@@ -81,7 +81,7 @@ Status FillServerDef(const string& job_spec, const string& job_name,
 }  // namespace tensorflow
 
 int main(int argc, char* argv[]) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   tensorflow::port::InitMain(argv[0], &argc, &argv);
   tensorflow::string job_spec;
   tensorflow::string job_name;

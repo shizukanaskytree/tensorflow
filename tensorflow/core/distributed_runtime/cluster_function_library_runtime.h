@@ -38,7 +38,7 @@ class ClusterFunctionLibraryRuntime : public DistributedFunctionLibraryRuntime {
       : worker_session_(worker_session),
         create_worker_session_called_(create_worker_session_called),
         remote_device_mgr_(remote_device_mgr) {
-          write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+          //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
         }
 
   ~ClusterFunctionLibraryRuntime() override;
@@ -63,7 +63,7 @@ class ClusterFunctionLibraryRuntime : public DistributedFunctionLibraryRuntime {
                FunctionLibraryRuntime::DoneCallback done) override;
 
   DeviceMgr* remote_device_mgr() const override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return remote_device_mgr_;
   }
 

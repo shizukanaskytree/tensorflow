@@ -38,6 +38,38 @@ from tensorflow.python.framework import errors
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import collective_ops
 
+import sys, traceback
+import logging
+def get_logger(module_name: str) -> logging.Logger:
+    # trim package name
+    name_without_prefix = '.'.join(module_name.split('.')[1:])
+    loglevel = os.getenv('LOGLEVEL', 'INFO')
+
+    logging.addLevelName(logging.WARNING, 'WARN')
+    formatter = logging.Formatter(
+      fmt='[{asctime}.{msecs:03.0f}][{levelname}][{name}.{funcName}:{lineno}] {message}',
+                                  style='{', datefmt='%Y/%m/%d %H:%M:%S')
+    # handler = logging.StreamHandler() # terminal printing
+    handler = logging.FileHandler('/home/wxf/tf2/tensorflow/py_debug_logging.log') # file handler
+
+    handler.setFormatter(formatter)
+    logger = logging.getLogger(name_without_prefix)
+    logger.setLevel(loglevel)
+    logger.addHandler(handler)
+    logger.propagate = False
+    return logger
+
+logger = get_logger(__name__)
+
+"""
+How to use:
+
+(1) just to see tracing.
+logger.info("")
+
+(2) callstack
+logger.info(traceback.format_stack())
+"""
 
 def enable_collective_ops(cluster_resolver):
   context.context().configure_collective_ops(
@@ -67,8 +99,10 @@ device_combination = (
 class CollectiveOpTest(test.TestCase):
 
   def testCheckHealth(self):
+    logger.info(traceback.format_stack())
 
     def worker_fn():
+      # logger.info(traceback.format_stack())
       enable_collective_ops(cluster_resolver_lib.TFConfigClusterResolver())
       # There may be some delays before the server startup. Check health should
       # eventually be OK.
@@ -91,8 +125,10 @@ class CollectiveOpTest(test.TestCase):
     mpr.join()
 
   def testCheckHealthPeerDown(self):
+    logger.info(traceback.format_stack())
 
     def worker_fn():
+      logger.info(traceback.format_stack())
       enable_collective_ops(cluster_resolver_lib.TFConfigClusterResolver())
       context.context().check_collective_ops_peer_health(
           "/job:worker/replica:0/task:1", timeout_in_ms=1000)
@@ -105,8 +141,10 @@ class CollectiveOpTest(test.TestCase):
       mpr.join()
 
   def testCheckHealthPeerRestart(self):
+    logger.info(traceback.format_stack())
 
     def worker_fn():
+      logger.info(traceback.format_stack())
       cluster_resolver = cluster_resolver_lib.TFConfigClusterResolver()
       enable_collective_ops(cluster_resolver)
 

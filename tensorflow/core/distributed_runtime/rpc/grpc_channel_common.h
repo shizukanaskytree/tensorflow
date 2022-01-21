@@ -42,15 +42,15 @@ class GenericCachingChannelCache : public ChannelCacheT {
   explicit GenericCachingChannelCache(int num_channels_per_target)
       : num_channels_per_target_(
             num_channels_per_target > 0 ? num_channels_per_target : 1) {
-              write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+              //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
             }
 
   ~GenericCachingChannelCache() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   SharedGrpcChannelPtr FindWorkerChannel(const string& target) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     {
       mutex_lock l(mu_);
@@ -94,7 +94,7 @@ class GenericCachingChannelCache : public ChannelCacheT {
   // Should be called with mu_ held.
   SharedGrpcChannelPtr GetNextChannelPtrAndUpdateState(
       ChannelState& chan_state) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     // Following statement is marked as Crash OK as this is an invariant of
     // code flow in this class.

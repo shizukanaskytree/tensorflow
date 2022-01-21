@@ -35,7 +35,7 @@ namespace grpc {
 
 void EncodeRecvTensorResponseToByteBuffer(const RecvTensorResponse& proto,
                                           ::grpc::ByteBuffer* result) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   ::grpc::Slice slice(proto.ByteSizeLong());
   proto.SerializeWithCachedSizesToArray(
       const_cast<uint8*>(reinterpret_cast<const uint8*>(slice.begin())));
@@ -75,7 +75,7 @@ void EncodeRecvTensorResponseToByteBuffer(const RecvTensorResponse& proto,
 // to dereference the underlying tensor data buffer when it is no longer
 // needed in the "*result" ByteBuffer).
 static int VarLengthEncodingSize(uint32 tag, size_t bytes) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return core::VarintLength(tag << 3) + core::VarintLength(bytes) + bytes;
 }
 
@@ -83,7 +83,7 @@ static int VarLengthEncodingSize(uint32 tag, size_t bytes) {
 // the "skeleton" of "val" (all the data needed for dtype and the shape,
 // but not the actual contents of "val").
 static int SkeletonEncodingSizeUpperBound(const Tensor& val) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   static const int kVarintMax64 = 10;  // Max length of varint64 encoding
   const int ndims = val.shape().dims();
   return (2 * kVarintMax64) +           // dtype
@@ -94,7 +94,7 @@ static int SkeletonEncodingSizeUpperBound(const Tensor& val) {
 // (dtype and shape, but not the actual data) into "*e".  The backing
 // store for "*e" must be of appropriate size to hold this encoding.
 static void EncodeSkeleton(const Tensor& val, io::ProtoEncodeHelper* e) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   // Encode val.dtype()
   e->WriteUint64(TensorProto::kDtypeFieldNumber, val.dtype());
 
@@ -143,7 +143,7 @@ static void EncodeSkeleton(const Tensor& val, io::ProtoEncodeHelper* e) {
 
 void EncodeTensorToByteBuffer(bool is_dead, const Tensor& val, bool require_ack,
                               ::grpc::ByteBuffer* result) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   const int kLargeTensorBytes = 1024;
   const int64_t kProtoBufLimitBytes = 1LL << 31;
 

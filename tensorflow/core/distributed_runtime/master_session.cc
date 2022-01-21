@@ -88,7 +88,7 @@ class MasterSession::ReffedClientGraph : public core::RefCounted {
         should_deregister_(should_deregister),
         collective_graph_key_(
             client_graph_before_register_->collective_graph_key) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     VLOG(1) << "Created ReffedClientGraph for node with "
             << client_graph_before_register_->graph.num_node_ids();
 
@@ -105,7 +105,7 @@ class MasterSession::ReffedClientGraph : public core::RefCounted {
   }
 
   ~ReffedClientGraph() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     if (should_deregister_) {
       DeregisterPartitions();
     } else {
@@ -116,29 +116,29 @@ class MasterSession::ReffedClientGraph : public core::RefCounted {
   }
 
   const CallableOptions& callable_options() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return callable_opts_;
   }
 
   const BuildGraphOptions& build_graph_options() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return bg_opts_;
   }
 
   int64_t collective_graph_key() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return collective_graph_key_;
   }
 
   std::unique_ptr<ProfileHandler> GetProfileHandler(uint64 step,
                                                     int64_t execution_count,
                                                     const RunOptions& ropts) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return stats_publisher_->GetProfileHandler(step, execution_count, ropts);
   }
 
   int64_t get_and_increment_execution_count() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return execution_count_.fetch_add(1);
   }
 
@@ -146,7 +146,7 @@ class MasterSession::ReffedClientGraph : public core::RefCounted {
   // master process, and at each remote worker in use for the current
   // partitions.
   void SetRPCLogging(bool active) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     worker_cache_->SetLogging(active);
     // Logging is a best-effort activity, so we make async calls to turn
     // it on/off and don't make use of the responses.
@@ -175,7 +175,7 @@ class MasterSession::ReffedClientGraph : public core::RefCounted {
   // from the local WorkerCache in use by this master process and from
   // all the remote workers executing the remote partitions.
   void RetrieveLogs(int64_t step_id, StepStats* ss) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     // Get the local data first, because it sets *ss without merging.
     worker_cache_->RetrieveLogs(step_id, ss);
 
@@ -307,7 +307,7 @@ class MasterSession::ReffedClientGraph : public core::RefCounted {
   std::unique_ptr<StatsPublisherInterface> stats_publisher_;
 
   string DetailText(const NodeDetails& details, const NodeExecStats& stats) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     int64_t tot = 0;
     for (auto& no : stats.output()) {
       tot += no.tensor_description().allocation_description().requested_bytes();
@@ -354,7 +354,7 @@ class MasterSession::ReffedClientGraph : public core::RefCounted {
 
 Status MasterSession::ReffedClientGraph::RegisterPartitions(
     PartitionOptions popts) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   {  // Ensure register once.
     mu_.lock();
     if (client_graph_before_register_) {
@@ -396,7 +396,7 @@ Status MasterSession::ReffedClientGraph::RegisterPartitions(
 }
 
 static string SplitByWorker(const Node* node) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   string task;
   string device;
   CHECK(DeviceNameUtils::SplitDeviceName(node->assigned_device_name(), &task,
@@ -407,7 +407,7 @@ static string SplitByWorker(const Node* node) {
 
 void MasterSession::ReffedClientGraph::TrackFeedsAndFetches(
     Part* part, const GraphDef& graph_def, const PartitionOptions& popts) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   for (int i = 0; i < graph_def.node_size(); ++i) {
     const NodeDef& ndef = graph_def.node(i);
     const bool is_recv = ndef.op() == "_Recv";
@@ -447,7 +447,7 @@ void MasterSession::ReffedClientGraph::TrackFeedsAndFetches(
 Status MasterSession::ReffedClientGraph::DoBuildPartitions(
     PartitionOptions popts, ClientGraph* client_graph,
     std::unordered_map<string, GraphDef>* out_partitions) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (popts.need_to_record_start_times) {
     CostModel cost_model(true);
     cost_model.InitFromGraph(client_graph->graph);
@@ -464,7 +464,7 @@ Status MasterSession::ReffedClientGraph::DoBuildPartitions(
 Status MasterSession::ReffedClientGraph::DoRegisterPartitions(
     const PartitionOptions& popts,
     std::unordered_map<string, GraphDef> graph_partitions) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   partitions_.reserve(graph_partitions.size());
   Status s;
   for (auto& name_def : graph_partitions) {
@@ -527,11 +527,11 @@ namespace {
 class RunManyGraphs {
  public:
   explicit RunManyGraphs(int num) : calls_(num), pending_(num) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   ~RunManyGraphs() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   // Returns the index-th call.
@@ -543,13 +543,13 @@ class RunManyGraphs {
     std::unique_ptr<MutableRunGraphResponseWrapper> resp;
   };
   Call* get(int index) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return &calls_[index];
   }
 
   // When the index-th call is done, updates the overall status.
   void WhenDone(int index, const Status& s) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     TRACEPRINTF("Partition %d %s", index, s.ToString().c_str());
     Call* call = get(index);
     call->done = true;
@@ -571,13 +571,13 @@ class RunManyGraphs {
   }
 
   void StartCancel() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     mutex_lock l(mu_);
     ReportBadStatus(errors::Cancelled("RunManyGraphs"));
   }
 
   void Wait() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     // Check the error status every 60 seconds in other to print a log message
     // in the event of a hang.
     const std::chrono::milliseconds kCheckErrorPeriod(1000 * 60);
@@ -609,7 +609,7 @@ class RunManyGraphs {
   }
 
   Status status() const {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     mutex_lock l(mu_);
     // Concat status objects in this StatusGroup to get the aggregated status,
     // as each status in status_group_ is already summarized status.
@@ -625,7 +625,7 @@ class RunManyGraphs {
   bool cancel_issued_ TF_GUARDED_BY(mu_) = false;
 
   void ReportBadStatus(const Status& s) TF_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     VLOG(1) << "Master received error status " << s;
     if (!cancel_issued_ && !StatusGroup::IsDerived(s)) {
       // Only start cancelling other workers upon receiving a non-derived
@@ -647,14 +647,14 @@ class RunManyGraphs {
 Status AddSendFromClientRequest(const RunStepRequestWrapper& client_req,
                                 MutableRunGraphRequestWrapper* worker_req,
                                 size_t index, const string& send_key) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return worker_req->AddSendFromRunStepRequest(client_req, index, send_key);
 }
 
 Status AddSendFromClientRequest(const RunCallableRequest& client_req,
                                 MutableRunGraphRequestWrapper* worker_req,
                                 size_t index, const string& send_key) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return worker_req->AddSendFromRunCallableRequest(client_req, index, send_key);
 }
 
@@ -669,7 +669,7 @@ struct RunCallableResponseWrapper {
   Status AddTensorFromRunGraphResponse(
       const string& tensor_name, MutableRunGraphResponseWrapper* worker_resp,
       size_t index) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return worker_resp->RecvValue(index, &fetch_key_to_protos[tensor_name]);
   }
 };
@@ -683,7 +683,7 @@ Status MasterSession::ReffedClientGraph::RunPartitionsHelper(
     int64_t execution_count, PerStepState* pss, CallOptions* call_opts,
     const ClientRequestType& req, ClientResponseType* resp,
     CancellationManager* cm, bool is_last_partial_run) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   // Collect execution cost stats on a smoothly decreasing frequency.
   ExecutorOpts exec_opts;
   if (pss->report_tensor_allocations_upon_oom) {
@@ -848,7 +848,7 @@ Status MasterSession::ReffedClientGraph::RunPartitions(
     PerStepState* pss, CallOptions* call_opts, const RunStepRequestWrapper& req,
     MutableRunStepResponseWrapper* resp, CancellationManager* cm,
     const bool is_last_partial_run) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   VLOG(2) << "RunPartitions step_id " << step_id << " execution_count "
           << execution_count;
   // Maps the names of fed tensors to their index in `req`.
@@ -873,7 +873,7 @@ Status MasterSession::ReffedClientGraph::RunPartitions(
     const MasterEnv* env, int64_t step_id, int64_t execution_count,
     PerStepState* pss, CallOptions* call_opts, const RunCallableRequest& req,
     RunCallableResponse* resp, CancellationManager* cm) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   VLOG(2) << "RunPartitions step_id " << step_id << " execution_count "
           << execution_count;
   // Maps the names of fed tensors to their index in `req`.
@@ -914,25 +914,25 @@ class CleanupBroadcastHelper {
  public:
   CleanupBroadcastHelper(int64_t step_id, int num_calls, StatusCallback done)
       : resps_(num_calls), num_pending_(num_calls), done_(std::move(done)) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     req_.set_step_id(step_id);
   }
 
   // Returns a non-owned pointer to a request buffer for all calls.
   CleanupGraphRequest* request() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return &req_;
   }
 
   // Returns a non-owned pointer to a response buffer for the ith call.
   CleanupGraphResponse* response(int i) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     return &resps_[i];
   }
 
   // Called when the ith response is received.
   void call_done(int i, const Status& s) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     bool run_callback = false;
     Status status_copy;
     {
@@ -971,7 +971,7 @@ class CleanupBroadcastHelper {
 
 void MasterSession::ReffedClientGraph::CleanupPartitionsAsync(
     int64_t step_id, StatusCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   const int num = partitions_.size();
   // Helper object will be deleted when the final call completes.
   CleanupBroadcastHelper* helper =
@@ -989,7 +989,7 @@ void MasterSession::ReffedClientGraph::ProcessStats(int64_t step_id,
                                                     ProfileHandler* ph,
                                                     const RunOptions& options,
                                                     RunMetadata* resp) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (!pss->collect_costs && !pss->collect_timeline) return;
 
   // Out-of-band logging data is collected now, during post-processing.
@@ -1036,7 +1036,7 @@ void MasterSession::ReffedClientGraph::ProcessStats(int64_t step_id,
 
 void MasterSession::ReffedClientGraph::ProcessDeviceStats(
     ProfileHandler* ph, const DeviceStepStats& ds, bool is_rpc) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   const string& dev_name = ds.device();
   VLOG(1) << "Device " << dev_name << " reports stats for "
           << ds.node_stats_size() << " nodes";
@@ -1085,7 +1085,7 @@ void MasterSession::ReffedClientGraph::ProcessDeviceStats(
 Status MasterSession::ReffedClientGraph::CheckFetches(
     const RunStepRequestWrapper& req, const RunState* run_state,
     GraphExecutionState* execution_state) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   // Build the set of pending feeds that we haven't seen.
   std::unordered_set<TensorId, TensorId::Hasher> pending_feeds;
   for (const auto& input : run_state->pending_inputs) {
@@ -1143,7 +1143,7 @@ Status MasterSession::ReffedClientGraph::CheckFetches(
 // Asynchronously deregisters subgraphs on the workers, without waiting for the
 // result.
 void MasterSession::ReffedClientGraph::DeregisterPartitions() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   struct Call {
     DeregisterGraphRequest req;
     DeregisterGraphResponse resp;
@@ -1179,7 +1179,7 @@ namespace {
 void CopyAndSortStrings(size_t size,
                         const std::function<string(size_t)>& input_accessor,
                         protobuf::RepeatedPtrField<string>* output) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   std::vector<string> temp;
   temp.reserve(size);
   for (size_t i = 0; i < size; ++i) {
@@ -1192,7 +1192,7 @@ void CopyAndSortStrings(size_t size,
 void BuildBuildGraphOptions(const RunStepRequestWrapper& req,
                             const ConfigProto& config,
                             BuildGraphOptions* opts) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   CallableOptions* callable_opts = &opts->callable_options;
   CopyAndSortStrings(
       req.num_feeds(), [&req](size_t i) { return req.feed_name(i); },
@@ -1220,7 +1220,7 @@ void BuildBuildGraphOptions(const RunStepRequestWrapper& req,
 
 void BuildBuildGraphOptions(const PartialRunSetupRequest& req,
                             BuildGraphOptions* opts) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   CallableOptions* callable_opts = &opts->callable_options;
   CopyAndSortStrings(
       req.feed_size(), [&req](size_t i) { return req.feed(i); },
@@ -1236,7 +1236,7 @@ void BuildBuildGraphOptions(const PartialRunSetupRequest& req,
 }
 
 uint64 HashBuildGraphOptions(const BuildGraphOptions& opts) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   uint64 h = 0x2b992ddfa23249d6ull;
   for (const string& name : opts.callable_options.feed()) {
     h = Hash64(name.c_str(), name.size(), h);
@@ -1260,7 +1260,7 @@ uint64 HashBuildGraphOptions(const BuildGraphOptions& opts) {
 }
 
 string BuildGraphOptionsString(const BuildGraphOptions& opts) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   string buf;
   for (const string& name : opts.callable_options.feed()) {
     strings::StrAppend(&buf, " FdE: ", name);
@@ -1298,7 +1298,7 @@ MasterSession::MasterSession(
       graph_version_(0),
       run_graphs_(5),
       partial_run_graphs_(5) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   UpdateLastAccessTime();
   CHECK(devices_) << "device_set was null!";
 
@@ -1309,19 +1309,19 @@ MasterSession::MasterSession(
 }
 
 MasterSession::~MasterSession() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   for (const auto& iter : run_graphs_) iter.second->Unref();
   for (const auto& iter : partial_run_graphs_) iter.second->Unref();
 }
 
 void MasterSession::UpdateLastAccessTime() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   last_access_time_usec_.store(Env::Default()->NowMicros());
 }
 
 Status MasterSession::Create(GraphDef&& graph_def,
                              const WorkerCacheFactoryOptions& options) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (session_opts_.config.use_per_session_threads() ||
       session_opts_.config.session_inter_op_thread_pool_size() > 0) {
     return errors::InvalidArgument(
@@ -1348,7 +1348,7 @@ Status MasterSession::Create(GraphDef&& graph_def,
 
 Status MasterSession::CreateWorkerSessions(
     const WorkerCacheFactoryOptions& options) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   const std::vector<string> worker_names = filtered_worker_list_;
   WorkerCacheInterface* worker_cache = get_worker_cache();
 
@@ -1465,7 +1465,7 @@ Status MasterSession::CreateWorkerSessions(
 }
 
 Status MasterSession::DeleteWorkerSessions() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   WorkerCacheInterface* worker_cache = get_worker_cache();
   const std::vector<string>& worker_names = filtered_worker_list_;
 
@@ -1523,7 +1523,7 @@ Status MasterSession::DeleteWorkerSessions() {
 }
 
 Status MasterSession::ListDevices(ListDevicesResponse* resp) const {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (worker_cache_) {
     // This is a ClusterSpec-propagated session, and thus env_->local_devices
     // are invalid.
@@ -1549,7 +1549,7 @@ Status MasterSession::ListDevices(ListDevicesResponse* resp) const {
 
 Status MasterSession::Extend(const ExtendSessionRequest* req,
                              ExtendSessionResponse* resp) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   UpdateLastAccessTime();
   std::unique_ptr<GraphExecutionState> extended_execution_state;
   {
@@ -1578,7 +1578,7 @@ Status MasterSession::Extend(const ExtendSessionRequest* req,
 }
 
 WorkerCacheInterface* MasterSession::get_worker_cache() const {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (worker_cache_) {
     return worker_cache_.get();
   }
@@ -1588,7 +1588,7 @@ WorkerCacheInterface* MasterSession::get_worker_cache() const {
 Status MasterSession::StartStep(const BuildGraphOptions& opts, bool is_partial,
                                 ReffedClientGraph** out_rcg,
                                 int64_t* out_count) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   const uint64 hash = HashBuildGraphOptions(opts);
   {
     mutex_lock l(mu_);
@@ -1622,7 +1622,7 @@ Status MasterSession::StartStep(const BuildGraphOptions& opts, bool is_partial,
 
 void MasterSession::ClearRunsTable(std::vector<ReffedClientGraph*>* to_unref,
                                    RCGMap* rcg_map) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   VLOG(1) << "Discarding all reffed graphs";
   for (auto p : *rcg_map) {
     ReffedClientGraph* rcg = p.second;
@@ -1636,7 +1636,7 @@ void MasterSession::ClearRunsTable(std::vector<ReffedClientGraph*>* to_unref,
 }
 
 uint64 MasterSession::NewStepId(int64_t graph_key) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (graph_key == BuildGraphOptions::kNoCollectiveGraphKey) {
     // StepId must leave the most-significant 7 bits empty for future use.
     return random::New64() & (((1uLL << 56) - 1) | (1uLL << 56));
@@ -1668,7 +1668,7 @@ uint64 MasterSession::NewStepId(int64_t graph_key) {
 
 Status MasterSession::PartialRunSetup(const PartialRunSetupRequest* req,
                                       PartialRunSetupResponse* resp) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   std::vector<string> inputs, outputs, targets;
   for (const auto& feed : req->feed()) {
     inputs.push_back(feed);
@@ -1708,7 +1708,7 @@ Status MasterSession::PartialRunSetup(const PartialRunSetupRequest* req,
 
 Status MasterSession::Run(CallOptions* opts, const RunStepRequestWrapper& req,
                           MutableRunStepResponseWrapper* resp) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   UpdateLastAccessTime();
   {
     mutex_lock l(mu_);
@@ -1730,7 +1730,7 @@ Status MasterSession::Run(CallOptions* opts, const RunStepRequestWrapper& req,
 
 // Decrements num_running_ and broadcasts if num_running_ is zero.
 void MasterSession::MarkRunCompletion() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(mu_);
   --num_running_;
   if (num_running_ == 0) {
@@ -1739,7 +1739,7 @@ void MasterSession::MarkRunCompletion() {
 }
 
 Status MasterSession::BuildAndRegisterPartitions(ReffedClientGraph* rcg) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   // Registers subgraphs if haven't done so.
   PartitionOptions popts;
   popts.node_to_loc = SplitByWorker;
@@ -1785,7 +1785,7 @@ Status MasterSession::BuildAndRegisterPartitions(ReffedClientGraph* rcg) {
 Status MasterSession::DoPartialRun(CallOptions* opts,
                                    const RunStepRequestWrapper& req,
                                    MutableRunStepResponseWrapper* resp) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   auto cleanup = gtl::MakeCleanup([this] { MarkRunCompletion(); });
   const string& prun_handle = req.partial_run_handle();
   RunState* run_state = nullptr;
@@ -1917,7 +1917,7 @@ Status MasterSession::CreateDebuggerState(
     const DebugOptions& debug_options, const RunStepRequestWrapper& req,
     int64_t rcg_execution_count,
     std::unique_ptr<DebuggerStateInterface>* debugger_state) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   TF_RETURN_IF_ERROR(
       DebuggerStateRegistry::CreateState(debug_options, debugger_state));
 
@@ -1950,7 +1950,7 @@ void MasterSession::FillPerStepState(MasterSession::ReffedClientGraph* rcg,
                                      uint64 step_id, int64_t count,
                                      PerStepState* out_pss,
                                      std::unique_ptr<ProfileHandler>* out_ph) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   out_pss->collect_timeline =
       run_options.trace_level() == RunOptions::FULL_TRACE;
   out_pss->collect_rpcs = run_options.trace_level() == RunOptions::FULL_TRACE;
@@ -1981,7 +1981,7 @@ Status MasterSession::PostRunCleanup(MasterSession::ReffedClientGraph* rcg,
                                      const std::unique_ptr<ProfileHandler>& ph,
                                      const Status& run_status,
                                      RunMetadata* out_run_metadata) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   Status s = run_status;
   if (s.ok()) {
     pss->end_micros = Env::Default()->NowMicros();
@@ -2021,7 +2021,7 @@ Status MasterSession::PostRunCleanup(MasterSession::ReffedClientGraph* rcg,
 Status MasterSession::DoRunWithLocalExecution(
     CallOptions* opts, const RunStepRequestWrapper& req,
     MutableRunStepResponseWrapper* resp) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   VLOG(2) << "DoRunWithLocalExecution req: " << req.DebugString();
   PerStepState pss;
   pss.start_micros = Env::Default()->NowMicros();
@@ -2071,7 +2071,7 @@ Status MasterSession::DoRunWithLocalExecution(
 
 Status MasterSession::MakeCallable(const MakeCallableRequest& req,
                                    MakeCallableResponse* resp) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   UpdateLastAccessTime();
 
   BuildGraphOptions opts;
@@ -2113,7 +2113,7 @@ Status MasterSession::MakeCallable(const MakeCallableRequest& req,
 Status MasterSession::DoRunCallable(CallOptions* opts, ReffedClientGraph* rcg,
                                     const RunCallableRequest& req,
                                     RunCallableResponse* resp) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   VLOG(2) << "DoRunCallable req: " << req.DebugString();
   PerStepState pss;
   pss.start_micros = Env::Default()->NowMicros();
@@ -2143,7 +2143,7 @@ Status MasterSession::DoRunCallable(CallOptions* opts, ReffedClientGraph* rcg,
 Status MasterSession::RunCallable(CallOptions* opts,
                                   const RunCallableRequest& req,
                                   RunCallableResponse* resp) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   UpdateLastAccessTime();
   ReffedClientGraph* callable;
   {
@@ -2170,7 +2170,7 @@ Status MasterSession::RunCallable(CallOptions* opts,
 
 Status MasterSession::ReleaseCallable(const ReleaseCallableRequest& req,
                                       ReleaseCallableResponse* resp) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   UpdateLastAccessTime();
   ReffedClientGraph* to_unref = nullptr;
   {
@@ -2188,7 +2188,7 @@ Status MasterSession::ReleaseCallable(const ReleaseCallableRequest& req,
 }
 
 Status MasterSession::Close() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   {
     mutex_lock l(mu_);
     closed_ = true;  // All subsequent calls to Run() or Extend() will fail.
@@ -2215,7 +2215,7 @@ Status MasterSession::Close() {
 }
 
 void MasterSession::GarbageCollect() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   {
     mutex_lock l(mu_);
     closed_ = true;
@@ -2230,7 +2230,7 @@ MasterSession::RunState::RunState(const std::vector<string>& input_names,
                                   ReffedClientGraph* rcg, const uint64 step_id,
                                   const int64_t count)
     : rcg(rcg), step_id(step_id), count(count) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   // Initially all the feeds and fetches are pending.
   for (auto& name : input_names) {
     pending_inputs[name] = false;
@@ -2241,12 +2241,12 @@ MasterSession::RunState::RunState(const std::vector<string>& input_names,
 }
 
 MasterSession::RunState::~RunState() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (rcg) rcg->Unref();
 }
 
 bool MasterSession::RunState::PendingDone() const {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   for (const auto& it : pending_inputs) {
     if (!it.second) return false;
   }

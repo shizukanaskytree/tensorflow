@@ -45,14 +45,14 @@ namespace tensorflow {
 namespace {
 
 string MakeAddress(const string& job, int task) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   return strings::StrCat("/job:", job, "/replica:0/task:", task);
 }
 
 // Allows the host to be a raw IP (either v4 or v6).
 Status ValidateHostPortPair(const string& host_port) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   string bns_prefix = "/bns/";
   if (host_port.substr(0, bns_prefix.length()) == bns_prefix) {
@@ -69,7 +69,7 @@ Status ValidateHostPortPair(const string& host_port) {
 }
 
 ::grpc::ChannelArguments* CreateDefaultChannelArguments() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   ::grpc::ChannelArguments* args = new ::grpc::ChannelArguments();
   const char* env = std::getenv("TF_GRPC_DEFAULT_OPTIONS");
@@ -106,7 +106,7 @@ Status ValidateHostPortPair(const string& host_port) {
 }
 
 const ::grpc::ChannelArguments* GetDefaultChannelArguments() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   static const ::grpc::ChannelArguments* args = CreateDefaultChannelArguments();
   return args;
@@ -115,7 +115,7 @@ const ::grpc::ChannelArguments* GetDefaultChannelArguments() {
 }  // namespace
 
 ::grpc::ChannelArguments GetChannelArguments(const RPCOptions* rpc_options) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   // RPCOptions
   // DebugString()
@@ -125,9 +125,9 @@ const ::grpc::ChannelArguments* GetDefaultChannelArguments() {
   // write_log(debug_log, 1);
 
   // __LINE__, __FILE__
+  // write_log(strings::StrCat(__func__,":",__LINE__, ":", __FILE__), "/home/wxf/tf2/tensorflow/debug_var.log");
+  // std::string(__func__) + ":" + std::string(__LINE__) + ":" + std::string(__FILE__);
 
-  std::string loc = strings::StrCat(__LINE__, ":", __FILE__);
-  write_log(loc, "/home/wxf/tf2/tensorflow/debug_var.log");
 
   // TODO(mrry): Implement secure channels.
   ::grpc::ChannelArguments args = *GetDefaultChannelArguments();
@@ -165,7 +165,7 @@ const ::grpc::ChannelArguments* GetDefaultChannelArguments() {
 Status NewHostPortGrpcChannel(const string& target,
                               const RPCOptions* rpc_options,
                               SharedGrpcChannelPtr* channel_pointer) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   // Minimally ensure that the target is valid
   TF_RETURN_IF_ERROR(ValidateHostPortPair(target));
@@ -179,10 +179,10 @@ Status NewHostPortGrpcChannel(const string& target,
 ChannelCreationFunction ConvertToChannelCreationFunction(
     const std::function<Status(string, const RPCOptions*,
                                SharedGrpcChannelPtr*)>& new_channel_func_ptr) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   return [new_channel_func_ptr](const string& target) -> SharedGrpcChannelPtr {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     SharedGrpcChannelPtr channel_ptr;
     if (new_channel_func_ptr(target, /*rpc_options=*/nullptr, &channel_ptr)
@@ -196,7 +196,7 @@ ChannelCreationFunction ConvertToChannelCreationFunction(
 
 Status GrpcChannelSpec::AddHostPortsJob(const string& job_id,
                                         const std::vector<string>& host_ports) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   std::map<int, string> host_ports_map;
   for (size_t i = 0; i < host_ports.size(); ++i) {
@@ -207,7 +207,7 @@ Status GrpcChannelSpec::AddHostPortsJob(const string& job_id,
 
 Status GrpcChannelSpec::AddHostPortsJob(
     const string& job_id, const std::map<int, string>& host_ports) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   if (!job_ids_.insert(job_id).second) {
     return errors::InvalidArgument(
@@ -232,11 +232,11 @@ class MultiGrpcChannelCache : public CachingGrpcChannelCache {
   explicit MultiGrpcChannelCache(const std::vector<GrpcChannelCache*>& caches,
                                  int num_channels_per_target)
       : CachingGrpcChannelCache(num_channels_per_target), caches_(caches) {
-        write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+        //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
       }
 
   ~MultiGrpcChannelCache() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     for (GrpcChannelCache* cache : caches_) {
       delete cache;
@@ -244,7 +244,7 @@ class MultiGrpcChannelCache : public CachingGrpcChannelCache {
   }
 
   void ListWorkers(std::vector<string>* workers) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     for (GrpcChannelCache* cache : caches_) {
       cache->ListWorkers(workers);
@@ -253,7 +253,7 @@ class MultiGrpcChannelCache : public CachingGrpcChannelCache {
 
   void ListWorkersInJob(const string& job_name,
                         std::vector<string>* workers) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     for (GrpcChannelCache* cache : caches_) {
       cache->ListWorkersInJob(job_name, workers);
@@ -261,7 +261,7 @@ class MultiGrpcChannelCache : public CachingGrpcChannelCache {
   }
 
   string TranslateTask(const string& target) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     mutex_lock l(mu_);  // could use reader lock
     GrpcChannelCache* cache = gtl::FindPtrOrNull(target_caches_, target);
@@ -282,7 +282,7 @@ class MultiGrpcChannelCache : public CachingGrpcChannelCache {
 
  protected:
   SharedGrpcChannelPtr FindChannelOnce(const string& target) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     for (GrpcChannelCache* cache : caches_) {
       SharedGrpcChannelPtr ch(cache->FindWorkerChannel(target));
@@ -316,16 +316,16 @@ class SparseGrpcChannelCache : public CachingGrpcChannelCache {
         job_id_(job_id),
         host_ports_(host_ports),
         channel_func_(std::move(channel_func)) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     LOG(INFO) << "Initialize GrpcChannelCache for job " << ToString();
   }
   ~SparseGrpcChannelCache() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   void ListWorkers(std::vector<string>* workers) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     workers->reserve(workers->size() + host_ports_.size());
     for (const auto& id_host_port : host_ports_) {
@@ -335,7 +335,7 @@ class SparseGrpcChannelCache : public CachingGrpcChannelCache {
 
   void ListWorkersInJob(const string& job_name,
                         std::vector<string>* workers) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     if (job_name == job_id_) {
       ListWorkers(workers);
@@ -343,8 +343,7 @@ class SparseGrpcChannelCache : public CachingGrpcChannelCache {
   }
 
   string TranslateTask(const string& target) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
-    write_log("target: " + target);
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     DeviceNameUtils::ParsedName parsed;
     if (!DeviceNameUtils::ParseFullName(target, &parsed)) {
@@ -371,7 +370,7 @@ class SparseGrpcChannelCache : public CachingGrpcChannelCache {
 
  protected:
   SharedGrpcChannelPtr FindChannelOnce(const string& target) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     const string host_port = TranslateTask(target);
     if (host_port.empty()) {
@@ -386,7 +385,7 @@ class SparseGrpcChannelCache : public CachingGrpcChannelCache {
 
  private:
   string ToString() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
     std::vector<string> task_strings;
     task_strings.reserve(host_ports_.size());
@@ -409,7 +408,7 @@ class SparseGrpcChannelCache : public CachingGrpcChannelCache {
 GrpcChannelCache* NewGrpcChannelCache(const GrpcChannelSpec& spec,
                                       ChannelCreationFunction channel_func,
                                       const RPCOptions& options) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 
   const int num_jobs = spec.host_ports_jobs().size();
   if (!num_jobs) {

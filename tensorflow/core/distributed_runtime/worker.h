@@ -48,7 +48,7 @@ class Worker : public WorkerInterface {
  public:
   Worker(WorkerEnv* env);
   virtual ~Worker() {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   void GetStatusAsync(CallOptions* opts, const GetStatusRequest* request,

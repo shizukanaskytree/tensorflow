@@ -674,19 +674,39 @@ TEST_P(CollRMADistTest, WorkerRestart) {
   EXPECT_TRUE(errors::IsFailedPrecondition(consumer_status));
 }
 
+
+最小执行依赖.
+
+```cpp
+void CollectiveRemoteAccessDistributed::CheckPeerHealth(
+    const string& peer_task,
+    int64_t timeout_in_ms,
+    const StatusCallback& done)
+```
+
+```cpp
 TEST_P(CollRMADistTest, CheckHealthOKWithCachedAttr) {
   ResolveDeviceAttributes();
+
   Status check_health_status;
   Notification check_health_done;
+
   rma_->CheckPeerHealth(
-      "/job:worker/replica:0/task:1", /*timeout_in_ms=*/0,
-      [&check_health_status, &check_health_done](const Status s) {
+      "/job:worker/replica:0/task:1", /* arg 0 */
+
+      /*timeout_in_ms=*/0, /* arg 1 */
+
+      [&check_health_status, &check_health_done](const Status s) /* arg 2 */
+      {
         check_health_status = s;
         check_health_done.Notify();
       });
+
   check_health_done.WaitForNotification();
+
   TF_EXPECT_OK(check_health_status);
 }
+```
 
 TEST_P(CollRMADistTest, CheckHealthOKWithoutCachedAttr) {
   Status check_health_status;

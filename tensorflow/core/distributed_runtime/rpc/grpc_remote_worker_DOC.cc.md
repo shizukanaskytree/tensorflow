@@ -1,3 +1,4 @@
+```cpp
 /* Copyright 2016 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,6 +13,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
+```
+
+`class GrpcRemoteWorker : public WorkerInterface` (`class WorkerInterface`) is responsible for issuing requests (`IssueRequest`).
+
 
 这个文件构建 channel to the target worker.
 Next, issue grpc call to call remote function.
@@ -33,6 +38,10 @@ Next, issue grpc call to call remote function.
 
 
 
+
+
+
+```cpp
 #include "tensorflow/core/distributed_runtime/rpc/grpc_remote_worker.h"
 
 #include <utility>
@@ -453,3 +462,4 @@ WorkerInterface* NewGrpcRemoteWorker(SharedGrpcChannelPtr channel,
 
 
 }  // namespace tensorflow
+```

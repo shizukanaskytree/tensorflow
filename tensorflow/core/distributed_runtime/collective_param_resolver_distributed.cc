@@ -40,18 +40,18 @@ class CompleteGroupCall : public CancellableCall {
                     CancellationManager* cancel_mgr,
                     const string& remote_worker, WorkerCacheInterface* wc)
       : CancellableCall(cancel_mgr, remote_worker, wc) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     req_.set_group_key(group.group_key);
     req_.set_group_size(group.group_size);
     req_.set_device_type(group.device_type.type_string());
     *req_.mutable_device_attributes() = device;
   }
   ~CompleteGroupCall() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   void IssueCall(const StatusCallback& done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     wi_->CompleteGroupAsync(&opts_, &req_, &resp_, done);
   }
 
@@ -67,7 +67,7 @@ class CompleteInstanceCall : public CancellableCall {
                        bool is_source, CancellationManager* cancel_mgr,
                        const string& remote_worker, WorkerCacheInterface* wc)
       : CancellableCall(cancel_mgr, remote_worker, wc) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     req_.set_name(node_name);
     req_.set_type(instance.type);
     req_.set_data_type(instance.data_type);
@@ -84,11 +84,11 @@ class CompleteInstanceCall : public CancellableCall {
   }
 
   ~CompleteInstanceCall() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   }
 
   void IssueCall(const StatusCallback& done) override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     wi_->CompleteInstanceAsync(&opts_, &req_, &resp_, done);
   }
 
@@ -109,7 +109,7 @@ CollectiveParamResolverDistributed::CollectiveParamResolverDistributed(
       group_leader_(task_name == config.experimental().collective_group_leader()
                         ? ""
                         : config.experimental().collective_group_leader()) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   VLOG(1) << "CompleteParamResolverDistributed ctor task={" << task_name
           << "} config.collective_group_leader={"
           << config.experimental().collective_group_leader() << "}"
@@ -120,7 +120,7 @@ CollectiveParamResolverDistributed::CollectiveParamResolverDistributed(
 void CollectiveParamResolverDistributed::CompleteParamsAsync(
     const DeviceAttributes& device, CollectiveParams* cp,
     CancellationManager* cancel_mgr, const StatusCallback& done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   VLOG(1) << "CompleteParams distributed " << device.name() << " for " << cp
           << ": " << cp->ToString();
   if (cp->run_group_initialization) {
@@ -156,14 +156,14 @@ void CollectiveParamResolverDistributed::CompleteParamsAsync(
 void CollectiveParamResolverDistributed::CompleteGroupAsync(
     const DeviceAttributes& device, CollGroupParams* group_params,
     CancellationManager* cancel_mgr, const StatusCallback& done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   CompleteGroupDistributed(device, group_params, cancel_mgr, done);
 }
 
 void CollectiveParamResolverDistributed::CompleteInstanceAsync(
     const CompleteInstanceRequest* request, CompleteInstanceResponse* response,
     CancellationManager* cancel_mgr, const StatusCallback& done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   GroupRec* gr = GetCachedGroup(request->group_key());
   if (gr == nullptr) {
     done(errors::FailedPrecondition(
@@ -220,7 +220,7 @@ void CollectiveParamResolverDistributed::CompleteInstanceAsync(
 
 CollectiveParamResolverDistributed::GroupRec*
 CollectiveParamResolverDistributed::GetCachedGroup(int32_t group_key) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(group_mu_);
   auto it = group_table_.find(group_key);
   if (it == group_table_.end()) {
@@ -231,7 +231,7 @@ CollectiveParamResolverDistributed::GetCachedGroup(int32_t group_key) {
 
 Status CollectiveParamResolverDistributed::UpdateGroupCache(
     const CompleteGroupResponse& resp) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   // Build a new record from resp.
   std::unique_ptr<GroupRec> gr(new GroupRec);
   {
@@ -291,7 +291,7 @@ Status CollectiveParamResolverDistributed::UpdateGroupCache(
 void CollectiveParamResolverDistributed::CompleteGroupDistributed(
     const DeviceAttributes& device, CollGroupParams* group_params,
     CancellationManager* cancel_mgr, const StatusCallback& done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   VLOG(1) << "CompleteGroupDistributed group_key=" << group_params->group_key
           << " dev: " << device.name()
           << " is_leader=" << (group_leader_.empty());
@@ -334,7 +334,7 @@ void CollectiveParamResolverDistributed::CompleteGroupDistributed(
 
 bool CollectiveParamResolverDistributed::InstanceIsCached(
     int32_t group_key, int32_t instance_key) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(instance_mu_);
   auto group_it = instance_table_.find(group_key);
   if (group_it == instance_table_.end()) {
@@ -346,7 +346,7 @@ bool CollectiveParamResolverDistributed::InstanceIsCached(
 
 Status CollectiveParamResolverDistributed::UpdateInstanceCache(
     CollectiveParams* cp, const CompleteInstanceResponse& resp) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   int32_t source_rank = resp.source_rank();
   bool created_irec;
   InstanceRec* ir = GetOrCreateInstanceRec(cp, &created_irec);
@@ -384,7 +384,7 @@ Status CollectiveParamResolverDistributed::UpdateInstanceCache(
 void CollectiveParamResolverDistributed::CompleteInstanceDistributed(
     const string& device, CollectiveParams* cp, CancellationManager* cancel_mgr,
     const StatusCallback& done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (group_leader_.empty()) {
     // This is the group leader so resolution is local.
     return CompleteInstanceLocal(device, cp, done);
@@ -420,7 +420,7 @@ void CollectiveParamResolverDistributed::CompleteInstanceDistributed(
 }
 
 void CollectiveParamResolverDistributed::StartAbort(const Status& s) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   {
     mutex_lock l(status_mu_);
     if (!status_.ok()) {

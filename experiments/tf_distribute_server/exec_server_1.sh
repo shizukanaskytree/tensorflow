@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=1 python server1.py

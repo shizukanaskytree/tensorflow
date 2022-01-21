@@ -48,12 +48,12 @@ SessionMgr::SessionMgr(
               new GraphMgr(worker_env, worker_env->device_mgr)),
           nullptr)),
       worker_cache_factory_(std::move(worker_cache_factory)) {
-        write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+        //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
       }
 
 /* static */
 string SessionMgr::WorkerNameFromServerDef(const ServerDef& server_def) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return strings::StrCat("/job:", server_def.job_name(),
                          "/replica:0/task:", server_def.task_index());
 }
@@ -61,7 +61,7 @@ string SessionMgr::WorkerNameFromServerDef(const ServerDef& server_def) {
 Status SessionMgr::CreateSession(const string& session,
                                  const ServerDef& server_def,
                                  bool isolate_session_state) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return CreateSession(session, server_def, {}, isolate_session_state);
 }
 
@@ -70,7 +70,7 @@ Status SessionMgr::CreateSession(
     const protobuf::RepeatedPtrField<DeviceAttributes>&
         cluster_device_attributes,
     bool isolate_session_state) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return CreateSession(session, server_def, cluster_device_attributes,
                        isolate_session_state, /*master_task=*/"",
                        /*master_incarnation=*/0);
@@ -82,7 +82,7 @@ Status SessionMgr::CreateSession(
         cluster_device_attributes,
     bool isolate_session_state, string master_task,
     int64_t master_incarnation) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(mu_);
   if (session.empty()) {
     return errors::InvalidArgument("Session must be non-empty.");
@@ -195,7 +195,7 @@ Status SessionMgr::CreateSession(
 }
 
 void SessionMgr::ResetDefaultWorkerCache(WorkerCacheInterface* worker_cache) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   default_worker_cache_.reset(worker_cache);
 }
 
@@ -204,7 +204,7 @@ Status SessionMgr::UpdateSession(
     const protobuf::RepeatedPtrField<DeviceAttributes>&
         cluster_device_attributes,
     bool isolate_session_state) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(mu_);
   if (session.empty()) {
     return errors::InvalidArgument("Session must be non-empty.");
@@ -265,7 +265,7 @@ Status SessionMgr::UpdateSession(
 }
 
 Status SessionMgr::DeleteSession(const string& session) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(mu_);
   auto it = sessions_.find(session);
   if (it != sessions_.end()) {
@@ -276,7 +276,7 @@ Status SessionMgr::DeleteSession(const string& session) {
 
 Status SessionMgr::WorkerSessionForSessionLocked(
     const string& session_handle, std::shared_ptr<WorkerSession>* out_session) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (session_handle.empty()) {
     *out_session = legacy_session_;
   } else {
@@ -295,18 +295,18 @@ Status SessionMgr::WorkerSessionForSessionLocked(
 
 Status SessionMgr::WorkerSessionForSession(
     const string& session_handle, std::shared_ptr<WorkerSession>* out_session) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(mu_);
   return WorkerSessionForSessionLocked(session_handle, out_session);
 }
 
 std::shared_ptr<WorkerSession> SessionMgr::LegacySession() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return legacy_session_;
 }
 
 void SessionMgr::SetLogging(bool active) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(mu_);
   this->is_logging_active_ = active;
   // Legacy Session
@@ -329,7 +329,7 @@ void SessionMgr::SetLogging(bool active) {
 }
 
 void SessionMgr::RetrieveLogs(int64_t step_id, LoggingResponse* response) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(mu_);
   // Legacy Session
   if (legacy_session_) {
@@ -360,7 +360,7 @@ void SessionMgr::RetrieveLogs(int64_t step_id, LoggingResponse* response) {
 }
 
 void SessionMgr::ClearLogs() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(mu_);
   // Legacy Session
   if (legacy_session_) {

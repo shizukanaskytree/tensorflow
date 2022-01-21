@@ -36,7 +36,7 @@ const int32_t kWorkerCacheLoggerLimit = 1 << 10;
 }  // namespace
 
 void WorkerCacheLogger::SetLogging(bool v) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(count_mu_);
   if (v) {
     ++want_logging_count_;
@@ -50,13 +50,13 @@ void WorkerCacheLogger::SetLogging(bool v) {
 }
 
 void WorkerCacheLogger::ClearLogs() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(mu_);
   ClearLogsWithLock();
 }
 
 void WorkerCacheLogger::ClearLogsWithLock() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   for (auto& iter : log_map_) {
     delete iter.second.collector;
   }
@@ -64,7 +64,7 @@ void WorkerCacheLogger::ClearLogsWithLock() {
 }
 
 bool WorkerCacheLogger::RetrieveLogs(int64_t step_id, StepStats* ss) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(mu_);
   LogMap::iterator iter = log_map_.find(step_id);
   if (iter != log_map_.end()) {
@@ -78,7 +78,7 @@ bool WorkerCacheLogger::RetrieveLogs(int64_t step_id, StepStats* ss) {
 
 void WorkerCacheLogger::Save(const string& device, int64_t step_id,
                              NodeExecStats* ns) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   mutex_lock l(mu_);
   StepLog* sl = &log_map_[step_id];
   if (!sl->collector) {
@@ -97,7 +97,7 @@ void WorkerCacheLogger::RecordRecvTensor(int64_t step_id, int64_t start_usecs,
                                          const string& src_device,
                                          const string& dst_device,
                                          int64_t bytes) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   RecordDataTransfer(step_id, start_usecs, end_usecs, tensor_name, src_device,
                      dst_device, bytes, "", "RecvTensor");
 }
@@ -109,7 +109,7 @@ void WorkerCacheLogger::RecordDataTransfer(int64_t step_id, int64_t start_usecs,
                                            const string& dst_device,
                                            int64_t bytes, const string& details,
                                            const string& transfer_method_name) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   NodeExecStats* ns = new NodeExecStats;
   ns->set_node_name(transfer_method_name);
   int64_t elapsed_usecs = end_usecs - start_usecs;

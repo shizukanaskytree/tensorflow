@@ -62,7 +62,7 @@ namespace tensorflow {
 
 GraphMgr::GraphMgr(const WorkerEnv* worker_env, const DeviceMgr* device_mgr)
     : worker_env_(worker_env), device_mgr_(device_mgr), table_(5) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   // The default value of sync_on_finish will be flipped soon and this
   // environment variable will be removed as well.
   Status status =
@@ -73,12 +73,12 @@ GraphMgr::GraphMgr(const WorkerEnv* worker_env, const DeviceMgr* device_mgr)
 }
 
 GraphMgr::~GraphMgr() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   for (const auto& p : table_) p.second->Unref();
 }
 
 GraphMgr::Item::~Item() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   for (const auto& unit : this->units) {
     CHECK_NOTNULL(unit.device);
     if (!graph_mgr->skip_cost_models_) {
@@ -93,13 +93,13 @@ GraphMgr::Item::~Item() {
 // expects that NodeDef in GraphDef given to workers fully specifies
 // device names.
 static string SplitByDevice(const Node* node) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return node->assigned_device_name();
 }
 
 // Validates "gdef" device specifications.
 static Status ValidateGraphDefForDevices(const GraphDef& gdef) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   DeviceNameUtils::ParsedName parsed;
   for (const auto& ndef : gdef.node()) {
     if (!DeviceNameUtils::ParseFullName(ndef.device(), &parsed)) {
@@ -112,7 +112,7 @@ static Status ValidateGraphDefForDevices(const GraphDef& gdef) {
 
 Status GraphMgr::DecorateAndPublishGraphForDebug(
     const DebugOptions& debug_options, Graph* graph, Device* device) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   std::unique_ptr<DebugGraphDecoratorInterface> decorator;
   TF_RETURN_IF_ERROR(
       DebugGraphDecoratorRegistry::CreateDecorator(debug_options, &decorator));
@@ -137,7 +137,7 @@ Status GraphMgr::InitItem(
     const GraphOptions& graph_options, const DebugOptions& debug_options,
     const ConfigProto& config_proto, int64_t collective_graph_key,
     DistributedFunctionLibraryRuntime* cluster_flr, Item* item) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   item->session = handle;
   item->collective_graph_key = collective_graph_key;
   item->lib_def.reset(
@@ -308,7 +308,7 @@ Status GraphMgr::Register(
     const GraphOptions& graph_options, const DebugOptions& debug_options,
     const ConfigProto& config_proto, int64_t collective_graph_key,
     DistributedFunctionLibraryRuntime* cluster_flr, string* graph_handle) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   Item* item = new Item;
   Status s = InitItem(handle, gdef, session, graph_options, debug_options,
                       config_proto, collective_graph_key, cluster_flr, item);
@@ -329,7 +329,7 @@ Status GraphMgr::Register(
 }
 
 Status GraphMgr::Deregister(const string& handle) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   Item* item = nullptr;
   // Removes one item from table_.
   {
@@ -347,7 +347,7 @@ Status GraphMgr::Deregister(const string& handle) {
 }
 
 Status GraphMgr::DeregisterAll() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   std::vector<Item*> items;
   // Removes all items from table_.
   {
@@ -364,7 +364,7 @@ Status GraphMgr::DeregisterAll() {
 }
 
 Status GraphMgr::SendInputs(const int64_t step_id, const NamedTensors& in) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   Rendezvous* rendezvous = worker_env_->rendezvous_mgr->Find(step_id);
   std::vector<string> keys;
   std::vector<Tensor> tensors_to_send;
@@ -384,7 +384,7 @@ Status GraphMgr::SendInputs(const int64_t step_id, const NamedTensors& in) {
 }
 
 Status GraphMgr::RecvOutputs(const int64_t step_id, NamedTensors* out) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   Rendezvous* rendezvous = worker_env_->rendezvous_mgr->Find(step_id);
   Status s = RecvOutputsFromRendezvous(rendezvous, out, Rendezvous::Args());
   rendezvous->Unref();
@@ -404,7 +404,7 @@ Status GraphMgr::RecvOutputs(const int64_t step_id, NamedTensors* out) {
 
 void GraphMgr::RecvOutputsAsync(const int64_t step_id, NamedTensors* out,
                                 StatusCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   Rendezvous* rendezvous = worker_env_->rendezvous_mgr->Find(step_id);
   std::vector<string> keys;
   std::vector<Tensor>* received_keys = new std::vector<Tensor>;
@@ -435,7 +435,7 @@ void GraphMgr::ExecuteAsync(const string& handle, const int64_t step_id,
                             MutableRunGraphResponseWrapper* response,
                             CancellationManager* cancellation_manager,
                             const NamedTensors& in, StatusCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   const uint64 start_time_usecs = Env::Default()->NowMicros();
   profiler::TraceMeProducer activity(
       // To TraceMeConsumers in ExecutorState::Process/Finish or RunGraphDone.
@@ -531,7 +531,7 @@ void GraphMgr::StartParallelExecutors(
     CollectiveExecutor::Handle* ce_handle, StepStatsCollector* collector,
     CostGraphDef* cost_graph, CancellationManager* cancellation_manager,
     WorkerSession* session, int64_t start_time_usecs, StatusCallback done) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   const int num_units = item->units.size();
   CHECK_GE(num_units, 1);
   ScopedStepContainer* step_container = new ScopedStepContainer(
@@ -580,7 +580,7 @@ void GraphMgr::StartParallelExecutors(
 
 void GraphMgr::BuildCostModel(Item* item, StepStatsCollector* collector,
                               CostGraphDef* cost_graph) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   if (collector && !skip_cost_models_) {
     // Build the cost model
     std::unordered_map<string, const Graph*> device_to_graph;

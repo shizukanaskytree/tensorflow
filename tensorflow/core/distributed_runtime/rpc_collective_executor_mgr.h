@@ -76,7 +76,7 @@ class RpcCollectiveExecutorMgr : public CollectiveExecutorMgr {
   struct GraphKeySequence {
     explicit GraphKeySequence(int64_t k)
         : graph_key_(k), next_step_id_(CollectiveExecutor::kInvalidId) {
-          write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+          //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
         }
 
     const int64_t graph_key_;

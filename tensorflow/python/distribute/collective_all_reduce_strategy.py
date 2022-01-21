@@ -51,6 +51,39 @@ from tensorflow.python.training.tracking import base
 from tensorflow.python.util import deprecation
 from tensorflow.python.util.tf_export import tf_export
 
+import os
+import sys, traceback
+import logging
+def get_logger(module_name: str) -> logging.Logger:
+    # trim package name
+    name_without_prefix = '.'.join(module_name.split('.')[1:])
+    loglevel = os.getenv('LOGLEVEL', 'INFO')
+
+    logging.addLevelName(logging.WARNING, 'WARN')
+    formatter = logging.Formatter(
+      fmt='[{asctime}.{msecs:03.0f}][{levelname}][{name}.{funcName}:{lineno}] {message}',
+                                  style='{', datefmt='%Y/%m/%d %H:%M:%S')
+    # handler = logging.StreamHandler() # terminal printing
+    handler = logging.FileHandler('/home/wxf/tf2/tensorflow/py_debug_logging.log') # file handler
+
+    handler.setFormatter(formatter)
+    logger = logging.getLogger(name_without_prefix)
+    logger.setLevel(loglevel)
+    logger.addHandler(handler)
+    logger.propagate = False
+    return logger
+
+logger = get_logger(__name__)
+
+"""
+How to use:
+
+(1) just to see tracing.
+logger.info("")
+
+(2) callstack
+logger.info(traceback.format_stack())
+"""
 
 # pylint: disable=line-too-long
 @tf_export("distribute.MultiWorkerMirroredStrategy", v1=[])
@@ -180,6 +213,9 @@ class CollectiveAllReduceStrategy(distribute_lib.Strategy):
         `tf.distribute.ReplicaContext.all_reduce`. See
         `tf.distribute.experimental.CommunicationOptions` for details.
     """
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     if communication_options is None:
       communication_options = collective_util.Options()
     super(CollectiveAllReduceStrategy, self).__init__(
@@ -317,6 +353,9 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
 
   def __init__(self, container_strategy, cluster_resolver,
                communication_options):
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     if not isinstance(communication_options, collective_util.Options):
       raise ValueError("communication_options must be an instance of "
                        "tf.distribute.experimental.CommunicationOptions")
@@ -335,15 +374,22 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
 
   def _use_merge_call(self):
     """XLA is not supported for multi-worker strategy."""
+    logger.info("")
+    logger.info(traceback.format_stack())
     return True
 
   def _initialize_strategy(self, cluster_resolver):
+    logger.info("")
+    logger.info(traceback.format_stack())
     if cluster_resolver.cluster_spec().as_dict():
       self._initialize_multi_worker(cluster_resolver)
     else:
       self._initialize_local(cluster_resolver)
 
   def _initialize_local_devices(self, cluster_resolver, worker_device):
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     # TODO(b/126786766): TFConfigClusterResolver returns wrong number of GPUs in
     # some cases.
     if isinstance(cluster_resolver, TFConfigClusterResolver):
@@ -369,6 +415,10 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
 
   def _initialize_local(self, cluster_resolver, devices=None):
     """Initializes the object for local training."""
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     self._is_chief = True
     self._num_workers = 1
 
@@ -434,6 +484,10 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
 
   def _initialize_multi_worker(self, cluster_resolver):
     """Initializes the object for multi-worker training."""
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     cluster_spec = multi_worker_util.normalize_cluster_spec(
         cluster_resolver.cluster_spec())
     task_type = cluster_resolver.task_type
@@ -546,9 +600,17 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
         self._communication_options.implementation)
 
   def __del__(self):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     self._stop_check_health_thread()
 
   def _input_workers_with_options(self, options=None):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     host_device = device_util.get_host_for_device(self._worker_device)
     if not options or options.experimental_fetch_to_device:
       return input_lib.InputWorkers([(host_device, self.worker_devices)])
@@ -560,6 +622,10 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
 
   @property
   def _input_workers(self):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     return self._input_workers_with_options()
 
   def _get_variable_creator_initial_value(self,
@@ -567,11 +633,19 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
                                           device,
                                           primary_var,
                                           **kwargs):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     if replica_id == 0:  # First replica on each worker.
       assert device is not None
       assert primary_var is None
 
       def initial_value_fn():  # pylint: disable=g-missing-docstring
+
+        logger.info("")
+        logger.info(traceback.format_stack())
+
         # Only the first device participates in the broadcast of initial values.
         group_key = self._collective_keys.get_group_key([device])
         group_size = self._num_workers
@@ -612,6 +686,10 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
                        **kwargs)
 
   def _make_input_context(self):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     input_context = distribute_lib.InputContext(
         num_input_pipelines=self._num_workers,
         input_pipeline_id=self._id_in_cluster,
@@ -619,6 +697,10 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
     return input_context
 
   def _experimental_distribute_dataset(self, dataset, options):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     if (options and options.experimental_replication_mode ==
         distribute_lib.InputReplicationMode.PER_REPLICA):
       raise NotImplementedError(
@@ -637,6 +719,10 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
         options=options)
 
   def _distribute_datasets_from_function(self, dataset_fn, options):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     if (options and options.experimental_replication_mode ==
         distribute_lib.InputReplicationMode.PER_REPLICA):
       raise NotImplementedError(
@@ -653,6 +739,10 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
         options=options)
 
   def _experimental_distribute_values_from_function(self, value_fn):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     per_replica_values = []
     num_local_replicas = len(self.worker_devices)
     for local_replica_id in range(num_local_replicas):
@@ -664,6 +754,10 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
     return distribute_utils.regroup(per_replica_values, always_wrap=True)
 
   def _make_dataset_iterator(self, dataset):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     """Distributes the dataset to each local GPU."""
     input_context = self._make_input_context()
     return input_lib.DatasetIterator(
@@ -678,6 +772,10 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
       input_fn,
       replication_mode=distribute_lib.InputReplicationMode.PER_WORKER):
     """Distributes the input function to each local GPU."""
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     input_context = self._make_input_context()
     return input_lib.InputFunctionIterator(input_fn, self._input_workers,
                                            [input_context],
@@ -700,6 +798,10 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
     Raises:
       ValueError: if `task_type` is not in the `cluster_spec`.
     """
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     if cluster_spec:
       cluster_resolver = SimpleClusterResolver(
           cluster_spec=multi_worker_util.normalize_cluster_spec(cluster_spec),
@@ -716,6 +818,10 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
       session_config.CopyFrom(self._update_config_proto(session_config))
 
   def _update_config_proto(self, config_proto):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     updated_config = copy.deepcopy(config_proto)
     # Enable the scoped allocator optimization for CollectiveOps.  This
     # optimization converts many small all-reduces into fewer larger
@@ -754,6 +860,10 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
     return updated_config
 
   def _get_cross_device_ops(self, value):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     # CollectiveAllReduce works on a predefined set of devices. In most cases
     # they should be the compute devices, but certain use cases may reduce host
     # tensors as well (e.g. early stopping). We infer the cross_device_ops to
@@ -770,6 +880,10 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
       return self._host_cross_device_ops
 
   def _gather_to_implementation(self, value, destinations, axis, options):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     return self._get_cross_device_ops(value)._gather(  # pylint: disable=protected-access
         value,
         destinations=destinations,
@@ -777,6 +891,10 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
         options=options)
 
   def _reduce_to(self, reduce_op, value, destinations, options):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     if (isinstance(value, values.Mirrored) and
         reduce_op == reduce_util.ReduceOp.MEAN):
       return value
@@ -804,6 +922,10 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
 
   def _replica_ctx_all_reduce(self, reduce_op, value, options=None):
     """Implements `StrategyExtendedV2._replica_ctx_all_reduce`."""
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     # This implementation avoids using `merge_call` and just launches collective
     # ops in one replica.
     if options is None:
@@ -827,6 +949,10 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
         options)
 
   def _check_health(self):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     while True:
       if self._check_health_thread_should_stop.is_set():
         return
@@ -868,6 +994,10 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
       time.sleep(self._check_health_interval)
 
   def _start_check_health_thread(self):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     # Use a dummy all-reduce as a barrier to wait for all workers to be up,
     # otherwise the check health may fail immediately.
 
@@ -904,6 +1034,10 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
     self._check_health_thread.start()
 
   def _stop_check_health_thread(self):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     if getattr(self, "_check_health_thread", None):
       logging.info("stopping check health thread")
       self._check_health_thread_should_stop.set()
@@ -912,6 +1046,10 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
       logging.info("check health thread stopped")
 
   def _warn_nccl_no_gpu(self):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     if ((self._communication_options.implementation ==
          collective_util.CommunicationImplementation.NCCL) and
         self._local_device_type != "GPU"):
@@ -920,26 +1058,50 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
 
   def _in_multi_worker_mode(self):
     """Whether this strategy indicates working in multi-worker settings."""
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     return self._num_workers > 1
 
   @property
   def experimental_between_graph(self):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     return True
 
   @property
   def experimental_should_init(self):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     return True
 
   @property
   def should_checkpoint(self):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     return self._is_chief
 
   @property
   def should_save_summary(self):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     return self._is_chief
 
   @property
   def _num_replicas_in_sync(self):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     return len(self.worker_devices) * self._num_workers
 
   # TODO(priyag): Delete this once all strategies use global batch size.
@@ -952,18 +1114,34 @@ class CollectiveAllReduceExtended(mirrored_strategy.MirroredExtended):
     Returns:
       Boolean.
     """
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     return True
 
   def _get_replica_id_in_sync_group(self, replica_id):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     return self._id_in_cluster * len(self.worker_devices) + replica_id
 
   def _get_local_replica_id(self, replica_id_in_sync_group):
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     return (replica_id_in_sync_group -
             self._id_in_cluster * len(self.worker_devices))
 
   def __deepcopy__(self, memo):
     # We check the check health thread instead of whether we are in eager mode
     # to limit the backward incompatibility.
+
+    logger.info("")
+    logger.info(traceback.format_stack())
+
     if hasattr(self, "_check_health_thread"):
       raise ValueError(
           "MultiWorkerMirroredStrategy cannot be deep copied in eager mode. "

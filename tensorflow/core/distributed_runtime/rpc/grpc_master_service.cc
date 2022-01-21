@@ -56,18 +56,18 @@ class GrpcMasterService : public AsyncServiceInterface {
       : master_impl_(master),
         is_shutdown_(false),
         default_session_config_(default_session_config) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     builder->RegisterService(&master_service_);
     cq_ = builder->AddCompletionQueue();
   }
 
   ~GrpcMasterService() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     delete shutdown_alarm_;
   }
 
   void Shutdown() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     bool did_shutdown = false;
     {
       mutex_lock l(mu_);
@@ -111,7 +111,7 @@ class GrpcMasterService : public AsyncServiceInterface {
   } while (0)
 
   void HandleRPCsLoop() override {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     ENQUEUE_REQUEST(CreateSession, true);
     ENQUEUE_REQUEST(ExtendSession, false);
     for (int i = 0; i < 100; ++i) {
@@ -159,7 +159,7 @@ class GrpcMasterService : public AsyncServiceInterface {
   // RPC handler for creating a session.
   void CreateSessionHandler(
       MasterCall<CreateSessionRequest, CreateSessionResponse>* call) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     CreateSessionRequest* rewritten_req = new CreateSessionRequest;
     rewritten_req->mutable_config()->MergeFrom(default_session_config_);
     rewritten_req->MergeFrom(call->request);
@@ -174,7 +174,7 @@ class GrpcMasterService : public AsyncServiceInterface {
   // RPC handler for extending a session.
   void ExtendSessionHandler(
       MasterCall<ExtendSessionRequest, ExtendSessionResponse>* call) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     master_impl_->ExtendSession(&call->request, &call->response,
                                 [call](const Status& status) {
                                   call->SendResponse(ToGrpcStatus(status));
@@ -185,7 +185,7 @@ class GrpcMasterService : public AsyncServiceInterface {
   // RPC handler for setting up a partial run call.
   void PartialRunSetupHandler(
       MasterCall<PartialRunSetupRequest, PartialRunSetupResponse>* call) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     master_impl_->PartialRunSetup(&call->request, &call->response,
                                   [call](const Status& status) {
                                     call->SendResponse(ToGrpcStatus(status));
@@ -195,7 +195,7 @@ class GrpcMasterService : public AsyncServiceInterface {
 
   // RPC handler for running one step in a session.
   void RunStepHandler(MasterCall<RunStepRequest, RunStepResponse>* call) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     auto* trace = TraceRpc("RunStep/Server", call->client_metadata());
     CallOptions* call_opts = new CallOptions;
     if (call->request.options().timeout_in_ms() > 0) {
@@ -229,7 +229,7 @@ class GrpcMasterService : public AsyncServiceInterface {
   // RPC handler for deleting a session.
   void CloseSessionHandler(
       MasterCall<CloseSessionRequest, CloseSessionResponse>* call) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     master_impl_->CloseSession(&call->request, &call->response,
                                [call](const Status& status) {
                                  call->SendResponse(ToGrpcStatus(status));
@@ -240,7 +240,7 @@ class GrpcMasterService : public AsyncServiceInterface {
   // RPC handler for listing devices.
   void ListDevicesHandler(
       MasterCall<ListDevicesRequest, ListDevicesResponse>* call) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     master_impl_->ListDevices(&call->request, &call->response,
                               [call](const Status& status) {
                                 call->SendResponse(ToGrpcStatus(status));
@@ -250,7 +250,7 @@ class GrpcMasterService : public AsyncServiceInterface {
 
   // RPC handler for resetting all sessions.
   void ResetHandler(MasterCall<ResetRequest, ResetResponse>* call) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     master_impl_->Reset(&call->request, &call->response,
                         [call](const Status& status) {
                           call->SendResponse(ToGrpcStatus(status));
@@ -261,7 +261,7 @@ class GrpcMasterService : public AsyncServiceInterface {
   // RPC handler for making a callable.
   void MakeCallableHandler(
       MasterCall<MakeCallableRequest, MakeCallableResponse>* call) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     master_impl_->MakeCallable(&call->request, &call->response,
                                [call](const Status& status) {
                                  call->SendResponse(ToGrpcStatus(status));
@@ -272,7 +272,7 @@ class GrpcMasterService : public AsyncServiceInterface {
   // RPC handler for running a callable.
   void RunCallableHandler(
       MasterCall<RunCallableRequest, RunCallableResponse>* call) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     auto* trace = TraceRpc("RunCallable/Server", call->client_metadata());
     CallOptions* call_opts = new CallOptions;
     // The timeout may be overridden by a non-zero timeout in the
@@ -293,7 +293,7 @@ class GrpcMasterService : public AsyncServiceInterface {
   // RPC handler for making a callable.
   void ReleaseCallableHandler(
       MasterCall<ReleaseCallableRequest, ReleaseCallableResponse>* call) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     master_impl_->ReleaseCallable(&call->request, &call->response,
                                   [call](const Status& status) {
                                     call->SendResponse(ToGrpcStatus(status));
@@ -307,7 +307,7 @@ class GrpcMasterService : public AsyncServiceInterface {
   profiler::TraceMe* TraceRpc(
       StringPiece name,
       const std::multimap<::grpc::string_ref, ::grpc::string_ref>& metadata) {
-    write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+    //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
     StringPiece id;
     auto it = metadata.find(GrpcIdKey());
     if (it != metadata.end()) {
@@ -323,7 +323,7 @@ class GrpcMasterService : public AsyncServiceInterface {
 AsyncServiceInterface* NewGrpcMasterService(
     Master* master, const ConfigProto& default_session_config,
     ::grpc::ServerBuilder* builder) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return new GrpcMasterService(master, default_session_config, builder);
 }
 

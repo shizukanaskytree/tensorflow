@@ -48,7 +48,7 @@ static const char* grpcMasterService_method_names[] = {
 std::unique_ptr<MasterService::Stub> MasterService::NewStub(
     const std::shared_ptr< ::grpc::ChannelInterface>& channel,
     const ::grpc::StubOptions& options) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   std::unique_ptr<MasterService::Stub> stub(new MasterService::Stub(channel));
   return stub;
 }
@@ -80,13 +80,13 @@ MasterService::Stub::Stub(
       rpcmethod_ReleaseCallable_(grpcMasterService_method_names[9],
                                  ::grpc::internal::RpcMethod::NORMAL_RPC,
                                  channel) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 }
 
 ::grpc::Status MasterService::Stub::CreateSession(
     ::grpc::ClientContext* context, const CreateSessionRequest& request,
     CreateSessionResponse* response) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return ::grpc::internal::BlockingUnaryCall(
       channel_.get(), rpcmethod_CreateSession_, context, request, response);
 }
@@ -94,7 +94,7 @@ MasterService::Stub::Stub(
 ::grpc::Status MasterService::Stub::ExtendSession(
     ::grpc::ClientContext* context, const ExtendSessionRequest& request,
     ExtendSessionResponse* response) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return ::grpc::internal::BlockingUnaryCall(
       channel_.get(), rpcmethod_ExtendSession_, context, request, response);
 }
@@ -102,7 +102,7 @@ MasterService::Stub::Stub(
 ::grpc::Status MasterService::Stub::PartialRunSetup(
     ::grpc::ClientContext* context, const PartialRunSetupRequest& request,
     PartialRunSetupResponse* response) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return ::grpc::internal::BlockingUnaryCall(
       channel_.get(), rpcmethod_PartialRunSetup_, context, request, response);
 }
@@ -110,7 +110,7 @@ MasterService::Stub::Stub(
 ::grpc::Status MasterService::Stub::RunStep(::grpc::ClientContext* context,
                                             const RunStepRequest& request,
                                             RunStepResponse* response) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return ::grpc::internal::BlockingUnaryCall(channel_.get(), rpcmethod_RunStep_,
                                              context, request, response);
 }
@@ -118,7 +118,7 @@ MasterService::Stub::Stub(
 ::grpc::Status MasterService::Stub::CloseSession(
     ::grpc::ClientContext* context, const CloseSessionRequest& request,
     CloseSessionResponse* response) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return ::grpc::internal::BlockingUnaryCall(
       channel_.get(), rpcmethod_CloseSession_, context, request, response);
 }
@@ -126,7 +126,7 @@ MasterService::Stub::Stub(
 ::grpc::Status MasterService::Stub::ListDevices(
     ::grpc::ClientContext* context, const ListDevicesRequest& request,
     ListDevicesResponse* response) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return ::grpc::internal::BlockingUnaryCall(
       channel_.get(), rpcmethod_ListDevices_, context, request, response);
 }
@@ -134,7 +134,7 @@ MasterService::Stub::Stub(
 ::grpc::Status MasterService::Stub::Reset(::grpc::ClientContext* context,
                                           const ResetRequest& request,
                                           ResetResponse* response) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return ::grpc::internal::BlockingUnaryCall(channel_.get(), rpcmethod_Reset_,
                                              context, request, response);
 }
@@ -142,7 +142,7 @@ MasterService::Stub::Stub(
 ::grpc::Status MasterService::Stub::MakeCallable(
     ::grpc::ClientContext* context, const MakeCallableRequest& request,
     MakeCallableResponse* response) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return ::grpc::internal::BlockingUnaryCall(
       channel_.get(), rpcmethod_MakeCallable_, context, request, response);
 }
@@ -150,7 +150,7 @@ MasterService::Stub::Stub(
 ::grpc::Status MasterService::Stub::RunCallable(
     ::grpc::ClientContext* context, const RunCallableRequest& request,
     RunCallableResponse* response) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return ::grpc::internal::BlockingUnaryCall(
       channel_.get(), rpcmethod_RunCallable_, context, request, response);
 }
@@ -158,13 +158,13 @@ MasterService::Stub::Stub(
 ::grpc::Status MasterService::Stub::ReleaseCallable(
     ::grpc::ClientContext* context, const ReleaseCallableRequest& request,
     ReleaseCallableResponse* response) {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   return ::grpc::internal::BlockingUnaryCall(
       channel_.get(), rpcmethod_ReleaseCallable_, context, request, response);
 }
 
 MasterService::AsyncService::AsyncService() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
   int method_len = sizeof(grpcMasterService_method_names) /
                     sizeof(grpcMasterService_method_names[0]);
   for (int i = 0; i < method_len; ++i) {
@@ -176,7 +176,7 @@ MasterService::AsyncService::AsyncService() {
 }
 
 MasterService::AsyncService::~AsyncService() {
-  write_log(boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+  //write_log(getpid(), __func__, __LINE__, __FILE__, "/home/wxf/tf2/tensorflow/cc_debug_var.log");
 }
 
 }  // namespace grpc
