@@ -491,6 +491,9 @@ https://www.youtube.com/watch?v=RU5JUHAiR18
   * define 归 define, 是用来 compile code 的, 后面是使用, 用归用, 可能那时已经在语法上不需要 define 了, 但是还要另一个规则, 就是 symbol 使用的前提是 symbol 在本文存在.
     * define 归 define
     * symbol 使用归使用.
+* 为什么C/C++要分为头文件和源文件？
+  * https://www.zhihu.com/question/280665935
+  * 多人多解释, 读完知全貌.
 
 ## 1.2
 
@@ -500,6 +503,35 @@ C/C++ Preprocessors
 * https://www.geeksforgeeks.org/cc-preprocessors/
 
 preprocess 是文本上的复制粘贴 (替换).
+
+## 1.3
+
+[macro logic](./c_api_materials/macro_def.pdf)
+
+```cpp
+// Macro to control visibility of exported symbols in the shared library (.so,
+// .dylib, .dll).
+// This duplicates the TF_EXPORT macro definition in
+// tensorflow/core/platform/macros.h in order to keep this .h file independent
+// of any other includes.$a
+#ifdef SWIG
+    #define TF_CAPI_EXPORT
+#else
+    #if defined(_WIN32)
+        #ifdef TF_COMPILE_LIBRARY
+            #define TF_CAPI_EXPORT __declspec(dllexport)
+        #else
+            #define TF_CAPI_EXPORT __declspec(dllimport)
+        #endif  // TF_COMPILE_LIBRARY
+    #else
+        #define TF_CAPI_EXPORT __attribute__((visibility("default")))
+    #endif  // _WIN32
+#endif  // SWIG
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+```
 
 
 # 2. Why do we need header files in C++?
