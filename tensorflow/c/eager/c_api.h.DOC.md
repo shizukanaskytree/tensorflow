@@ -468,6 +468,7 @@ TFE_TensorHandle* TFE_NewTensorHandle(const tensorflow::Tensor& t,
 #endif  // TENSORFLOW_C_EAGER_C_API_H_
 ```
 
+-------------------------------------------------------------------------------
 
 # 1. `#ifndef`
 
@@ -484,6 +485,12 @@ How to Include File Guards - Why to Include Fileguards in C or C++ Header Files
 https://www.youtube.com/watch?v=RU5JUHAiR18
 * 1.7k up.
 * 看一遍就懂.
+* 不过如果第二次没有进入, 那么为什么有的文件还要去 include 呢?
+  * > As the other answers mentioned, it is because C++ requires a symbol to be defined before using it.
+    * https://qr.ae/pGBhLq
+  * define 归 define, 是用来 compile code 的, 后面是使用, 用归用, 可能那时已经在语法上不需要 define 了, 但是还要另一个规则, 就是 symbol 使用的前提是 symbol 在本文存在.
+    * define 归 define
+    * symbol 使用归使用.
 
 ## 1.2
 
@@ -492,7 +499,18 @@ https://www.youtube.com/watch?v=RU5JUHAiR18
 C/C++ Preprocessors
 * https://www.geeksforgeeks.org/cc-preprocessors/
 
+preprocess 是文本上的复制粘贴 (替换).
+
 
 # 2. Why do we need header files in C++?
 
 * https://www.quora.com/Why-do-we-have-need-header-files-in-C++
+* https://qr.ae/pGBhQO
+
+> Other languages indeed don’t need them. The reason C++ has them is because it is designed to be a single-pass, linear compilation language. This means that the compiler compiles every source (.cpp) file only once. But you will very quickly run into the problem that classes and functions refer to each other in a cyclic way, and therefore there is no correct order to compile the files if you are only allowed to do it once.
+
+> The solution to this is a split between declaration and definition. The rule is: you only define classes (or more accurately: symbols) once, but you may declare them as often as you want. Then you move all the declarations into header files. Then you can compile every source file once, like you want, and recompile the headers as many times as you like, solving the cyclic reference problem.
+
+> Now, if you remove the requirement that source files can only be compiled/read once, then none of this is necessary and you can dispense with header files. This is what successors like Java and C# have done.
+
+* 可能说最后把所有的源文件, 头文件都放在了一个文件下. 然后上述情况就情有可原也必要了.
