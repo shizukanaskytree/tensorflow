@@ -1,4 +1,5 @@
 # docs: https://www.tensorflow.org/install/source
+# issue: https://github.com/tensorflow/serving/issues/976
 ./configure
 bazelisk build --config=cuda //tensorflow/tools/pip_package:build_pip_package
 # ./bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/tensorflow_pkg
